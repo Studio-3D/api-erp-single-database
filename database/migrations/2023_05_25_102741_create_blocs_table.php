@@ -21,7 +21,6 @@ return new class extends Migration
             $table->softDeletes();
             $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
             $table->foreignId('tranche_id')->constrained('tranches')->onDelete('cascade');
-            $table->foreign('tranche_id')->references('id')->on('tranches');
             $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
 
         });
