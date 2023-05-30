@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('propriete_dite_bien');
             $table->string('numero');
             $table->integer('niveau');
-            $table->unsignedBigInteger('type_id');
             $table->string('orientation');
             $table->boolean('conventionne');
             $table->float('prix_unitaire');
