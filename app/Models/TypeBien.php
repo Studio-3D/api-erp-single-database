@@ -17,6 +17,6 @@ class TypeBien extends Model
     protected $dates = ['deleted_at'];
     public function projet()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Projet::class);
     }
 }
