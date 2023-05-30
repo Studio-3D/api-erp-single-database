@@ -10,12 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Bloc extends Model
 {
     use HasFactory, SoftDeletes;
-    protected $fillable = [
-        'nom',
-        'projet_id',
-        'tranche_id',
-        'titre_foncier',
-    ];
+    protected $table = 'blocs';
     protected $dates = ['deleted_at'];
     public function projet()
     {
