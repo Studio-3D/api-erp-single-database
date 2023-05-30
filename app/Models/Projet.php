@@ -26,7 +26,7 @@ class Projet extends Model
         'nbr_biens'
     ];
     protected $dates = ['deleted_at'];
-    public function TypeProjet()
+    public function typeprojet()
     {
         return $this->belongsTo(TypeProjet::class, 'type_id');
     }
