@@ -9,12 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Tranche extends Model
 {
     use HasFactory, SoftDeletes;
-    protected $fillable = [
-        'nom',
-        'projet_id',
-        'tranche_id',
-        'titre_foncier',
-    ];
+    protected $table = 'tranches';
     protected $dates = ['deleted_at'];
 
     public function projet()
