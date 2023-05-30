@@ -36,13 +36,11 @@ return new class extends Migration
             $table->unsignedBigInteger('immeuble_id');
             $table->timestamps();
             $table->softDeletes();
-
-            $table->foreign('type_id')->references('id')->on('type_biens');
-            $table->foreign('projet_id')->references('id')->on('projets');
-            $table->foreign('tranche_id')->references('id')->on('tranches');
-            $table->foreign('bloc_id')->references('id')->on('blocs');
-            $table->foreign('immeuble_id')->references('id')->on('immeubles');
+            $table->foreignId('type_id')->constrained('type_biens');        
             $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
+            $table->foreignId('tranche_id')->constrained('tranches')->onDelete('cascade');
+            $table->foreignId('bloc_id')->constrained('blocs')->onDelete('cascade');
+            $table->foreignId('immeuble_id')->constrained('immeubles')->onDelete('cascade');
 
         });
     }
