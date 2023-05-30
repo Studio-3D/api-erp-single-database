@@ -9,13 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Immeuble extends Model
 {
     use HasFactory, SoftDeletes;
-    protected $fillable = [
-        'nom',
-        'titre_foncier',
-        'projet_id',
-        'tranche_id',
-        'bloc_id',
-    ];
+     protected $table = 'immeubles';
     protected $dates = ['deleted_at'];
     public function projet()
     {
