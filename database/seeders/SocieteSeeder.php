@@ -12,6 +12,13 @@ class SocieteSeeder extends Seeder
      */
     public function run(): void
     {
-        //
+        \App\Models\Societe::factory()->create([
+
+            'raison_sociale' => 'societ',
+            'nom_contact' => 'ahmed',
+            'prenom_contact' => 'slimani',
+            'email' => 'ahmed@email.com',
+
+        ]);
     }
 }

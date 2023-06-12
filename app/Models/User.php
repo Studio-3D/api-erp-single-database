@@ -25,7 +25,7 @@ class User extends Authenticatable
         'prenom',
         'gender','type','phone','photo','nb_appel_recu','nb_appel_traite',
         'cin','date_embauche','niveau_etude','adresse','cnss',
-        'fonction','solde_conge'
+        'fonction','solde_conge','is_actif'
     ];
     protected $table = 'users';
 

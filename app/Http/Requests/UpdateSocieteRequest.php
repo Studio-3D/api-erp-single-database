@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use \Illuminate\Validation\Rule;
 
 class UpdateSocieteRequest extends FormRequest
 {
@@ -22,15 +23,15 @@ class UpdateSocieteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'raison_sociale' => 'required',
-           /*  'raison_sociale' => [
-                'required',
-                Rule::unique('societes')->ignore($this->id)], */
-            'nom_contact' => 'required',
-            'tel' => 'string|size:14',
+           // 'raison_sociale' => 'min:3',
+            'raison_sociale' => [
+                'min:3',
+                Rule::unique('societes')->ignore($this->societe)
+            ],  
+            'nom_contact' => 'min:3',
+            'tel' => 'string|min:10|max:14',
             'email' => 'email',
-            'logo' => 'image',
-        
+            'logo' => 'image|mimes:png,jpg,jpeg|max:2048',      
         ];
     }
 }

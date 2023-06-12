@@ -22,11 +22,12 @@ class StoreSocieteRequest extends FormRequest
     public function rules(): array
     {
         return [
-           
-                'raison_sociale' => 'required|unique:societes',
-                'nom_contact' => 'required',
-                'tel' => 'string|size:14',
-                'email' => 'email',
+
+            'raison_sociale' => 'required|unique:societes|min:3',
+            'nom_contact' => 'required|min:3',
+            'tel' => 'string|min:10|max:14',
+            'email' => 'email',
+            'logo' => 'image|mimes:png,jpg,jpeg|max:2048',                  
             
         ];
     }

@@ -27,4 +27,5 @@ Route::post('login', [UserController::class, 'login'])->name('login');
 Route::post('register', [UserController::class, 'register'])->name('register');
 Route::middleware('auth:api')->group(function () {
     Route::resource('societe', SocieteController::class);
-});
+    Route::resource('user', UserController::class);
+    });
