@@ -60,13 +60,7 @@ class UserController extends Controller
             if ($request['is_actif'] == "") {
                 $request['is_actif'] = '1';
             }
-            $societe=Societe::where('id', $request->id)->first();
-
-
-            if ($request->hasFile('photo')) {
-                $photo= $request->file('photo')->store($societe->raison_sociale.'/photos_users', 'public');
-                
-            }
+            
             $user = new User();
 
             $user->name = $request['name'];
@@ -76,7 +70,6 @@ class UserController extends Controller
             $user->gender = $request['gender'];
             $user->type = $request['type'];
             $user->phone = $request['phone'];
-            $user->photo = $photo;
             $user->cin = $request['cin'];
             $user->fonction = $request['fonction'];
             $user->date_embauche = $request['date_embauche'];
@@ -87,7 +80,15 @@ class UserController extends Controller
             $user->nb_appel_recu = $request['nb_appel_recu'];
             $user->nb_appel_traite = $request['nb_appel_traite'];
             $user->solde_conge = $request['solde_conge'];
+            if ($request->has('photo')) {
+                $societe=Societe::where('id', $request->id)->first();
+                $photo= $request->file('photo')->store($societe->raison_sociale.'/photos_users', 'public');
+                $user->photo = $photo;
+            }
             $user->save();
+
+                
+           
             return response()->json(['message' => 'User creer avec succes'], 200);
 
         } else {
@@ -156,5 +157,14 @@ class UserController extends Controller
 
         }
     }
+    public function getUsersBySocieteId($societe_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+            $users = User::where('societe_id', $societe_id)->get();
+            return response()->json(['message' => $users], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
 
+        }
+    }
 }
+
