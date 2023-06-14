@@ -136,7 +136,7 @@ class SocieteController extends Controller
            
             Societe::where('id', $societe_id)->withTrashed()->restore();
 
-            return response()->json(['message' => 'User est bien restaurer'], 200);
+            return response()->json(['message' => 'Societe est bien restaurer'], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
