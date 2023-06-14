@@ -6,6 +6,8 @@ use App\Models\Immeuble;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreImmeubleRequest;
 use App\Http\Requests\UpdateImmeubleRequest;
+use Illuminate\Support\Facades\Auth;
+
 
 
 class ImmeubleController extends Controller
@@ -64,5 +66,29 @@ class ImmeubleController extends Controller
     public function destroy(Immeuble $immeuble)
     {
         //
+    }
+    public function restoreImmeuble($immeuble_id)
+    {
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+
+            Immeuble::where('id', $immeuble_id)->withTrashed()->restore();
+
+            return response()->json(['message' => 'Immeuble est bien restaurer'], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+    public function getTrashedImmeubles()
+    {
+
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+            $immeubles = Immeuble::onlyTrashed()->get();
+
+            return response()->json(['message' => $immeubles], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 }

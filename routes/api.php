@@ -45,7 +45,23 @@ Route::middleware('auth:api')->group(function () {
             ->name('restoreSociete');
     Route::get('getTrashedSocietes', 'App\Http\Controllers\SocieteController@getTrashedSocietes')
             ->name('getTrashedSocietes');
-    
+            //
+    Route::get('restoreBien/{id}', 'App\Http\Controllers\BienController@restoreBien')
+            ->name('restoreBien');
+    Route::get('getTrashedBiens', 'App\Http\Controllers\BienController@getTrashedBiens')
+            ->name('getTrashedBiens');
+            //
+   Route::get('restoreBloc/{id}', 'App\Http\Controllers\BlocController@restoreBloc')
+            ->name('restoreBloc');
+    Route::get('getTrashedBlocs', 'App\Http\Controllers\BlocController@getTrashedBlocs')
+            ->name('getTrashedBlocs');
+            //
+    Route::get('restoreImmeuble/{id}', 'App\Http\Controllers\ImmeubleController@restoreImmeuble')
+            ->name('restoreImmeuble');
+    Route::get('getTrashedImmeubles', 'App\Http\Controllers\ImmeubleController@getTrashedImmeubles')
+            ->name('getTrashedImmeubles');
+            
+
     
     });
     
