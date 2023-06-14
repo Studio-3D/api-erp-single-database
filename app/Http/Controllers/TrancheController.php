@@ -6,6 +6,8 @@ use App\Models\Tranche;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTrancheRequest;
 use App\Http\Requests\UpdateTrancheRequest;
+use Illuminate\Support\Facades\Auth;
+
 
 
 class TrancheController extends Controller
@@ -64,5 +66,31 @@ class TrancheController extends Controller
     public function destroy(Tranche $tranche)
     {
         //
+    }
+
+
+    public function restoreTranche($tranche_id)
+    {
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+
+            Tranche::where('id', $tranche_id)->withTrashed()->restore();
+
+            return response()->json(['message' => 'Tranche est bien restaurer'], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+    public function getTrashedTranches()
+    {
+
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+            $tranches = Tranche::onlyTrashed()->get();
+
+            return response()->json(['message' => $tranches], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 }

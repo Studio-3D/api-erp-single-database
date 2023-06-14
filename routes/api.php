@@ -65,7 +65,11 @@ Route::middleware('auth:api')->group(function () {
             ->name('restoreProjet');
     Route::get('getTrashedProjets', 'App\Http\Controllers\ProjetController@getTrashedProjets')
             ->name('getTrashedProjets');
-            
+            //
+    Route::get('restoreTranche/{id}', 'App\Http\Controllers\TrancheController@restoreTranche')
+            ->name('restoreTranche');
+    Route::get('getTrashedTranches', 'App\Http\Controllers\TrancheController@getTrashedTranches')
+            ->name('getTrashedTranches');
 
     
     });
