@@ -6,6 +6,8 @@ use App\Models\TypeBien;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTypeBienRequest;
 use App\Http\Requests\UpdateTypeBienRequest;
+use Illuminate\Support\Facades\Auth;
+
 
 
 class TypeBienController extends Controller
@@ -64,5 +66,30 @@ class TypeBienController extends Controller
     public function destroy(TypeBien $typeBien)
     {
         //
+    }
+
+    public function restoreTypeBien($typeBien_id)
+    {
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+
+            TypeBien::where('id', $typeBien_id)->withTrashed()->restore();
+
+            return response()->json(['message' => 'Type Bien est bien restaurer'], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+    public function getTrashedTypesBien()
+    {
+
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+            $typeBiens = TypeBien::onlyTrashed()->get();
+
+            return response()->json(['message' => $typeBiens], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 }
