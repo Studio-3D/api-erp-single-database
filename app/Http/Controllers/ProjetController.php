@@ -68,6 +68,7 @@ class ProjetController extends Controller
             $projet->nbr_blocs = $request['nbr_blocs'];
             $projet->nbr_immeubles = $request['nbr_immeubles'];
             $projet->nbr_biens = $request['nbr_biens'];
+            $projet->societe_id = $request['societe_id'];
             $projet->save();
 
             return response()->json(['message' => 'Projet creer avec succes'], 200);
