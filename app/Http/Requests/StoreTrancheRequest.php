@@ -22,7 +22,7 @@ class StoreTrancheRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nom' => 'required|unique:tranches',
+            'nom' => 'required',
             'projet_id' => 'required|integer',
             'date_lancement' => 'required|date',
             'date_livraison' => 'required|date',

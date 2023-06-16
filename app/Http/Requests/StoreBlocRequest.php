@@ -11,7 +11,7 @@ class StoreBlocRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +22,12 @@ class StoreBlocRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'nom' => 'required',
+            'titre_foncier' => 'required',
+            'projet_id' => 'required|integer',
+            'tranche_id' => 'integer',
+            'nbre_immeubles' => 'integer',
+            'nbre_biens' => 'integer',
         ];
     }
 }
