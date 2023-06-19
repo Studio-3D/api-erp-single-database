@@ -68,8 +68,8 @@ class TrancheController extends Controller
             return response()->json(['message' => 'tranche creer avec succes'], 200);
            
         } else {
-    return response()->json(['error' => 'Unauthorized'], 401);
-}
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 
     /**

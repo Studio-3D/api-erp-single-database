@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BlocController;
 use App\Http\Controllers\ProjetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -31,6 +32,7 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('user', UserController::class);
         Route::resource('projet', ProjetController::class);
         Route::resource('tranche', TrancheController::class);
+        Route::resource('bloc', BlocController::class);
         Route::get('getUsersBySocieteId/{id}', 'App\Http\Controllers\UserController@getUsersBySocieteId')
                 ->name('getUsersBySocieteId');
         Route::put('activateUser/{id}', 'App\Http\Controllers\UserController@activateUser')

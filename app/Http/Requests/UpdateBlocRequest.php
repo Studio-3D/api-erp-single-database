@@ -11,7 +11,7 @@ class UpdateBlocRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +22,11 @@ class UpdateBlocRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'projet_id' => 'integer',
+            'tranche_id' => 'integer',
+            'nbre_immeubles' => 'integer',
+            'nbre_biens' => 'integer',
+            
         ];
     }
 }

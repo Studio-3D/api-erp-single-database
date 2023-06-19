@@ -23,7 +23,7 @@ class StoreProjetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nom' => 'required|unique:projets',
+            'nom' => 'required',
             'code' => 'required|string',
             'adresse' => 'required|string',
             'date_autorisation_construction' => 'required|date',
