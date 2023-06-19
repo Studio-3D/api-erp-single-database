@@ -6,6 +6,8 @@ use App\Models\Projet;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProjetRequest;
 use App\Http\Requests\UpdateProjetRequest;
+use Illuminate\Support\Facades\Auth;
+
 
 
 class ProjetController extends Controller
@@ -64,5 +66,30 @@ class ProjetController extends Controller
     public function destroy(Projet $projet)
     {
         //
+    }
+
+    public function restoreProjet($projet_id)
+    {
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+
+            Projet::where('id', $projet_id)->withTrashed()->restore();
+
+            return response()->json(['message' => 'Projet est bien restaurer'], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+    public function getTrashedProjets()
+    {
+
+        if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
+            $projets = Projet::onlyTrashed()->get();
+
+            return response()->json(['message' => $projets], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 }
