@@ -7,6 +7,8 @@ use App\Http\Requests\StoreSocieteRequest;
 use App\Http\Requests\UpdateSocieteRequest;
 use App\Models\Societe;
 use Illuminate\Support\Facades\Auth;
+use \Illuminate\Support\Facades\Storage;
+
 
 class SocieteController extends Controller
 {
@@ -89,16 +91,20 @@ class SocieteController extends Controller
     {
         if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
             
+            if ($request->hasFile('logo')) {
+                if ($societe->logo) {
+                    $exist = Storage::disk('public')->exists("{$societe->raison_sociale}/logos/{$societe->logo}");
+                    if ($exist) {
+                        Storage::disk('public')->delete("{$societe->raison_sociale}/logos/{$societe->logo}");
+                    }
+                }
+                $logo= $request->file('logo')->store($request->raison_sociale.'/logos', 'public'); 
+                $request['logo'] = $logo;
+                $societe->save();
+            }
 
             $societe->update($request->all());
-            /*   if ($request->has("logo")) {
-            $file = $request->logo;
-            $imageName = "images/societe/" . time() . "_" . $file->getClientOriginalName();
-            $file->move(public_path("images/societe"), $imageName);
-            $societe->logo = $imageName;
-            $societe->save();
-            }
-             */
+            
 
             return response()->json(['message' => 'societe updated succesfully'], 200);
         } else {
