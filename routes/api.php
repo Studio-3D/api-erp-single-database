@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SocieteController;
 use App\Http\Controllers\TrancheController;
+use App\Http\Controllers\TypeBienController;
 use App\Http\Controllers\UserController;
 use App\Models\Projet;
 
@@ -35,6 +36,7 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('tranche', TrancheController::class);
         Route::resource('bloc', BlocController::class);
         Route::resource('immeuble', ImmeubleController::class);
+        Route::resource('typeBien', TypeBienController::class);
         Route::get('getUsersBySocieteId/{id}', 'App\Http\Controllers\UserController@getUsersBySocieteId')
                 ->name('getUsersBySocieteId');
         Route::put('activateUser/{id}', 'App\Http\Controllers\UserController@activateUser')

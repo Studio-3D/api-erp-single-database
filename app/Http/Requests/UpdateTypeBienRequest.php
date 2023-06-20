@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateTypeBienRequest extends FormRequest
 {
@@ -11,7 +12,7 @@ class UpdateTypeBienRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +23,11 @@ class UpdateTypeBienRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'type' => [
+                
+                Rule::unique('type_biens')->ignore($this->type_bien)
+            ],
+
         ];
     }
 }

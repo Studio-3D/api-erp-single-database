@@ -17,7 +17,13 @@ class TypeBienController extends Controller
      */
     public function index()
     {
-        //
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+            $typebiens = TypeBien::all();
+            return response()->json(['message' => $typebiens]);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    
     }
 
     /**
@@ -25,7 +31,7 @@ class TypeBienController extends Controller
      */
     public function create()
     {
-        //
+        
     }
 
     /**
@@ -33,7 +39,22 @@ class TypeBienController extends Controller
      */
     public function store(StoreTypeBienRequest $request)
     {
-        //
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+            
+           
+            
+            
+            $typebien = new typebien();
+
+            $typebien->type = $request['type'];
+            
+           $typebien->save();
+
+            return response()->json(['message' => 'ce type de bien creer avec succes'], 200);
+           
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 
     /**
@@ -41,7 +62,11 @@ class TypeBienController extends Controller
      */
     public function show(TypeBien $typeBien)
     {
-        //
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+            return response()->json(['message' => $typeBien], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 
     /**
@@ -57,7 +82,15 @@ class TypeBienController extends Controller
      */
     public function update(UpdateTypeBienRequest $request, TypeBien $typeBien)
     {
-        //
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+      
+            $typeBien->update($request->all());
+            
+            return response()->json(['message' => 'typebien updated succesfully'], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+        
     }
 
     /**
@@ -65,7 +98,17 @@ class TypeBienController extends Controller
      */
     public function destroy(TypeBien $typeBien)
     {
-        //
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+            
+            if ($typeBien->delete()) {
+                return response()->json(['message' => 'ce type de bien deleted succesfully'], 200);
+            } else {
+                return response()->json(['message' => 'ce type de bien non deleted'], 404);
+            }
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
     }
 
     public function restoreTypeBien($typeBien_id)

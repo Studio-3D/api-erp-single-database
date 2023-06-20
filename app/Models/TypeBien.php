@@ -11,6 +11,9 @@ class TypeBien extends Model
     use HasFactory, SoftDeletes;
 
     protected $table = 'type_biens';
+    protected $fillable = [
+        'type'
+    ];
     protected $dates = ['deleted_at'];
    
 }
