@@ -27,6 +27,8 @@ return new class extends Migration
             $table->integer('nbre_blocs')->default(0);
             $table->integer('nbre_immeubles')->default(0);
             $table->integer('nbre_biens')->default(0);
+            $table->bigInteger('societe_id')->unsigned();
+            $table->foreign('societe_id')->references('id')->on('societes');
             $table->timestamps();
             $table->softDeletes();
         });
