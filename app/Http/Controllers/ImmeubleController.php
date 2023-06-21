@@ -17,13 +17,11 @@ class ImmeubleController extends Controller
      */
     public function index()
     {
-        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+        if (Auth::guard('api')->check()) {
             $immeubles = Immeuble::all();
             return response()->json(['message' => $immeubles]);
         }
-
         return response()->json(['error' => 'Unauthorized'], 401);
-    
     }
 
     /**
@@ -41,24 +39,16 @@ class ImmeubleController extends Controller
     {
         if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
             
-           
-            if ($request->nbre_biens == "") {
-                $request['nbre_biens'] = '0';
-            }
-            
-            
             $immeuble = new immeuble();
-
             $immeuble->nom = $request->nom;
             $immeuble->titre_foncier = $request->titre_foncier;
             $immeuble->projet_id = $request->projet_id;
             $immeuble->tranche_id = $request->tranche_id;
             $immeuble->bloc_id = $request->bloc_id;
-            $immeuble->nbre_biens = $request->nbre_biens;
+            $immeuble->nbre_biens = $request->nbre_biens? $request->nbre_biens:0;
             $immeuble->save();
-
             return response()->json(['message' => $immeuble], 200);
-           
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -69,7 +59,7 @@ class ImmeubleController extends Controller
      */
     public function show(Immeuble $immeuble)
     {
-        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+        if (Auth::guard('api')->check()) {
             return response()->json(['message' => $immeuble], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -81,7 +71,11 @@ class ImmeubleController extends Controller
      */
     public function edit(Immeuble $immeuble)
     {
-        //
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+            return response()->json(['message' => $immeuble], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 
     /**
@@ -90,14 +84,11 @@ class ImmeubleController extends Controller
     public function update(UpdateImmeubleRequest $request, Immeuble $immeuble)
     {
         if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
-      
             $immeuble->update($request->all());
-            
-            return response()->json(['message' => $immeuble], 200);
+            return response()->json(['message' => $immeuble], 200);  
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-        
     }
 
     /**
@@ -110,33 +101,26 @@ class ImmeubleController extends Controller
             if ($immeuble->delete()) {
                 return response()->json(['message' => 'immeuble deleted succesfully'], 200);
             } else {
-                return response()->json(['message' => 'immeuble non deleted'], 404);
+                return response()->json(['message' => 'immeuble not deleted'], 404);
             }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
-
         }
     }
     public function restoreImmeuble($immeuble_id)
     {
         if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
-
             Immeuble::where('id', $immeuble_id)->withTrashed()->restore();
-
-            return response()->json(['message' => 'Immeuble est bien restaurer'], 200);
-
+            return response()->json(['message' => 'Immeuble restored'], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
     public function getTrashedImmeubles()
     {
-
         if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
             $immeubles = Immeuble::onlyTrashed()->get();
-
             return response()->json(['message' => $immeubles], 200);
-
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

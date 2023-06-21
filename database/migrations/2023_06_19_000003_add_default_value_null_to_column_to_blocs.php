@@ -12,10 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('blocs', function (Blueprint $table) {
-
             $table->foreignId('tranche_id')->nullable()->change();
-
-
         });
     }
 
