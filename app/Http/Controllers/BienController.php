@@ -149,4 +149,56 @@ class BienController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
+    public function bloquerBien($bien_id)
+    {  
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 )) {
+            $bien = Bien::findOrFail($bien_id);
+            $bien->update(['etat' => 4]);
+            $bien->save();
+            return response()->json(['message' => $bien], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function reserverBien($bien_id)
+    {  
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $bien = Bien::findOrFail($bien_id);
+            $bien->update(['etat' => 3]);
+            $bien->save();
+            return response()->json(['message' => $bien], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function prereserverBien($bien_id)
+    {  
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $bien = Bien::findOrFail($bien_id);
+            $bien->update(['etat' => 2]);
+            $bien->save();
+            return response()->json(['message' => $bien], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function libererBien($bien_id)
+    {  
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $bien = Bien::findOrFail($bien_id);
+            $bien->update(['etat' => 1]);
+            $bien->save();
+            return response()->json(['message' => $bien], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
 }
