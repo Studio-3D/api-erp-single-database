@@ -180,10 +180,9 @@ class UserController extends Controller
         if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1 ) {
             $user = User::findOrFail($user_id);
 
-            $user->update(['is_actif' => 1]);
+            $user->is_actif=1;
             $user->save();
             return response()->json(['message' => 'User activated succesfully'], 200);
-
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -191,11 +190,10 @@ class UserController extends Controller
     public function desactivateUser($user_id){  
         if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
             $user = User::findOrFail($user_id);
-
-            $user->update(['is_actif' => 0]);
+            
+            $user->is_actif=0;
             $user->save();
             return response()->json(['message' => 'User desactivated succesfully'], 200);
-
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

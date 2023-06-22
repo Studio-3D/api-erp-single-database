@@ -6,7 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBienRequest;
 use App\Http\Requests\UpdateBienRequest;
 use App\Models\Bien;
+use App\Models\HistoriqueBien;
+use App\Models\historique_biens;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
+
 
 class BienController extends Controller
 {
@@ -154,8 +158,16 @@ class BienController extends Controller
     {  
         if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 )) {
             $bien = Bien::findOrFail($bien_id);
-            $bien->update(['etat' => 4]);
+            $bien->etat=4;
             $bien->save();
+
+            $Historique_bien = new HistoriqueBien();
+            $Historique_bien->action =4;
+            $Historique_bien->description = "bloquer";
+            $Historique_bien->user_id = Auth::user()->id;
+            $Historique_bien->bien_id = $bien_id;
+            $Historique_bien->save();
+
             return response()->json(['message' => $bien], 200);
 
         } else {
@@ -167,8 +179,15 @@ class BienController extends Controller
     {  
         if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
             $bien = Bien::findOrFail($bien_id);
-            $bien->update(['etat' => 3]);
+            $bien->etat=3;
             $bien->save();
+
+            $Historique_bien = new HistoriqueBien();
+            $Historique_bien->action =3;
+            $Historique_bien->description = "reserver";
+            $Historique_bien->user_id = Auth::user()->id;
+            $Historique_bien->bien_id = $bien_id;
+            $Historique_bien->save();
             return response()->json(['message' => $bien], 200);
 
         } else {
@@ -180,8 +199,15 @@ class BienController extends Controller
     {  
         if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
             $bien = Bien::findOrFail($bien_id);
-            $bien->update(['etat' => 2]);
+            $bien->etat=2;
             $bien->save();
+
+            $Historique_bien = new HistoriqueBien();
+            $Historique_bien->action =2;
+            $Historique_bien->description = "pre_reserver";
+            $Historique_bien->user_id = Auth::user()->id;
+            $Historique_bien->bien_id = $bien_id;
+            $Historique_bien->save();
             return response()->json(['message' => $bien], 200);
 
         } else {
@@ -193,8 +219,15 @@ class BienController extends Controller
     {  
         if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
             $bien = Bien::findOrFail($bien_id);
-            $bien->update(['etat' => 1]);
+            $bien->etat=1;
             $bien->save();
+
+            $Historique_bien = new HistoriqueBien();
+            $Historique_bien->action =1;
+            $Historique_bien->description = "liberer";
+            $Historique_bien->user_id = Auth::user()->id;
+            $Historique_bien->bien_id = $bien_id;
+            $Historique_bien->save();
             return response()->json(['message' => $bien], 200);
 
         } else {
