@@ -77,6 +77,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('getTrashedBiens', [BienController::class,'getTrashedBiens'])->name('getTrashedBiens');
         Route::post('restoreTypeBien/{id}', [TypeBienController::class,'restoreTypeBien'])->name('restoreTypeBien');
         Route::get('getTrashedTypesBien', [TypeBienController::class,'getTrashedTypesBien'])->name('getTrashedTypesBien');
+        Route::put('bloquerBien/{id}', [BienController::class,'bloquerBien'])->name('bloquerBien');
+        Route::put('reserverBien/{id}', [BienController::class,'reserverBien'])->name('reserverBien');
+        Route::put('prereserverBien/{id}', [BienController::class,'prereserverBien'])->name('prereserverBien');
+        Route::put('libererBien/{id}', [BienController::class,'libererBien'])->name('libererBien');
         
     
    
