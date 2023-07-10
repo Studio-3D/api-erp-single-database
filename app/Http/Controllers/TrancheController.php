@@ -134,4 +134,15 @@ class TrancheController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
+    public function getTranchesByProjet($projet_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $tranches = Tranche::where('projet_id', $projet_id)->get();
+            return response()->json(['message' => $tranches], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
 }

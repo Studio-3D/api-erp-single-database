@@ -125,4 +125,38 @@ class ImmeubleController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
+    public function getImmeublesByProjet($projet_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $immeubles = Immeuble::where('projet_id', $projet_id)->get();
+            return response()->json(['message' => $immeubles], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+    public function getImmeublesByTranche($tranche_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $immeubles = Immeuble::where('tranche_id', $tranche_id)->get();
+            return response()->json(['message' => $immeubles], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+    public function getImmeublesByBloc($bloc_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $immeubles = Immeuble::where('bloc_id', $bloc_id)->get();
+            return response()->json(['message' => $immeubles], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
 }

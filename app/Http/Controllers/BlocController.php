@@ -128,4 +128,25 @@ class BlocController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
+    public function getBlocsByProjet($projet_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $blocs = Bloc::where('projet_id', $projet_id)->get();
+            return response()->json(['message' => $blocs], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+    public function getBlocsByTranche($tranche_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $blocs = Bloc::where('tranche_id', $tranche_id)->get();
+            return response()->json(['message' => $blocs], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
 }

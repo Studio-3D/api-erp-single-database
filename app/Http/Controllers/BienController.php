@@ -243,4 +243,51 @@ class BienController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
+    public function getBiensByProjet($projet_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $biens = Bien::where('projet_id', $projet_id)->get();
+            return response()->json(['message' => $biens], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+    public function getBiensByTranche($tranche_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $biens = Bien::where('tranche_id', $tranche_id)->get();
+            return response()->json(['message' => $biens], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+    public function getBiensByBloc($bloc_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $biens = Bien::where('bloc_id', $bloc_id)->get();
+            return response()->json(['message' => $biens], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+    public function getBiensByImmeuble($immeuble_id){
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2 || Auth::guard('api')->user()->type == 3)) {
+            $biens = Bien::where('immeuble_id', $immeuble_id)->get();
+            return response()->json(['message' => $biens], 200);
+            
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+
+
 }

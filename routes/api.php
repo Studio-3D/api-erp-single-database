@@ -60,16 +60,26 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('tranche', TrancheController::class);
         Route::post('restoreTranche/{id}', [TrancheController::class,'restoreTranche'])->name('restoreTranche');
         Route::get('getTrashedTranches', [TrancheController::class,'getTrashedTranches'])->name('getTrashedTranches');
-        
+        Route::get('getTranchesByProjet/{id}', [TrancheController::class,'getTranchesByProjet'])->name('getTranchesByProjet');
+
     /*************************************Bloc***************************** */
         Route::resource('bloc', BlocController::class);
         Route::post('restoreBloc/{id}', [BlocController::class,'restoreBloc'])->name('restoreBloc');
         Route::get('getTrashedBlocs', [BlocController::class,'getTrashedBlocs'])->name('getTrashedBlocs');
+        Route::get('getBlocsByProjet/{id}', [BlocController::class,'getBlocsByProjet'])->name('getBlocsByProjet');
+        Route::get('getBlocsByTranche/{id}', [BlocController::class,'getBlocsByTranche'])->name('getBlocsByTranche');
+
+
         
     /*************************************Immeuble***************************** */
         Route::resource('immeuble', ImmeubleController::class);
         Route::post('restoreImmeuble/{id}', [ImmeubleController::class,'restoreImmeuble'])->name('restoreImmeuble');
         Route::get('getTrashedImmeubles', [ImmeubleController::class,'getTrashedImmeubles'])->name('getTrashedImmeubles');
+        Route::get('getImmeublesByProjet/{id}', [ImmeubleController::class,'getImmeublesByProjet'])->name('getImmeublesByProjet');
+        Route::get('getImmeublesByTranche/{id}', [ImmeubleController::class,'getImmeublesByTranche'])->name('getImmeublesByTranche');
+        Route::get('getImmeublesByBloc/{id}', [ImmeubleController::class,'getImmeublesByBloc'])->name('getImmeublesByBloc');
+
+        
         
     /*************************************Bien***************************** */
         Route::resource('typeBien', TypeBienController::class);
@@ -87,7 +97,12 @@ Route::middleware('auth:api')->group(function () {
         Route::post('restoreCompositionBien/{id}', [CompositionBienController::class,'restoreCompositionBien'])->name('restoreCompositionBien');
         Route::get('getTrashedCompositionBiens', [CompositionBienController::class,'getTrashedCompositionBiens'])->name('getTrashedCompositionBiens');
         Route::get('getComposition/{id}', [CompositionBienController::class,'getComposition'])->name('getComposition');
+        Route::get('getBiensByProjet/{id}', [BienController::class,'getBiensByProjet'])->name('getBiensByProjet');
+        Route::get('getBiensByTranche/{id}', [BienController::class,'getBiensByTranche'])->name('getBiensByTranche');
+        Route::get('getBiensByBloc/{id}', [BienController::class,'getBiensByBloc'])->name('getBiensByBloc');
+        Route::get('getBiensByImmeuble/{id}', [BienController::class,'getBiensByImmeuble'])->name('getBiensByImmeuble');
 
+        
         
 
 
