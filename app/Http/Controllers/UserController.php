@@ -39,6 +39,14 @@ class UserController extends Controller
     
     }
 
+    public function dashboard()
+    {   if (Auth::guard('api')->check()) {
+            return response()->json(['user' => auth()->user()], 200);
+
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
     public function index()
     {
         if (Auth::guard('api')->check()) {
@@ -52,13 +60,7 @@ class UserController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-    public function dashboard()
-    {if (Auth::guard('api')->check()) {
-        return response()->json(['user' => auth()->user()], 200);
-
-    }
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
+    
 
     /**
      * Show the form for creating a new resource.
