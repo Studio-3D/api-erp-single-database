@@ -23,7 +23,7 @@ class TrancheController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $tranches = tranche::on('temp')->get();
-            return response()->json(['message' => $tranches]);
+            return response()->json(['tranche' => $tranches]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     
@@ -71,7 +71,7 @@ class TrancheController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $tranche = Tranche::on('temp')->findOrfail($id);
-            return response()->json(['message' => $tranche], 200);
+            return response()->json(['tranche' => $tranche], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }       

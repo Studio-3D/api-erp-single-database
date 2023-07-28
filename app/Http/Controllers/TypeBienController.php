@@ -144,7 +144,7 @@ class TypeBienController extends Controller
             DatabaseHelper::Config();
             $typeBiens = TypeBien::on('temp')->onlyTrashed()->get();
 
-            return response()->json(['message' => $typeBiens], 200);
+            return response()->json(['typeBien' => $typeBiens], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

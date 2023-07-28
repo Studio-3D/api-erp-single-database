@@ -143,7 +143,7 @@ class TypeProjetController extends Controller
             DatabaseHelper::Config();            
             $typeProjets = TypeProjet::on('temp')->onlyTrashed()->get();
 
-            return response()->json(['message' => $typeProjets], 200);
+            return response()->json(['typeProjet' => $typeProjets], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

@@ -9,7 +9,6 @@ use App\Http\Requests\UpdateBienRequest;
 use App\Models\Bien;
 use App\Models\HistoriqueBien;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
 
@@ -24,7 +23,7 @@ class BienController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $biens = Bien::on('temp')->get();
-            return response()->json(['message' => $biens]);
+            return response()->json(['bien' => $biens]);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -165,7 +164,7 @@ class BienController extends Controller
             DatabaseHelper::Config();            
             $biens = Bien::on('temp')->onlyTrashed()->get();
 
-            return response()->json(['message' => $biens], 200);
+            return response()->json(['bien' => $biens], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

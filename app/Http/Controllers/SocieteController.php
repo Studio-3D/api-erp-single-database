@@ -69,10 +69,12 @@ class SocieteController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Societe $societe)
+    public function show($id)
     {
         if (Auth::guard('api')->check() && Auth::guard('api')->user()->type == 1) {
-            return response()->json(['message' => $societe], 200);
+            $societe = Societe::findOrfail($id);
+
+            return response()->json(['societe' => $societe], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

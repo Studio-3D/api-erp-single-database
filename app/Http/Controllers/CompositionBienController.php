@@ -21,7 +21,7 @@ class CompositionBienController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $CompositionBiens = CompositionBien::on('temp')->get();
-            return response()->json(['message' => $CompositionBiens]);
+            return response()->json(['compositionBien' => $CompositionBiens]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     
@@ -73,7 +73,7 @@ class CompositionBienController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $compositionBien = compositionBien::on('temp')->findOrfail($id);            
-            return response()->json(['message' => $compositionBien], 200);
+            return response()->json(['compositionBien' => $compositionBien], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

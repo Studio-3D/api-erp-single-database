@@ -22,7 +22,7 @@ class BlocController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $blocs = Bloc::on('temp')->get();
-            return response()->json(['message' => $blocs]);
+            return response()->json(['bloc' => $blocs]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -68,7 +68,7 @@ class BlocController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $bloc = Bloc::on('temp')->findOrfail($id);
-            return response()->json(['message' => $bloc], 200);
+            return response()->json(['bloc' => $bloc], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

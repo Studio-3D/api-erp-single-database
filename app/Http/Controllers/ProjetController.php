@@ -24,7 +24,7 @@ class ProjetController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $projets = Projet::on('temp')->get();
-            return response()->json(['message' => $projets]);
+            return response()->json(['projet' => $projets]);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -79,7 +79,7 @@ class ProjetController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $projet = Projet::on('temp')->findOrfail($id);
-            return response()->json(['message' => $projet], 200);
+            return response()->json(['projet' => $projet], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

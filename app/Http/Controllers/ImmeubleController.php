@@ -22,7 +22,7 @@ class ImmeubleController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $immeubles = Immeuble::on('temp')->get();
-            return response()->json(['message' => $immeubles]);
+            return response()->json(['immeuble' => $immeubles]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -67,7 +67,7 @@ class ImmeubleController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $immeuble = Immeuble::on('temp')->findOrfail($id);
-            return response()->json(['message' => $immeuble], 200);
+            return response()->json(['immeuble' => $immeuble], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
