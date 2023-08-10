@@ -104,7 +104,7 @@ class UserController extends Controller
             $user->email = $request->email;
             $user->password = $request->password;
             $user->gender = $request->gender;
-            $user->type = $request->type;
+            $user->role = $request->role;
             $user->phone = $request->phone;
             $user->cin = $request->cin;
             $user->fonction = $request->fonction;
@@ -143,7 +143,7 @@ class UserController extends Controller
         $user->email = $request->email;
         $user->password = $request->password;
         $user->gender = $request->gender;
-        $user->type = $request->type;
+        $user->role = $request->role;
         $user->phone = $request->phone;
         $user->cin = $request->cin;
         $user->fonction = $request->fonction;
@@ -305,7 +305,7 @@ class UserController extends Controller
     }
     public function desactivateUser($user_id)
     {
-        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->type == 1 || Auth::guard('api')->user()->type == 2)) {
+        if (RoleHelper::AdminSup()) {    
             $user = User::findOrFail($user_id);
 
             $user->is_actif = 0;

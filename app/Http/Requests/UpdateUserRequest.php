@@ -29,7 +29,7 @@ class UpdateUserRequest extends FormRequest
                 Rule::unique('users')->ignore($this->user),
             ],
             'password' => 'min:6',
-            'type' => 'integer',
+            'role' => 'integer',
             'phone' => 'string|min:10|max:14',
             'photo' => 'image|mimes:png,jpg,jpeg|max:2048',
             'cin' => [
