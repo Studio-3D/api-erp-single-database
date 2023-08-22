@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreProspectRequest;
+use App\Http\Requests\UpdateProspectRequest;
 use App\Models\Prospect;
-use Illuminate\Auth\Access\Response;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ProspectController extends Controller
 {
@@ -16,7 +16,13 @@ class ProspectController extends Controller
      */
     public function index()
     {
-        //
+        if (Auth::guard('api')->check())
+        {
+            DatabaseHelper::Config();
+            $prospects = Prospect::on('temp')->get();
+            return response()->json(['prospects' =>  $prospects]);
+        }
+        else return response()->json(['error' => 'Unauthorized'], 401);
     }
 
     /**
@@ -41,6 +47,8 @@ class ProspectController extends Controller
             $prospect->prenom=$request->prenom;
             $prospect->telephone=$request->telephone;
             $prospect->telephone_num2=$request->telephone_num2;
+            $prospect->email=$request->email;
+            $prospect->source=$request->source;
             $prospect->save();
             return $prospect->id;
         }
@@ -55,7 +63,7 @@ class ProspectController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $prospect = Prospect::on('temp')->findOrfail($id);
-            return response()->json(['message' => $prospect], 200);
+            return response()->json(['prospect' => $prospect], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -72,16 +80,41 @@ class ProspectController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateProspectRequest $request,$id)
     {
-        //
+      if(RoleHelper::ACSup()){
+          DatabaseHelper::Config();
+          $prospect=Prospect::on('temp')->findOrFail($id);
+          $update=$request->all();
+          foreach($update as $key => $value){
+              $prospect->$key= $value;
+          }
+          $prospect->save();
+          return response()->json(['prospect'=>$prospect],200);
+      }
+       else {
+           return response()->json(['error' => 'Unauthorized'], 401);
+       }
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy($id)
     {
-        //
+        if(RoleHelper::AdminSup()){
+            DatabaseHelper::Config();
+            $prospect=Prospect::on('temp')->findOrFail($id);
+            if($prospect->delete())
+            {
+                return response()->json(['message'=>'Prospect supprimé avec succès'],200);
+            }
+            else{
+                return response()->json(['error'=>"Prospect n'est pas supprimé"],404);
+            }
+        }
+        else{
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 }

@@ -2,13 +2,12 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use App\Http\Helpers\DatabaseHelper;
 use App\Models\Societe;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 
-class UpdateTypeProjetRequest extends FormRequest
+class UpdateTypologieRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -24,13 +23,22 @@ class UpdateTypeProjetRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
      */
     public function rules(): array
-    {   $societe_id = Auth::guard('api')->user()->societe_id;
+    {
+        $societe_id = Auth::guard('api')->user()->societe_id;
         $societe=Societe::findOrfail( $societe_id);
         $DatabaseName='Erp_'.$societe->raison_sociale.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_projets','type')->ignore($this->type_projet)],
-
+            'typologie'=>['required',Rule::unique('temp.'.$DatabaseName.'.typologies','typologie')
+                ->where('projet_id',$this->typologie->projet_id)
+                ->ignore($this->typologie)],
+            'projet_id'=>'required|integer',
+        ];
+    }
+    public function messages(): array
+    {
+        return [
+            'typologie.unique' => 'Cette typologie est deja exist dans ce projet',
         ];
     }
 }

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enum\InteretEnum;
-use App\Enum\TypeNotificationEnum;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreFreinRequest;
@@ -14,7 +13,6 @@ use App\Models\User;
 use App\Models\Visite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use function PHPUnit\Framework\isEmpty;
 
 class VisiteController extends Controller
 {
@@ -25,7 +23,7 @@ class VisiteController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $visites = Visite::on('temp')->get();
+            $visites = Visite::on('temp')->where('origin_id',null)->get();
             return response()->json(['visite' => $visites]);
         }
 
@@ -57,6 +55,7 @@ class VisiteController extends Controller
                 }
             } else {
                 $validatedData = $request->validated();
+                $validatedData['source']='visite';
                 $prospectController = new ProspectController();
                 $prospectExist = $prospectController->store(new StoreProspectRequest($validatedData));
             }
@@ -87,7 +86,7 @@ class VisiteController extends Controller
                 $freinController = new FreinController();
                 $freinController->store(new StoreFreinRequest($freinRequest));
             }
-            return response()->json(['message' => $visite], 200);
+            return response()->json(['visite' => $visite], 200);
         }
         else
         {
@@ -103,7 +102,9 @@ class VisiteController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $visite = Visite::on('temp')->findOrfail($id);
-            return response()->json(['message' => $visite], 200);
+            $relatedVisites=Visite::on('temp')->where('origin_id',$visite->value('id'))->get();
+            $prospect=Prospect::on('temp')->find($visite->value('prospect_id'));
+            return response()->json(['prospect'=>$prospect,'visite' => $visite,'realtedViste'=>$relatedVisites], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -128,8 +129,57 @@ class VisiteController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Visite $visite)
+    public function destroy($id)
     {
-        //
+        if(RoleHelper::AdminSup()){
+            DatabaseHelper::Config();
+            $visite=Visite::on('temp')->findOrFail($id);
+            if($visite->delete()){
+                return response()->json(['messqge'=>'visite supprimé avec succès'],200);
+            }
+            else return response()->json(['error'=>"visite n'est pas supprimé"],404);
+        }
+        else return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function addLinkedVisite($id, StoreVisiteRequest $request){
+        DatabaseHelper::Config();
+        $originalVisite=Visite::on('temp')->find($id);
+        if (!$originalVisite) return response()->json(['error'=>"orginal viste n'est pas trouve"]);
+        $user = Auth::user();
+        if(RoleHelper::ACSup()){
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $newVisit=new Visite();
+            $newVisit->setConnection('temp');
+            $newVisit->user_id=$userAuth->value('id');
+            $newVisit->prospect_id=$originalVisite->prospect_id;
+            $newVisit->origin_id=$id;
+            $newVisit->commentaire = $request->commentaire;
+            $newVisit->notifie = $request->notifie;
+            $newVisit->type_notification = $request->type_notification;
+            $newVisit->interet = $request->interet;
+            $newVisit->bien_id = $request->bien_id;
+            $newVisit->rdv = $request->rdv;
+            $newVisit->status = $request->status;
+            $newVisit->mode_relance = $request->mode_relance;
+            $newVisit->date_relance = $request->date_relance;
+            $newVisit->save();
+            if ($newVisit->interet == InteretEnum::PERDU->value) {
+                $freinRequest=$request->validated();
+                $freinRequest['visite_id']=$newVisit->getAttribute('id');
+                $freinRequest['selectedTranches']=$request->selectedTranches;
+                $freinRequest['selectedEtages']=$request->selectedEtages;
+                $freinRequest['selectedOrientations']=$request->selectedOrientations;
+                $freinRequest['selectedTypologies']=$request->selectedTypologies;
+                $freinRequest['selectedVues']=$request->selectedVues;
+                $freinController = new FreinController();
+                $freinController->store(new StoreFreinRequest($freinRequest));
+            }
+            return response()->json(['visite' => $newVisit], 200);
+        }
+        else
+        {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 }

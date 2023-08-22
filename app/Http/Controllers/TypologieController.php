@@ -7,6 +7,7 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreTypologieRequest;
 use App\Models\Typologie;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TypologieController extends Controller
 {
@@ -15,7 +16,14 @@ class TypologieController extends Controller
      */
     public function index()
     {
-        //
+        if (Auth::guard('api')->check())
+        {
+            DatabaseHelper::Config();
+            $typologies = Typologie::on('temp')->get();
+            return response()->json(['typlogies' => $typologies]);
+        }
+        else return response()->json(['error' => 'Unauthorized'], 401);
+
     }
 
     /**
@@ -46,9 +54,15 @@ class TypologieController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show($id)
     {
-        //
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $typologie = Typologie::on('temp')->findOrfail($id);
+            return response()->json(['typologie' => $typologie], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 
     /**
@@ -64,7 +78,19 @@ class TypologieController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $typologie=Typologie::on('temp')->findOrFail($id);
+            $update=$request->all();
+            foreach($update as $key => $value){
+                $typologie->$key= $value;
+            }
+            $typologie->save();
+            return response()->json(['typologie'=>$typologie],200);
+        }
+        else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 
     /**
@@ -72,6 +98,19 @@ class TypologieController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        if(RoleHelper::AdminSup()){
+            DatabaseHelper::Config();
+            $typologie=Typologie::on('temp')->findOrFail($id);
+            if($typologie->delete())
+            {
+                return response()->json(['message'=>'Typologie supprimé avec succès'],200);
+            }
+            else{
+                return response()->json(['error'=>"Typologie n'est pas supprimé"],404);
+            }
+        }
+        else{
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
 }

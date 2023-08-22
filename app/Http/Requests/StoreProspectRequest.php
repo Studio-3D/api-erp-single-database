@@ -27,7 +27,8 @@ class StoreProspectRequest extends FormRequest
             'prenom' => 'required|string',
             'telephone' => 'required|string',
             'telephone_num2' => 'string',
-            'email'=>'required|string',
+            'email'=>'string',
+            'source'=>'string'
         ];
     }
 }
