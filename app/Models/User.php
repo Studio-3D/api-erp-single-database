@@ -22,7 +22,6 @@ class User extends Authenticatable
         'societe_id',
         'name',
         'email',
-        'prenom',
         'password',
         'prenom',
         'gender',

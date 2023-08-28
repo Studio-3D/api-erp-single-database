@@ -16,10 +16,16 @@ class SocieteController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         if (RoleHelper::Superadmin()) {
-            $societes = Societe::all();
+            $perPage = 20; // Number of items per page
+            $page = $request->input('page', 1);
+
+            $societes = Societe::orderBy('created_at', 'desc')
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();
             return response()->json(['societe' => $societes]);
         }
 

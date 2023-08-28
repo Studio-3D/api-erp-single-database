@@ -66,14 +66,24 @@ class UserController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-    public function index()
+    public function index(Request $request)
     {
         if (RoleHelper::Superadmin()) {
-                $users = User::all();
-                return response()->json(['user' => $users]);
+            $perPage = 20; // Number of items per page
+            $page = $request->input('page', 1);
+            $users = User::orderBy('created_at', 'desc')
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();                
+            return response()->json(['user' => $users]);
             } else if (RoleHelper::AdminSup()) {
                 DatabaseHelper::Config();
-                $users = User::on('temp')->get();
+                $perPage = 20; // Number of items per page
+                $page = $request->input('page', 1);
+                $users = User::on('temp')->orderBy('created_at', 'desc')
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();
                 return response()->json(['user' => $users], 200);
             }
         
@@ -118,9 +128,16 @@ class UserController extends Controller
             $user->solde_conge = $request->solde_conge;
             if ($request->has('photo')) {
                 $societe = Societe::findOrFail($request->societe_id);
-                $photo = $request->file('photo')->store($societe->raison_sociale . '/photos_users', 'public');
+                $photo = $request->file('photo')->store($societe->raison_sociale .  '/photos_users', 'public');
                 $user->photo = $photo;
             }
+            /* if ($request->has('photo')) {
+                $photo=$request->file('photo');
+                $photo = time() . '.' . $request->photo . '.' . $request->photo->extension();
+                $request->photo->move(public_path('img/users'), $photo);
+                $user->photo = $photo;
+            } */
+
             if ($user->save()) {
 
                 $this->createSubUser($request, $user->id);
@@ -160,6 +177,12 @@ class UserController extends Controller
             $photo = $request->file('photo')->store($societe->raison_sociale . '/photos_users', 'public');
             $user->photo = $photo;
         }
+        /* if ($request->hasFile('photo')) {
+            $societe = Societe::findOrFail($request->societe_id);
+            $photo = time() . '.' . $request->photo . '.' . $request->photo->extension();
+            $request->photo->move(public_path('img/'+$societe+'/users'), $photo);
+            $user->photo = $photo;
+        } */
         $user->save();
     }
 

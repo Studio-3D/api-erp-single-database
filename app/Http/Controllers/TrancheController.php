@@ -11,6 +11,7 @@ use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\HistoriqueBienHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Models\Societe;
+use Illuminate\Http\Request;
 
 
 class TrancheController extends Controller
@@ -18,11 +19,17 @@ class TrancheController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {  
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $tranches = tranche::on('temp')->get();
+            $perPage = 20; // Number of items per page
+            $page = $request->input('page', 1);
+
+            $tranches = Tranche::on('temp')->orderBy('created_at', 'desc')
+            ->skip(($page - 1) * $perPage)
+            ->take($perPage)
+            ->get();            
             return response()->json(['tranche' => $tranches]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);

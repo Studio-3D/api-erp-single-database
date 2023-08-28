@@ -20,11 +20,16 @@ class ProjetController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $projets = Projet::on('temp')->get();
+            $perPage = 20; // Number of items per page
+            $page = $request->input('page', 1);
+            $projets = Projet::on('temp')->orderBy('created_at', 'desc')
+            ->skip(($page - 1) * $perPage)
+            ->take($perPage)
+            ->get();            
             return response()->json(['projet' => $projets]);
         }
 
@@ -63,18 +68,17 @@ class ProjetController extends Controller
             $projet->nbre_blocs = $request->nbre_blocs ?: 0;
             $projet->nbre_immeubles = $request->nbre_immeubles ?: 0;
             $projet->nbre_biens = $request->nbre_biens ?: 0;
-            if ($request->verification==true)
-            { $projet->save();
-             
-             if($request->selectedUsers){
-                 foreach($request->selectedUsers as $valeur){  
-                     UserProjetHelper::createUserProjet($projet->id, $valeur);
-                 }
-             }
-             return response()->json(['projet' => $projet], 200);
-            }
-            return response()->json(['error' => 'attention nbre de bien different de nbr de bien par type'], 422);
-           
+            if($request->verification==true){
+            if($projet->save()){
+                if($request->selectedUsers){
+                    foreach($request->selectedUsers as $valeur) {
+                    UserProjetHelper::createUserProjet($projet->id, $valeur);}
+            }                    
+                return response()->json(['projet' => $projet], 200);       
+            }}
+        
+            return response()->json(['error' => 'Attention nombre de bien par type différent de nombre de bien total'], 422);
+
           } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
