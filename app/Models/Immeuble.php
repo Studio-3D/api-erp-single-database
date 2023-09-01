@@ -18,6 +18,9 @@ class Immeuble extends Model
     'titre_foncier',
     'nbre_biens'
 ]; */
+
+    protected $with=['projet','tranche','bloc'];
+
    
    public function projet()
    {
@@ -25,12 +28,16 @@ class Immeuble extends Model
    }
 
    public function tranche()
-   {
-       return $this->belongsTo(Tranche::class, 'tranche_id');
-   }
+    {
+        return $this->belongsTo(Tranche::class, 'tranche_id');
+    }
 
    public function bloc()
    {
        return $this->belongsTo(Bloc::class, 'bloc_id');
+   }
+   public function bien()
+   {
+       return $this->hasMany(Bien::class);
    }
 }

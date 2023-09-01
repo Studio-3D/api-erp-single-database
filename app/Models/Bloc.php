@@ -17,6 +17,7 @@ class Bloc extends Model
     'nbre_biens'
     ]; */
     protected $dates = ['deleted_at'];
+    protected $with=['projet','tranche'];
 
     public function projet()
     {
@@ -31,4 +32,10 @@ class Bloc extends Model
     {
         return $this->hasMany(Bien::class);
     }
+
+    public function immeuble()
+    {
+        return $this->hasMany(Bien::class);
+    }
+    
 }

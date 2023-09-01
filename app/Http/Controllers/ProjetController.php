@@ -2,18 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Helpers\UserProjetHelper;
-use App\Models\Projet;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreProjetRequest;
-use App\Http\Requests\UpdateProjetRequest;
-use Illuminate\Support\Facades\Auth;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
+use App\Http\Helpers\UserProjetHelper;
+use App\Http\Requests\StoreProjetRequest;
+use App\Http\Requests\UpdateProjetRequest;
+use App\Models\Projet;
 use Illuminate\Http\Request;
-use App\Http\Helpers\HistoriqueBienHelper;
-use App\Models\Societe;
-use App\Models\UserProjet;
+use Illuminate\Support\Facades\Auth;
 
 class ProjetController extends Controller
 {
@@ -27,9 +24,9 @@ class ProjetController extends Controller
             $perPage = 20; // Number of items per page
             $page = $request->input('page', 1);
             $projets = Projet::on('temp')->orderBy('created_at', 'desc')
-            ->skip(($page - 1) * $perPage)
-            ->take($perPage)
-            ->get();            
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();
             return response()->json(['projet' => $projets]);
         }
 
@@ -49,7 +46,7 @@ class ProjetController extends Controller
      */
     public function store(StoreProjetRequest $request)
     {
-        if (RoleHelper::AdminSup()) {         
+        if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $projet = new Projet();
             $projet->setConnection('temp');
@@ -68,18 +65,19 @@ class ProjetController extends Controller
             $projet->nbre_blocs = $request->nbre_blocs ?: 0;
             $projet->nbre_immeubles = $request->nbre_immeubles ?: 0;
             $projet->nbre_biens = $request->nbre_biens ?: 0;
-            if($request->verification==true){
-            if($projet->save()){
-                if($request->selectedUsers){
-                    foreach($request->selectedUsers as $valeur) {
-                    UserProjetHelper::createUserProjet($projet->id, $valeur);}
-            }                    
-                return response()->json(['projet' => $projet], 200);       
-            }}
-        
-            return response()->json(['error' => 'Attention nombre de bien par type différent de nombre de bien total'], 422);
+            if ($request->verification == true) {
+                if ($projet->save()) {
+                    if ($request->selectedUsers) {
+                        foreach ($request->selectedUsers as $valeur) {
+                            UserProjetHelper::createUserProjet($projet->id, $valeur);}
+                    }
+                    return response()->json(['projet' => $projet], 200);
+                }
+            }
 
-          } else {
+            return response()->json(['error' => 'Attention nombre de bien par type different au nonmbre total des biens'], 422);
+
+        } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
@@ -121,10 +119,10 @@ class ProjetController extends Controller
             DatabaseHelper::Config();
             $projet = Projet::on('temp')->findOrfail($id);
             $update = $request->all();
-            foreach($update as $key => $value) {
+            foreach ($update as $key => $value) {
                 $projet->$key = $value;
             }
-            $projet->save();            
+            $projet->save();
             return response()->json(['message' => $projet], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -146,7 +144,7 @@ class ProjetController extends Controller
             }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
-        }     
+        }
     }
 
     public function restoreProjet($projet_id)

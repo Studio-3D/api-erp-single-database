@@ -106,23 +106,31 @@ class SocieteController extends Controller
         }
     }
 
-    public function update(UpdateSocieteRequest $request, Societe $societe)
+    public function update(UpdateSocieteRequest $request,$id)
     {
         if (RoleHelper::Superadmin()) {
-
+            $societe = Societe::findOrfail($id);
+            $oldDatabaseName = 'Erp_' . $societe->raison_sociale . '_' . $id;
+            $originalRaisonSociale = $societe->raison_sociale;
             if ($request->hasFile('logo')) {
-                if ($societe->logo) {
-                    //$exist = Storage::disk('public')->exists("{$societe->raison_sociale}/logos/{$societe->logo}");
-                    //if ($exist) {
-                    Storage::disk('public')->delete("{$societe->raison_sociale}/logos/{$societe->logo}");
-                    //}
-                }
-                $logo = $request->file('logo')->store($request->raison_sociale . '/logos', 'public');
-                $request['logo'] = $logo;
-
+                $logo = time() . '.' . $originalRaisonSociale  . '.' . $request->logo->extension();
+                $request->logo->move(public_path('img/societes'), $logo);
+                $societe->logo = $logo;
             }
 
-            $societe->update($request->all());
+            $update = $request->all();
+            foreach($update as $key => $value) {
+                $societe->$key = $value;
+            }
+            $societe->save();
+            if ($request->has('raison_sociale')) {
+                $newRaisonSociale = $request->raison_sociale;
+                if ($originalRaisonSociale !== $newRaisonSociale) {
+                    $newDatabaseName ='Erp_' . $newRaisonSociale . '_' . $id;
+                    $databaseHelper = new DatabaseHelper();
+                    $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
+                }
+            }
 
             return response()->json(['message' => $societe], 200);
         } else {

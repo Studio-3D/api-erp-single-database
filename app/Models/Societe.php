@@ -28,4 +28,5 @@ class Societe extends Model
     {
         return $this->hasMany(Projet::class);
     }
+    
 }

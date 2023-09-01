@@ -68,7 +68,7 @@ class UserController extends Controller
     }
     public function index(Request $request)
     {
-        if (RoleHelper::Superadmin()) {
+        if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
             $perPage = 20; // Number of items per page
             $page = $request->input('page', 1);
             $users = User::orderBy('created_at', 'desc')
@@ -126,9 +126,9 @@ class UserController extends Controller
             $user->nb_appel_recu = $request->nb_appel_recu;
             $user->nb_appel_traite = $request->nb_appel_traite;
             $user->solde_conge = $request->solde_conge;
-            if ($request->has('photo')) {
-                $societe = Societe::findOrFail($request->societe_id);
-                $photo = $request->file('photo')->store($societe->raison_sociale .  '/photos_users', 'public');
+            if ($request->hasFile('photo')) {
+                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+                $request->photo->move(public_path('img/users'), $photo);
                 $user->photo = $photo;
             }
             /* if ($request->has('photo')) {
@@ -172,17 +172,18 @@ class UserController extends Controller
         $user->nb_appel_recu = $request->nb_appel_recu;
         $user->nb_appel_traite = $request->nb_appel_traite;
         $user->solde_conge = $request->solde_conge;
-        if ($request->has('photo')) {
+        $originalName = $user->name;
+        if ($request->hasFile('photo')) {
+            $photo = time() . '.' . $originalName  . '.' . $request->photo->extension();
+            $request->photo->move(public_path('img/users'), $photo);
+            $user->photo = $photo;
+        }
+        /* if ($request->has('photo')) {
             $societe = Societe::findOrFail($request->societe_id);
             $photo = $request->file('photo')->store($societe->raison_sociale . '/photos_users', 'public');
             $user->photo = $photo;
-        }
-        /* if ($request->hasFile('photo')) {
-            $societe = Societe::findOrFail($request->societe_id);
-            $photo = time() . '.' . $request->photo . '.' . $request->photo->extension();
-            $request->photo->move(public_path('img/'+$societe+'/users'), $photo);
-            $user->photo = $photo;
         } */
+       
         $user->save();
     }
 

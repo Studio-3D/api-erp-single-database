@@ -23,28 +23,27 @@ class Bien extends Model
     ]; */
     protected $dates = ['deleted_at'];
 
-    public function typebien()
-    {
-        return $this->belongsTo(TypeBien::class, 'type_id');
-    }
 
+    protected $with=['typeBien','projet','tranche','bloc','immeuble'];
+    public function typeBien()
+    {
+        return $this->belongsTo(TypeBien::class, 'type_id','id');
+    }
     public function projet()
     {
-        return $this->belongsTo(Projet::class, 'projet_id');
+        return $this->belongsTo(Projet::class, 'projet_id','id');
     }
-
     public function tranche()
     {
         return $this->belongsTo(Tranche::class, 'tranche_id');
     }
-
     public function bloc()
     {
         return $this->belongsTo(Bloc::class, 'bloc_id');
     }
-
     public function immeuble()
     {
-        return $this->belongsTo(Immeuble::class, 'immeuble_id');
+        return $this->belongsTo(Immeuble::class, 'immeuble_id','id');
     }
+    
 }

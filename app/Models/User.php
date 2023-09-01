@@ -61,9 +61,11 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
     protected $dates = ['deleted_at'];
+    protected $with=['societe'];
+
     public function societe()
    {
-       return $this->belongsTo(Societe::class, 'societe_id');
+       return $this->belongsTo(Societe::class, 'societe_id','id');
    }
 
    public function projet()

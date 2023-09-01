@@ -15,5 +15,8 @@ class TypeBien extends Model
         'type'
     ];
     protected $dates = ['deleted_at'];
-   
+    public function bien()
+    {
+        return $this->hasMany(Bien::class);
+    }
 }

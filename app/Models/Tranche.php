@@ -19,12 +19,25 @@ class Tranche extends Model
     ]; */
     protected $dates = ['deleted_at'];
 
+    protected $with=['projet'];
 
     public function projet()
     {
         return $this->belongsTo(Projet::class, 'projet_id');
     }
-   
+    public function bien()
+    {
+        return $this->hasMany(Bien::class);
+    }
+    public function immeuble()
+    {
+        return $this->hasMany(Immeuble::class);
+    }
+    public function bloc()
+    {
+        return $this->hasMany(Bloc::class);
+    }
+    
 }
 
 
