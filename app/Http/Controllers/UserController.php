@@ -7,7 +7,6 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Helpers\UserProjetHelper;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
-use App\Models\Societe;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -39,22 +38,20 @@ class UserController extends Controller
 
         $request->user()->tokens()->delete(); // Revoke all access tokens for the user
         if (RoleHelper::SuperAdmin()) {
-            $user->societe_id=1;
-            $user->save();        }
+            $user->societe_id = 1;
+            $user->save();}
 
         return response()->json([
             'message' => 'Logout successful',
         ]);
     }
-    
-    
 
     /* public function dashboard()
     {   if (Auth::guard('api')->check()) {
-            return response()->json(['user' => auth()->user()], 200);
+    return response()->json(['user' => auth()->user()], 200);
 
-        }
-        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+    return response()->json(['error' => 'Unauthorized'], 401);
     } */
     public function Dashboard()
     {
@@ -74,23 +71,22 @@ class UserController extends Controller
             $users = User::orderBy('created_at', 'desc')
                 ->skip(($page - 1) * $perPage)
                 ->take($perPage)
-                ->get();                
+                ->get();
             return response()->json(['user' => $users]);
-            } else if (RoleHelper::AdminSup()) {
-                DatabaseHelper::Config();
-                $perPage = 20; // Number of items per page
-                $page = $request->input('page', 1);
-                $users = User::on('temp')->orderBy('created_at', 'desc')
+        } else if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            $perPage = 20; // Number of items per page
+            $page = $request->input('page', 1);
+            $users = User::on('temp')->orderBy('created_at', 'desc')
                 ->skip(($page - 1) * $perPage)
                 ->take($perPage)
                 ->get();
-                return response()->json(['user' => $users], 200);
-            }
-        
+            return response()->json(['user' => $users], 200);
+        }
+
         return response()->json(['error' => 'Unauthorized'], 401);
-        
+
     }
-    
 
     /**
      * Show the form for creating a new resource.
@@ -130,13 +126,8 @@ class UserController extends Controller
                 $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                 $request->photo->move(public_path('img/users'), $photo);
                 $user->photo = $photo;
+                $request->photo = $photo;
             }
-            /* if ($request->has('photo')) {
-                $photo=$request->file('photo');
-                $photo = time() . '.' . $request->photo . '.' . $request->photo->extension();
-                $request->photo->move(public_path('img/users'), $photo);
-                $user->photo = $photo;
-            } */
 
             if ($user->save()) {
 
@@ -172,18 +163,10 @@ class UserController extends Controller
         $user->nb_appel_recu = $request->nb_appel_recu;
         $user->nb_appel_traite = $request->nb_appel_traite;
         $user->solde_conge = $request->solde_conge;
-        $originalName = $user->name;
         if ($request->hasFile('photo')) {
-            $photo = time() . '.' . $originalName  . '.' . $request->photo->extension();
-            $request->photo->move(public_path('img/users'), $photo);
-            $user->photo = $photo;
+            $user->photo = $request->photo;
+
         }
-        /* if ($request->has('photo')) {
-            $societe = Societe::findOrFail($request->societe_id);
-            $photo = $request->file('photo')->store($societe->raison_sociale . '/photos_users', 'public');
-            $user->photo = $photo;
-        } */
-       
         $user->save();
     }
 
@@ -196,7 +179,7 @@ class UserController extends Controller
             $user = User::findOrfail($id);
             if ($user) {
                 return response()->json(['user' => $user], 200);
-            
+
             } else {
                 return response()->json(['message' => 'User not found'], 200);
             }
@@ -205,8 +188,7 @@ class UserController extends Controller
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
             return response()->json(['user' => $user], 200);
-        }
-        else {
+        } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
@@ -227,56 +209,46 @@ class UserController extends Controller
     {
         if (RoleHelper::SuperAdmin()) {
             $user = User::findOrfail($id);
+            $originalName = $user->name;
             if ($request->hasFile('photo')) {
-                if ($user->photo) {
-                    $exist = Storage::disk('public')->exists("{$user->societe->raison_sociale}/photo_users/{$user->photo}");
-                    if ($exist) {
-                        Storage::disk('public')->delete("{$user->societe->raison_sociale}/photo_users/{$user->photo}");
-                    }
-                }
-                $photo = $request->file('photo')->store($request->raison_sociale . '/photos_users', 'public');
-                $request['photo'] = $photo;
+                $photo = time() . '.' . $originalName . '.' . $request->photo->extension();
+                $request->photo->move(public_path('img/users'), $photo);
+                $user->photo = $photo;
             }
             $update = $request->all();
-            foreach($update as $key => $value) {
+            foreach ($update as $key => $value) {
                 $user->$key = $value;
             }
-            $user->save();                 
-             if ($user) {
+            $user->save();
+            if ($user) {
                 DatabaseHelper::Config();
 
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
                 $update = $request->all();
-                foreach($update as $key => $value) {
-                $user->$key = $value;
+                foreach ($update as $key => $value) {
+                    $user->$key = $value;
                 }
                 $user_societes->update($request->all());
 
             }
             return response()->json(['message' => $user], 200);
-        } else if (RoleHelper::AdminSup() && RoleHelper::AC()){
+        } else if (RoleHelper::AdminSup() && RoleHelper::AC()) {
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
+            $originalName = $user->name;
             if ($request->hasFile('photo')) {
-                if ($user->photo) {
-                    $exist = Storage::disk('public')->exists("{$user->societe->raison_sociale}/photo_users/{$user->photo}");
-                    if ($exist) {
-                        Storage::disk('public')->delete("{$user->societe->raison_sociale}/photo_users/{$user->photo}");
-                    }
-                }
-                $photo = $request->file('photo')->store($request->raison_sociale . '/photos_users', 'public');
-                $request['photo'] = $photo;
+                $photo = time() . '.' . $originalName . '.' . $request->photo->extension();
+                $request->photo->move(public_path('img/users'), $photo);
+                $user->photo = $photo;
             }
             $update = $request->all();
-            foreach($update as $key => $value) {
+            foreach ($update as $key => $value) {
                 $user->$key = $value;
             }
-            $user->save();   
+            $user->save();
             return response()->json(['message' => $user], 200);
 
-        }
-        
-        else {
+        } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -329,7 +301,7 @@ class UserController extends Controller
     }
     public function desactivateUser($user_id)
     {
-        if (RoleHelper::AdminSup()) {    
+        if (RoleHelper::AdminSup()) {
             $user = User::findOrFail($user_id);
 
             $user->is_actif = 0;
@@ -383,21 +355,21 @@ class UserController extends Controller
         }
     }
 
-    public function addUserProjet($user_id,Request $request )
+    public function addUserProjet($user_id, Request $request)
     {
 
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            if($request->selectedProjets){
-                foreach($request->selectedProjets as $valeur){  
+            if ($request->selectedProjets) {
+                foreach ($request->selectedProjets as $valeur) {
                     UserProjetHelper::createUserProjet($valeur, $user_id);
                 }
-            return response()->json(['message' => 'les lignes bien ajouter'], 200);
+                return response()->json(['message' => 'les lignes bien ajouter'], 200);
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
         }
-    }
 
-}
+    }
 }
