@@ -21,11 +21,12 @@ class StoreUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [ 
+        return [
             'name' => 'required|string',
             'prenom' => 'required|string',
             'email' => 'required|email|unique:users',
-            'password' => 'required|min:6',
+            'password' => 'required|min:6|same:password_confirmation',
+            'password_confirmation' => 'required|min:6',
             'role' => 'required|integer',
             'phone' => 'string|min:10|max:14|nullable',
             'photo' => 'image|mimes:png,jpg,jpeg|max:2048',
@@ -33,10 +34,10 @@ class StoreUserRequest extends FormRequest
             'date_embauche' => 'date',
             'cnss' => 'integer',
             'is_actif' => 'integer',
-            'nb_appel_recu' => 'integer',
-            'nb_appel_traite' => 'integer',
-            'solde_conge' => 'integer', 
-        
+           // 'nb_appel_recu' => 'integer',
+           // 'nb_appel_traite' => 'integer',
+            'solde_conge' => 'integer',
+
         ];
     }
 }

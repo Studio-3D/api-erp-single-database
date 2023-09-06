@@ -28,7 +28,7 @@ class UpdateUserRequest extends FormRequest
             'email' => [
                 Rule::unique('users')->ignore($this->user),
             ],
-            'password' => 'min:6',
+            'password' => 'min:6|same:password_confirmation',
             'role' => 'integer',
             'phone' => 'string|min:10|max:14',
             'photo' => 'image|mimes:png,jpg,jpeg|max:2048',
@@ -38,8 +38,8 @@ class UpdateUserRequest extends FormRequest
             'date_embauche' => 'date',
             'cnss' => 'integer',
             'is_actif' => 'integer',
-            'nb_appel_recu' => 'integer',
-            'nb_appel_traite' => 'integer',
+            //'nb_appel_recu' => 'integer',
+            //'nb_appel_traite' => 'integer',
             'solde_conge' => 'integer',
 
         ];

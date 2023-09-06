@@ -61,6 +61,8 @@ class UpdateBienRequest extends FormRequest
                         ->where('immeuble_id', $this->immeuble_id);
                 }
             })->ignore($this->bien)],
+            'vue_id' => 'integer',
+            'typologie_id'=> 'integer',
         ];
     }
 

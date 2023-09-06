@@ -16,6 +16,7 @@ class TrancheController extends Controller
     /**
      * Display a listing of the resource.
      */
+
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
@@ -27,6 +28,7 @@ class TrancheController extends Controller
                 ->skip(($page - 1) * $perPage)
                 ->take($perPage)
                 ->get();
+
             return response()->json(['tranche' => $tranches]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -59,8 +61,8 @@ class TrancheController extends Controller
             $tranche->nbre_immeubles = $request->nbre_immeubles ? $request->nbre_immeubles : 0;
             $tranche->nbre_biens = $request->nbre_biens ? $request->nbre_biens : 0;
             $tranche->save();
-
-            return response()->json(['message' => $tranche], 200);
+          
+            return response()->json(['tranche' => $tranche], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -74,7 +76,7 @@ class TrancheController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $tranche = Tranche::on('temp')->findOrfail($id);
+            $tranche = Tranche::on('temp')->with('projet')->findOrfail($id);
             return response()->json(['tranche' => $tranche], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -162,7 +164,8 @@ class TrancheController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $tranches = Tranche::on('temp')->where('projet_id', $projet_id)->get();
-            return response()->json(['tranche' => $tranches], 200);
+
+            return response()->json(['tranches' => $tranches], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

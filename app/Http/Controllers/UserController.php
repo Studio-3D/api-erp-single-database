@@ -45,7 +45,6 @@ class UserController extends Controller
             'message' => 'Logout successful',
         ]);
     }
-
     /* public function dashboard()
     {   if (Auth::guard('api')->check()) {
     return response()->json(['user' => auth()->user()], 200);
@@ -65,7 +64,9 @@ class UserController extends Controller
     }
     public function index(Request $request)
     {
+
         if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
+
             $perPage = 20; // Number of items per page
             $page = $request->input('page', 1);
             $users = User::orderBy('created_at', 'desc')
@@ -176,7 +177,9 @@ class UserController extends Controller
     public function show($id)
     {
         if (RoleHelper::SuperAdmin()) {
-            $user = User::findOrfail($id);
+
+            $user = User::with('societe')->findOrfail($id);
+
             if ($user) {
                 return response()->json(['user' => $user], 200);
 
@@ -186,7 +189,7 @@ class UserController extends Controller
 
         } else if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $user = User::on('temp')->findOrfail($id);
+            $user = User::on('temp')->with('societe')->findOrfail($id);
             return response()->json(['user' => $user], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -196,15 +199,17 @@ class UserController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(user $user)
+   /* public function edit($id)
     {
         if (RoleHelper::AdminSup()) {
-            return response()->json(['message' => $user], 200);
+            dd('hh');
+            $user=User::firstorfail($id);
+            return response()->json(['message' => $user->with('societe')], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-
+*/
     public function update(UpdateUserRequest $request, $id)
     {
         if (RoleHelper::SuperAdmin()) {
@@ -220,7 +225,7 @@ class UserController extends Controller
                 $user->$key = $value;
             }
             $user->save();
-            if ($user) {
+             if ($user) {
                 DatabaseHelper::Config();
 
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
@@ -248,7 +253,9 @@ class UserController extends Controller
             $user->save();
             return response()->json(['message' => $user], 200);
 
-        } else {
+        }
+
+        else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -278,7 +285,6 @@ class UserController extends Controller
         if (RoleHelper::SuperAdmin()) {
             $users = User::where('societe_id', $societe_id)->get();
             return response()->json(['message' => $users], 200);
-
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
 
@@ -360,8 +366,8 @@ class UserController extends Controller
 
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            if ($request->selectedProjets) {
-                foreach ($request->selectedProjets as $valeur) {
+            if($request->selectedProjets){
+                foreach($request->selectedProjets as $valeur){
                     UserProjetHelper::createUserProjet($valeur, $user_id);
                 }
                 return response()->json(['message' => 'les lignes bien ajouter'], 200);

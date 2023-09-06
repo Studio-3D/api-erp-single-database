@@ -58,11 +58,13 @@ class StoreBienRequest extends FormRequest
                             }
                         }
                         else {$query->where('propriete_dite_bien', $this->propriete_dite_bien)
-                                ->where('immeuble_id', $this->immeuble_id);   
-                        }         
+                                ->where('immeuble_id', $this->immeuble_id);
+                        }
                         })],
-         
-            
+            'vue_id' => 'integer',
+            'typologie_id'=> 'integer',
+
+
         ];
     }
 
@@ -70,27 +72,27 @@ class StoreBienRequest extends FormRequest
 
         {   if ($this->tranche_id==null && $this->bloc_id==null && $this->immeuble_id==null){
                 return [
-            
+
                 'propriete_dite_bien.unique' =>  'Ce bien existe déjà dans ce projet',
             ];
             }
 
             elseif ($this->immeuble_id==null && $this->bloc_id==null) {
                 return [
-                
+
                 'propriete_dite_bien.unique' =>  'Ce bien existe déjà dans cette tranche',
             ];
             }
             elseif ($this->immeuble_id==null ) {
             return [
-                
+
                 'propriete_dite_bien.unique' =>  'Ce bien existe déjà dans ce bloc',
             ];
             }
 
             else {
                 return [
-                    
+
                     'propriete_dite_bien.unique' =>  'Ce bien existe déjà dans cet immeuble',
                 ];
                 }

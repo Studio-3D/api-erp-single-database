@@ -3,13 +3,19 @@
 use App\Http\Controllers\BienController;
 use App\Http\Controllers\BlocController;
 use App\Http\Controllers\CompositionBienController;
+use App\Http\Controllers\FreinController;
 use App\Http\Controllers\ImmeubleController;
 use App\Http\Controllers\ProjetController;
+use App\Http\Controllers\ProspectController;
 use App\Http\Controllers\SocieteController;
+use App\Http\Controllers\SourceController;
 use App\Http\Controllers\TrancheController;
 use App\Http\Controllers\TypeBienController;
 use App\Http\Controllers\TypeProjetController;
+use App\Http\Controllers\TypologieController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VisiteController;
+use App\Http\Controllers\VueController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -107,5 +113,24 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getBiensDispoByBloc/{id}', [BienController::class, 'getBiensDispoByBloc'])->name('getBiensDispoByBloc');
     Route::get('getBiensDispoByTranche/{id}', [BienController::class, 'getBiensDispoByTranche'])->name('getBiensDispoByTranche');
     Route::get('getBiensDispoByProjet/{id}', [BienController::class, 'getBiensDispoByProjet'])->name('getBiensByDispoProjet');
+    Route::put('setPropostionBien/{id}', [BienController::class, 'setPropostionBien'])->name('setPropostionBien');
 
+    /*************************************Visite***************************** */
+    Route::resource('visite',VisiteController::class);
+    Route::post('addLinkedVisite/{id}',[VisiteController::class,'addLinkedVisite'])->name('addLinkedVisite');
+    Route::get('getAllAttributes',[VisiteController::class,'getAllAttributes'])->name('getAllAttributes');
+    /*************************************Frein***************************** */
+    Route::resource('frein', FreinController::class);
+
+    /*************************************Prospect***************************** */
+    Route::resource('prospect',ProspectController::class);
+
+    /*************************************Source***************************** */
+    Route::resource('source',SourceController::class);
+
+    /*************************************Vue***************************** */
+    Route::resource('vue', VueController::class);
+
+    /*************************************Typologie***************************** */
+    Route::resource('typologie', TypologieController::class);
 });

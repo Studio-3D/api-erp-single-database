@@ -78,20 +78,22 @@ class ProjetController extends Controller
             $projet->nbre_blocs = $request->nbre_blocs ?: 0;
             $projet->nbre_immeubles = $request->nbre_immeubles ?: 0;
             $projet->nbre_biens = $request->nbre_biens ?: 0;
-            if ($request->verification == true) {
-                if ($projet->save()) {
-                    if ($request->selectedUsers) {
-                        foreach ($request->selectedUsers as $valeur) {
-                            UserProjetHelper::createUserProjet($projet->id, $valeur);}
-                    }
-                    return response()->json(['projet' => $projet], 200);
-                }
+            if($request->verification==true){
+            if($projet->save()){
+                if($request->selectedUsers){
+                    foreach($request->selectedUsers as $valeur) {
+                    UserProjetHelper::createUserProjet($projet->id, $valeur);}
+            }
+                return response()->json(['projet' => $projet], 200);
+            }}
+            else{
+                return response()->json(['errors' => 'Attention nombre de bien par type différent de nombre de bien total'], 422);
+
             }
 
-            return response()->json(['error' => 'Attention nombre de bien par type different au nonmbre total des biens'], 422);
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+          } else {
+            return response()->json(['errors' => 'Unauthorized'], 401);
         }
     }
 

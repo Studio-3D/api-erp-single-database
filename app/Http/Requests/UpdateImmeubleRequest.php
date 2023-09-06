@@ -37,17 +37,19 @@ class UpdateImmeubleRequest extends FormRequest
                     else {$query->where('nom', $this->nom)
                         ->where('tranche_id', $this->tranche_id);}
                 }
-                
+
                 elseif($this->bloc_id!=null)
                     {$query->where('nom', $this->nom)
                     ->where('bloc_id', $this->bloc_id);}
-               
+
                 })->ignore($this->immeuble)],
+
+           
             'tranche_id' => 'integer',
             'projet_id' => 'integer',
             'nbre_biens' => 'integer',
             'bloc_id'=>'integer'
-            
+
         ];
     }
 
@@ -55,20 +57,20 @@ class UpdateImmeubleRequest extends FormRequest
     {
         if ($this->tranche_id==null && $this->bloc_id==null){
             return [
-            
+
                 'nom.unique' =>  'Cet immeuble est deja exist dans ce projet',
             ];}
 
         elseif ($this->bloc_id==null) {
             return [
-                
+
                 'nom.unique' =>  'Cet immeuble est deja exist dans cette tranche',
             ];}
         else {
             return [
-                
+
                 'nom.unique' =>  'Cet immeuble est deja exist dans ce bloc',
             ];}
-        
+
     }
 }

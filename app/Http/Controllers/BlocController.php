@@ -25,10 +25,16 @@ class BlocController extends Controller
             $perPage = 20; // Number of items per page
             $page = $request->input('page', 1);
 
-            $blocs = Bloc::on('temp')->orderBy('created_at', 'desc')
+            $blocs = Bloc::on('temp')->with('projet')->with('tranche')->orderBy('blocs.created_at', 'desc')
+           // ->select('blocs.*','projet.id')
+           /*->with(['projet' => function ($query) {
+                $query->select('projets.id', 'projets.nom');
+            }])*/
+
             ->skip(($page - 1) * $perPage)
             ->take($perPage)
             ->get();
+
             return response()->json(['bloc' => $blocs]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -48,8 +54,8 @@ class BlocController extends Controller
     public function store(StoreBlocRequest $request)
     {
         if (RoleHelper::AdminSup()) {
-                       
-            DatabaseHelper::Config();            
+
+            DatabaseHelper::Config();
             $bloc = new Bloc();
             $bloc->setConnection('temp');
             $bloc->nom = $request->nom;
@@ -74,7 +80,7 @@ class BlocController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $bloc = Bloc::on('temp')->findOrfail($id);
+            $bloc = Bloc::on('temp')->with('projet')->with('tranche')->findOrfail($id);
             return response()->json(['bloc' => $bloc], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -122,7 +128,7 @@ class BlocController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $bloc = Bloc::on('temp')->findOrfail($id);            
+            $bloc = Bloc::on('temp')->findOrfail($id);
             if ($bloc->delete()) {
                 return response()->json(['message' => 'bloc deleted succesfully'], 200);
             } else {
@@ -148,7 +154,7 @@ class BlocController extends Controller
     {
 
         if (RoleHelper::AdminSup()) {
-            DatabaseHelper::Config();    
+            DatabaseHelper::Config();
             $blocs = Bloc::on('temp')->onlyTrashed()->get();
             return response()->json(['message' => $blocs], 200);
         } else {
@@ -160,7 +166,8 @@ class BlocController extends Controller
         if (RoleHelper::AC()) {
             DatabaseHelper::Config();
             $blocs = Bloc::on('temp')->where('projet_id', $projet_id)->get();
-            return response()->json(['bloc' => $blocs], 200);
+
+            return response()->json(['blocs' => $blocs], 200);
             
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -172,7 +179,7 @@ class BlocController extends Controller
             DatabaseHelper::Config();
             $blocs = Bloc::on('temp')->where('tranche_id', $tranche_id)->get();
             return response()->json(['message' => $blocs], 200);
-            
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
 

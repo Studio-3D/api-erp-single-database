@@ -45,4 +45,14 @@ class Bien extends Model
         return $this->belongsTo(Immeuble::class, 'immeuble_id');
     }
 
+    public function vue()
+    {
+        return $this->belongsTo(Vue::class, 'vue_id');
+    }
+
+    public function typologie()
+    {
+        return $this->belongsTo(Typologie::class, 'typologie_id');
+    }
+
 }

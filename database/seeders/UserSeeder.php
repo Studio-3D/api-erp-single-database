@@ -19,7 +19,7 @@ class UserSeeder extends Seeder
             'societe_id' => 1,
             'name' => 'super_admin',
             'prenom' => 'super_admin',
-            'type' => '1',
+            'role' => '1',
             'nb_appel_recu' => '0',
             'nb_appel_traite' => '0',
             'cin' => 'BH111',

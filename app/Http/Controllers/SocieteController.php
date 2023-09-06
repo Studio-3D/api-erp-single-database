@@ -106,7 +106,46 @@ class SocieteController extends Controller
         }
     }
 
-    public function update(UpdateSocieteRequest $request,$id)
+    public function update(UpdateSocieteRequest $request, $id)
+    {
+
+        if (RoleHelper::superadmin()) {
+            $societe = Societe::findOrfail($id);
+            $originalRaisonSociale = $societe->raison_sociale;
+
+            $societe->raison_sociale = $request->raison_sociale;
+            $societe->adresse = $request->adresse;
+            $societe->nom_contact = $request->nom_contact;
+            $societe->prenom_contact = $request->prenom_contact;
+            $societe->tel = $request->tel;
+            $societe->email = $request->email;
+
+
+            if ($request->hasFile('logo')) {
+                $logo = time() . '.' . $originalRaisonSociale  . '.' . $request->logo->extension();
+                $request->logo->move(public_path('img/societes'), $logo);
+                $societe->logo = $logo;
+            }
+            $societe->save();
+            if ($request->has('raison_sociale')) {
+                $newRaisonSociale = $societe->raison_sociale;
+                if ($originalRaisonSociale !== $newRaisonSociale) {
+                    $newDatabaseName = 'Erp_' . $newRaisonSociale . '_' . $id;
+                    $oldDatabaseName = 'Erp_' . $originalRaisonSociale . '_' . $id;
+
+                    $databaseHelper = new DatabaseHelper();
+                    $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
+                }
+            }
+
+
+
+            return response()->json(['message' => $societe], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+   /* public function update(UpdateSocieteRequest $request, Societe $societe)
     {
         if (RoleHelper::Superadmin()) {
             $societe = Societe::findOrfail($id);
@@ -137,7 +176,7 @@ class SocieteController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-    }
+    }*/
     /**
      * Remove the specified resource from storage.
      */

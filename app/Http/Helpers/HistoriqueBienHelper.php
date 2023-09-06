@@ -10,7 +10,7 @@ class HistoriqueBienHelper
 {
     public static function createHistoriqueBien($action, $description, $bienId, $user_id)
 
-    {                  
+    {
         $HistoriqueBien = new HistoriqueBien();
         $HistoriqueBien->setConnection('temp');
         $HistoriqueBien->action= $action;
@@ -18,9 +18,6 @@ class HistoriqueBienHelper
         $HistoriqueBien->user_id= $user_id;
         $HistoriqueBien->bien_id= $bienId;
         $HistoriqueBien->save();
-
-        
-
         //$HistoriqueBien = HistoriqueBien::on('temp')->create($historiqueBienData);
     }
 }

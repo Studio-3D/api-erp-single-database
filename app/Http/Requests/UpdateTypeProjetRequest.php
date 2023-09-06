@@ -24,7 +24,7 @@ class UpdateTypeProjetRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
      */
     public function rules(): array
-    { $societe_id = Auth::guard('api')->user()->societe_id;
+    {   $societe_id = Auth::guard('api')->user()->societe_id;
         $societe=Societe::findOrfail( $societe_id);
         $DatabaseName='Erp_'.$societe->raison_sociale.'_'.$societe_id;
         DatabaseHelper::Config();

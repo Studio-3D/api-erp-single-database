@@ -1,5 +1,7 @@
 <?php
 
+use App\Enum\EtatBien;
+use App\Enum\OrientationEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -16,7 +18,7 @@ return new class extends Migration
             $table->string('propriete_dite_bien');
             $table->string('numero');
             $table->integer('niveau');
-            $table->string('orientation');
+            $table->enum('orientation',[OrientationEnum::N->name,OrientationEnum::E->name,OrientationEnum::S->name,OrientationEnum::O->name,OrientationEnum::N_E->name,OrientationEnum::N_S->name,OrientationEnum::O_E->name,OrientationEnum::O_S->name,OrientationEnum::E_S->name]);
             $table->boolean('conventionne')->nullable();
             $table->double('prix_unitaire', 12, 2);
             $table->double('prix', 12, 2);
@@ -28,7 +30,7 @@ return new class extends Migration
             $table->float('superficie_terrasse')->nullable();
             $table->float('superficie_jardin')->nullable();
             $table->string('titre_foncier')->nullable();
-            $table->string('etat'); //1=disponible, 2=pré-réservé, 3=réservé, 4=bloqué
+            $table->enum('etat',[EtatBien::DISPONIBLE->name,EtatBien::PRE_RESERVATION->name,EtatBien::RESERVATION->name,EtatBien::BLOQUE->name,EtatBien::VENDU->name,EtatBien::ENCOURS_DE_PROPOSITION->name]); //1=disponible, 2=pré-réservé, 3=réservé, 4=bloqué
             $table->timestamps();
             $table->softDeletes();
             $table->foreignId('type_id')->constrained('type_biens');
@@ -36,7 +38,8 @@ return new class extends Migration
             $table->foreignId('tranche_id')->nullable()->constrained('tranches')->onDelete('cascade');
             $table->foreignId('bloc_id')->nullable()->constrained('blocs')->onDelete('cascade');
             $table->foreignId('immeuble_id')->nullable()->constrained('immeubles')->onDelete('cascade');
-
+            $table->foreignId('vue_id')->constrained('vues')->onDelete('cascade');
+            $table->foreignId('typologie_id')->constrained('typologies')->onDelete('cascade');
         });
     }
 

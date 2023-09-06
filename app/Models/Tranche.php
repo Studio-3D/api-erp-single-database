@@ -25,6 +25,7 @@ class Tranche extends Model
     {
         return $this->belongsTo(Projet::class, 'projet_id');
     }
+
     public function bien()
     {
         return $this->hasMany(Bien::class);
@@ -38,6 +39,13 @@ class Tranche extends Model
         return $this->hasMany(Bloc::class);
     }
     
+
+
+    public function  frein(){
+        return $this->belongsToMany(Frein::class,'frein_tranches');
+    }
+
+
 }
 
 
