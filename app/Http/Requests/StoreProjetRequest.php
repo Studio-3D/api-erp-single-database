@@ -40,6 +40,7 @@ class StoreProjetRequest extends FormRequest
             'prix_acquisition' => 'required|numeric',
             'limite_annulation_reservation' => 'required|integer',
             'type_id' => 'required|integer',
+            'selectedUsers' => 'required',
             'nbr_tranches' => 'integer',
             'nbr_blocs' => 'integer',
             'nbr_immeubles' => 'integer',

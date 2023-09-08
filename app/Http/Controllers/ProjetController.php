@@ -87,7 +87,7 @@ class ProjetController extends Controller
                 return response()->json(['projet' => $projet], 200);
             }}
             else{
-                return response()->json(['errors' => 'Attention nombre de bien par type différent de nombre de bien total'], 422);
+                return response()->json(['error' => 'Attention nombre de bien par type différent de nombre de bien total'], 422);
 
             }
 

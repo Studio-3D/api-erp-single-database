@@ -19,7 +19,7 @@ class Projet extends Model
     ]; */
 
     protected $dates = ['deleted_at'];
-    protected $with=['typeProjet'];
+    protected $with=['typeProjet','userProjet'];
 
     public function typeProjet()
     {
@@ -51,6 +51,11 @@ class Projet extends Model
    public function immeuble()
    {
        return $this->hasMany(Immeuble::class);
+   }
+
+   public function userProjet()
+   {
+       return $this->hasMany(userProjet::class);
    }
    
 

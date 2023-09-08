@@ -75,8 +75,8 @@ class BienController extends Controller
             $bien->tranche_id = $request->tranche_id;
             $bien->bloc_id = $request->bloc_id;
             $bien->immeuble_id = $request->immeuble_id;
-            $bien->vue_id=$request->vue_id;
-            $bien->typologie_id=$request->typologie_id;
+            /* $bien->vue_id=$request->vue_id;
+            $bien->typologie_id=$request->typologie_id; */
             $bien->save();
 
             return response()->json(['message' => $bien], 200);
@@ -254,7 +254,7 @@ class BienController extends Controller
 
     public function getBiensByProjet($projet_id){
 
-        if (RoleHelper::AC()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();            
             $biens = Bien::on('temp')->where('projet_id', $projet_id)->get();
             return response()->json(['biens' => $biens], 200);

@@ -163,7 +163,7 @@ class BlocController extends Controller
     }
 
     public function getBlocsByProjet($projet_id){
-        if (RoleHelper::AC()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $blocs = Bloc::on('temp')->where('projet_id', $projet_id)->get();
 

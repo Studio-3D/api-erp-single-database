@@ -151,10 +151,10 @@ class ImmeubleController extends Controller
     }
 
     public function getImmeublesByProjet($projet_id){
-        if (RoleHelper::AC()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $immeubles = Immeuble::on('temp')->where('projet_id', $projet_id)->get();
-            return response()->json(['immeuble' => $immeubles], 200);
+            return response()->json(['immeubles' => $immeubles], 200);
             
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
