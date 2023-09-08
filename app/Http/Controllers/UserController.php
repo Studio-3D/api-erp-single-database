@@ -64,7 +64,22 @@ class UserController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-    public function index(Request $request)
+
+    public function index()
+    {
+        if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
+            $users = User::all();
+            return response()->json(['user' => $users]);
+        } else if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            $users = User::on('temp')->get();
+            return response()->json(['user' => $users], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+
+    }
+    public function paginate(Request $request)
     {
         if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
 
@@ -79,7 +94,6 @@ class UserController extends Controller
             $page = $request->input('page', 1);
             $users = User::on('temp')->orderBy('created_at', 'desc')
                 ->paginate($perPage, ['*'], 'page', $page);
-
 
             return response()->json(['user' => $users], 200);
         }
@@ -193,13 +207,13 @@ class UserController extends Controller
 
     /* public function edit($id)
     {
-        if (RoleHelper::AdminSup()) {
-            return response()->json(['message' => $user], 200);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
+    if (RoleHelper::AdminSup()) {
+    return response()->json(['message' => $user], 200);
+    } else {
+    return response()->json(['error' => 'Unauthorized'], 401);
     }
-    */
+    }
+     */
 
     public function update(UpdateUserRequest $request, $id)
     {

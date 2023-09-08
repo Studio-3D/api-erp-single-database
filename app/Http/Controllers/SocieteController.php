@@ -19,6 +19,16 @@ class SocieteController extends Controller
     // }
     public function index(Request $request)
     {
+        if (RoleHelper::Superadmin()) {
+            $societes = Societe::all();
+            return response()->json(['societe' => $societes]);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function paginate(Request $request)
+    {
         if (RoleHelper::superadmin()) {
             $perPage = $request->input('pageSize', 5); // Get the number of items per page
             $page = $request->input('page', 1);
@@ -60,8 +70,8 @@ class SocieteController extends Controller
                 $societe->logo = $logo;
             }
             /* if ($request->hasFile('logo')) {
-                $logo = $request->file('logo')->store($request->raison_sociale . '/logos', 'public');
-                $societe->logo = $logo;
+            $logo = $request->file('logo')->store($request->raison_sociale . '/logos', 'public');
+            $societe->logo = $logo;
 
             } */
             $societe->save();
@@ -120,9 +130,8 @@ class SocieteController extends Controller
             $societe->tel = $request->tel;
             $societe->email = $request->email;
 
-
             if ($request->hasFile('logo')) {
-                $logo = time() . '.' . $originalRaisonSociale  . '.' . $request->logo->extension();
+                $logo = time() . '.' . $originalRaisonSociale . '.' . $request->logo->extension();
                 $request->logo->move(public_path('img/societes'), $logo);
                 $societe->logo = $logo;
             }
@@ -138,8 +147,6 @@ class SocieteController extends Controller
                 }
             }
 
-
-
             return response()->json(['message' => $societe], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -147,34 +154,34 @@ class SocieteController extends Controller
     }
     /* public function update(UpdateSocieteRequest $request, Societe $societe)
     {
-        if (RoleHelper::Superadmin()) {
-            $societe = Societe::findOrfail($id);
-            $oldDatabaseName = 'Erp_' . $societe->raison_sociale . '_' . $id;
-            $originalRaisonSociale = $societe->raison_sociale;
-            if ($request->hasFile('logo')) {
-                $logo = time() . '.' . $originalRaisonSociale  . '.' . $request->logo->extension();
-                $request->logo->move(public_path('img/societes'), $logo);
-                $societe->logo = $logo;
-            }
+    if (RoleHelper::Superadmin()) {
+    $societe = Societe::findOrfail($id);
+    $oldDatabaseName = 'Erp_' . $societe->raison_sociale . '_' . $id;
+    $originalRaisonSociale = $societe->raison_sociale;
+    if ($request->hasFile('logo')) {
+    $logo = time() . '.' . $originalRaisonSociale  . '.' . $request->logo->extension();
+    $request->logo->move(public_path('img/societes'), $logo);
+    $societe->logo = $logo;
+    }
 
-            $update = $request->all();
-            foreach($update as $key => $value) {
-                $societe->$key = $value;
-            }
-            $societe->save();
-            if ($request->has('raison_sociale')) {
-                $newRaisonSociale = $request->raison_sociale;
-                if ($originalRaisonSociale !== $newRaisonSociale) {
-                    $newDatabaseName ='Erp_' . $newRaisonSociale . '_' . $id;
-                    $databaseHelper = new DatabaseHelper();
-                    $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
-                }
-            }
+    $update = $request->all();
+    foreach($update as $key => $value) {
+    $societe->$key = $value;
+    }
+    $societe->save();
+    if ($request->has('raison_sociale')) {
+    $newRaisonSociale = $request->raison_sociale;
+    if ($originalRaisonSociale !== $newRaisonSociale) {
+    $newDatabaseName ='Erp_' . $newRaisonSociale . '_' . $id;
+    $databaseHelper = new DatabaseHelper();
+    $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
+    }
+    }
 
-            return response()->json(['message' => $societe], 200);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
+    return response()->json(['message' => $societe], 200);
+    } else {
+    return response()->json(['error' => 'Unauthorized'], 401);
+    }
 
     }*/
     /**
