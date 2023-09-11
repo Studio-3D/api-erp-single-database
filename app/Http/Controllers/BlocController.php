@@ -175,7 +175,7 @@ class BlocController extends Controller
 
         }
     }
-    
+
     public function getBlocsByProjet_paginate(Request $request,$projet_id){
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();

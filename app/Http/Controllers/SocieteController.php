@@ -7,6 +7,7 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreSocieteRequest;
 use App\Http\Requests\UpdateSocieteRequest;
 use App\Models\Societe;
+use File;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use \Illuminate\Support\Facades\Storage;
@@ -17,7 +18,7 @@ class SocieteController extends Controller
      * Display a listing of the resource.
      */
     // }
-    public function get_societes(Request $request)
+    public function get_societes()
     {
         if (RoleHelper::Superadmin()) {
             $societes = Societe::all();
@@ -27,7 +28,7 @@ class SocieteController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function paginateSociete(Request $request)
+    public function index(Request $request)
     {
         if (RoleHelper::Superadmin()) {
             $perPage = $request->input('pageSize', 5); // Get the number of items per page
@@ -69,7 +70,7 @@ class SocieteController extends Controller
                 $request->logo->move(public_path('img/societes'), $logo);
                 $societe->logo = $logo;
             }
-           
+
             $societe->save();
             $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
 
@@ -115,7 +116,17 @@ class SocieteController extends Controller
     public function update(UpdateSocieteRequest $request, $id)
     {
 
-        if (RoleHelper::Superadmin()) {
+        $image_name = '1694004373.ste_atika_edit_2.png';
+        $image_path = public_path('img/societes'.$image_name);
+        if(File::exists($image_path)) {
+          File::delete($image_path);
+          return response()->json('deleted');
+        }
+        else{
+            return response()->json('not delete');
+        }
+
+        /*if (RoleHelper::Superadmin()) {
             $societe = Societe::findOrfail($id);
             $originalRaisonSociale = $societe->raison_sociale;
             $societe->raison_sociale = $request->raison_sociale;
@@ -145,7 +156,7 @@ class SocieteController extends Controller
             return response()->json(['message' => $societe], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
-        }
+        }*/
     }
     /* public function update(UpdateSocieteRequest $request, Societe $societe)
     {

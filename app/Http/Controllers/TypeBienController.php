@@ -24,7 +24,22 @@ class TypeBienController extends Controller
             DatabaseHelper::Config();
 
             $typebiens = TypeBien::on('temp')->orderBy('created_at', 'desc')->get();
-            return response()->json(['typeBien' => $typebiens]);
+            return response()->json(['typeBiens' => $typebiens]);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+
+    }
+
+    public function index(Request $request)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', 5); // Get the number of items per page
+            $page = $request->input('page', 1);
+            $typebiens = TypeBien::on('temp')->orderBy('created_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
+            return response()->json(['typeBiens' => $typebiens]);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -151,21 +166,5 @@ class TypeBienController extends Controller
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-    }
-
-    public function paginate_typeBiens(Request $request)
-    {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', 5); // Get the number of items per page
-            $page = $request->input('page', 1);
-            $typebiens = TypeBien::on('temp')->orderBy('created_at', 'desc')         
-            ->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['typeBiens' => $typebiens]);
-        }
-
-        return response()->json(['error' => 'Unauthorized'], 401);
-    
-
     }
 }
