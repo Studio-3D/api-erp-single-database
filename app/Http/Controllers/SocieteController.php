@@ -22,7 +22,7 @@ class SocieteController extends Controller
     {
         if (RoleHelper::Superadmin()) {
             $societes = Societe::all();
-            return response()->json(['societe' => $societes]);
+            return response()->json(['societes' => $societes]);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -116,19 +116,12 @@ class SocieteController extends Controller
     public function update(UpdateSocieteRequest $request, $id)
     {
 
-        $image_name = '1694004373.ste_atika_edit_2.png';
-        $image_path = public_path('img/societes'.$image_name);
-        if(File::exists($image_path)) {
-          File::delete($image_path);
-          return response()->json('deleted');
-        }
-        else{
-            return response()->json('not delete');
-        }
 
-        /*if (RoleHelper::Superadmin()) {
+
+        if (RoleHelper::Superadmin()) {
             $societe = Societe::findOrfail($id);
             $originalRaisonSociale = $societe->raison_sociale;
+            $old_image_name=$societe->logo;
             $societe->raison_sociale = $request->raison_sociale;
             $societe->adresse = $request->adresse;
             $societe->nom_contact = $request->nom_contact;
@@ -142,6 +135,15 @@ class SocieteController extends Controller
                 $societe->logo = $logo;
             }
             $societe->save();
+            if($old_image_name!=null){
+                if($old_image_name!=$societe->logo)
+                $image_path = public_path('img/societes/'.$old_image_name);
+                if(file_exists($image_path)){
+                  unlink($image_path);
+                }
+            }
+
+
             if ($request->has('raison_sociale')) {
                 $newRaisonSociale = $societe->raison_sociale;
                 if ($originalRaisonSociale !== $newRaisonSociale) {
@@ -156,7 +158,7 @@ class SocieteController extends Controller
             return response()->json(['message' => $societe], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
-        }*/
+        }
     }
     /* public function update(UpdateSocieteRequest $request, Societe $societe)
     {

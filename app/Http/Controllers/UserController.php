@@ -187,9 +187,10 @@ class UserController extends Controller
 
     public function update(UpdateUserRequest $request, $id)
     {
-        dd($request->hasFile('photo'));
+
         if (RoleHelper::SuperAdmin()) {
             $user = User::findOrfail($id);
+            $old_image_name=$user->photo;
             $originalName = $user->name;
 
             if ($request->hasFile('photo')) {
@@ -202,6 +203,14 @@ class UserController extends Controller
                 $user->$key = $value;
             }
             $user->save();
+            if($old_image_name!=null){
+                if($old_image_name!=$user->photo)
+                $image_path = public_path('img/users/'.$old_image_name);
+                if(file_exists($image_path)){
+                  unlink($image_path);
+                }
+            }
+
             if ($user) {
                 DatabaseHelper::Config();
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
@@ -216,6 +225,7 @@ class UserController extends Controller
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
             $originalName = $user->name;
+            $old_image_name=$user->photo;
             if ($request->hasFile('photo')) {
                 $photo = time() . '.' . $originalName . '.' . $request->photo->extension();
                 $request->photo->move(public_path('img/users'), $photo);
@@ -226,6 +236,13 @@ class UserController extends Controller
                 $user->$key = $value;
             }
             $user->save();
+            if($old_image_name!=null){
+                if($old_image_name!=$user->photo)
+                $image_path = public_path('img/users/'.$old_image_name);
+                if(file_exists($image_path)){
+                  unlink($image_path);
+                }
+            }
             return response()->json(['message' => $user], 200);
 
         } else {
