@@ -161,7 +161,7 @@ class ImmeubleController extends Controller
 
         }
     }
-   
+
 
     public function getImmeublesByProjet_paginate(Request $request,$projet_id){
         if (RoleHelper::ACSup()) {

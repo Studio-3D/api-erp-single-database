@@ -61,6 +61,7 @@ class ProjetController extends Controller
             $id_auth=Auth::guard('api')->user()->id;
             $user_id=User::on('temp')->where('user_id_origin', $id_auth)->pluck('id');
             $projets = Projet::on('temp')
+            ->orderBy('created_at', 'desc')
             ->join('user_projets', 'user_projets.projet_id', '=', 'projets.id')
             ->where('user_projets.user_id',$user_id)
             ->select('projets.*')
@@ -72,6 +73,7 @@ class ProjetController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+    
 
     /**
      * Show the form for creating a new resource.

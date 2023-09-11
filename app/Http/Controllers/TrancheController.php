@@ -174,7 +174,6 @@ class TrancheController extends Controller
     }
 
     public function getTranchesByProjet_paginate(Request $request,$projet_id)
-
     {
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -184,7 +183,6 @@ class TrancheController extends Controller
             ->orderBy('created_at', 'desc')
             ->where('projet_id', $projet_id)
             ->paginate($perPage, ['*'], 'page', $page);
-
 
             return response()->json(['tranches' => $tranches], 200);
 
