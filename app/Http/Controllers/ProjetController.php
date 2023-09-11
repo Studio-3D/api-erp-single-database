@@ -19,13 +19,13 @@ class ProjetController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function get_projets(Request $request)
+    public function get_projets()
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $projets = Projet::on('temp')->orderBy('created_at', 'desc')
                 ->get();
-            return response()->json(['projet' => $projets]);
+            return response()->json(['projets' => $projets]);
         } else if (RoleHelper::Com()) {
             DatabaseHelper::Config();
             $id_auth=Auth::guard('api')->user()->id;
@@ -35,14 +35,14 @@ class ProjetController extends Controller
             ->where('user_projets.user_id',$user_id)
             ->select('projets.*')
             ->get();
-            return response()->json(['projet'=>  $projets]);
+            return response()->json(['projets'=>  $projets]);
 
 
         } else{
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    public function paginateProjet(Request $request)
+    public function index(Request $request)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
@@ -51,7 +51,7 @@ class ProjetController extends Controller
             $projets = Projet::on('temp')->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
 
-            return response()->json(['projet' => $projets]);
+            return response()->json(['projets' => $projets]);
         } else if (RoleHelper::Com()) {
             DatabaseHelper::Config();
 
@@ -64,8 +64,9 @@ class ProjetController extends Controller
             ->join('user_projets', 'user_projets.projet_id', '=', 'projets.id')
             ->where('user_projets.user_id',$user_id)
             ->select('projets.*')
+            ->orderBy('created_at', 'desc')
            ->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['projet'=>  $projets]);
+            return response()->json(['projets'=>  $projets]);
 
         } else{
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -266,5 +267,5 @@ class ProjetController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-   
+
 }

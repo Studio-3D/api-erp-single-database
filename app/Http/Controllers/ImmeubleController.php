@@ -161,19 +161,7 @@ class ImmeubleController extends Controller
 
         }
     }
-    public function getImmeublesByProjet_paginate($projet_id){
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', 5); // Get the number of items per page
-            $page = $request->input('page', 1);
-            $immeubles = Immeuble::on('temp')->where('projet_id', $projet_id)->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['immeubles' => $immeubles], 200);
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-
-        }
-    }
+   
 
     public function getImmeublesByProjet_paginate(Request $request,$projet_id){
         if (RoleHelper::ACSup()) {

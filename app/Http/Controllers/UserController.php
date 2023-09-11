@@ -44,7 +44,7 @@ class UserController extends Controller
     public function Dashboard()
     {
         if (Auth::guard('api')->check()) {
-            
+
             $users = Auth::guard('api')->user();
             return response()->json(['user' => $users]);
         }
@@ -55,17 +55,17 @@ class UserController extends Controller
     {
         if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
             $users = User::all();
-            return response()->json(['user' => $users]);
+            return response()->json(['users' => $users]);
         } else if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $users = User::on('temp')->get();
-            return response()->json(['user' => $users], 200);
+            return response()->json(['users' => $users], 200);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
 
     }
-    public function paginateUser(Request $request)
+    public function index(Request $request)
     {
         if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
 
@@ -73,7 +73,7 @@ class UserController extends Controller
             $page = $request->input('page', 1);
             $users = User::orderBy('created_at', 'desc')
                 ->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['user' => $users]);
+            return response()->json(['users' => $users]);
         } else if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', 5); // Get the number of items per page
@@ -81,7 +81,7 @@ class UserController extends Controller
             $users = User::on('temp')->orderBy('created_at', 'desc')
                 ->paginate($perPage, ['*'], 'page', $page);
 
-            return response()->json(['user' => $users], 200);
+            return response()->json(['users' => $users], 200);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);

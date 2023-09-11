@@ -47,8 +47,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getTrashedSocietes', [SocieteController::class, 'getTrashedSocietes'])->name('getTrashedSocietes');
     Route::put('Switch_Societes', [SocieteController::class, 'Switch_Societes'])->name('Switch_Societes');
     Route::put('Exist_Societes', [SocieteController::class, 'Exist_Societes'])->name('Exist_Societes');
-    Route::get('paginateSociete', [SocieteController::class, 'paginateSociete'])->name('paginateSociete');
-
     Route::get('get_societes', [SocieteController::class, 'get_societes'])->name('get_societes');
 
     /*************************************User***************************** */
@@ -62,8 +60,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getTrashedUsersBySociete/{id}', [UserController::class, 'getTrashedUsersBySociete'])->name('getTrashedUsersBySociete');
     Route::post('logout', [UserController::class, 'logout'])->name('logout');
     Route::post('addUserProjet/{id}', [UserController::class, 'addUserProjet'])->name('addUserProjet');
-    Route::get('paginateUser', [UserController::class, 'paginateUser'])->name('paginateUser');
-
     Route::get('get_users', [UserController::class, 'get_users'])->name('get_users');
 
 
@@ -71,16 +67,11 @@ Route::middleware('auth:api')->group(function () {
     /*************************************Projet***************************** */
     Route::resource('projet', ProjetController::class);
     Route::resource('typeProjet', TypeProjetController::class);
-
     Route::get('get_typeProjets', [TypeProjetController::class, 'get_typeProjets'])->name('get_typeProjets');
-
-    Route::get('paginate_typeProjets', [TypeProjetController::class, 'paginate_typeProjets'])->name('paginate_typeProjets');
     Route::post('restoreProjet/{id}', [ProjetController::class, 'restoreProjet'])->name('restoreProjet');
     Route::get('getTrashedProjets', [ProjetController::class, 'getTrashedProjets'])->name('getTrashedProjets');
     Route::post('restoreTypeProjet/{id}', [TypeProjetController::class, 'restoreTypeProjet'])->name('restoreTypeBien');
     Route::get('getTrashedTypesProjet', [TypeProjetController::class, 'getTrashedTypesProjet'])->name('getTrashedTypesProjet');
-    Route::get('paginateProjet', [ProjetController::class, 'paginateProjet'])->name('paginateProjet');
-
     Route::get('get_projets', [ProjetController::class, 'get_projets'])->name('get_projets');
 
     /*************************************Tranche***************************** */
@@ -111,7 +102,6 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('typeBien', TypeBienController::class);
 
     Route::get('get_typeBiens', [TypeBienController::class, 'get_typeBiens'])->name('get_typeBiens');
-    Route::get('paginate_typeBiens', [TypeBienController::class, 'paginate_typeBiens'])->name('paginate_typeBiens');
 
 
     Route::resource('bien', BienController::class);
