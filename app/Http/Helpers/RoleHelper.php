@@ -41,7 +41,7 @@ class RoleHelper
 
     public static function AC()
     {
-        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->role == 2 || Auth::guard('api')->user()->role == 2 || Auth::guard('api')->user()->role == 3)) {
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->role == 2 ||  Auth::guard('api')->user()->role == 3)) {
             return true;
         }
         return false;

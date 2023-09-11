@@ -21,45 +21,31 @@ class UserController extends Controller
             'email' => 'required|email',
             'password' => 'required',
         ]);
-
         if (Auth::attempt($credentials)) {
-
             $accessToken = Auth::user()->createToken('API Token')->accessToken;
             return response()->json(['access_token' => $accessToken], 200);
         }
-
-        return response()->json(['error' => 'email or password incorrect'], 422);
+        return response()->json(['error' => 'email ou mot de passe incorrect'], 422);
     }
 
     public function logout(Request $request)
     {
-
         $user = Auth::guard('api')->user();
-
         $request->user()->tokens()->delete(); // Revoke all access tokens for the user
         if (RoleHelper::SuperAdmin()) {
             $user->societe_id = 1;
             $user->save();
         }
-
         return response()->json([
             'message' => 'Logout successful',
         ]);
     }
 
-    /* public function dashboard()
-    {   if (Auth::guard('api')->check()) {
-    return response()->json(['user' => auth()->user()], 200);
-
-    }
-    return response()->json(['error' => 'Unauthorized'], 401);
-    } */
     public function Dashboard()
     {
         if (Auth::guard('api')->check()) {
-
+            
             $users = Auth::guard('api')->user();
-
             return response()->json(['user' => $users]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -114,7 +100,6 @@ class UserController extends Controller
     public function store(StoreUserRequest $request)
     {
         if (RoleHelper::SuperAdmin()) {
-
             $user = new User();
             $user->name = $request->name;
             $user->societe_id = $request->societe_id;
@@ -140,7 +125,6 @@ class UserController extends Controller
                 $user->photo = $photo;
                 $request->photo = $photo;
             }
-
             if ($user->save()) {
 
                 $this->createSubUser($request, $user->id);
@@ -189,7 +173,7 @@ class UserController extends Controller
             if ($user) {
                 return response()->json(['user' => $user], 200);
             } else {
-                return response()->json(['message' => 'User not found'], 200);
+                return response()->json(['message' => 'Utilisateur non trouvé'], 200);
             }
         } else if (RoleHelper::AdminSup()) {
 
@@ -200,20 +184,6 @@ class UserController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-
-    /* public function edit($id)
-    {
-    if (RoleHelper::AdminSup()) {
-    return response()->json(['message' => $user], 200);
-    } else {
-    return response()->json(['error' => 'Unauthorized'], 401);
-    }
-    }
-     */
 
     public function update(UpdateUserRequest $request, $id)
     {
@@ -232,7 +202,6 @@ class UserController extends Controller
             $user->save();
             if ($user) {
                 DatabaseHelper::Config();
-
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
                 $update = $request->all();
                 foreach ($update as $key => $value) {
@@ -241,7 +210,7 @@ class UserController extends Controller
                 $user_societes->update($request->all());
             }
             return response()->json(['message' => $user], 200);
-        } else if (RoleHelper::AdminSup() && RoleHelper::AC()) {
+        } else if (RoleHelper::AC()) {
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
             $originalName = $user->name;
@@ -272,9 +241,9 @@ class UserController extends Controller
                 DatabaseHelper::Config();
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
                 $user_societes->delete();
-                return response()->json(['message' => 'user deleted succesfully'], 200);
+                return response()->json(['message' => 'utilisateur supprimé avec succès'], 200);
             } else {
-                return response()->json(['message' => 'user non deleted'], 404);
+                return response()->json(['message' => "Oups l'utilisatuer n'a pas été supprimé"], 404);
             }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -300,7 +269,7 @@ class UserController extends Controller
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
                 $user_societes->update(['is_actif' => 1]);
             }
-            return response()->json(['message' => 'User activated succesfully'], 200);
+            return response()->json(['message' => 'Utilisateur activé avec succès'], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -316,7 +285,7 @@ class UserController extends Controller
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
                 $user_societes->update(['is_actif' => 0]);
             }
-            return response()->json(['message' => 'User desactivated succesfully'], 200);
+            return response()->json(['message' => 'Utilisateur désactivé avec succès'], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -329,7 +298,7 @@ class UserController extends Controller
             DatabaseHelper::Config();
             $user_societes = User::on('temp')->where('user_id_origin', $user_id)->withTrashed()->restore();
 
-            return response()->json(['message' => 'User est bien restaurer'], 200);
+            return response()->json(['message' => 'Utilisateur restauré avec succès'], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -367,7 +336,7 @@ class UserController extends Controller
                 foreach ($request->selectedProjets as $valeur) {
                     UserProjetHelper::createUserProjet($valeur, $user_id);
                 }
-                return response()->json(['message' => 'les lignes bien ajouter'], 200);
+                return response()->json(['message' => "projets affecté avec succès à l'utilisateur"], 200);
             } else {
                 return response()->json(['error' => 'Unauthorized'], 401);
             }
