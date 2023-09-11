@@ -29,7 +29,7 @@ class TrancheController extends Controller
                 ->take($perPage)
                 ->get();
 
-            return response()->json(['tranche' => $tranches]);
+            return response()->json(['tranches' => $tranches]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
 

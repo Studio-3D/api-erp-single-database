@@ -48,6 +48,7 @@ class UpdateProjetRequest extends FormRequest
     public function messages(): array
     {
         return [
+            
             'nom.unique' => 'Ce projet est deja exist dans cette societe',
             'selectedUsers.required' => 'Veuillez choisissez un utilisateur',
         ];

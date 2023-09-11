@@ -185,6 +185,7 @@ class ImmeubleController extends Controller
             ->where('projet_id', $projet_id)->paginate($perPage, ['*'], 'page', $page);
             return response()->json(['immeubles' => $immeubles], 200);
 
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
 

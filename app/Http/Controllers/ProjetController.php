@@ -37,6 +37,7 @@ class ProjetController extends Controller
             ->get();
             return response()->json(['projet'=>  $projets]);
 
+
         } else{
             return response()->json(['error' => 'Unauthorized'], 401);
         }

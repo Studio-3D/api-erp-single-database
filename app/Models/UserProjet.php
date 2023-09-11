@@ -12,6 +12,7 @@ class UserProjet extends Model
     use HasFactory, SoftDeletes;
     protected $table = 'user_projets';
     protected $dates = ['deleted_at'];
+
     protected $with=['user'];
 
     public function projet()

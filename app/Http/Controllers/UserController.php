@@ -187,9 +187,11 @@ class UserController extends Controller
 
     public function update(UpdateUserRequest $request, $id)
     {
+        dd($request->hasFile('photo'));
         if (RoleHelper::SuperAdmin()) {
             $user = User::findOrfail($id);
             $originalName = $user->name;
+
             if ($request->hasFile('photo')) {
                 $photo = time() . '.' . $originalName . '.' . $request->photo->extension();
                 $request->photo->move(public_path('img/users'), $photo);
