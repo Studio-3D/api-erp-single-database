@@ -137,7 +137,7 @@ class ProjetController extends Controller
 
             }
             else{
-                return response()->json(['errors' => 'Attention nombre de bien par type différent de nombre de bien total'], 422);
+                return response()->json(['error' => 'Attention nombre de bien par type différent de nombre de bien total'], 422);//error not errors pour ne pas donner des prb dans le frontend
 
             }
 

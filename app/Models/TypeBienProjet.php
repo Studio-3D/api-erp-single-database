@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class TypeBienProjet extends Model
 {
     use HasFactory, SoftDeletes;
-    protected $table = 'user_projets';
+    protected $table = 'type_bien_projets';
     protected $dates = ['deleted_at'];
     
 

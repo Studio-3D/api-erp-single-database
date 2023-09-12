@@ -18,7 +18,7 @@ class TypeProjetController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function get_typeProjets(Request $request)
+    public function get_typeProjets()
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
