@@ -188,11 +188,9 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, $id)
     {
 
-        if (RoleHelper::SuperAdmin()) {
+        if (RoleHelper::AdminSup()) {
             $user = User::findOrfail($id);
-            $old_image_name=$user->photo;
-            $originalName = $user->name;
-
+             $originalName = $user->name;
             if ($request->hasFile('photo')) {
                 if($user->photo!=null){
                     $image_path = public_path('img/users/'.$user->photo);
@@ -208,10 +206,8 @@ class UserController extends Controller
             foreach ($update as $key => $value) {
                 $user->$key = $value;
             }
-            $user->save();
-
-            if ($user) {
-                DatabaseHelper::Config();
+            if ( $user->save()) {
+                DatabaseHelper::Config($user->societe_id);
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
                 $update = $request->all();
                 foreach ($update as $key => $value) {
@@ -220,30 +216,6 @@ class UserController extends Controller
                 $user_societes->update($request->all());
             }
             return response()->json(['message' => $user], 200);
-        } else if (RoleHelper::AC()) {
-            DatabaseHelper::Config();
-            $user = User::on('temp')->findOrfail($id);
-            $originalName = $user->name;
-            $old_image_name=$user->photo;
-            if ($request->hasFile('photo')) {
-                $photo = time() . '.' . $originalName . '.' . $request->photo->extension();
-                $request->photo->move(public_path('img/users'), $photo);
-                $user->photo = $photo;
-            }
-            $update = $request->all();
-            foreach ($update as $key => $value) {
-                $user->$key = $value;
-            }
-            $user->save();
-            if($old_image_name!=null){
-                if($old_image_name!=$user->photo)
-                $image_path = public_path('img/users/'.$old_image_name);
-                if(file_exists($image_path)){
-                  unlink($image_path);
-                }
-            }
-            return response()->json(['message' => $user], 200);
-
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
