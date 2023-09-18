@@ -73,7 +73,7 @@ class ProjetController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    
+
 
     /**
      * Show the form for creating a new resource.
@@ -154,7 +154,7 @@ class ProjetController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $projet = Projet::on('temp')->findOrfail($id);
+            $projet = Projet::on('temp')->withCount(['bloc','tranche','immeuble','bien'])->findOrfail($id);
             $users=UserProjet::on('temp')->where('projet_id',$id)->get();
             return response()->json(['projet' => $projet,'users'=>$users], 200);
         } else {

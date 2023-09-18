@@ -32,7 +32,7 @@ class Projet extends Model
     }
     public function tranche()
     {
-        return $this->hasManyany(Tranche::class, 'projet_id');
+        return $this->hasMany(Tranche::class, 'projet_id');
     }
 
     public function user()
@@ -57,7 +57,7 @@ class Projet extends Model
    {
        return $this->hasMany(userProjet::class);
    }
-   
+
 
 
 }

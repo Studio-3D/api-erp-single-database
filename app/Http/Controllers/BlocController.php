@@ -18,23 +18,27 @@ class BlocController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request,$projet_id)
     {
-        if (Auth::guard('api')->check()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $perPage = 20; // Number of items per page
+            $perPage = $request->input('pageSize', 5); // Get the number of items per page
             $page = $request->input('page', 1);
 
-            $blocs = Bloc::on('temp')->with('projet')->with('tranche')->orderBy('blocs.created_at', 'desc')
-            ->skip(($page - 1) * $perPage)
-            ->take($perPage)
-            ->get();
+            $blocs = Bloc::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('projet_id', $projet_id)
+            ->paginate($perPage, ['*'], 'page', $page);
 
-            return response()->json(['blocs' => $blocs]);
+            return response()->json(['blocs' => $blocs], 200);
+
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
         }
-        return response()->json(['error' => 'Unauthorized'], 401);
     }
-    
+
     /**
      * Show the form for creating a new resource.
      */
@@ -171,25 +175,7 @@ class BlocController extends Controller
         }
     }
 
-    public function getBlocsByProjet_paginate(Request $request,$projet_id){
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', 5); // Get the number of items per page
-            $page = $request->input('page', 1);
 
-            $blocs = Bloc::on('temp')
-            ->orderBy('created_at', 'desc')
-            ->where('projet_id', $projet_id)
-            ->paginate($perPage, ['*'], 'page', $page);
-
-            return response()->json(['blocs' => $blocs], 200);
-
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-
-        }
-    }
     public function getBlocsByTranche($tranche_id){
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();

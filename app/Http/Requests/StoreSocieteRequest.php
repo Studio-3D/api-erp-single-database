@@ -26,7 +26,7 @@ class StoreSocieteRequest extends FormRequest
             'raison_sociale' => 'required|unique:societes|min:3',
             'nom_contact' => 'required|min:3',
             'prenom_contact' => 'required|min:3',
-            'tel' => 'string|min:10|max:14',
+            'tel' => 'min:10|max:14',
             'email' => 'required|email|nullable',
             'logo' => 'image|mimes:png,jpg,jpeg|max:2048',
 

@@ -76,32 +76,31 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************Tranche***************************** */
     Route::resource('tranche', TrancheController::class);
+    Route::get('tranches/{projet_id}', [TrancheController::class,'index'])->name('tranches');
     Route::post('restoreTranche/{id}', [TrancheController::class, 'restoreTranche'])->name('restoreTranche');
     Route::get('getTrashedTranches', [TrancheController::class, 'getTrashedTranches'])->name('getTrashedTranches');
     Route::get('getTranchesByProjet/{id}', [TrancheController::class, 'getTranchesByProjet'])->name('getTranchesByProjet');
-    Route::get('getTranchesByProjet_paginate/{id}', [TrancheController::class, 'getTranchesByProjet_paginate'])->name('getTranchesByProjet_paginate');
 
     /*************************************Bloc***************************** */
     Route::resource('bloc', BlocController::class);
+    Route::get('blocs/{projet_id}', [BlocController::class,'index'])->name('blocs');
     Route::post('restoreBloc/{id}', [BlocController::class, 'restoreBloc'])->name('restoreBloc');
     Route::get('getTrashedBlocs', [BlocController::class, 'getTrashedBlocs'])->name('getTrashedBlocs');
     Route::get('getBlocsByProjet/{id}', [BlocController::class, 'getBlocsByProjet'])->name('getBlocsByProjet');
-    Route::get('getBlocsByProjet_paginate/{id}', [BlocController::class, 'getBlocsByProjet_paginate'])->name('getBlocsByProjet_paginate');
     Route::get('getBlocsByTranche/{id}', [BlocController::class, 'getBlocsByTranche'])->name('getBlocsByTranche');
 
     /*************************************Immeuble***************************** */
     Route::resource('immeuble', ImmeubleController::class);
+    Route::get('immeubles/{projet_id}', [ImmeubleController::class,'index'])->name('immeubles');
     Route::post('restoreImmeuble/{id}', [ImmeubleController::class, 'restoreImmeuble'])->name('restoreImmeuble');
     Route::get('getTrashedImmeubles', [ImmeubleController::class, 'getTrashedImmeubles'])->name('getTrashedImmeubles');
-    Route::get('getImmeublesByProjet/{id}', [ImmeubleController::class, 'getImmeublesByProjet'])->name('getImmeublesByProjet');
-    Route::get('getImmeublesByProjet_paginate/{id}', [ImmeubleController::class, 'getImmeublesByProjet_paginate'])->name('getImmeublesByProjet_paginate');
-    Route::get('getImmeublesByTranche/{id}', [ImmeubleController::class, 'getImmeublesByTranche'])->name('getImmeublesByTranche');
     Route::get('getImmeublesByBloc/{id}', [ImmeubleController::class, 'getImmeublesByBloc'])->name('getImmeublesByBloc');
 
     /*************************************Bien***************************** */
     Route::resource('typeBien', TypeBienController::class);
     Route::get('get_typeBiens', [TypeBienController::class, 'get_typeBiens'])->name('get_typeBiens');
     Route::resource('bien', BienController::class);
+    Route::get('biens/{projet_id}', [BienController::class,'index'])->name('biens');
     Route::post('restoreBien/{id}', [BienController::class, 'restoreBien'])->name('restoreBien');
     Route::get('getTrashedBiens', [BienController::class, 'getTrashedBiens'])->name('getTrashedBiens');
     Route::post('restoreTypeBien/{id}', [TypeBienController::class, 'restoreTypeBien'])->name('restoreTypeBien');
@@ -116,7 +115,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getTrashedCompositionBiens', [CompositionBienController::class, 'getTrashedCompositionBiens'])->name('getTrashedCompositionBiens');
     Route::get('getComposition/{id}', [CompositionBienController::class, 'getComposition'])->name('getComposition');
     Route::get('getBiensByProjet/{id}', [BienController::class, 'getBiensByProjet'])->name('getBiensByProjet');
-    Route::get('getBiensByProjet_paginate/{id}', [BienController::class, 'getBiensByProjet_paginate'])->name('getBiensByProjet_paginate');
     Route::get('getBiensByTranche/{id}', [BienController::class, 'getBiensByTranche'])->name('getBiensByTranche');
     Route::get('getBiensByBloc/{id}', [BienController::class, 'getBiensByBloc'])->name('getBiensByBloc');
     Route::get('getBiensByImmeuble/{id}', [BienController::class, 'getBiensByImmeuble'])->name('getBiensByImmeuble');

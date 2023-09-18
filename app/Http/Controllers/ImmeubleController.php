@@ -18,19 +18,21 @@ class ImmeubleController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request,$projet_id)
     {
-        if (Auth::guard('api')->check()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $perPage = 20; // Number of items per page
+            $perPage = $request->input('pageSize', 5); // Get the number of items per page
             $page = $request->input('page', 1);
-            $immeubles = Immeuble::on('temp')->orderBy('created_at', 'desc')
-            ->skip(($page - 1) * $perPage)
-            ->take($perPage)
-            ->get();
-            return response()->json(['immeuble' => $immeubles]);
+            $immeubles = Immeuble::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('projet_id', $projet_id)->paginate($perPage, ['*'], 'page', $page);
+            return response()->json(['immeubles' => $immeubles], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
         }
-        return response()->json(['error' => 'Unauthorized'], 401);
     }
     /**
      * Show the form for creating a new resource.
@@ -161,23 +163,6 @@ class ImmeubleController extends Controller
         }
     }
 
-
-    public function getImmeublesByProjet_paginate(Request $request,$projet_id){
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', 5); // Get the number of items per page
-            $page = $request->input('page', 1);
-            $immeubles = Immeuble::on('temp')
-            ->orderBy('created_at', 'desc')
-            ->where('projet_id', $projet_id)->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['immeubles' => $immeubles], 200);
-
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-
-        }
-    }
 
     public function getImmeublesByTranche($tranche_id){
         if (RoleHelper::AdminSup()) {
