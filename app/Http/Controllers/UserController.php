@@ -46,6 +46,7 @@ class UserController extends Controller
         if (Auth::guard('api')->check()) {
 
             $users = Auth::guard('api')->user();
+
             return response()->json(['user' => $users]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -185,16 +186,19 @@ class UserController extends Controller
     }
     public function update(UpdateUserRequest $request, $id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (Auth::guard('api')->user()) {
 
-            if($request->cin!=null){
-            $cin_exist=User::where('cin',$request->cin)->where('id','!=',$id)->count();
-            if($cin_exist>0){
-               return response()->json(['errors' => 'Le Cin que vous avez saisi'.$request->cin.' apprtient à un autre utilisateur'], 422);
-            }}
+            if ($request->cin != null) {
+                $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
+                if ($cin_exist > 0) {
+                    return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
+                }}
             $user = User::findOrFail($id);
             $user->name = $request->input('name');
             $user->prenom = $request->input('prenom');
+            if ($request->password!="" || $request->password!=null) {
+                $user->password = $request->input('password');
+            }
             $user->gender = $request->input('gender');
             $user->role = $request->input('role');
             $user->phone = $request->input('phone');
@@ -346,4 +350,6 @@ class UserController extends Controller
             }
         }
     }
+
+    
 }

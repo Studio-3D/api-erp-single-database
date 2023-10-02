@@ -26,7 +26,7 @@ class UpdateUserRequest extends FormRequest
             'name' => 'string',
             'prenom' => 'string',
             'role' => 'integer',
-            'phone' => 'string|min:10|max:14',
+            'phone' => 'string|min:10|max:14|nullable',
             'photo' => 'image|mimes:png,jpg,jpeg|max:2048',
            /* 'cin' => [
                 Rule::unique('users')->ignore($this->user),
@@ -35,6 +35,8 @@ class UpdateUserRequest extends FormRequest
             'cnss' => 'integer|nullable',
             'is_actif' => 'integer',
             'solde_conge' => 'integer|nullable',
+            'password' => 'min:6|nullable',
+
 
         ];
     }

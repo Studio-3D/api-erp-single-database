@@ -62,9 +62,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('logout', [UserController::class, 'logout'])->name('logout');
     Route::post('addUserProjet/{id}', [UserController::class, 'addUserProjet'])->name('addUserProjet');
     Route::get('get_users', [UserController::class, 'get_users'])->name('get_users');
-
-
-
+    
+    
     /*************************************Projet***************************** */
     Route::resource('projet', ProjetController::class);
     Route::resource('typeProjet', TypeProjetController::class);
