@@ -11,6 +11,14 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use \Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use App\Mail\ResetPasswordMail;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
+
+
 
 class UserController extends Controller
 {
@@ -192,7 +200,8 @@ class UserController extends Controller
                 $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
                 if ($cin_exist > 0) {
                     return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
-                }}
+                }
+            }
             $user = User::findOrFail($id);
             $user->name = $request->input('name');
             $user->prenom = $request->input('prenom');
@@ -347,6 +356,155 @@ class UserController extends Controller
             }
         }
     }
+    public function sendEmail()
 
-    
+    {
+        if (RoleHelper::SuperAdmin()) {
+
+            $user = Auth::guard('api')->user()->email;
+
+            if (!$user) {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+            DB::table('password_reset_tokens')
+                ->where('email', $user)
+                ->delete();
+
+            $token = Str::random(60);
+            $confirmationCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            $expirationTime = now()->addMinutes(3); // Expires in 3 minute
+            // Store the token in the 'password_resets' tablee chabge what time wann  to  expire tokkeenn 
+            DB::table('password_reset_tokens')->insert([
+                'email' => $user,
+                'token' => $token,
+                'expires_at' => $expirationTime,
+                'created_at' => now(),
+            ]);
+
+            // Construct the reset URL you can chenbge the url  
+            $resetUrl = 'http://localhost:3000/reset-password/' . $token;
+
+            // Send an email to the user with the reset URL
+            Mail::to($user)->send(new ResetPasswordMail($resetUrl,  $confirmationCode));
+
+            return response()->json(['message' => 'Password reset email sent']);
+        }
+    }
+    public function resendEmail()
+
+    {
+        if (RoleHelper::SuperAdmin()) {
+            // Validate the request and check for user existence
+            $user = Auth::guard('api')->user()->email;
+
+
+            if (!$user) {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+            DB::table('password_reset_tokens')
+                ->where('email', $user)
+                ->delete();
+
+
+
+            $token = Str::random(60);
+            $confirmationCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            $expirationTime = now()->addMinutes(3); // Expires in 1 minute
+            // Store the token in the 'password_resets' table
+            DB::table('password_reset_tokens')->insert([
+                'email' => $user,
+                'token' => $token,
+                'expires_at' => $expirationTime,
+                'created_at' => now(),
+            ]);
+
+            // Construct the reset URL
+            $resetUrl = 'http://localhost:3000/reset-password/' . $token;
+
+            // Send an email to the user with the reset URL
+            Mail::to($user)->send(new ResetPasswordMail($resetUrl,  $confirmationCode));
+
+            return response()->json(['message' => 'Password reset email sent']);
+        }
+    }
+
+
+    public function resetPassword(Request $request, $token)
+    {
+
+
+        if (RoleHelper::ACSup()) {
+            $passwordReset = DB::table('password_reset_tokens')
+                ->where('token', $token)
+                ->first();
+
+
+            if (!$passwordReset) {
+                return response()->json(['message' => 'Token not found'], 404);
+            }
+
+            if (now() > $passwordReset->expires_at) {
+                return response()->json(['message' => 'Token has expired'], 401);
+            }
+
+
+            $user = User::where('email', $passwordReset->email)->first();
+            $user->update([
+                'password' => Hash::make($request->password),
+            ]);
+
+
+            DB::table('password_reset_tokens')
+                ->where('token', $token)
+                ->delete();
+
+            return response()->json(['message' => 'Password reset successful']);
+        }
+    }
+    public function validateToken($token)
+    {
+
+
+
+        $passwordReset = DB::table('password_reset_tokens')
+            ->where('token', $token)
+            ->first();
+
+        if (!$passwordReset) {
+            return response()->json(['message' => 'Token not found'], 404);
+        }
+
+        if (Carbon::now() > $passwordReset->expires_at) {
+            DB::table('password_reset_tokens')
+                ->where('token', $token)
+                ->delete();
+            return response()->json(['message' => 'Token has expired'], 401);
+        }
+        return response()->json(['message' => 'Token valid'], 200);
+    }
+    public function confirmReset(Request $request, $token)
+    {
+        $confirmationCode = $request->input('confirmationCode');
+
+        $passwordReset = DB::table('password_reset_tokens')
+            ->where('token', $token)
+            ->first();
+
+        if (!$passwordReset) {
+            return response()->json(['message' => 'Token not found'], 404);
+        }
+
+        if (now() > $passwordReset->expires_at) {
+            DB::table('password_reset_tokens')
+                ->where('token', $token)
+                ->delete();
+            return response()->json(['message' => 'Token has expired'], 401);
+        }
+
+        if ($passwordReset->confirmation_code !== $confirmationCode) {
+            return response()->json(['message' => 'Invalid confirmation code'], 400);
+        }
+
+        return response()->json(['message' => 'Code is valid'], 200);
+    }
 }

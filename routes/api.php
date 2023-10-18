@@ -33,10 +33,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
-
 });
 
 Route::post('login', [UserController::class, 'login'])->name('login');
+Route::post('/validateToken/{token}', [UserController::class, 'validateToken']);
 
 //Route::post('register', [UserController::class, 'register'])->name('register');
 
@@ -62,8 +62,12 @@ Route::middleware('auth:api')->group(function () {
     Route::post('logout', [UserController::class, 'logout'])->name('logout');
     Route::post('addUserProjet/{id}', [UserController::class, 'addUserProjet'])->name('addUserProjet');
     Route::get('get_users', [UserController::class, 'get_users'])->name('get_users');
-    
-    
+    Route::post('sendEmail', [UserController::class, 'sendEmail']);
+    Route::post('resendEmail', [UserController::class, 'resendEmail']);
+
+    Route::post('/resetPassword/{token}', [UserController::class, 'resetPassword']);
+
+
     /*************************************Projet***************************** */
     Route::resource('projet', ProjetController::class);
     Route::resource('typeProjet', TypeProjetController::class);
@@ -76,14 +80,14 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************Tranche***************************** */
     Route::resource('tranche', TrancheController::class);
-    Route::get('tranches/{projet_id}', [TrancheController::class,'index'])->name('tranches');
+    Route::get('tranches/{projet_id}', [TrancheController::class, 'index'])->name('tranches');
     Route::post('restoreTranche/{id}', [TrancheController::class, 'restoreTranche'])->name('restoreTranche');
     Route::get('getTrashedTranches', [TrancheController::class, 'getTrashedTranches'])->name('getTrashedTranches');
     Route::get('getTranchesByProjet/{id}', [TrancheController::class, 'getTranchesByProjet'])->name('getTranchesByProjet');
 
     /*************************************Bloc***************************** */
     Route::resource('bloc', BlocController::class);
-    Route::get('blocs/{projet_id}', [BlocController::class,'index'])->name('blocs');
+    Route::get('blocs/{projet_id}', [BlocController::class, 'index'])->name('blocs');
     Route::post('restoreBloc/{id}', [BlocController::class, 'restoreBloc'])->name('restoreBloc');
     Route::get('getTrashedBlocs', [BlocController::class, 'getTrashedBlocs'])->name('getTrashedBlocs');
     Route::get('getBlocsByProjet/{id}', [BlocController::class, 'getBlocsByProjet'])->name('getBlocsByProjet');
@@ -91,14 +95,14 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************Immeuble***************************** */
     Route::resource('immeuble', ImmeubleController::class);
-    Route::get('immeubles/{projet_id}', [ImmeubleController::class,'index'])->name('immeubles');
+    Route::get('immeubles/{projet_id}', [ImmeubleController::class, 'index'])->name('immeubles');
     Route::post('restoreImmeuble/{id}', [ImmeubleController::class, 'restoreImmeuble'])->name('restoreImmeuble');
     Route::get('getTrashedImmeubles', [ImmeubleController::class, 'getTrashedImmeubles'])->name('getTrashedImmeubles');
     Route::get('getImmeublesByBloc/{id}', [ImmeubleController::class, 'getImmeublesByBloc'])->name('getImmeublesByBloc');
 
     /*************************************Bien***************************** */
     Route::resource('bien', BienController::class);
-    Route::get('biens/{projet_id}', [BienController::class,'index'])->name('biens');
+    Route::get('biens/{projet_id}', [BienController::class, 'index'])->name('biens');
     Route::post('restoreBien/{id}', [BienController::class, 'restoreBien'])->name('restoreBien');
     Route::get('getTrashedBiens', [BienController::class, 'getTrashedBiens'])->name('getTrashedBiens');
     Route::put('bloquerBien/{id}', [BienController::class, 'bloquerBien'])->name('bloquerBien');
@@ -125,22 +129,22 @@ Route::middleware('auth:api')->group(function () {
     Route::post('restoreTypeBien/{id}', [TypeBienController::class, 'restoreTypeBien'])->name('restoreTypeBien');
     Route::get('getTrashedTypesBien', [TypeBienController::class, 'getTrashedTypesBien'])->name('getTrashedTypesBien');
     /*************************************Visite***************************** */
-    Route::resource('visite',VisiteController::class);
-    Route::post('addLinkedVisite/{id}',[VisiteController::class,'addLinkedVisite'])->name('addLinkedVisite');
-    Route::get('getAllAttributes',[VisiteController::class,'getAllAttributes'])->name('getAllAttributes');
-     /*************************************type_Freins***************************** */
+    Route::resource('visite', VisiteController::class);
+    Route::post('addLinkedVisite/{id}', [VisiteController::class, 'addLinkedVisite'])->name('addLinkedVisite');
+    Route::get('getAllAttributes', [VisiteController::class, 'getAllAttributes'])->name('getAllAttributes');
+    /*************************************type_Freins***************************** */
     Route::resource('type_freins', TypeFreinController::class);
     Route::get('get_typeFreins', [TypeFreinController::class, 'get_typeFreins'])->name('get_typeFreins');
     Route::post('restoreTypeFrein/{id}', [TypeFreinController::class, 'restoreTypeFrein'])->name('restoreTypeFrein');
-     /*************************************Prospect***************************** */
+    /*************************************Prospect***************************** */
     /*************************************Frein***************************** */
     Route::resource('frein', FreinController::class);
 
     /*************************************Prospect***************************** */
-    Route::resource('prospect',ProspectController::class);
+    Route::resource('prospect', ProspectController::class);
 
     /*************************************Source***************************** */
-    Route::resource('source',SourceController::class);
+    Route::resource('source', SourceController::class);
 
     /*************************************Vue***************************** */
     Route::resource('vue', VueController::class);
