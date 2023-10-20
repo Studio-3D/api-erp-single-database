@@ -194,7 +194,53 @@ class UserController extends Controller
     }
     public function update(UpdateUserRequest $request, $id)
     {
-        if (Auth::guard('api')->user()) {
+        if($request->is_profil) {
+            if ($request->cin != null) {
+                $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
+                if ($cin_exist > 0) {
+                    return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
+                }}
+            $user = User::findOrFail($id);
+            $user->name = $request->input('name');
+            $user->prenom = $request->input('prenom');
+            $user->gender = $request->input('gender');
+            $user->role = $request->input('role');
+            $user->phone = $request->input('phone');
+            $user->cin = $request->input('cin');
+            $user->fonction = $request->input('fonction');
+            $user->date_embauche = $request->input('date_embauche');
+            $user->niveau_etude = $request->input('niveau_etude');
+            $user->adresse = $request->input('adresse');
+            $user->cnss = $request->input('cnss');
+            $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
+            $user->solde_conge = $request->input('solde_conge');
+
+            if ($request->hasFile('photo')) {
+                if ($user->photo != null) {
+                    $image_path = public_path('img/users/' . $user->photo);
+                    if (file_exists($image_path)) {
+                        unlink($image_path);
+                    }
+                }
+                $photo = time() . '.' . $user->name . '.' . $request->photo->extension();
+                $request->photo->move(public_path('img/users'), $photo);
+                $user->photo = $photo;
+            }
+
+            if ($user->save()) {
+                // Update the user in the 'temp' database connection (assuming this is what you intend to do)
+                DatabaseHelper::Config($user->societe_id);
+                $user_societes = User::on('temp')->where('user_id_origin', $user->id)->first();
+
+                if ($user_societes) {
+                    $user_societes->update($request->all());
+                }
+            }
+
+            return response()->json(['message' => 'profil modifié avec succès'], 200);
+ 
+        }
+        else if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
 
             if ($request->cin != null) {
                 $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
@@ -239,8 +285,56 @@ class UserController extends Controller
                 }
             }
 
+            return response()->json(['message' => 'Utilisateur bien modifié'], 200);
+            
+        } else if (RoleHelper::AdminSup()) {
+
+            if ($request->cin != null) {
+                $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
+                if ($cin_exist > 0) {
+                    return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
+                }}
+
+            DatabaseHelper::Config();
+            $user = User::on('temp')->findOrfail($id);
+            $user->name = $request->input('name');
+            $user->prenom = $request->input('prenom');
+            $user->gender = $request->input('gender');
+            $user->role = $request->input('role');
+            $user->phone = $request->input('phone');
+            $user->cin = $request->input('cin');
+            $user->fonction = $request->input('fonction');
+            $user->date_embauche = $request->input('date_embauche');
+            $user->niveau_etude = $request->input('niveau_etude');
+            $user->adresse = $request->input('adresse');
+            $user->cnss = $request->input('cnss');
+            $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
+            $user->solde_conge = $request->input('solde_conge');
+
+            if ($request->hasFile('photo')) {
+                if ($user->photo != null) {
+                    $image_path = public_path('img/users/' . $user->photo);
+                    if (file_exists($image_path)) {
+                        unlink($image_path);
+                    }
+                }
+                $photo = time() . '.' . $user->name . '.' . $request->photo->extension();
+                $request->photo->move(public_path('img/users'), $photo);
+                $user->photo = $photo;
+            }
+
+            if ($user->save()) {
+                $user_societes = User::where('id', $user->user_id_origin)->first();
+
+                if ($user_societes) {
+                    $user_societes->update($request->all());
+                }
+            }
+
             return response()->json(['message' => 'Utilisateur modifié avec succès'], 200);
-        } else {
+        }
+        
+        else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
@@ -438,7 +532,6 @@ class UserController extends Controller
                 ->where('token', $token)
                 ->first();
 
-
             if (!$passwordReset) {
                 return response()->json(['message' => 'Token not found'], 404);
             }
@@ -507,4 +600,5 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Code is valid'], 200);
     }
+
 }

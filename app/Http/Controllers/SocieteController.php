@@ -128,7 +128,7 @@ class SocieteController extends Controller
             if ($request->hasFile('logo')) {
 
                 if($societe->logo!=null){
-                    $image_path = public_path('img/societes/'.$old_image_name);
+                    $image_path = public_path('img/societes/'.$societe->logo);
                     if(file_exists($image_path)){
                       unlink($image_path);
                     }

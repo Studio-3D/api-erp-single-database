@@ -159,4 +159,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('get_typologiesByProjet/{id}', [TypologieController::class, 'get_typologiesByProjet'])->name('get_typologiesByProjet');
     Route::get('typologies/{projet_id}', [TypologieController::class,'index'])->name('typologies');
 
+
+
 });
+Route::get('sendResetPasswordEmail', [UserController::class, 'sendResetPasswordEmail']);
+
