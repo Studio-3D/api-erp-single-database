@@ -7,6 +7,7 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreProspectRequest;
 use App\Http\Requests\UpdateProspectRequest;
 use App\Models\Prospect;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ProspectController extends Controller
@@ -14,12 +15,14 @@ class ProspectController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         if (Auth::guard('api')->check())
         {
             DatabaseHelper::Config();
-            $prospects = Prospect::on('temp')->get();
+            $perPage=$request->input('pageSize',5);
+            $page=$request->input('page',1);
+            $prospects = Prospect::on('temp')->orderBy('created_at','desc')->paginate($perPage,['*'],'page',$page);
             return response()->json(['prospects' =>  $prospects]);
         }
         else return response()->json(['error' => 'Unauthorized'], 401);

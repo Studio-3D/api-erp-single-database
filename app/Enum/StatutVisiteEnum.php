@@ -2,7 +2,7 @@
 
 namespace App\Enum;
 
-enum StatutEnum:int
+enum StatutVisiteEnum:int
 {
    case PRE_RESERVE=1;
    case VENDU=2;

@@ -12,7 +12,7 @@ class PiecesJointe extends Model
 
     use SoftDeletes;
 
-    protected $table='piecesjointes';
+    protected $table='pieces_jointes';
     protected $dates=['deleted_at'];
 
     public function  reservation(){

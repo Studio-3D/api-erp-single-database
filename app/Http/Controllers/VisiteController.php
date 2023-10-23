@@ -36,13 +36,17 @@ class VisiteController extends Controller
             $visites = Visite::on('temp')->where('origin_id',null)->get();
             return response()->json(['visites' => $visites]);
         }
+
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
     /**
      * Show the form for creating a new resource.
      */
-  
+    public function create()
+    {
+        //
+    }
 
     /**
      * Store a newly created resource in storage.
@@ -72,7 +76,7 @@ class VisiteController extends Controller
             $visite->interet = $request->interet;
             $visite->bien_id = $request->bien_id;
             $visite->rdv = $request->rdv;
-            $visite->status = $request->status;
+            $visite->statut = $request->statut;
             $visite->mode_relance = $request->mode_relance;
             $visite->date_relance = $request->date_relance;
             $visite->save();
@@ -157,7 +161,7 @@ class VisiteController extends Controller
             $visite->interet = $request->interet;
             $visite->bien_id = $request->bien_id;
             $visite->rdv = $request->rdv;
-            $visite->status = $request->status;
+            $visite->statut = $request->statut;
             $visite->mode_relance = $request->mode_relance;
             $visite->date_relance = $request->date_relance;
             $visite->save();
@@ -215,7 +219,7 @@ class VisiteController extends Controller
                 $freinController->destroy($frein->value('id'));
             }
             if($visite->delete()){
-                return response()->json(['messqge'=>'Visite supprimée avec succès.'],200);
+                return response()->json(['message'=>'Visite supprimée avec succès.'],200);
             }
             else return response()->json(['error'=>"La visite n'a pas été supprimée."],404);
         }
@@ -240,7 +244,7 @@ class VisiteController extends Controller
             $newVisit->interet = $request->interet;
             $newVisit->bien_id = $request->bien_id;
             $newVisit->rdv = $request->rdv;
-            $newVisit->status = $request->status;
+            $newVisit->statut = $request->statut;
             $newVisit->mode_relance = $request->mode_relance;
             $newVisit->date_relance = $request->date_relance;
             $newVisit->save();
@@ -288,5 +292,20 @@ class VisiteController extends Controller
         ];
 
         return response()->json($formData);
+    }
+
+    public function getProspectById($visite_id){
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $visite=Visite::on('temp')->findOrFail($visite_id);
+            $prospect=Prospect::on('temp')->where('id',$visite->prospect_id)->get();
+            if(!$prospect->isEmpty()){
+                return response()->json(['message'=>'Any prospect exists in this visit.'],400);
+            }
+            else{
+                return response()->json(['prospect'=>$prospect],200);
+            }
+        }
+        return response()->json(['error'=>'Unauthorized'],401);
     }
 }

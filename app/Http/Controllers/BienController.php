@@ -94,7 +94,7 @@ class BienController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $bien = bien::on('temp')->findOrfail($id);
-            return response()->json(['bien' => $bien], 200);
+            return response()->json(['bien' => $bien->etat], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -367,6 +367,21 @@ class BienController extends Controller
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function getEtatBien($bien_id){
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+
+            $bien = Bien::on('temp')
+                ->findOrFail($bien_id);
+            return response()->json(['bienEtat' => $bien->etat], 200);
+
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
         }
     }
 }

@@ -19,4 +19,7 @@ class Avance extends Model
     {
         return $this->belongsTo(Banque::class,'banque_id');
     }
+    public function reservation(){
+        return $this->belongsTo(Reservation::class,'reservation_id');
+    }
 }

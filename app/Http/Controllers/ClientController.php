@@ -2,16 +2,36 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Helpers\DatabaseHelper;
+use App\Http\Helpers\RoleHelper;
+use App\Http\Requests\StoreClientRequest;
+use App\Http\Requests\UpdateClientRequest;
+use App\Models\Banque;
+use App\Models\Client;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ClientController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $perPage=$request->input('pageSizee',5);
+            $page=$request->input('page',1);
+
+            $clients= Client::on('temp')
+                ->orderBy('created_at','desc')
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            return response()->json(['clients' => $clients]);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+
     }
 
     /**
@@ -25,17 +45,53 @@ class ClientController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreClientRequest $request)
     {
-        //
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $client= new Client();
+            $client->setConnection('temp');
+            $client->type_client=$request->type_client;
+            $client->nom=$request->nom;
+            $client->prenom=$request->prenom;
+            $client->telephone_num1=$request->telephone_num1;
+            $client->telephone_num2=$request->telephone_num2;
+            $client->notifie=$request->notifie;
+            $client->email=$request->email;
+            $client->civilite=$request->civilite;
+            $client->adresse=$request->adresse;
+            $client->ville=$request->ville;
+            $client->pays=$request->pays;
+            $client->profession=$request->profession;
+            $client->cin=$request->cin;
+            $client->lieu_naissance=$request->lieu_naissance;
+            $client->nationalite=$request->nationalite;
+            $client->date_naissance=$request->date_naissance;
+            $client->age=$request->age;
+            $client->nom_responsable=$request->nom_responsable;
+            $client->relation_familliale=$request->relation_familliale;
+            $client->situation_familliale=$request->situation_familliale;
+            $client->nom_pere=$request->nom_pere;
+            $client->nom_mere=$request->nom_mere;
+            if($client->save()){
+                return $client;
+            }
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show($id)
     {
-        //
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $client=Client::on('temp')->where('id',$id)->get();
+
+            return response()->json(['client'=>$client]);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
 
     /**
@@ -49,16 +105,37 @@ class ClientController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateClientRequest $request, $id)
     {
-        //
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $client=Client::on('temp')->findOrFail($id);
+            $update=$request->all();
+            foreach ($update as $key => $value){
+                $client->$key=$value;
+            }
+            $client->save();
+            return response()->json(['client'=>$client],200);
+        }
+        return response()->json(['error'=>'Unauthorized'],401);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy($id)
     {
-        //
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $client=Client::on('temp')->findOrFail($id);
+
+            if($client->delete()){
+                return response()->json(['message'=>'Client deleted successfully'],200);
+            }
+            else{
+                return response()->json(['message'=>'Client non deleted'],400);
+            }
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
 }

@@ -30,4 +30,8 @@ class Reservation extends Model
     public function banque(){
         return $this->belongsTo(Banque::class,'banque_id');
     }
+
+    public function projet(){
+        return  $this->belongsTo(Projet::class,'projet_id');
+    }
 }

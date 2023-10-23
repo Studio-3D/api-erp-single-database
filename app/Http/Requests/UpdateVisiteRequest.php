@@ -30,7 +30,7 @@ class UpdateVisiteRequest extends FormRequest
             'mode_relance' => 'integer',
             'date_relance' => 'date',
             'rdv' => 'datetime',
-            'status' => 'string',
+            'statut' => 'string',
             'bien_id'=>'integer',
             'prix_min'=>'float',
             'prix_max'=>'float',

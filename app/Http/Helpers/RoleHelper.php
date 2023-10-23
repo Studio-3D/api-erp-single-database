@@ -54,4 +54,31 @@ class RoleHelper
         }
         return false;
     }
+    public static function Comptable(){
+
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->role == 4)) {
+
+            return true;
+        }
+        return false;
+    }
+
+    public static function AdminComptable()
+    {
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->role == 4 || Auth::guard('api')->user()->role == 2 )) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public static function AdminComptableSup()
+    {
+        if (Auth::guard('api')->check() && (Auth::guard('api')->user()->role == 4 || Auth::guard('api')->user()->role == 1 || Auth::guard('api')->user()->role == 2)) {
+            return true;
+        }
+
+        return false;
+    }
+
 }

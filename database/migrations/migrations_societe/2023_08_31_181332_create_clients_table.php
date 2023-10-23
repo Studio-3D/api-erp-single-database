@@ -33,11 +33,11 @@ return new class extends Migration
             $table->string('nationalite')->nullable();
             $table->date('date_naissance')->nullable();
             $table->double('age')->nullable();
-            $table->string('nom_responsable');
-            $table->string('relation_familliale');
-            $table->enum('situation_familliale',[SituationFamilliale::CELEBATAIRE->name,SituationFamilliale::MARIE->name,SituationFamilliale::DIVORCE->name,SituationFamilliale::VEUF->name]);
-            $table->string('nom_pere');
-            $table->string('nom_mere');
+            $table->string('nom_responsable')->nullable();
+            $table->string('relation_familliale')->nullable();
+            $table->enum('situation_familliale',[SituationFamilliale::CELEBATAIRE->name,SituationFamilliale::MARIE->name,SituationFamilliale::DIVORCE->name,SituationFamilliale::VEUF->name])->nullable();
+            $table->string('nom_pere')->nullable();
+            $table->string('nom_mere')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -48,6 +48,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('client');
+        Schema::dropIfExists('clients');
     }
 };

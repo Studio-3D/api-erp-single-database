@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->integer('pourcentage');
             $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
+            $table->foreignId('reservation_id')->constrained('reservations')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });
