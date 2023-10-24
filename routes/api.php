@@ -105,6 +105,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('restoreImmeuble/{id}', [ImmeubleController::class, 'restoreImmeuble'])->name('restoreImmeuble');
     Route::get('getTrashedImmeubles', [ImmeubleController::class, 'getTrashedImmeubles'])->name('getTrashedImmeubles');
     Route::get('getImmeublesByBloc/{id}', [ImmeubleController::class, 'getImmeublesByBloc'])->name('getImmeublesByBloc');
+    Route::get('getImmeublesByProjet/{id}', [ImmeubleController::class, 'getImmeublesByProjet'])->name('getImmeublesByProjet');
 
     /*************************************Bien***************************** */
     Route::resource('bien', BienController::class);
@@ -130,6 +131,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getBiensDispoByProjet/{id}', [BienController::class, 'getBiensDispoByProjet'])->name('getBiensByDispoProjet');
     Route::put('setPropostionBien/{id}', [BienController::class, 'setPropostionBien'])->name('setPropostionBien');
     Route::get('getEtatBien/{id}', [BienController::class, 'getEtatBien'])->name('getEtatBien');
+    Route::get('getBiensByProjet_Concat/{id}', [BienController::class, 'getBiensByProjet_Concat'])->name('getBiensByProjet_Concat');
     /***********************************Type biens******************************** */
     Route::resource('typeBien', TypeBienController::class);
     Route::get('get_typeBiens', [TypeBienController::class, 'get_typeBiens'])->name('get_typeBiens');
