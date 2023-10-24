@@ -12,6 +12,7 @@ use App\Models\Bien;
 use App\Models\HistoriqueBien;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class BienController extends Controller
 {
@@ -94,7 +95,7 @@ class BienController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $bien = bien::on('temp')->findOrfail($id);
-            return response()->json(['bien' => $bien->etat], 200);
+            return response()->json(['bien' => $bien], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -384,4 +385,70 @@ class BienController extends Controller
 
         }
     }
+
+    public function getBiensByProjet_Concat($projet_id){
+
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $biens_pr = Bien::on('temp')->where('biens.projet_id', $projet_id)->get();
+            foreach($biens_pr as $b_pr){
+                 //tranches bloc w immeuble
+                 if($b_pr->tranche_id!=null && $b_pr->bloc_id!=null && $b_pr->immeuble_id!=null){
+                    $biens = Bien::on('temp')->with('historique_bien')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    ->join('blocs','blocs.id', '=', 'biens.bloc_id')
+                    ->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat')->get();
+                }
+                 //tranche bloc
+                elseif($b_pr->tranche_id!=null && $b_pr->bloc_id!=null && $b_pr->immeuble_id==null){
+                    $biens = Bien::on('temp')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    ->join('blocs','blocs.id', '=', 'biens.bloc_id')
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat')->get();
+
+                }
+                  //tranche immeuble
+                elseif($b_pr->tranche_id!=null && $b_pr->bloc_id==null && $b_pr->immeuble_id!=null){
+                    $biens = Bien::on('temp')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    ->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat')->get();
+
+                }
+                //bloc immeuble
+                elseif ($b_pr->tranche_id==null && $b_pr->bloc_id!=null && $b_pr->immeuble_id!=null){
+                    $biens = Bien::on('temp')
+                    ->join('blocs','blocs.id', '=', 'biens.bloc_id')
+                    ->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
+                    ->select(DB::raw("CONCAT(blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat')->get();
+                }
+                 //bloc
+                elseif($b_pr->tranche_id==null && $b_pr->bloc_id!=null && $b_pr->immeuble_id==null){
+                    $biens = Bien::on('temp')
+                    ->join('blocs','blocs.id', '=', 'biens.bloc_id')
+                    ->select(DB::raw("CONCAT(blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat')->get();
+                }
+                //immeuble
+                elseif($b_pr->tranche_id==null && $b_pr->bloc_id==null && $b_pr->immeuble_id!=null){
+                    $biens = Bien::on('temp')->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
+                    ->select(DB::raw("CONCAT(immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat')->get();
+                }
+                 //tranche
+                 elseif($b_pr->tranche_id!=null && $b_pr->bloc_id==null && $b_pr->immeuble_id==null){
+                    $biens = Bien::on('temp')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat')->get();
+
+                }
+
+
+
+            }
+
+
+           return response()->json(['biens' => $biens], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
 }
