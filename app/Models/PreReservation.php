@@ -6,12 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class BienVisitePreReserve extends Model
+class PreReservation extends Model
 {
     use HasFactory;
     use SoftDeletes;
 
-    protected $table='biens_visite_pre_reserve';
+    protected $table='pre_reservations';
     protected $dates=['deleted_at'];
     protected $with = ['bien'];
     public function bien()

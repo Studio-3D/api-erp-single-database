@@ -18,7 +18,7 @@ return new class extends Migration
             $table->float('superficie_min')->nullable();
             $table->float('superficie_max')->nullable();
             $table->boolean('liste_attente')->default(false);
-            $table->float('avance')->nullable();
+            $table->double('avance')->nullable();
             $table->boolean('tranche')->default(false);
             $table->boolean('orientation' )->default(false);
             $table->boolean('etage')->default(false);

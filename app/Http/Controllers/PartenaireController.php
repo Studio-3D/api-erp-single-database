@@ -20,13 +20,18 @@ class PartenaireController extends Controller
      */
     public function get_partenaires($projet_id)
     {
-        if (Auth::guard('api')->check()) {
+
+        if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
-            $partenaires = Partenaire::on('temp')->where('projet_id',$projet_id)->orderBy('created_at', 'desc')->get();
-            return response()->json(['partenaires' => $partenaires]);
+            $partenaires = Partenaire::on('temp')->orderBy('created_at', 'desc')->where('projet_id',$projet_id)
+                ->get();
+            return response()->json(['partenaires' => $partenaires],200);
+        }
+        else{
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        return response()->json(['error' => 'Unauthorized'], 401);
+
 
     }
 

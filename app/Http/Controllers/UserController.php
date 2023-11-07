@@ -238,7 +238,7 @@ class UserController extends Controller
             }
 
             return response()->json(['message' => 'profil modifié avec succès'], 200);
- 
+
         }
         else if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
 
@@ -286,7 +286,7 @@ class UserController extends Controller
             }
 
             return response()->json(['message' => 'Utilisateur bien modifié'], 200);
-            
+
         } else if (RoleHelper::AdminSup()) {
 
             if ($request->cin != null) {
@@ -333,7 +333,7 @@ class UserController extends Controller
 
             return response()->json(['message' => 'Utilisateur modifié avec succès'], 200);
         }
-        
+
         else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -467,7 +467,7 @@ class UserController extends Controller
             $token = Str::random(60);
             $confirmationCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
             $expirationTime = now()->addMinutes(3); // Expires in 3 minute
-            // Store the token in the 'password_resets' tablee chabge what time wann  to  expire tokkeenn 
+            // Store the token in the 'password_resets' tablee chabge what time wann  to  expire tokkeenn
             DB::table('password_reset_tokens')->insert([
                 'email' => $user,
                 'token' => $token,
@@ -475,7 +475,7 @@ class UserController extends Controller
                 'created_at' => now(),
             ]);
 
-            // Construct the reset URL you can chenbge the url  
+            // Construct the reset URL you can chenbge the url
             $resetUrl = 'http://localhost:3000/reset-password/' . $token;
 
             // Send an email to the user with the reset URL

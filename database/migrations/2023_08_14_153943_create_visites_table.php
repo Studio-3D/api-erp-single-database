@@ -19,10 +19,10 @@ return new class extends Migration
             $table->unsignedBigInteger('origin_id')->nullable(); // pour garder l'historique de visite
             $table->string('commentaire')->nullable(); // car en peut recoit des vistes sans commentaire.
             $table->boolean('notifie')->default(false)->nullable();
-            $table->enum('interet',[InteretEnum::INTERESSE->name,InteretEnum::RECEPCTIF->name,InteretEnum::PERDU->name]);
-            $table->enum('mode_relance',[TypeNotificationEnum::SMS->name,TypeNotificationEnum::APPEL->name,TypeNotificationEnum::EMAIL->name,TypeNotificationEnum::WHATSAPP->name])->nullable();
+            $table->enum('interet',[InteretEnum::INTERESSE->value,InteretEnum::RECEPCTIF->value,InteretEnum::PERDU->value]);
+            $table->enum('mode_relance',[TypeNotificationEnum::SMS->value,TypeNotificationEnum::APPEL->value,TypeNotificationEnum::EMAIL->value])->nullable();
             $table->date('date_relance')->nullable();
-            $table->enum('statut',[StatutVisiteEnum::PRE_RESERVATION->name,StatutVisiteEnum::VENDU->name,StatutVisiteEnum::PRE_RESERVATION_PERDU->name])->nullable();
+            $table->enum('statut',[StatutVisiteEnum::PRE_RESERVATION->value,StatutVisiteEnum::VENDU->value,StatutVisiteEnum::PRE_RESERVATION_PERDU->value])->nullable();
             $table->dateTime('rdv')->nullable();
             $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
             $table->foreignId('source_id')->nullable()->constrained('sources')->onDelete('cascade');

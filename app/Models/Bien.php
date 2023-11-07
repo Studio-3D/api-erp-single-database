@@ -55,7 +55,7 @@ class Bien extends Model
         return $this->belongsTo(Typologie::class, 'typologie_id');
     }
 
-    public function historique_bien()
+    public function is_proposed()
     {
         return $this->hasone(HistoriqueBien::class,'bien_id')->where('action',6)->orderby('created_at','desc')->latest();
     }

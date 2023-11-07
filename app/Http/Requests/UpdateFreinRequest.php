@@ -26,7 +26,6 @@ class UpdateFreinRequest extends FormRequest
             'prix_max'=>'float',
             'superficie_min'=>'float',
             'superficie_max'=>'float',
-            'liste_attente'=>'boolean',
             'avance'=>'float',
             'visite_id'=>'required|integer',
         ];

@@ -26,6 +26,7 @@ use App\Http\Controllers\PartenaireController;
 use App\Http\Controllers\VueController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\EnumController;
 
 /*
 |--------------------------------------------------------------------------
@@ -115,7 +116,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getTrashedBiens', [BienController::class, 'getTrashedBiens'])->name('getTrashedBiens');
     Route::put('bloquerBien/{id}', [BienController::class, 'bloquerBien'])->name('bloquerBien');
     Route::put('reserverBien/{id}', [BienController::class, 'reserverBien'])->name('reserverBien');
-    Route::put('prereserverBien/{id}', [BienController::class, 'prereserverBien'])->name('prereserverBien');
+    Route::put('prereserverBien/{id}/{visite_id}', [BienController::class, 'prereserverBien'])->name('prereserverBien');
     Route::put('libererBien/{id}', [BienController::class, 'libererBien'])->name('libererBien');
     Route::get('getHistoriqueBien/{id}', [BienController::class, 'getHistoriqueBien'])->name('getHistoriqueBien');
     Route::resource('compositionBien', CompositionBienController::class);
@@ -212,6 +213,12 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('reservation',ReservationController::class);
     Route::get('reservations/{projet_id}', [ReservationController::class,'index'])->name('reservations');
     Route::get('getAllInformationsReservation/{id}',[ReservationController::class,'getAllInformationsReservation'])->name('getAllInformationsReservation');
+
+    /*************************************EnumController***************************** */
+    Route::get('InteretEnum', [EnumController::class,'InteretEnum_get'])->name('');
+    Route::get('OrientationEnum', [EnumController::class,'OrientationEnum_get'])->name('');
+    Route::get('TypeNotificationEnum', [EnumController::class,'TypeNotificationEnum_get'])->name('');
+    Route::get('StatutVisiteEnum', [EnumController::class,'StatutVisiteEnum_get'])->name('');
 
 });
 Route::get('sendResetPasswordEmail', [UserController::class, 'sendResetPasswordEmail']);

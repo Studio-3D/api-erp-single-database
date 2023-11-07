@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Request;
 
 class UpdateVisiteRequest extends FormRequest
 {
@@ -19,14 +20,31 @@ class UpdateVisiteRequest extends FormRequest
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
      */
-    public function rules(): array
+    public function rules(Request $request): array
     {
-        return [
-            'telephone' => 'required|min:10|max:14',
-            'source_id' => 'required',
-            'nom' => 'required|string',
-            'prenom' => 'required|string',
-            'interet' => 'required',
-        ];
+        $rules = [];
+        $rules['telephone']='required|min:10|max:14';
+        $rules['source_id']='required';
+        $rules['nom']='required|string';
+        $rules['prenom']='required|string';
+        $rules['interet']='required';
+        if ($request->telephone_num2) {
+            $rules['telephone_num2']='min:10|max:14';
+        }
+        if ($request->source_txt==='PARTENAIRE') {
+            $rules['partenaire_id']='required';
+        }
+         //interesse
+         if ($request->interet == 1){
+            $rules['bien_id']='required';
+            $rules['statut']='required';
+            $rules['cin']='required';
+        }
+        //perdu
+        elseif ($request->interet == 3){
+            $rules['frein']='required';
+
+        }
+        return $rules;
     }
 }

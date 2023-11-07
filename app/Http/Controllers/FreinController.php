@@ -69,7 +69,7 @@ class FreinController extends Controller
             $frein->vue= empty($request->selectedVues) ?false:true;
             $frein->typologie= empty($request->selectedTypologies) ?false:true;
             $interetVisite=Visite::on('temp')->where('id',$request->visite_id)->get()->value('interet');
-            if($interetVisite == InteretEnum::PERDU->name){
+            if($interetVisite == InteretEnum::PERDU->value){
                 $frein->save();
                 if(!empty($request->selectedTranches)){
                     foreach($request->selectedTranches as $valeur){
@@ -155,14 +155,29 @@ class FreinController extends Controller
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
             $frein=Frein::on('temp')->findOrFail($id);
-            $frein->prix_min=$request->prix_min;
-            $frein->prix_max=$request->prix_max;
-            $frein->superficie_min=$request->sup_min;
-            $frein->superficie_max=$request->sup_max;
-            $frein->liste_attente=$request->list_att;
-            $frein->avance=$request->avance;
-            //not working exactly
+            if(in_array("SUPERFICIE", $request->frein)=='true'){
+                $frein->superficie_min=$request->sup_min;
+                $frein->superficie_max=$request->sup_max;
+            }
+            else{
+                $frein->superficie_min=null;
+                $frein->superficie_max=null;
+            }
 
+            if(in_array("PRIX", $request->frein)=='true'){
+                $frein->prix_min=$request->prix_min;
+                $frein->prix_max=$request->prix_max;
+            }
+            else{
+                $frein->prix_min=null;
+                $frein->prix_max=null;
+            }
+            if(in_array("AVANCE", $request->frein)=='true'){
+                $frein->avance=$request->avance;
+            }else{
+                $frein->avance=null;
+            }
+            $frein->liste_attente=$request->list_att;
             $frein->tranche=in_array("TRANCHE", $request->frein)?false:true;
             $frein->etage=in_array("ETAGE", $request->frein)?false:true ;
             $frein->orientation= in_array("ORIENTATION", $request->frein)?false:true;
