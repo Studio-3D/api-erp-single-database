@@ -25,7 +25,7 @@ class StoreReservationRequest extends FormRequest
             "nb_acquereurs"=>"integer",
             "code_reservation"=>"string",
             "prix"=>"integer",
-            "mode_financement"=>"integer",
+            "mode_financement"=>"required",
             "date_reservation"=>"date",
             "date_limite_reservation"=>"date",
             "commentaire"=>"string",

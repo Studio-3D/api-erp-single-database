@@ -56,9 +56,12 @@ class AvanceController extends Controller
             $avance->sr= (bool)$request->sr;
             $avance->montant=$request->montant;
             $avance->mode_paiement=$request->mode_paiement;
+            $avance->numero_paiemeant=$request->numero_paiemeant;
             $avance->date_reglement=$request->date_reglement;
             $avance->echeance=$request->echeance;
+            $avance->commentaireAvance=$request->commentaireAvance;
             $avance->banque_id=$request->banque_id;
+            $avance->montant_par_lettre=$request->montant_par_lettre;
             $avance->reservation_id=$request->reservation_id;
             if(RoleHelper::Com()){
                 $avance->statut=StatutReservationEnum::EN_ATTENTE->value;

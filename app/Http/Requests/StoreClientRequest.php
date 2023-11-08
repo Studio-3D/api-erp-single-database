@@ -23,7 +23,6 @@ class StoreClientRequest extends FormRequest
     {
         return [
             "type_client"=>"integer ",
-            "nom"=>"required|string ",
             "prenom"=>"required|string",
             "telephone_num1"=>"required|string",
             "telephone_num2"=>"string",
@@ -44,6 +43,8 @@ class StoreClientRequest extends FormRequest
             "situation_familliale"=>"integer",
             "nom_pere"=>"string",
             "nom_mere"=>"string",
+            "nom"=>"required|string ",
+
         ];
     }
 }

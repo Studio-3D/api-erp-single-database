@@ -18,6 +18,7 @@ use App\Models\Reservation;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
+use \NumberFormatter;
 
 class ReservationController extends Controller
 {
@@ -79,45 +80,79 @@ class ReservationController extends Controller
                 return response()->json(['message'=>'ce bien est deja pre-reserver'],400);
             }
             else{
-                $reservation->bien_id=$request->bien_id;
-                $reservation->projet_id=$request->projet_id;
-                $reservation->user_id=$userAuth->value('id');
-                if(RoleHelper::AdminSup()){
-                    $reservation->statut=StatutReservationEnum::VALIDER->value;
-                }
-                if(RoleHelper::Com()){
-                    $reservation->statut=StatutReservationEnum::EN_ATTENTE->value;
-                }
-                if($reservation->save()){
-                    $bienController=new BienController();
-                    $bienController->reserverBien($reservation->bien_id);
-                }
-                $clientController = new ClientController();
-                $clientRequest = new StoreClientRequest();
-                $aquereurController=new AquereurController();
-                $aquereurRequest = new StoreAquereurRequest();
-                foreach ($request->clients as $clientInfo) {
-                    $clientRequest->merge($clientInfo);
-                    $clientData=$clientController->store($clientRequest);
-                    $dataAquereur = [
-                        'pourcentage'=>$clientInfo['pourcentage'],
-                        'client_id'=> $clientData->id,
-                        'reservation_id'=> $reservation->id
-                    ];
-                    $aquereurRequest->merge($dataAquereur);
-                    $aquereurController->store($aquereurRequest);
-                }
-                $avanceController=new AvanceController();
-                $avanceRequest = new StoreAvanceRequest();
-                foreach ($request->avance as $avanceInfo){
-                    $avanceRequest->merge($avanceInfo);
-                }
-                $avanceRequest->merge(['reservation_id'=>$reservation->id]);
-                $avanceController->store($avanceRequest);
+    $reservation->bien_id = $request->bien_id;
+    $reservation->projet_id = $request->projet_id;
+    $reservation->user_id = $userAuth->value('id');
+    if(RoleHelper::AdminSup()) {
+        $reservation->statut = StatutReservationEnum::VALIDER->value;
+    }
+    if(RoleHelper::Com()) {
+        $reservation->statut = StatutReservationEnum::EN_ATTENTE->value;
+    }
+    if($request->verifierPourcentages == true) {
+        if($reservation->save()) {
+            $bienController = new BienController();
+            $bienController->reserverBien($reservation->bien_id);
+        }
+        $clientController = new ClientController();
+        $clientRequest = new StoreClientRequest();
+        $aquereurController = new AquereurController();
+        $aquereurRequest = new StoreAquereurRequest();
+        if($request->clients){
+            foreach ($request->clients as $clientInfo) {
+                $clientRequest->merge($clientInfo);
+                $clientData = $clientController->store($clientRequest);
+                $dataAquereur = [
+                    'pourcentage' => $clientInfo['pourcentage'],
+                    'client_id' => $clientData->id,
+                    'reservation_id' => $reservation->id
+                ];
+                $aquereurRequest->merge($dataAquereur);
+                $aquereurController->store($aquereurRequest);
+            }}
+        if($request->clients1){
+            foreach ($request->clients1 as $clientInfo) {
+                $dataAquereur = [
+                    'pourcentage' => $clientInfo['pourcentage1'],
+                    'client_id' => $clientInfo['id'],
+                    'reservation_id' => $reservation->id
+                ];
+                $aquereurRequest->merge($dataAquereur);
+                $aquereurController->store($aquereurRequest);
+            }}
+        $avanceController = new AvanceController();
+        $avanceRequest = new StoreAvanceRequest();
+        /* foreach ($request->avance as $avanceInfo){
+            $avanceRequest->merge($avanceInfo);
+        } */
+        
 
-                return response()->json(['reservation' => $reservation], 200);
-            }
+        $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
+        $mnt_lettre=$inWords->format($request->avance);
+        $montant_per_lettre=$mnt_lettre;
+        $dataAvance = [
+            'montant' => $request->avance,
+            'mode_paiement' => $request->mode_paiement,
+            'numero_paiemeant' => $request->numero_paiemeant,
+            'date_reglement' => $request->date_reglement,
+            'echeance' => $request->echeance,
+            'banque_id' => $request->banque_id,
+            'montant_par_lettre'=> $montant_per_lettre,
+            'reservation_id' => $reservation->id,
+            'commentaireAvance' => $request->commentaireAvance
+        ];
+        $avanceRequest->merge($dataAvance);
+        $avanceController->store($avanceRequest);
+        return response()->json(['reservation' => $reservation], 200);
+    } else{
 
+        return response()->json(['error' => 'la somme des pourcentage doit être 100%'], 422);
+
+    }
+
+}
+
+            
 
         }
         return  response()->json(['error'=>'Unauthorized'],401);
@@ -206,5 +241,19 @@ class ReservationController extends Controller
             return response()->json(['data'=> $data],200);
         }
         return response()->json(['error'=>'Unauthorized'],401);
+    }
+
+    public function getReservationssByProjet($projet_id){
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $reservations = Reservation::on('temp')->where('projet_id', $projet_id)->get();
+
+            return response()->json(['reservations' => $reservations], 200);
+
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
     }
 }

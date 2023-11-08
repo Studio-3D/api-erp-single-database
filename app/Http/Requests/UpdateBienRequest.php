@@ -31,6 +31,7 @@ class UpdateBienRequest extends FormRequest
         return [
             'niveau' => 'integer',
             'prix_unitaire' => 'numeric',
+            'avance_minimale' => 'numeric',
             'prix' => 'numeric',
             'superficie_habitable' => 'numeric|nullable',
             'nbre_facades' => 'integer',

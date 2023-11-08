@@ -34,6 +34,20 @@ class ClientController extends Controller
 
     }
 
+    public function get_clients()
+    {
+        if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
+            $clients = Client::all();
+            return response()->json(['clients' => $clients]);
+        } else if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            $clients = Client::on('temp')->get();
+            return response()->json(['clients' => $clients], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
     /**
      * Show the form for creating a new resource.
      */

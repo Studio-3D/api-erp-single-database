@@ -84,6 +84,7 @@ class BienController extends Controller
             $bien->superficie_terrasse = $request->superficie_terrasse;
             $bien->superficie_jardin = $request->superficie_jardin;
             $bien->titre_foncier = $request->titre_foncier;
+            $bien->avance_minimale = $request->avance_minimale;
             $bien->etat = $request->etat;
             $bien->type_id = $request->type_id;
             $bien->projet_id = $request->projet_id;
@@ -436,7 +437,7 @@ class BienController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $biens_pr = Bien::on('temp')
-            ->select('biens.propriete_dite_bien AS propriete_dite_bien','biens.id','biens.etat','biens.tranche_id','biens.bloc_id','biens.immeuble_id','biens.prix')
+            ->select('biens.propriete_dite_bien AS propriete_dite_bien','biens.id','biens.etat','biens.tranche_id','biens.bloc_id','biens.immeuble_id','biens.prix','biens.avance_minimale')
             ->where(function($query) {
                 $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
             })
@@ -453,7 +454,7 @@ class BienController extends Controller
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
                     ->where('biens.projet_id', $projet_id)
-                    ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix')->get();
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix','biens.avance_minimale')->get();
                 }
                  //tranche bloc
                 elseif($b_pr->tranche_id!=null && $b_pr->bloc_id!=null && $b_pr->immeuble_id==null){
@@ -463,8 +464,7 @@ class BienController extends Controller
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
                     ->where('biens.projet_id', $projet_id)
-                    ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix')->get();
-
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix','biens.avance_minimale')->get();
                 }
                   //tranche immeuble
                 elseif($b_pr->tranche_id!=null && $b_pr->bloc_id==null && $b_pr->immeuble_id!=null){
@@ -474,8 +474,7 @@ class BienController extends Controller
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
                     ->where('biens.projet_id', $projet_id)
-                    ->select(DB::raw("CONCAT(tranches.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix')->get();
-
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix','biens.avance_minimale')->get();
                 }
                 //bloc immeuble
                 elseif ($b_pr->tranche_id==null && $b_pr->bloc_id!=null && $b_pr->immeuble_id!=null){
@@ -486,7 +485,7 @@ class BienController extends Controller
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
                     ->where('biens.projet_id', $projet_id)
-                    ->select(DB::raw("CONCAT(blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix')->get();
+                    ->select(DB::raw("CONCAT(blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix','biens.avance_minimale')->get();
                 }
                  //bloc
                 elseif($b_pr->tranche_id==null && $b_pr->bloc_id!=null && $b_pr->immeuble_id==null){
@@ -496,7 +495,7 @@ class BienController extends Controller
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
                     ->where('biens.projet_id', $projet_id)
-                    ->select(DB::raw("CONCAT(blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix')->get();
+                    ->select(DB::raw("CONCAT(blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix','biens.avance_minimale')->get();
                 }
                 //immeuble
                 elseif($b_pr->tranche_id==null && $b_pr->bloc_id==null && $b_pr->immeuble_id!=null){
@@ -505,7 +504,7 @@ class BienController extends Controller
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
                     ->where('biens.projet_id', $projet_id)
-                    ->select(DB::raw("CONCAT(immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix')->get();
+                    ->select(DB::raw("CONCAT(immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix','biens.avance_minimale')->get();
                 }
                  //tranche
                  elseif($b_pr->tranche_id!=null && $b_pr->bloc_id==null && $b_pr->immeuble_id==null){
@@ -514,8 +513,7 @@ class BienController extends Controller
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
                     ->where('biens.projet_id', $projet_id)
-                    ->select(DB::raw("CONCAT(tranches.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix')->get();
-
+                    ->select(DB::raw("CONCAT(tranches.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"),'biens.id','biens.etat','biens.prix','biens.avance_minimale')->get();
                 }
 
 

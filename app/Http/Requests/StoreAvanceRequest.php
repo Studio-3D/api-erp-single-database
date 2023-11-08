@@ -28,7 +28,8 @@ class StoreAvanceRequest extends FormRequest
             "echeance"=>"date",
             "sr"=>"boolean",
             "banque_id"=>"integer",
-            "reservation_id"=>"integer"
+            "numero_paiemeant"=>"integer",
+            "reservation_id"=>"integer",
         ];
     }
 }

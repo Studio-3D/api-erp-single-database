@@ -22,6 +22,7 @@ return new class extends Migration
             $table->boolean('conventionne')->nullable();
             $table->double('prix_unitaire', 12, 2);
             $table->double('prix', 12, 2);
+            $table->double('avance_minimale', 12, 2);
             $table->double('superficie_architecte',12,2);
             $table->double('superficie_habitable',12,2)->nullable();
             $table->integer('nbre_facades');
