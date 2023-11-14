@@ -15,10 +15,11 @@ return new class extends Migration
             $table->id();
             $table->bigInteger('code_pre_reserve');
             $table->timestamp('date_pre_reserve')->useCurrent();
-            $table->bigInteger('bien_id')->unsigned();
-            $table->foreign('bien_id')->references('id')->on('biens');
-            $table->bigInteger('visite_id')->unsigned();
-            $table->foreign('visite_id')->references('id')->on('visites');
+            $table->foreignId('bien_id')->constrained('biens')->onDelete('cascade');
+            $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
+            $table->bigInteger('appel_id')->nullable();
+           // $table->foreignId('appel_id')->nullable()->constrained('visites')->onDelete('cascade');
+           $table->string('commentaire')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

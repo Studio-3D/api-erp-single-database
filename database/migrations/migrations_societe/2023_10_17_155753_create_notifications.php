@@ -18,7 +18,7 @@ return new class extends Migration
             $table->dateTime('date')->nullable();;
             $table->bigInteger('type');
             $table->string('description_type');
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('user_id')->references('user_id_origin')->on('users')->onDelete('cascade');
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->foreignId('prospect_id')->nullable()->constrained('prospects')->onDelete('cascade');
             $table->timestamps();

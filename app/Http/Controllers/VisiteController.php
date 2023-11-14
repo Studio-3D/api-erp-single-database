@@ -66,7 +66,8 @@ class VisiteController extends Controller
             ->groupby('origin_id');
           $visites = $visites->map(function ($visite) {
             return [
-                'id' => $visite->first()->origin_id,
+                'id' => $visite->first()->id,
+                'origin_id' => $visite->first()->origin_id,
                 'nom_cc' => $visite->first()->user->name,
                 'prenom_cc' => $visite->first()->user->prenom,
                 'date' => $visite->first()->created_at,
@@ -110,7 +111,7 @@ class VisiteController extends Controller
             //test si le user connecte celui qui a  fait la proposition
             if($request->bien_id!=NULL){
                 $bien_prop=Bien::on('temp')->findorfail($request->bien_id);
-                if($bien_prop->etat=='ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id!=Auth::user()->id && $bien_prop->is_proposed->action==6){
+                if($bien_prop->etat=='ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id!=Auth::guard('api')->user()->id){
                     return response()->json(['error_33' => 'le bien choisi :'.$bien_prop->propriete_dite_bien.' est en cours de proposition  par : '.$bien_prop->is_proposed->user->name.' '.$bien_prop->is_proposed->user->prenom], 333);
                 }
             }
@@ -225,7 +226,7 @@ class VisiteController extends Controller
                 //store code pre reserve to table ==>PreReservation
                 if($visite->interet==InteretEnum::INTERESSE->value && $visite->statut==StatutVisiteEnum::PRE_RESERVATION->value){
                     $bien_c=new BienController();
-                    $bien_c->prereserverBien($visite->bien_id,$visite->id);
+                    $bien_c->prereserverBien($visite->bien_id,$visite->id,null);
 
                 }
                 /*elseif ($visite->interet == 'INTERESSE' && $visite->statut == 'vendu') {
@@ -272,7 +273,7 @@ class VisiteController extends Controller
             $frein=new FreinController();
             $visite = Visite::on('temp')->findOrfail($id);
                 if($visite->interet==InteretEnum::PERDU->value) {
-                    $visite['frein']=$frein->searchFreinByVisiteId($id);
+                    $visite['frein']=$frein->searchFreinByVisiteId($visite->id);
                 }
                 $relatedVisites=Visite::on('temp')->where('origin_id',$visite->id)->orderby('created_at', 'DESC')->get();
                 foreach ($relatedVisites as $relatedVisite) {
@@ -311,7 +312,7 @@ class VisiteController extends Controller
              //test si le user connecte celui qui a  fait la proposition
              if($request->bien_id!=NULL){
                 $bien_prop=Bien::on('temp')->findorfail($request->bien_id);
-                if($bien_prop->etat=='ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id!=Auth::user()->id && $bien_prop->is_proposed->action==6){
+                if($bien_prop->etat=='ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id!=Auth::guard('api')->user()->id ){
                     return response()->json(['error_33' => 'le bien choisi :'.$bien_prop->propriete_dite_bien.' est en cours de proposition  par : '.$bien_prop->is_proposed->user->name.' '.$bien_prop->is_proposed->user->prenom], 333);
                 }
             }
@@ -441,7 +442,7 @@ class VisiteController extends Controller
             if($visite->interet==InteretEnum::INTERESSE->value && $visite->statut==StatutVisiteEnum::PRE_RESERVATION->value){
 
                     $bien_c=new BienController();
-                    $bien_c->prereserverBien($visite->bien_id,$visite->id,);
+                    $bien_c->prereserverBien($visite->bien_id,$visite->id,null);
             }
              /*elseif ($visite->interet == 'INTERESSE' && $visite->statut == 'vendu') {
                                         store reservation
@@ -519,7 +520,7 @@ class VisiteController extends Controller
          //test si le user connecte celui qui a  fait la proposition
          if($request->bien_id!=NULL){
             $bien_prop=Bien::on('temp')->findorfail($request->bien_id);
-            if($bien_prop->etat=='ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id!=$user->id && $bien_prop->is_proposed->action==6){
+            if($bien_prop->etat=='ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id!=$user->id){
                 return response()->json(['error_33' => 'le bien choisi :'.$bien_prop->propriete_dite_bien.' est en cours de proposition  par : '.$bien_prop->is_proposed->user->name.' '.$bien_prop->is_proposed->user->prenom], 333);
             }
         }
@@ -621,7 +622,7 @@ class VisiteController extends Controller
                   //store code pre reserve to table ==>PreReservation
                 if($newVisit->interet==InteretEnum::INTERESSE->value && $newVisit->statut==StatutVisiteEnum::PRE_RESERVATION->value){
                     $bien_c=new BienController();
-                    $bien_c->prereserverBien($newVisit->bien_id,$newVisit->id);
+                    $bien_c->prereserverBien($newVisit->bien_id,$newVisit->id,null);
                 }
                   /*elseif ($newVisit->interet == 'INTERESSE' && $newVisit->statut == 'vendu') {
                     store reservation

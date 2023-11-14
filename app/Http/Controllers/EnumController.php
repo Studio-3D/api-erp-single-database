@@ -14,6 +14,16 @@ class EnumController extends Controller
     /**
      * Display a listing of the resource.
      */
+
+    public function get_enums()
+    {
+        $list_interets=array_column(InteretEnum::cases(), 'name', 'value');
+        $list_orientations=array_column(OrientationEnum::cases(), 'name', 'value');
+        $list_type_notifs=array_column(TypeNotificationEnum::cases(), 'name', 'value');
+        $list_statut_Visites=array_column(StatutVisiteEnum::cases(), 'name', 'value');
+
+        return response()->json(['list_interets' => $list_interets,'list_orientations' => $list_orientations,'list_type_notifs' => $list_type_notifs,'list_statut_Visites'=>$list_statut_Visites]);
+    }
     public function InteretEnum_get()
     {
         return response()->json(['list' => array_column(InteretEnum::cases(), 'name', 'value')]);

@@ -116,8 +116,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getTrashedBiens', [BienController::class, 'getTrashedBiens'])->name('getTrashedBiens');
     Route::put('bloquerBien/{id}', [BienController::class, 'bloquerBien'])->name('bloquerBien');
     Route::put('reserverBien/{id}', [BienController::class, 'reserverBien'])->name('reserverBien');
-    Route::put('prereserverBien/{id}/{visite_id}', [BienController::class, 'prereserverBien'])->name('prereserverBien');
-    Route::put('libererBien/{id}', [BienController::class, 'libererBien'])->name('libererBien');
+    Route::put('prereserverBien/{id}/{visite_id}/{appel_id}', [BienController::class, 'prereserverBien'])->name('prereserverBien');
+    Route::delete('libererBien/{id}', [BienController::class, 'libererBien'])->name('libererBien');
     Route::get('getHistoriqueBien/{id}', [BienController::class, 'getHistoriqueBien'])->name('getHistoriqueBien');
     Route::resource('compositionBien', CompositionBienController::class);
     Route::post('restoreCompositionBien/{id}', [CompositionBienController::class, 'restoreCompositionBien'])->name('restoreCompositionBien');
@@ -134,7 +134,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getBiensDispoByProjet/{id}', [BienController::class, 'getBiensDispoByProjet'])->name('getBiensByDispoProjet');
     Route::put('setPropostionBien/{id}/{old_id}', [BienController::class, 'setPropostionBien'])->name('');
     Route::get('getEtatBien/{id}', [BienController::class, 'getEtatBien'])->name('getEtatBien');
-    Route::get('getBiensByProjet_Concat/{id}', [BienController::class, 'getBiensByProjet_Concat'])->name('getBiensByProjet_Concat');
     /***********************************Type biens******************************** */
     Route::resource('typeBien', TypeBienController::class);
     Route::get('get_typeBiens', [TypeBienController::class, 'get_typeBiens'])->name('get_typeBiens');
@@ -221,6 +220,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('typologies/{projet_id}', [TypologieController::class,'index'])->name('typologies');
 
     /*************************************EnumController***************************** */
+    Route::get('Enums', [EnumController::class,'get_enums'])->name('');
     Route::get('InteretEnum', [EnumController::class,'InteretEnum_get'])->name('');
     Route::get('OrientationEnum', [EnumController::class,'OrientationEnum_get'])->name('');
     Route::get('TypeNotificationEnum', [EnumController::class,'TypeNotificationEnum_get'])->name('');

@@ -9,11 +9,13 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreBienRequest;
 use App\Http\Requests\UpdateBienRequest;
 use App\Models\Bien;
+use App\Models\Proposition;
 use App\Models\PreReservation;
 use App\Models\HistoriqueBien;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\User;
 
 class BienController extends Controller
 {
@@ -32,6 +34,7 @@ class BienController extends Controller
                 ->paginate($perPage, ['*'], 'page', $page);
             return response()->json(['biens' => $biens], 200);
 
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
 
@@ -42,7 +45,7 @@ class BienController extends Controller
 
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', 5); // Get the number of items per page
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
             $biens = Bien::on('temp')->with('is_proposed')->where('projet_id', $projet_id)->where('etat','ENCOURS_DE_PROPOSITION')->paginate($perPage, ['*'], 'page', $page);
             return response()->json(['biens' => $biens], 200);
@@ -225,7 +228,7 @@ class BienController extends Controller
         }
     }
 
-    public function prereserverBien($bien_id,$visite_id)
+    public function prereserverBien($bien_id,$visite_id,$appel_id)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
@@ -244,10 +247,10 @@ class BienController extends Controller
                 $bien_visite_pre_reserve->setConnection('temp');
                 $bien_visite_pre_reserve->bien_id = $bien_id;
                 $bien_visite_pre_reserve->visite_id = $visite_id;
+                $bien_visite_pre_reserve->appel_id = $appel_id;
                 $bien_visite_pre_reserve->code_pre_reserve = $code;
                 $bien_visite_pre_reserve->save();
             }
-            return response()->json('kokoko');
 
             HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id,$visite_id,NULL);
             return response()->json(['message' => $bien], 200);
@@ -257,14 +260,14 @@ class BienController extends Controller
         }
     }
 
-    public function libererBien($bien_id)
+    public function libererBien($id)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $bien = Bien::on('temp')->findOrFail($bien_id);
+            $bien = bien::on('temp')->findOrfail($id);
             $bien->etat = EtatBien::DISPONIBLE->value;
             $bien->save();
-            HistoriqueBienHelper::createHistoriqueBien(1, "liberer", $bien_id, Auth::guard('api')->user()->id,NULL,NULL);
+            HistoriqueBienHelper::createHistoriqueBien(1, "liberer", $id, Auth::guard('api')->user()->id,NULL,NULL);
 
             return response()->json(['message' => $bien], 200);
 
@@ -394,16 +397,26 @@ class BienController extends Controller
             if($old_id==0){
                 $bien = Bien::on('temp')->findOrFail($bien_id);
                 $bien->etat=EtatBien::ENCOURS_DE_PROPOSITION->value;
-                $bien->save();
-                HistoriqueBienHelper::createHistoriqueBien(6, "encours de proposition", $bien_id, Auth::guard('api')->user()->id,NULL,NULL);
+                if( $bien->save()){
+                    $bien_propose = new Proposition();
+                    $bien_propose->setConnection('temp');
+                    $bien_propose->bien_id = $bien_id;
+                    $bien_propose->user_id =Auth::guard('api')->user()->id;
+                    $bien_propose->save();
+                }
+
             }
             else{
                 $this->libererBien($old_id);
                 $bien = Bien::on('temp')->findOrFail($bien_id);
                 $bien->etat=EtatBien::ENCOURS_DE_PROPOSITION->value;
-                $bien->save();
-                HistoriqueBienHelper::createHistoriqueBien(6, "encours de proposition", $bien_id, Auth::guard('api')->user()->id,NULL,NULL);
-
+                if( $bien->save()){
+                    $bien_propose = new Proposition();
+                    $bien_propose->setConnection('temp');
+                    $bien_propose->bien_id = $bien_id;
+                    $bien_propose->user_id =Auth::guard('api')->user()->id;
+                    $bien_propose->save();
+                }
             }
          return response()->json(['message' => $bien], 200);
 
@@ -412,6 +425,7 @@ class BienController extends Controller
         }
 
     }
+
 
 
 
@@ -434,20 +448,21 @@ class BienController extends Controller
 
     public function getBiensByProjet_Concat($projet_id){
 
+
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $biens_pr = Bien::on('temp')
-            ->select('biens.propriete_dite_bien AS propriete_dite_bien','biens.id','biens.etat','biens.tranche_id','biens.bloc_id','biens.immeuble_id','biens.prix','biens.avance_minimale')
-            ->where(function($query) {
-                $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-            })
-            ->where('biens.projet_id', $projet_id)->get();
 
+            $biens_pr = Bien::on('temp')->with('is_proposed')
+            ->select('propriete_dite_bien AS propriete_dite_bien','id','etat','tranche_id','bloc_id','immeuble_id','prix','avance_minimale')
+            ->where(function($query) {
+                $query->where('etat', 'DISPONIBLE')->orwhere('etat', 'ENCOURS_DE_PROPOSITION');
+            })
+            ->where('projet_id', $projet_id)->get();
             $biens = [];
             foreach($biens_pr as $b_pr){
                  //tranches bloc w immeuble
                  if($b_pr->tranche_id!=null && $b_pr->bloc_id!=null && $b_pr->immeuble_id!=null){
-                    $biens = Bien::on('temp')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches','biens.tranche_id', '=', 'tranches.id')
                     ->join('blocs','blocs.id', '=', 'biens.bloc_id')
                     ->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
                     ->where(function($query) {
@@ -458,7 +473,7 @@ class BienController extends Controller
                 }
                  //tranche bloc
                 elseif($b_pr->tranche_id!=null && $b_pr->bloc_id!=null && $b_pr->immeuble_id==null){
-                    $biens = Bien::on('temp')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches','biens.tranche_id', '=', 'tranches.id')
                     ->join('blocs','blocs.id', '=', 'biens.bloc_id')
                     ->where(function($query) {
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
@@ -468,7 +483,7 @@ class BienController extends Controller
                 }
                   //tranche immeuble
                 elseif($b_pr->tranche_id!=null && $b_pr->bloc_id==null && $b_pr->immeuble_id!=null){
-                    $biens = Bien::on('temp')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches','biens.tranche_id', '=', 'tranches.id')
                     ->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
                     ->where(function($query) {
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
@@ -478,7 +493,7 @@ class BienController extends Controller
                 }
                 //bloc immeuble
                 elseif ($b_pr->tranche_id==null && $b_pr->bloc_id!=null && $b_pr->immeuble_id!=null){
-                    $biens = Bien::on('temp')
+                    $biens = Bien::on('temp')->with('is_proposed')
                     ->join('blocs','blocs.id', '=', 'biens.bloc_id')
                     ->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
                     ->where(function($query) {
@@ -489,7 +504,7 @@ class BienController extends Controller
                 }
                  //bloc
                 elseif($b_pr->tranche_id==null && $b_pr->bloc_id!=null && $b_pr->immeuble_id==null){
-                    $biens = Bien::on('temp')
+                    $biens = Bien::on('temp')->with('is_proposed')
                     ->join('blocs','blocs.id', '=', 'biens.bloc_id')
                     ->where(function($query) {
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
@@ -499,7 +514,7 @@ class BienController extends Controller
                 }
                 //immeuble
                 elseif($b_pr->tranche_id==null && $b_pr->bloc_id==null && $b_pr->immeuble_id!=null){
-                    $biens = Bien::on('temp')->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
+                    $biens = Bien::on('temp')->with('is_proposed')->join('immeubles','immeubles.id', '=', 'biens.immeuble_id')
                     ->where(function($query) {
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })
@@ -508,7 +523,7 @@ class BienController extends Controller
                 }
                  //tranche
                  elseif($b_pr->tranche_id!=null && $b_pr->bloc_id==null && $b_pr->immeuble_id==null){
-                    $biens = Bien::on('temp')->join('tranches','biens.tranche_id', '=', 'tranches.id')
+                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches','biens.tranche_id', '=', 'tranches.id')
                     ->where(function($query) {
                         $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
                     })

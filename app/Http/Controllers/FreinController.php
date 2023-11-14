@@ -68,9 +68,7 @@ class FreinController extends Controller
             $frein->orientation= empty($request->selectedOrientations) ?false:true;
             $frein->vue= empty($request->selectedVues) ?false:true;
             $frein->typologie= empty($request->selectedTypologies) ?false:true;
-            $interetVisite=Visite::on('temp')->where('id',$request->visite_id)->get()->value('interet');
-            if($interetVisite == InteretEnum::PERDU->value){
-                $frein->save();
+            if($frein->save()){
                 if(!empty($request->selectedTranches)){
                     foreach($request->selectedTranches as $valeur){
                             FreinTrancheHelper::createFreinTranche($valeur['id'],$frein->id);
@@ -214,11 +212,7 @@ class FreinController extends Controller
                     FreinVueHelper::createFreinVue($valeur['id'],$frein->id);
                 }
             }
-          /*  $this->syncRelationship($frein, $request->selectedTranches, 'tranche', FreinTranche::class,'tranche_id');
-            $this->syncRelationship($frein, $request->selectedEtages, 'etage', FreinEtage::class,'etage');
-            $this->syncRelationship($frein, $request->selectedOrientations, 'orientation', FreinOrientation::class,'orientation');
-            $this->syncRelationship($frein, $request->selectedTypologies, 'typologie', FreinTypologie::class,'typologie_id');
-            $this->syncRelationship($frein, $request->selectedVues, 'vue', FreinVue::class,'vue_id');*/
+
             return response()->json(['frein'=>$frein],200);
         }
         else {
