@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CompositionBien;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreCompositionBienRequest;
-use App\Http\Requests\UpdateCompositionBienRequest;
-use Illuminate\Support\Facades\Auth;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
+use App\Http\Requests\StoreCompositionBienRequest;
+use App\Http\Requests\UpdateCompositionBienRequest;
+use App\Models\CompositionBien;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\Auth;
 
 class CompositionBienController extends Controller
 {
@@ -25,13 +24,13 @@ class CompositionBienController extends Controller
             $page = $request->input('page', 1);
 
             $CompositionBiens = CompositionBien::on('temp')->orderBy('created_at', 'desc')
-            ->skip(($page - 1) * $perPage)
-            ->take($perPage)
-            ->get();
-                return response()->json(['compositionBien' => $CompositionBiens]);
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();
+            return response()->json(['compositionBien' => $CompositionBiens]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
-    
+
     }
 
     /**
@@ -39,7 +38,7 @@ class CompositionBienController extends Controller
      */
     public function create()
     {
-        
+
     }
 
     /**
@@ -48,8 +47,8 @@ class CompositionBienController extends Controller
     public function store(StoreCompositionBienRequest $request)
     {
         if (RoleHelper::AdminSup()) {
-                       
-            DatabaseHelper::Config();               
+
+            DatabaseHelper::Config();
             $composition_bien = new CompositionBien();
             $composition_bien->setConnection('temp');
             $composition_bien->bien_id = $request->bien_id;
@@ -75,11 +74,11 @@ class CompositionBienController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show( $id)
+    public function show($id)
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $compositionBien = compositionBien::on('temp')->findOrfail($id);            
+            $compositionBien = compositionBien::on('temp')->findOrfail($id);
             return response()->json(['compositionBien' => $compositionBien], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -89,7 +88,7 @@ class CompositionBienController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit( $id)
+    public function edit($id)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
@@ -103,17 +102,17 @@ class CompositionBienController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateCompositionBienRequest $request,  $id)
+    public function update(UpdateCompositionBienRequest $request, $id)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $compositionBien = compositionBien::on('temp')->findOrfail($id);
             $update = $request->all();
-            foreach($update as $key => $value) {
+            foreach ($update as $key => $value) {
                 $compositionBien->$key = $value;
             }
             $compositionBien->save();
-            return response()->json(['message' => $compositionBien], 200);
+            return response()->json(['compositionBien' => $compositionBien], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -122,11 +121,11 @@ class CompositionBienController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy( $id)
+    public function destroy($id)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $compositionBien = compositionBien::on('temp')->findOrfail($id);             
+            $compositionBien = compositionBien::on('temp')->findOrfail($id);
             if ($compositionBien->delete()) {
                 return response()->json(['message' => 'composition Bien deleted succesfully'], 200);
             } else {
@@ -163,15 +162,21 @@ class CompositionBienController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    public function getComposition($bien_id)
-    {  
-        if (RoleHelper::AdminSup()) {
-            DatabaseHelper::Config();            
-            $CompositionBien = CompositionBien::on('temp')->where('bien_id', $bien_id)->get();
-            return response()->json(['message' => $CompositionBien], 200);
+    public function getComposition(Request $request, $bien_id)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+            $CompositionBiens = CompositionBien::on('temp')
+                ->orderBy('created_at')
+                ->where('bien_id', $bien_id)
+                ->paginate($perPage, ['*'], 'page', $page);
+            return response()->json(['CompositionBiens' => $CompositionBiens], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
+
         }
     }
 

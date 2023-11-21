@@ -15,16 +15,16 @@ return new class extends Migration
             $table->id();
             $table->bigInteger('bien_id')->unsigned();
             $table->foreign('bien_id')->references('id')->on('biens');
-            $table->integer('nbre_chambres')->nullable();
-            $table->integer('nbre_salons')->nullable();
-            $table->integer('nbre_sdb')->nullable();
-            $table->integer('nbre_cuisines')->nullable();
-            $table->integer('nbre_halls')->nullable();
-            $table->integer('nbre_terasses')->nullable();
-            $table->integer('nbre_balcons')->nullable();
-            $table->integer('nbre_buanderies')->nullable();
-            $table->integer('nbre_placards')->nullable();
-            $table->integer('nbre_receptions')->nullable();
+            $table->integer('nbre_chambres')->default(0);
+            $table->integer('nbre_salons')->default(0);
+            $table->integer('nbre_sdb')->default(0);
+            $table->integer('nbre_cuisines')->default(0);
+            $table->integer('nbre_halls')->default(0);
+            $table->integer('nbre_terasses')->default(0);
+            $table->integer('nbre_balcons')->default(0);
+            $table->integer('nbre_buanderies')->default(0);
+            $table->integer('nbre_placards')->default(0);
+            $table->integer('nbre_receptions')->default(0);
             $table->timestamps();
             $table->softDeletes();
 
