@@ -53,4 +53,5 @@ class Bien extends Model
     {
         return $this->hasone(HistoriqueBien::class,'bien_id')->where('action',5)->orderby('created_at','desc')->latest();
     }
+  
 }

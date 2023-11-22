@@ -43,5 +43,13 @@ class Visite extends Model
     {
         return $this->hasone(HistoriqueBien::class,'bien_id','bien_id')->where('action',5)->orderby('created_at','desc')->latest();
     }
+    public function pre_reservation_visite()
+    {
+        return $this->hasone(PreReservation::class,'bien_id','bien_id')->orderby('created_at','desc')->where('visite_id','!=',null)->latest();
+    }
+   /* public function historiques()
+    {
+        return $this->hasMany(HistoriqueVisite::class,'visite_id')->orderby('created_at','asc');
+    }*/
 
 }

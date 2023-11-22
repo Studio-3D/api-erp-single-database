@@ -16,6 +16,7 @@ class TypeFreinSeeder extends Seeder
         $items=[
             ['description'=>'Tranche'],
             ['description'=>'Etage'],
+            ['description'=>'Orientation'],
             ['description'=>'Avance'],
             ['description'=>'Prix'],
             ['description'=>'Superficie'],

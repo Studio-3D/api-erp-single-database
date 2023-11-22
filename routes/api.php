@@ -147,6 +147,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('visites/{projet_id}', [VisiteController::class,'index'])->name('visites');
     Route::post('store_n_visite/{id}',[VisiteController::class,'store_n_visite'])->name('store_n_visite');
     Route::get('getAllAttributes',[VisiteController::class,'getAllAttributes'])->name('getAllAttributes');
+    Route::get('get_historiques_visite/{origin_id}', [VisiteController::class, 'get_historiques'])->name('get_historiques');
+
     /*************************************type_Freins***************************** */
     Route::resource('type_freins', TypeFreinController::class);
     Route::get('get_typeFreins', [TypeFreinController::class, 'get_typeFreins'])->name('get_typeFreins');
