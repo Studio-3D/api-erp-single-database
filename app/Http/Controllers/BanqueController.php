@@ -76,13 +76,12 @@ class BanqueController extends Controller
      */
     public function show($id)
     {
-        if (Auth::guard('api')->check()) {
+        if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
-            $banque=Banque::on('temp')->where('id',$id)->get();
-
-            return response()->json(['banque'=>$banque]);
+            $banque=Banque::on('temp')->findOrFail($id);
+            return response()->json(['banque'=>$banque],200);
         }
-        return response()->json(['error' => 'Unauthorized'], 401);
+        return response()->json(['error','Unauthorized'],401);
     }
 
     /**

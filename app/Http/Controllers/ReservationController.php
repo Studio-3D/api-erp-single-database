@@ -82,7 +82,7 @@ class ReservationController extends Controller
             else{
     $reservation->bien_id = $request->bien_id;
     $reservation->projet_id = $request->projet_id;
-    $reservation->user_id = $userAuth->value('id');
+    $reservation->user_id = '1';
     if(RoleHelper::AdminSup()) {
         $reservation->statut = StatutReservationEnum::VALIDER->value;
     }
