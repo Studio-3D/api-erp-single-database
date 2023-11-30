@@ -30,7 +30,7 @@ class ReservationController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $perPage = $request->input('pageSizee', 5);
+            $perPage = $request->input('pageSizee', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
             $reservations = Reservation::on('temp')
                 ->orderBy('created_at', 'desc')
@@ -78,11 +78,10 @@ class ReservationController extends Controller
             $reservation->prix_forfetaire_lettre = $prix_forfetaire_lettre;
             $bienController = new BienController();
             $bien = $bienController->getEtatBien($request->bien_id);
-            if ($bien == EtatBien::RESERVATION->name) {
-                return response()->json(['message' => 'ce bien est deja reserver'], 400);
-            } else if ($bien == EtatBien::PRE_RESERVATION->name) {
-                return response()->json(['message' => 'ce bien est deja pre-reserver'], 400);
-            } else {
+            if ($bien !== EtatBien::DISPONIBLE->name) {
+                return response()->json(['message' => 'Ce bien n\'est pas disponible'], 400);
+            }
+            else {
                 $reservation->bien_id = $request->bien_id;
                 $reservation->projet_id = $request->projet_id;
                 $reservation->user_id = $userAuth->value('id');

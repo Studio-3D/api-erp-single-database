@@ -26,7 +26,7 @@ class StoreAvanceRequest extends FormRequest
             "date_reglement"=>"required|date",
             "mode_paiement"=>"required|integer",
             "echeance"=>"required|date",
-            "sr"=>"required|boolean",
+            "sr"=>"boolean",
             "banque_id"=>"integer",
             "numero_paiemeant"=>"integer",
             "reservation_id"=>"required|integer",
