@@ -314,7 +314,26 @@ class BienController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $biens = Bien::on('temp')->where('tranche_id', $tranche_id)->get();
-            return response()->json(['message' => $biens], 200);
+            return response()->json(['biens' => $biens], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+    public function getBiensByTranchepaginate(Request $request,$tranche_id){
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+
+            $biens = Bien::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('tranche_id', $tranche_id)
+            ->paginate($perPage, ['*'], 'page', $page);
+
+            return response()->json(['biens' => $biens], 200);
+
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -327,7 +346,26 @@ class BienController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $biens = Bien::on('temp')->where('bloc_id', $bloc_id)->get();
-            return response()->json(['message' => $biens], 200);
+            return response()->json(['biens' => $biens], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+    public function getBiensByBlocpaginate(Request $request,$bloc_id){
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+
+            $biens = Bien::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('bloc_id', $bloc_id)
+            ->paginate($perPage, ['*'], 'page', $page);
+
+            return response()->json(['biens' => $biens], 200);
+
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -340,8 +378,24 @@ class BienController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $biens = Bien::on('temp')->where('immeuble_id', $immeuble_id)->get();
-            return response()->json(['message' => $biens], 200);
+            return response()->json(['biens' => $biens], 200);
 
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+    public function getBiensByImmeublepaginate(Request $request,$immeuble_id){
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+
+            $biens = Bien::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('immeuble_id', $immeuble_id)
+            ->paginate($perPage, ['*'], 'page', $page);
+            return response()->json(['biens' => $biens], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
 

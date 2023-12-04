@@ -162,13 +162,50 @@ class ImmeubleController extends Controller
 
         }
     }
+    public function getImmeublesByTranchepaginate(Request $request,$tranche_id){
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
 
+            $immeubles = Immeuble::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('tranche_id', $tranche_id)
+            ->paginate($perPage, ['*'], 'page', $page);
+
+            return response()->json(['immeubles' => $immeubles], 200);
+
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
 
     public function getImmeublesByTranche($tranche_id){
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $immeubles = Immeuble::on('temp')->where('tranche_id', $tranche_id)->get();
-            return response()->json(['message' => $immeubles], 200);
+            return response()->json(['immeubles' => $immeubles], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+    public function getImmeublesByBlocpaginate(Request $request,$bloc_id){
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+
+            $immeubles = Immeuble::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('bloc_id', $bloc_id)
+            ->paginate($perPage, ['*'], 'page', $page);
+
+            return response()->json(['immeubles' => $immeubles], 200);
+
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
