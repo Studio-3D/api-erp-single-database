@@ -24,6 +24,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisiteController;
 use App\Http\Controllers\PartenaireController;
 use App\Http\Controllers\VueController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\EnumController;
@@ -148,6 +149,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('store_n_visite/{id}',[VisiteController::class,'store_n_visite'])->name('store_n_visite');
     Route::get('getAllAttributes',[VisiteController::class,'getAllAttributes'])->name('getAllAttributes');
     Route::get('get_historiques_visite/{origin_id}', [VisiteController::class, 'get_historiques'])->name('get_historiques');
+    Route::put('update_date_relance_rdv_visite/{id}',[VisiteController::class,'update_date_relance_rdv'])->name('');
+    Route::put('valider_relance_rdv_visite/{id}',[VisiteController::class,'valider_relance_rdv'])->name('');
 
     /*************************************type_Freins***************************** */
     Route::resource('type_freins', TypeFreinController::class);
@@ -227,6 +230,14 @@ Route::middleware('auth:api')->group(function () {
     Route::get('OrientationEnum', [EnumController::class,'OrientationEnum_get'])->name('');
     Route::get('TypeNotificationEnum', [EnumController::class,'TypeNotificationEnum_get'])->name('');
     Route::get('StatutVisiteEnum', [EnumController::class,'StatutVisiteEnum_get'])->name('');
+    /************************NotificationController********************* */
+    Route::get('get_relances_visites/{projet_id}', [NotificationController::class,'get_relances_visites'])->name('');
+    Route::get('get_rdv_visites/{projet_id}', [NotificationController::class,'get_rdv_visites'])->name('');
+    Route::get('get_relances_menu/{projet_id}', [NotificationController::class,'get_relances_menu'])->name('');
+    Route::get('get_relances_visites/{projet_id}', [NotificationController::class,'get_relances_visites'])->name('');
+    Route::get('get_notifications/{projet_id}', [NotificationController::class,'get_notifications'])->name('');
+    Route::get('DestroyNotif/{id}', [NotificationController::class,'DestroyNotif'])->name('');
+    Route::get('notifications/{projet_id}', [NotificationController::class,'index'])->name('');
 
 });
 Route::get('sendResetPasswordEmail', [UserController::class, 'sendResetPasswordEmail']);

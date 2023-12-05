@@ -23,8 +23,6 @@ return new class extends Migration
             $table->double('prix_acquisition',12,2);
             $table->integer('limite_annulation_reservation');
             $table->integer('max_etages')->default(0);
-
-            $table->integer('prolongation_reservation')->default(0);
             $table->foreignId('type_id')->constrained('type_projets')->onDelete('cascade');
             $table->integer('nbre_tranches')->default(0);
             $table->integer('nbre_blocs')->default(0);

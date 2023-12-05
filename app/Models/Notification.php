@@ -17,8 +17,14 @@ class Notification extends Model
     public function visite(){
         return $this->belongsTo(Visite::class,'visite_id');
     }
+    public function user(){
+        return $this->belongsTo(User::class ,'user_id','user_id_origin');
+    }
     public function prospect(){
         return $this->belongsTo(Prospect::class,'prospect_id');
+    }
+    public function projet(){
+        return $this->belongsTo(Projet::class,'projet_id');
     }
 
 }

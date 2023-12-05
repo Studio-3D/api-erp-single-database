@@ -2,7 +2,6 @@
 
 use App\Enum\InteretEnum;
 use App\Enum\StatutVisiteEnum;
-use App\Enum\TypeNotificationEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -20,10 +19,7 @@ return new class extends Migration
             $table->string('commentaire')->nullable(); // car en peut recoit des vistes sans commentaire.
             $table->boolean('notifie')->default(false)->nullable();
             $table->enum('interet',[InteretEnum::INTERESSE->value,InteretEnum::RECEPTIF->value,InteretEnum::PERDU->value]);
-            $table->enum('mode_relance',[TypeNotificationEnum::SMS->value,TypeNotificationEnum::APPEL->value,TypeNotificationEnum::EMAIL->value])->nullable();
-            $table->date('date_relance')->nullable();
             $table->enum('statut',[StatutVisiteEnum::PRE_RESERVATION->value,StatutVisiteEnum::VENDU->value])->nullable();
-            $table->dateTime('rdv')->nullable();
             $table->boolean('etat')->default(true)->nullable();
             $table->foreignId('old_v_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->string('description')->nullable();

@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('description_type');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
+            $table->foreignId('projet_id')->nullable()->constrained('projets')->onDelete('cascade');
             $table->foreignId('prospect_id')->nullable()->constrained('prospects')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();

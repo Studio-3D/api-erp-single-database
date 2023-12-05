@@ -279,34 +279,77 @@ class FreinController extends Controller
         }
     }
 
-    public function searchFreinByVisiteId($id){
-        $frein=Frein::on('temp')->where('visite_id',$id)->first();
+    public function searchFreinByVisiteId($id,$text){
+        if($text=='without_row_deleted'){
+            $frein=Frein::on('temp')->where('visite_id',$id)->first();
+            if($frein){
+
+                    $frein_tranches=FreinTranche::on('temp')->where('frein_id',$frein->id)->get();
+                    if(count($frein_tranches)>0){
+                        $frein['frein_tranches']=$frein_tranches;
+                    }
+
+                    $frein_etages=FreinEtage::on('temp')->where('frein_id',$frein->id)->get();
+                    if(count($frein_etages)){
+                        $frein['frein_etages']=$frein_etages;
+                    }
+
+
+                    $frein_vues=FreinVue::on('temp')->where('frein_id',$frein->id)->get();
+                    if(count($frein_vues)){
+                        $frein['frein_vues']=$frein_vues;
+                    }
+
+
+
+                    $frein_typologies=FreinTypologie::on('temp')->where('frein_id',$frein->id)->get();
+                    if(count($frein_typologies)){
+                        $frein['frein_typologies']=$frein_typologies;
+                    }
+
+                    $frein_orientations=FreinOrientation::on('temp')->where('frein_id',$frein->id)->get();
+                    if(count($frein_orientations)){
+                        $frein['frein_orientations']=$frein_orientations;
+                    }
+
+
+                return $frein;
+            }
+            else
+            {
+                return null;
+            }
+
+        }
+        else{
+
+            $frein=Frein::on('temp')->withTrashed()->where('visite_id',$id)->first();
          if($frein){
 
-                $frein_tranches=FreinTranche::on('temp')->where('frein_id',$frein->id)->get();
+                $frein_tranches=FreinTranche::on('temp')->withTrashed()->where('frein_id',$frein->id)->get();
                 if(count($frein_tranches)>0){
                     $frein['frein_tranches']=$frein_tranches;
                 }
 
-                $frein_etages=FreinEtage::on('temp')->where('frein_id',$frein->id)->get();
+                $frein_etages=FreinEtage::on('temp')->withTrashed()->where('frein_id',$frein->id)->get();
                 if(count($frein_etages)){
                     $frein['frein_etages']=$frein_etages;
                 }
 
 
-                $frein_vues=FreinVue::on('temp')->where('frein_id',$frein->id)->get();
+                $frein_vues=FreinVue::on('temp')->withTrashed()->where('frein_id',$frein->id)->get();
                 if(count($frein_vues)){
                     $frein['frein_vues']=$frein_vues;
                 }
 
 
 
-                $frein_typologies=FreinTypologie::on('temp')->where('frein_id',$frein->id)->get();
+                $frein_typologies=FreinTypologie::on('temp')->withTrashed()->where('frein_id',$frein->id)->get();
                 if(count($frein_typologies)){
                     $frein['frein_typologies']=$frein_typologies;
                 }
 
-                $frein_orientations=FreinOrientation::on('temp')->where('frein_id',$frein->id)->get();
+                $frein_orientations=FreinOrientation::on('temp')->withTrashed()->where('frein_id',$frein->id)->get();
                 if(count($frein_orientations)){
                     $frein['frein_orientations']=$frein_orientations;
                 }
@@ -318,6 +361,11 @@ class FreinController extends Controller
         {
             return null;
         }
+
+        }
+
+
+
 
     }
 }

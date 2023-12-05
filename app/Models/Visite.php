@@ -16,7 +16,6 @@ class Visite extends Model
      */
     protected $table='visites';
     protected $dates=['deleted_at'];
-    protected $casts=['rdv'=>'datetime:Y-m-d\TH:i'];
     protected $with=['prospect','bien','source','user','historique_bien_visite','partenaire'];
 
     public function user()
@@ -47,9 +46,18 @@ class Visite extends Model
     {
         return $this->hasone(PreReservation::class,'bien_id','bien_id')->orderby('created_at','desc')->where('visite_id','!=',null)->latest();
     }
-   /* public function historiques()
+    public function relance_relation()
     {
-        return $this->hasMany(HistoriqueVisite::class,'visite_id')->orderby('created_at','asc');
-    }*/
+        return $this->hasone(Relance_Rdv_Visite::class,'visite_id','id')->withTrashed()->orderby('created_at','desc')->where('date_relance','!=',null)->latest();
+    }
+    public function historique_relances_rdvs()
+    {
+        return $this->hasMany(Relance_Rdv_Visite::class,'visite_id','id')->withTrashed()->orderby('created_at','desc');
+    }
+    public function rdv_relation()
+    {
+        return $this->hasone(Relance_Rdv_Visite::class,'visite_id','id')->withTrashed()->orderby('created_at','desc')->where('rdv','!=',null)->latest();
+    }
+
 
 }
