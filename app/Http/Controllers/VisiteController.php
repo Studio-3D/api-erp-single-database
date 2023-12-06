@@ -236,7 +236,7 @@ class VisiteController extends Controller
                     if($visite->statut==StatutVisiteEnum::PRE_RESERVATION->value ||$visite->interet==InteretEnum::RECEPTIF->value){
                         if ($request->date_relance != null) {
                             NotificationHelper::storeNotification(
-                                '/visites/show/'+$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
+                                '/visites/show/'.$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
                             );
 
                             $relance=new Relance_Rdv_visite();
@@ -251,7 +251,7 @@ class VisiteController extends Controller
                         }
                         if($request->rdv != null){
                             NotificationHelper::storeNotification(
-                                '/visites/show/'+$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
+                                '/visites/show/'.$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
                             );
 
                             $rdv=new Relance_Rdv_visite();
@@ -429,13 +429,13 @@ class VisiteController extends Controller
                 if($relance->type==1){
                 //store new notification
                 NotificationHelper::storeNotification(
-                    '/visites/show/'+$new_relance->visite->origin_id, $request->date,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite_id,$prospect_id,$new_relance->visite->projet_id
+                    '/visites/show/'.$new_relance->visite->origin_id, $request->date,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite_id,$prospect_id,$new_relance->visite->projet_id
                 );
                 }
                 else{
                      //store new notification
                 NotificationHelper::storeNotification(
-                    '/visites/show/'+$new_relance->visite->origin_id, $request->date,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite_id,$prospect_id,$new_relance->visite->projet_id
+                    '/visites/show/'.$new_relance->visite->origin_id, $request->date,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite_id,$prospect_id,$new_relance->visite->projet_id
                 );
 
                 }
@@ -618,7 +618,7 @@ class VisiteController extends Controller
                         $old_visite->relance_relation->delete();
                     }
                     NotificationHelper::storeNotification(
-                        '/visites/show/'+$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite->id,$visite->prospect_id,$visite->projet_id
+                        '/visites/show/'.$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite->id,$visite->prospect_id,$visite->projet_id
                     );
 
                     $relance=new Relance_Rdv_visite();
@@ -636,7 +636,7 @@ class VisiteController extends Controller
                         $old_visite->rdv_relation->delete();
                     }
                     NotificationHelper::storeNotification(
-                        '/visites/show/'+$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
+                        '/visites/show/'.$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
                     );
                     $rdv=new Relance_Rdv_visite();
                     $rdv->setConnection('temp');
@@ -816,7 +816,7 @@ class VisiteController extends Controller
                 if($newVisit->statut==StatutVisiteEnum::PRE_RESERVATION->value ||$newVisit->interet==InteretEnum::RECEPTIF->value){
                     if ($request->date_relance != null) {
                         NotificationHelper::storeNotification(
-                            '/visites/show/'+$newVisit->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$newVisit->id,$newVisit->prospect_id,$newVisit->projet_id
+                            '/visites/show/'.$newVisit->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$newVisit->id,$newVisit->prospect_id,$newVisit->projet_id
                         );
                         $relance=new Relance_Rdv_visite();
                         $relance->setConnection('temp');
@@ -830,7 +830,7 @@ class VisiteController extends Controller
                     }
                     if($request->rdv != null){
                         NotificationHelper::storeNotification(
-                            '/visites/show/'+$newVisit->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$newVisit->getAttribute('id'),$newVisit->prospect_id,$newVisit->projet_id
+                            '/visites/show/'.$newVisit->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$newVisit->getAttribute('id'),$newVisit->prospect_id,$newVisit->projet_id
                         );
                         $rdv=new Relance_Rdv_visite();
                         $rdv->setConnection('temp');
