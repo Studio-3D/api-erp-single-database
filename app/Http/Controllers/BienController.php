@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enum\EtatBien;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\HistoriqueBienHelper;
+use App\Http\Helpers\PaginationHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreBienRequest;
 use App\Http\Requests\UpdateBienRequest;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\User;
+
 
 class BienController extends Controller
 {
@@ -41,14 +43,45 @@ class BienController extends Controller
         }
 
     }
+
     public function biens_proposition(Request $request,$projet_id){
 
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
-            $biens = Bien::on('temp')->with('is_proposed')->where('projet_id', $projet_id)->where('etat','ENCOURS_DE_PROPOSITION')->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['biens' => $biens], 200);
+            if(RoleHelper::AdminSup()){
+                $biens = Proposition::on('temp')->join('biens','biens.id', '=', 'propositions.bien_id')->latest('propositions.created_at')->where('biens.projet_id',$projet_id)->where('biens.etat','ENCOURS_DE_PROPOSITION')
+                ->select('propositions.*')
+                ->get()
+                ->groupby('bien_id');
+                $biens = $biens->map(function ($bn) {
+                    return [
+                        'id' => $bn->first()->id,
+                        'propriete_dite_bien' => $bn->first()->bien->propriete_dite_bien,
+                        'responsable' => $bn->first()->user->name.' '.$bn->first()->user->prenom,
+                        'created_at' => $bn->first()->created_at
+                    ];});
+                    $data = PaginationHelper::paginate_array($biens->toArray(),$perPage,$page,$request->url());
+            }
+            else{
+                //commercial
+                $biens = Proposition::on('temp')->join('biens','biens.id', '=', 'propositions.bien_id')->latest('propositions.created_at')->where('biens.projet_id',$projet_id)->where('propositions.user_id',Auth::guard('api')->user()->id)->where('biens.etat','ENCOURS_DE_PROPOSITION')
+                ->select('propositions.*')
+                ->get()
+                ->groupby('bien_id');
+                $biens = $biens->map(function ($bn) {
+                    return [
+                        'id' => $bn->first()->id,
+                        'propriete_dite_bien' => $bn->first()->bien->propriete_dite_bien,
+                        'responsable' => $bn->first()->user->name.' '.$bn->first()->user->prenom,
+                        'created_at' => $bn->first()->created_at
+                    ];});
+                    $data = PaginationHelper::paginate_array($biens->toArray(),$perPage,$page,$request->url());
+
+
+            }
+            return response()->json(['biens' => $data], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
 
@@ -270,7 +303,7 @@ class BienController extends Controller
 
     public function libererBien($id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $bien = bien::on('temp')->findOrfail($id);
             $bien->etat = EtatBien::DISPONIBLE->value;
@@ -487,6 +520,7 @@ class BienController extends Controller
         }
 
     }
+
 
 
 

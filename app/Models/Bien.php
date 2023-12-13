@@ -58,4 +58,5 @@ class Bien extends Model
        return $this->hasMany(CompositionBien::class);
    }
   
+
 }
