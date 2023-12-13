@@ -21,5 +21,8 @@ class CompositionBien extends Model
     ]; */
    
     protected $dates = ['deleted_at'];
-
+    public function bien()
+    {
+        return $this->belongsTo(Bien::class,'bien_id');
+    }
 }

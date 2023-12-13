@@ -125,9 +125,10 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('libererBien/{id}', [BienController::class, 'libererBien'])->name('libererBien');
     Route::get('getHistoriqueBien/{id}', [BienController::class, 'getHistoriqueBien'])->name('getHistoriqueBien');
     Route::resource('compositionBien', CompositionBienController::class);
+    Route::get('compositionBiens/{bien_id}', [CompositionBienController::class,'index'])->name('compositionBiens');
     Route::post('restoreCompositionBien/{id}', [CompositionBienController::class, 'restoreCompositionBien'])->name('restoreCompositionBien');
     Route::get('getTrashedCompositionBiens', [CompositionBienController::class, 'getTrashedCompositionBiens'])->name('getTrashedCompositionBiens');
-    Route::get('getComposition/{id}', [CompositionBienController::class, 'getComposition'])->name('getComposition');
+    Route::get('getCompositionBybien/{id}', [CompositionBienController::class, 'getComposition'])->name('getComposition');
     Route::get('getBiensByProjet/{id}', [BienController::class, 'getBiensByProjet'])->name('getBiensByProjet');
     Route::get('getBiensByProjet_Concat/{id}', [BienController::class, 'getBiensByProjet_Concat'])->name('getBiensByProjet_Concat');
     Route::get('getBiensByTranche/{id}', [BienController::class, 'getBiensByTranche'])->name('getBiensByTranche');

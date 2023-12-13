@@ -16,21 +16,22 @@ class CompositionBienController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request, $bien_id)
     {
-        if (Auth::guard('api')->check()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $perPage=$request->input('pageSizee',config('app.default_item_number_perpage'));
-            $page=$request->input('page',1);
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+            $CompositionBiens = CompositionBien::on('temp')
+                ->orderBy('created_at')
+                ->where('bien_id', $bien_id)
+                ->paginate($perPage, ['*'], 'page', $page);
+            return response()->json(['CompositionBiens' => $CompositionBiens], 200);
 
-            $CompositionBiens = CompositionBien::on('temp')->orderBy('created_at', 'desc')
-                ->skip(($page - 1) * $perPage)
-                ->take($perPage)
-                ->get();
-            return response()->json(['compositionBien' => $CompositionBiens]);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
         }
-        return response()->json(['error' => 'Unauthorized'], 401);
-
     }
 
     /**
@@ -162,16 +163,11 @@ class CompositionBienController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    public function getComposition(Request $request, $bien_id)
+    public function getCompositionBybien($bien_id)
     {
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
-            $page = $request->input('page', 1);
-            $CompositionBiens = CompositionBien::on('temp')
-                ->orderBy('created_at')
-                ->where('bien_id', $bien_id)
-                ->paginate($perPage, ['*'], 'page', $page);
+            $CompositionBiens = CompositionBien::on('temp')->where('bien_id', $bien_id)->get();
             return response()->json(['CompositionBiens' => $CompositionBiens], 200);
 
         } else {

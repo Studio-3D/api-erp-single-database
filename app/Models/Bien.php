@@ -13,7 +13,7 @@ class Bien extends Model
     protected $table = 'biens';
     protected $dates = ['deleted_at'];
 
-    protected $with = ['typeBien', 'projet', 'tranche', 'bloc', 'immeuble','typologie','vue'];
+    protected $with = ['typeBien', 'projet', 'tranche', 'bloc', 'immeuble','typologie','vue','compositionBien'];
     public function typeBien()
     {
         return $this->belongsTo(TypeBien::class, 'type_id');
@@ -53,5 +53,9 @@ class Bien extends Model
     {
         return $this->hasone(HistoriqueBien::class,'bien_id')->where('action',5)->orderby('created_at','desc')->latest();
     }
+    public function compositionBien()
+   {
+       return $this->hasMany(CompositionBien::class);
+   }
   
 }
