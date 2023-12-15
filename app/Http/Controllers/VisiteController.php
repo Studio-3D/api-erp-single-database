@@ -115,8 +115,11 @@ class VisiteController extends Controller
 
     {      /***liste des fonctions a ajouter
                 Chercher s'il y a appel du meme client==>le convertir en visite
-                convert lead to visite
+                convert
+                lead to visite
             ****/
+
+            
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
