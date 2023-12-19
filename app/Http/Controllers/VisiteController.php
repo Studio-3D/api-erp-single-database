@@ -41,6 +41,8 @@ use App\Models\Relance_Rdv_visite;
 use App\Models\HistoriqueVisite;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use App\Http\Helpers\Bien_Helper;
+
 
 
 class VisiteController extends Controller
@@ -74,6 +76,7 @@ class VisiteController extends Controller
                 'interet' => $visite->first()->interet,
                 'statut' => $visite->first()->statut,
                 'propriete_dite_bien' => $visite->first()->bien_id?$visite->first()->bien->propriete_dite_bien:'',
+                'etat_bien' => $visite->first()->bien_id?$visite->first()->bien->etat:'',
                 'visit_count' => count($visite)
 
             ];});
@@ -119,7 +122,7 @@ class VisiteController extends Controller
                 lead to visite
             ****/
 
-            
+
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -141,8 +144,8 @@ class VisiteController extends Controller
             //rendre bien disponible si interet!=interesse ==>receptif ou perdu
             if($request->bien_id){
                 if($request->interet!=InteretEnum::INTERESSE->value){
-                    $bien=new BienController();
-                    $bien->libererBien($request->bien_id);
+                    Bien_Helper::libererBien($request->bien_id,null);
+
                 }
             }
 
@@ -375,7 +378,7 @@ class VisiteController extends Controller
                     $propriete= $this->get_propriete_bien_concat($visite->bien_id);
                 }
 
-            return response()->json(['visite' => $visite,'propriete_dite_bien' => $propriete,'relatedVistes'=>$relatedVisites], 200);
+            return response()->json(['visite' => $visite,'propriete_dite_bien' => $propriete,'visites'=>$relatedVisites], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -537,8 +540,8 @@ class VisiteController extends Controller
                     if($visite->bien_id!=$request->bien_id){
                         $oldBien = Bien::on('temp')->find($visite->bien_id);
                             if ($oldBien->etat == 'PRE_RESERVATION' || $oldBien->etat == 'VENDU') {
-                                $old_bien=new BienController();
-                                $old_bien->libererBien($visite->bien_id);
+                                Bien_Helper::libererBien($visite->bien_id,null);
+
                             }
                     }
                 }
@@ -547,8 +550,8 @@ class VisiteController extends Controller
 
                     //changement d'interet (receptif ou perdu)
             if($visite->bien_id!=null && $request->interet != InteretEnum::INTERESSE->value){
-                $bienEncoursPropo=new BienController();
-                $bienEncoursPropo->libererBien($visite->bien_id);
+                Bien_Helper::libererBien($visite->bien_id,null);
+
             }
 
             $visite->user_id = $userAuth->value('id');
@@ -698,13 +701,13 @@ class VisiteController extends Controller
      */
     public function destroy($id)
     {
-        if(RoleHelper::AdminSup()){
+        DatabaseHelper::Config();
+        if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
             $visite=Visite::on('temp')->findOrFail($id);
             if($visite->interet== InteretEnum::INTERESSE->value){
                 if($visite->bien_id){
-                    $bienEncoursPropo=new BienController();
-                    $bienEncoursPropo->libererBien($visite->bien_id);
+                    Bien_Helper::libererBien($visite->bien_id,null);
                 }
             }
             if($visite->interet == InteretEnum::PERDU->name){
@@ -713,7 +716,7 @@ class VisiteController extends Controller
                 $freinController->destroy($frein->id);
             }
             //relance_rdv
-            $relance_rdv=Relance_Rdv_visite::where('visite_id',$id)->get();
+            $relance_rdv=Relance_Rdv_visite::on('temp')->where('visite_id',$id)->get();
             if(count($relance_rdv)>0){
                 foreach($relance_rdv as $r){
                     $r->delete();
@@ -759,8 +762,7 @@ class VisiteController extends Controller
             //rendre bien disponible si interet!=interesse ==>si receptif ou perdu
             if($request->bien_id){
                 if($request->interet!=InteretEnum::INTERESSE->value){
-                    $bien=new BienController();
-                    $bien->libererBien($request->bien_id);
+                   Bien_Helper::libererBien($request->bien_id,null);
                 }
             }
         if(RoleHelper::ACSup()){
@@ -844,7 +846,7 @@ class VisiteController extends Controller
                 if ($old_visite->statut == StatutVisiteEnum::PRE_RESERVATION->value ) {
                     $oldBien = Bien::on('temp')->find($old_visite->bien_id);
                     if ($oldBien->etat == 'PRE_RESERVATION' && $oldBien->historique_bien_pre_reserve->visite_id==$old_visite->id) {
-                        $old_bien->libererBien($old_visite->bien_id);
+                        Bien_Helper::libererBien($old_visite->bien_id,null);
                     }
 
                 }

@@ -52,10 +52,14 @@ class UserController extends Controller
     public function Dashboard()
     {
         if (Auth::guard('api')->check()) {
+            $user = Auth::guard('api')->user();
 
-            $users = Auth::guard('api')->user();
+            // Update is_connected field
+            $user->is_connected = 1;
+            $user->save();
 
-            return response()->json(['user' => $users]);
+            // Return the response with user information
+            return response()->json(['user' => $user]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }

@@ -19,6 +19,7 @@ class HistoriqueBienHelper
         $HistoriqueBien->visite_id= $visite_id;
         $HistoriqueBien->reservation_id= $reservation_id;
         $HistoriqueBien->save();
+
         //$HistoriqueBien = HistoriqueBien::on('temp')->create($historiqueBienData);
     }
 }

@@ -23,4 +23,8 @@ class Frein_Bien extends Model
     {
         return $this->belongsTo(Frein::class,'frein_id');
     }
+    public function is_proposed()
+    {
+        return $this->hasone(Proposition::class,'bien_id','bien_id')->orderby('created_at','asc')->latest();
+    }
 }

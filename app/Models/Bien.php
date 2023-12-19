@@ -53,10 +53,15 @@ class Bien extends Model
     {
         return $this->hasone(HistoriqueBien::class,'bien_id')->where('action',5)->orderby('created_at','desc')->latest();
     }
+    public function last_pre_reservation()
+    {
+        return $this->hasone(PreReservation::class,'bien_id')->orderby('date_pre_reserve','desc')->latest();
+    }
     public function compositionBien()
    {
        return $this->hasMany(CompositionBien::class);
    }
-  
+
+
 
 }

@@ -3,11 +3,18 @@
 namespace App\Http\Helpers;
 
 use App\Models\Societe;
+use App\Models\Bien;
+use App\Models\Proposition;
+use App\Models\Frein;
+use App\Models\Notification;
+use App\Models\PreReservation;
+use App\Http\Helpers\Bien_Helper;
+use App\Http\Helpers\NotificationHelper;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-
+use Carbon\Carbon;
 
 class DatabaseHelper
 {
@@ -100,11 +107,13 @@ class DatabaseHelper
             'engine' => null,
         ];
     }
+
+
     public static function deletePropositionTable($databases)
     {
         foreach ($databases as $database) {
             $databaseName = 'Erp_' . $database->raison_sociale . '_' . $database->id;
-    
+
             // Switch to the temporary database
             $connection = DatabaseHelper::Connection_database($databaseName);
             config(['database.connections.temp' => $connection]);
@@ -114,28 +123,113 @@ class DatabaseHelper
             $notConnectedUsers = DB::table('users')->where('is_connected', 0)->pluck('id');
             $connectedUsers = DB::table('users')->where('is_connected', 1)->pluck('id');
 
-            // 
+            //
             if (Schema::connection('temp')->hasTable('propositions')) {
                 if ($notConnectedUsers->isNotEmpty()) {
-                   DB::connection('temp')->table('propositions')
-                        ->whereIn('user_id', $notConnectedUsers)  // id  from  users from mother db 
-                        ->delete();
+                  $propositions= Proposition::on('temp')
+                        ->whereIn('user_id', $notConnectedUsers)  // id  from  users from mother db
+                        ->get();
+                       foreach($propositions as $prop){
+                        $bien=Bien::on('temp')->findorfail($prop->bien_id);
+                        if($bien->etat=='ENCOURS_DE_PROPOSITION'){
+                            Bien_Helper::libererBien($bien->id,'console');
+                        }
+                        $prop->forceDelete();
+                       }
+
                     \Log::info("Deleted propositions for not connected users in $databaseName.");
                 }
                 if ($connectedUsers->isNotEmpty()) {
-                    DB::connection('temp')->table('propositions')
-                    ->select('id', 'created_at')
+                    $propositions=Proposition::on('temp')
+                    ->select('id', 'created_at','bien_id')
                     ->whereIn('user_id', $connectedUsers)
-                    ->whereNotIn('id', function ($query) use ($connectedUsers) {  $query->select(DB::raw('MAX(id)'))->from('propositions')->whereIn('user_id', $connectedUsers) 
-                    ->groupBy('user_id'); })->delete();
+                    ->whereNotIn('id', function ($query) use ($connectedUsers) {  $query->select(DB::raw('MAX(id)'))->from('propositions')->whereIn('user_id', $connectedUsers)
+                    ->groupBy('user_id'); })->get();
+                        foreach($propositions as $prop){
+                        $bien=Bien::on('temp')->findorfail($prop->bien_id);
+                        if($bien->etat=='ENCOURS_DE_PROPOSITION'){
+                            Bien_Helper::libererBien($bien->id,'console');
+                        }
+                        $prop->forceDelete();
+                       }
                     \Log::info("Deleted older propositions for connected users in $databaseName.");
+
                 }
             } else {
                 \Log::info("Table 'propositions' does not exist in $databaseName.");
             }
         }
     }
-    
+
+
+
+    public static function destroy_notif($databases)
+    {
+        foreach ($databases as $database) {
+            $databaseName = 'Erp_' . $database->raison_sociale . '_' . $database->id;
+
+            // Switch to the temporary database
+            $connection = DatabaseHelper::Connection_database($databaseName);
+            config(['database.connections.temp' => $connection]);
+            DB::connection('temp')->setDatabaseName($connection['database']);
+            DB::reconnect('temp');
+
+            //
+            if (Schema::connection('temp')->hasTable('notifications')) {
+                $date_15 = \Carbon\Carbon::today()->subDays(15);
+                 $Notifiations = Notification::on('temp')
+                 ->whereDate('created_at', '<=', $date_15)
+                 ->withTrashed()
+                 ->get();
+                 if (($Notifiations->count()) > 0) {
+                    foreach ($Notifiations as $nt) {
+                        $nt->forceDelete();
+                    }
+                }
+            }
+        }
+    }
+    public static function update_etat_bien_pre_reserve($databases)
+    {
+        foreach ($databases as $database) {
+            $databaseName = 'Erp_' . $database->raison_sociale . '_' . $database->id;
+
+            // Switch to the temporary database
+            $connection = DatabaseHelper::Connection_database($databaseName);
+            config(['database.connections.temp' => $connection]);
+            DB::connection('temp')->setDatabaseName($connection['database']);
+            DB::reconnect('temp');
+
+            //
+            if (Schema::connection('temp')->hasTable('biens')) {
+                   $cur_date = Carbon::now();
+                    $biens=Bien::on('temp')->where('etat','PRE_RESERVATION')->get();
+                    foreach($biens as $bien){
+                        if($bien->last_pre_reservation!=null){
+                            $diff_in_days =Carbon::parse($bien->last_pre_reservation->date_pre_reserve)->diffInDays($cur_date);
+                            if ($diff_in_days >= 3) {
+                                //if diff>=3 libere bien
+                                Bien_Helper::libererBien($bien->id,'console');
+                            }
+                            else if($diff_in_days == 2){
+
+                                //if diff==2 notif to commercial
+                                if($bien->last_pre_reservation->visite_id!=null){
+                                    NotificationHelper::storeNotification(
+                                        '/visites/show/'.$bien->last_pre_reservation->visite->origin_id,Carbon::now(),4,'Régler situation du bien pre reservé',$bien->last_pre_reservation->visite->user->user_id_origin,$bien->last_pre_reservation->visite->id,$bien->last_pre_reservation->visite->prospect_id,$bien->last_pre_reservation->visite->projet_id
+                                    );
+                                }
+                               /* else{
+                                    //appel_id!=null notification au detail appel ==>pas ecnours
+
+                                }*/
+
+                            }
+                        }
+                    }
+            }
+        }
+    }
 
     public static function Deletedatabase($databases)
     {

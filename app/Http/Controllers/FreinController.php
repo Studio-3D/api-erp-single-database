@@ -517,7 +517,7 @@ class FreinController extends Controller
             DatabaseHelper::Config();
             $perPage=$request->input('pageSize',config('app.default_item_number_perpage'));
             $page=$request->input('page',1);
-            $biens= Frein_Bien::on('temp')->where('frein_id',$id)->paginate($perPage, ['*'], 'page', $page);;
+            $biens= Frein_Bien::on('temp')->where('frein_id',$id)->with('is_proposed')->paginate($perPage, ['*'], 'page', $page);;
             return response()->json(['biens'=>$biens],200);
         }
         return response()->json(['error'=>'Unauthorized'],401);
