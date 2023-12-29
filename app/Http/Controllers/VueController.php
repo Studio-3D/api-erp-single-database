@@ -138,4 +138,19 @@ class VueController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+    public static function AjouterVue($vues, $projet_id)
+    {
+            $vueController = new VueController();
+            $vueRequest = new StoreVueRequest();
+
+                $datavue = [
+                'vue' => $vues,
+                'projet_id' => $projet_id,
+                ];
+            $vueRequest->merge($datavue);
+            $vueController->store($vueRequest);
+            
+        
+       
+    }
 }

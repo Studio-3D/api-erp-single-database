@@ -123,60 +123,28 @@ class ProjetController extends Controller
             $projet->max_etages = $request->max_etages;
             $projet->nbre_biens = $request->nbre_biens ?: 0;
                 if($projet->save()){
-                        if($request->donneesTypeBien){
-                            $typeBienController = new TypeBienController();
-                            $typeBienRequest = new StoreTypeBienRequest;
-                            foreach ($request->donneesTypeBien as $typeBiens) {
-            
-                                $dataTypebien = [
-                                'type' => $typeBiens,
-                                'projet_id' => $projet->id,
-                                ];
-                            $typeBienRequest->merge($dataTypebien);
-                            $typeBienController->store($typeBienRequest);
-                            }
+                    if($request->donneesTypeBien){
+                        foreach ($request->donneesTypeBien as $typeBien) {
+                            TypeBienController::AjouterTypeBien($typeBien, $projet->id);
+                        }    
+                    }
+                    if($request->donneesVue){
+                        foreach ($request->donneesVue as $vue) {
+                            VueController::AjouterVue($vue, $projet->id);
                         }
-                        if($request->donneesVue){
-                            $vueController = new VueController();
-                            $vueRequest = new StoreVueRequest();
-                            foreach ($request->donneesVue as $vues) {
-            
-                                $datavue = [
-                                'vue' => $vues,
-                                'projet_id' => $projet->id,
-                                ];
-                            $vueRequest->merge($datavue);
-                            $vueController->store($vueRequest);
-                            }
+                    }
+                    if($request->donneesTypologie){
+                        foreach ($request->donneesTypologie as $Typologie) {
+                            TypologieController::AjouterTypologie($Typologie, $projet->id);
                         }
-                        if($request->donneesTypologie){
-                            $typologieController = new TypologieController();
-                            $typologieRequest = new StoreTypologieRequest();
-                            foreach ($request->donneesTypologie as $Typologies) {
-            
-                                $dataTypologie = [
-                                'typologie' => $Typologies,
-                                'projet_id' => $projet->id,
-                                ];
-                            $typologieRequest->merge($dataTypologie);
-                            $typologieController->store($typologieRequest);
-                            }
+                    }
+                    if($request->partenaires){
+                        foreach ($request->partenaires as $Partenaire) {
+                            PartenaireController::AjouterPartenaire($Partenaire, $projet->id);
                         }
-                        if($request->partenaires){
-                            $partenaireController = new PartenaireController();
-                            $partenaireRequest = new StorePartenaireRequest();
-                            foreach ($request->partenaires as $Partenaire) {
-            
-                                $dataPartenaire = [
-                                    'description' => $Partenaire['description'],
-                                    'remise' => $Partenaire['remise'],
-                                    'projet_id' => $projet->id,
-                                ];
-                            $partenaireRequest->merge($dataPartenaire);
-                            $partenaireController->store($partenaireRequest);
-                            }
-                        }
-                        if ($request->selectedtypeBien){
+                    }
+                    //nombre de bien par type de bien
+                    if ($request->selectedtypeBien){
                             foreach($request->selectedtypeBien as $valeur){
                                 if($valeur[0])
                                     {typeBienProjetHelper::createTypeBienProjet((int)$valeur[0],$projet->id,(int)$valeur[1]);
@@ -184,7 +152,8 @@ class ProjetController extends Controller
                                 else{
                                     return response()->json(['error' => 'Veuillez choisir le type de bien'], 422);//error not errors pour ne pas donner des prb dans le frontend
                                 }
-                        }   }
+                        }
+                    }    
                         $all=0;
                         foreach($request->selectedUsers as $valeur) {
                             if($valeur['id']=='tous') {
