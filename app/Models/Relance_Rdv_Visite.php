@@ -17,11 +17,11 @@ class Relance_Rdv_visite extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class ,'user_id','user_id_origin');
+        return $this->belongsTo(User::class ,'user_id','id');
     }
     public function user_traite()
     {
-        return $this->belongsTo(User::class ,'user_id_traite','user_id_origin');
+        return $this->belongsTo(User::class ,'user_id_traite','id');
     }
 
     public function visite()

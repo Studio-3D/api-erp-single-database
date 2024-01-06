@@ -4,7 +4,6 @@ namespace  App\Http\Helpers;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\HistoriqueBienHelper;
 use Illuminate\Support\Facades\Auth;
-
 use App\Models\Bien;
 use App\Models\Frein_Bien;
 use App\Models\Frein;
@@ -98,5 +97,5 @@ class Bien_Helper
         return response()->json(['message' => $bien], 200);
 
     }
-   
+
 }

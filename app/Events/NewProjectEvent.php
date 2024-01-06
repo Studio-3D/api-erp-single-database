@@ -9,27 +9,25 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-
-use App\Events\NewSocieteEvent;
-
+use App\Events\NewProjectEvent;
 
 
-
-class NewSocieteEvent implements ShouldBroadcast
+class NewProjectEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $societeData;
+    public $projetData;
 
-    public function __construct($societeData)
+    public function __construct($projetData)
     {
-        $this->societeData = $societeData;
+        $this->projetData = $projetData;
     }
 
     public function broadcastOn()
     {
-        return new Channel('societes');
+        return new Channel('projets');
     }
 
+  
     
 }

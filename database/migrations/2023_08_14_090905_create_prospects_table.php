@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('prospects', function (Blueprint $table) {
             $table->id();
             $table->string('cin')->unique();
-            $table->integer('is_client')->default(0);
+            $table->integer('client_id')->nullable();
             $table->string('nom');
             $table->string('prenom');
             $table->string('telephone');

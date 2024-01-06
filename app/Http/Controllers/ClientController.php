@@ -8,6 +8,8 @@ use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
 use App\Models\Banque;
 use App\Models\Client;
+use App\Models\Prospect;
+use App\Enum\TypeClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -66,6 +68,13 @@ class ClientController extends Controller
             $client= new Client();
             $client->setConnection('temp');
             $client->type_client=$request->type_client;
+            if($request->type_client=='PART'){//PARTICULIER
+                $client->type_client=TypeClient::PARTICULIER->value;
+            }
+            else{
+                $client->type_client=TypeClient::SOCIETE->value;
+                $client->societe_id=$request->societe_id;
+            }
             $client->nom=$request->nom;
             $client->prenom=$request->prenom;
             $client->telephone_num1=$request->telephone_num1;
@@ -81,12 +90,15 @@ class ClientController extends Controller
             $client->lieu_naissance=$request->lieu_naissance;
             $client->nationalite=$request->nationalite;
             $client->date_naissance=$request->date_naissance;
-            $client->age=$request->age;
             $client->nom_responsable=$request->nom_responsable;
             $client->relation_familliale=$request->relation_familliale;
             $client->situation_familliale=$request->situation_familliale;
+            $client->date_mariage=$request->date_mariage;
+            $client->nom_mari=$request->nom_mari;
+            $client->lieu_mariage=$request->lieu_mariage;
             $client->nom_pere=$request->nom_pere;
             $client->nom_mere=$request->nom_mere;
+            $client->prospect_id=$request->prospect_id;
             if($client->save()){
                 return $client;
             }
@@ -101,9 +113,11 @@ class ClientController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $client=Client::on('temp')->where('id',$id)->get();
 
-            return response()->json(['client' => $client], 200);
+            $client=Client::on('temp')->findOrFail($id);
+            
+        return response()->json(['client'=>$client]);
+
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -152,6 +166,7 @@ class ClientController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
     public function getClient_by_projet(Request $request, $projet_id)
     {
         if (RoleHelper::ACSup()) {
@@ -171,4 +186,73 @@ class ClientController extends Controller
 
         }
     }
+
+    public function search_client_by_cin($cin)
+    {
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $client = Client::on('temp')->where('cin',$cin)
+                ->get()->first();
+
+            if($client!=null){
+                //si client n'est pas prospect
+                if($client->id_prospect==null){
+                    $prospect = Prospect::on('temp')->with('visites_perdu')->where('cin',$cin)
+                    ->get()->first();
+                }
+                else{
+                    //client est un prospect
+                    $prospect = Prospect::on('temp')->where('id',$client->id_prospect)->with('visites_perdu')->get()->first();
+                }
+                }
+            else{
+                //client n'existe  pas
+                $prospect = Prospect::on('temp')->with('visites_perdu')->where('cin',$cin)
+                ->get()->first();
+            }
+
+
+            return response()->json(['client' => $client,'prospect'=>$prospect]);
+         }
+     }
+     public function search_client_by_phone($phone)
+    {
+        if(RoleHelper::ACSup()){
+             DatabaseHelper::Config();
+             $client = Client::on('temp')
+             ->where(function($query) use ($phone) {
+                $query->where('telephone_num1',$phone)
+                    ->orwhere('telephone_num2',$phone)
+                    ;})
+                    ->get()->first();
+
+            if($client!=null){
+                        //si client n'est pas prospect
+                       if($client->id_prospect==null){
+                         $prospect = Prospect::on('temp')->with('visites_perdu')
+                         ->where(function($query) use ($phone) {
+                            $query->where('telephone',$phone)
+                                ->orwhere('telephone_num2',$phone)
+                                ;})
+                            ->get()->first();
+                        }
+                        else{
+                            //client est un prospect
+                        $prospect = Prospect::on('temp')->where('id',$client->id_prospect)->with('visites_perdu')->get()->first();
+                        }
+                        }
+            else{
+                    $prospect = Prospect::on('temp')->with('visites_perdu')
+                    ->where(function($query) use ($phone) {
+                    $query->where('telephone',$phone)
+                        ->orwhere('telephone_num2',$phone)
+                        ;})
+                    ->get()->first();
+                        }
+           }
+
+            return response()->json(['client' => $client,'prospect'=>$prospect]);
+
+     }
+
 }

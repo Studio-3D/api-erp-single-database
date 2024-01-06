@@ -14,14 +14,14 @@ use Illuminate\Support\Facades\DB;
 
 
 
-class UpdateEtatBien extends Command
+class LibereBienPreReserve extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'app:update-etat-bien';
+    protected $signature = 'app:liberer_bien_pre_reserve';
 
     /**
      * The console command description.
@@ -37,6 +37,6 @@ class UpdateEtatBien extends Command
     public function handle()
     {
         $databases = DB::table('societes')->whereNull('deleted_at')->get();
-        DatabaseHelper::update_etat_bien_pre_reserve($databases);
+        DatabaseHelper::liberer_bien_pre_reserve($databases);
     }
 }

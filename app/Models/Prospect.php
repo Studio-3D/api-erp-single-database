@@ -15,4 +15,14 @@ class Prospect extends Model
      */
     protected $table='prospects';
     protected $dates=['deleted_at'];
+
+    public function client()
+    {
+        return $this->belongsTo(Client::class,'id_prospect');
+    }
+    public function visites_perdu()
+    {
+        return $this->hasMany(Visite::class,'prospect_id')->where('interet',3)->where('etat',1);
+    }
+    
 }

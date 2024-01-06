@@ -12,6 +12,7 @@ use App\Models\PiecesJointe;
 use Illuminate\Http\Request;
 use App\Http\Helpers\RoleHelper;
 use App\Enum\StatutReservationEnum;
+use App\Enum\RoleEnum;
 use App\Http\Helpers\DatabaseHelper;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\StoreAvanceRequest;
@@ -20,6 +21,8 @@ use App\Http\Requests\StoreAquereurRequest;
 use App\Http\Requests\StoreReservationRequest;
 use App\Http\Requests\StorePiecesJointeRequest;
 use App\Http\Requests\UpdateReservationRequest;
+use App\Http\Helpers\NotificationHelper;
+
 
 class ReservationController extends Controller
 {
@@ -54,7 +57,6 @@ class ReservationController extends Controller
      */
     public function store(StoreReservationRequest $request)
     {
-
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -94,8 +96,15 @@ class ReservationController extends Controller
                 }
                 if ($request->verifierPourcentages === true) {
                     if ($reservation->save()) {
+                        if (RoleHelper::Com()) {
+                            //notifiction to admin de valider dossier d reservation user_id=>null
+                            NotificationHelper::storeNotification(
+                                '/reservations/show/'.$reservation->id,null,6,'DEMANDE VALIDATION RESERVATION',null,RoleEnum::ADMIN->value,null,null,$reservation->projet_id,null,$reservation->id
+                            );
+
+                         }
                         $bienController = new BienController();
-                        $bienController->reserverBien($reservation->bien_id);
+                        $bienController->reserverBien($reservation->bien_id,null,$reservation->id);
                     }
                     $clientController = new ClientController();
                     $clientRequest = new StoreClientRequest();
@@ -132,22 +141,27 @@ class ReservationController extends Controller
                     $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
                     $mnt_lettre = $inWords->format($request->avance);
                     $dataAvance = [
+                        'sr'=>$request->sr,
+                        'type_encaissement' => 1,
                         'montant' => $request->avance,
                         'mode_paiement' => $request->mode_paiement,
-                        'numero_paiemeant' => $request->numero_paiemeant,
+                        'numero_paiement' => $request->numero_paiement,
                         'date_reglement' => $request->date_reglement,
                         'echeance' => $request->echeance,
                         'banque_id' => $request->banque_id,
                         'montant_par_lettre' => $mnt_lettre,
                         'reservation_id' => $reservation->id,
                         'commentaireAvance' => $request->commentaireAvance,
+                        'num_remise'=>$request->num_remise,
+                        'date_encaissement'=>$request->date_encaissement,
+
                     ];
                     $avanceRequest->merge($dataAvance);
                     $avanceController->store($avanceRequest);
                     //****store piece jointe***
                     /* $piecesJointeController = new PiecesJointeController();
                     $pieceJointeRequest = new StorePiecesJointeRequest();
-                    
+
 
                     $datapieceJointe = [
                         'fichier' => $request->fichier,
@@ -158,6 +172,11 @@ class ReservationController extends Controller
                     ];
                     $pieceJointeRequest->merge($datapieceJointe);
                     $piecesJointeController->store($pieceJointeRequest); */
+
+
+                    //si client deja fait un appel perdu ensuite fait une reservation on lie reservation avec appel
+                    //si bien deja desisté et le remboursmeent apres vente on envoi une notif Le Bien desisté est vendu
+
                     return response()->json(['reservation' => $reservation], 200);
                 } else {
 

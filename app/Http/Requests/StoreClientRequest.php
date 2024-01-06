@@ -22,11 +22,11 @@ class StoreClientRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "type_client"=>"integer ",
+            "type_client"=>"string",
             "prenom"=>"required|string",
             "telephone_num1"=>"required|string",
             "telephone_num2"=>"string",
-            "notifie"=>"boolean",
+            "notifie"=>"integer",
             "email"=>"string",
             "civilite"=>"integer",
             "adresse"=>"string",
@@ -43,6 +43,9 @@ class StoreClientRequest extends FormRequest
             "situation_familliale"=>"integer",
             "nom_pere"=>"string",
             "nom_mere"=>"string",
+            "nom_mari"=>"string",
+            "lieu_mariage"=>"string",
+            "date_mariage"=>"date",
             "nom"=>"required|string ",
 
         ];

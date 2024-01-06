@@ -18,6 +18,10 @@ use App\Models\User;
 use App\Models\UserProjet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Events\NewProjectEvent;
+use Illuminate\Support\Facades\Config;
+
+
 
 class ProjetController extends Controller
 {
@@ -28,18 +32,23 @@ class ProjetController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $projets = Projet::on('temp')->orderBy('created_at', 'desc')
-                ->get();
+            Config::set('broadcasting.default', 'pusher_2');
+            $projets = Projet::on('temp')->orderBy('created_at', 'desc')->get();
+            broadcast(new NewProjectEvent($projets));
             return response()->json(['projets' => $projets]);
         } else if (RoleHelper::Com()) {
             DatabaseHelper::Config();
             $id_auth=Auth::guard('api')->user()->id;
             $user_id=User::on('temp')->where('user_id_origin', $id_auth)->pluck('id');
+            Config::set('broadcasting.default', 'pusher_2');
             $projets = Projet::on('temp')
             ->join('user_projets', 'user_projets.projet_id', '=', 'projets.id')
             ->where('user_projets.user_id',$user_id)
             ->select('projets.*')
             ->get();
+            broadcast(new NewProjectEvent($projets));
+
+
             return response()->json(['projets'=>  $projets]);
 
 
@@ -270,6 +279,10 @@ class ProjetController extends Controller
             DatabaseHelper::Config();
             $projet = Projet::on('temp')->findOrfail($id);
             if ($projet->delete()) {
+                Config::set('broadcasting.default', 'pusher_2');
+                $projets = Projet::on('temp')->orderBy('created_at', 'desc')->get();
+                broadcast(new NewProjectEvent($projets));
+
                 return response()->json(['message' => 'Projet supprimé avec succès'], 200);
             } else {
                 return response()->json(['message' => "Projet n'a pas été supprimé"], 404);

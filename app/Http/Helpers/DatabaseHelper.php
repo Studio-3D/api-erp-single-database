@@ -179,7 +179,7 @@ class DatabaseHelper
                 $date_15 = \Carbon\Carbon::today()->subDays(15);
                  $Notifiations = Notification::on('temp')
                  ->whereDate('created_at', '<=', $date_15)
-                 ->withTrashed()
+                 ->onlyTrashed()
                  ->get();
                  if (($Notifiations->count()) > 0) {
                     foreach ($Notifiations as $nt) {
@@ -189,7 +189,7 @@ class DatabaseHelper
             }
         }
     }
-    public static function update_etat_bien_pre_reserve($databases)
+    public static function liberer_bien_pre_reserve($databases)
     {
         foreach ($databases as $database) {
             $databaseName = 'Erp_' . $database->raison_sociale . '_' . $database->id;
@@ -207,11 +207,11 @@ class DatabaseHelper
                     foreach($biens as $bien){
                         if($bien->last_pre_reservation!=null){
                             $diff_in_days =Carbon::parse($bien->last_pre_reservation->date_pre_reserve)->diffInDays($cur_date);
-                            if ($diff_in_days >= 3) {
+                            if ($diff_in_days >= $bien->projet->limite_annulation_reservation+$bien->projet->prolongation_reservation) {
                                 //if diff>=3 libere bien
                                 Bien_Helper::libererBien($bien->id,'console');
                             }
-                            else if($diff_in_days == 2){
+                            else if($diff_in_days == $bien->projet->limite_annulation_reservation){
 
                                 //if diff==2 notif to commercial
                                 if($bien->last_pre_reservation->visite_id!=null){

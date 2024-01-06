@@ -66,7 +66,7 @@ class ProspectController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->findOrfail($id);
+            $prospect = Prospect::on('temp')->with('visites_perdu')->findOrfail($id);
             return response()->json(['prospect' => $prospect], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -128,23 +128,23 @@ class ProspectController extends Controller
     }
     public function search_prospect_by_cin($cin)
     {
-        if(RoleHelper::AdminSup()){
+        if(RoleHelper::ACSup()){
              DatabaseHelper::Config();
              $prospect = Prospect::on('temp')->where('cin',$cin)
-                ->firstorfail();
+                ->get()->first();
             return response()->json(['prospect' => $prospect]);
          }
      }
      public function search_prospect_by_phone($phone)
     {
-        if(RoleHelper::AdminSup()){
+        if(RoleHelper::ACSup()){
              DatabaseHelper::Config();
              $prospect = Prospect::on('temp')
              ->where(function($query) use ($phone) {
                 $query->where('telephone',$phone)
                     ->orwhere('telephone_num2',$phone)
                     ;})
-                ->firstorfail();
+                    ->get()->first();
             return response()->json(['prospect' => $prospect]);
          }
      }

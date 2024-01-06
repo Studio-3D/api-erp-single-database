@@ -8,7 +8,7 @@ use App\Models\Notification;
 
 class NotificationHelper
 {
-    public static function storeNotification($lien, $date_relance, $type, $description_type,$user_id,$visite_id,$prospect_id,$projet_id)
+    public static function storeNotification($lien, $date_relance, $type, $description_type,$user_id,$role,$visite_id,$prospect_id,$projet_id,$avance_id,$reservation_id)
     {
 
         $notif = new Notification();
@@ -18,9 +18,12 @@ class NotificationHelper
         $notif->type= $type;
         $notif->description_type=$description_type;
         $notif->user_id= $user_id;
+        $notif->role= $role;
         $notif->visite_id= $visite_id;
         $notif->prospect_id= $prospect_id;
         $notif->projet_id= $projet_id;
+        $notif->avance_id= $avance_id;
+        $notif->reservation_id= $reservation_id;
         $notif->save();
     }
     public static function destroy_notif_bien_dispo_frein($visite_id){

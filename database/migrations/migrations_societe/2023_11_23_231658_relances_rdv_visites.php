@@ -22,8 +22,8 @@ return new class extends Migration
                 $table->timestamp('rdv')->nullable();
                 $table->timestamp('date_traitement')->nullable();
                 $table->foreignId('user_id_traite')->nullable()->constrained('users')->onDelete('cascade');
-                $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('cascade');
-                $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
+                $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+                $table->foreignId('visite_id')->constrained('visites')->onDelete('cascade');
                 $table->timestamps();
                 $table->softDeletes();
             });

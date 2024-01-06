@@ -241,7 +241,7 @@ class VisiteController extends Controller
                     if($visite->statut==StatutVisiteEnum::PRE_RESERVATION->value ||$visite->interet==InteretEnum::RECEPTIF->value){
                         if ($request->date_relance != null) {
                             NotificationHelper::storeNotification(
-                                '/visites/show/'.$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
+                                '/visites/show/'.$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,null,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id,null,null
                             );
 
                             $relance=new Relance_Rdv_visite();
@@ -250,13 +250,13 @@ class VisiteController extends Controller
                             $relance->mode_relance=$request->mode_relance;
                             $relance->date_relance=$request->date_relance;
                             $relance->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                            $relance->user_id=Auth::guard('api')->user()->id;
+                            $relance->user_id=$userAuth->value('id');
                             $relance->visite_id=$visite->id;
                             $relance->save();
                         }
                         if($request->rdv != null){
                             NotificationHelper::storeNotification(
-                                '/visites/show/'.$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
+                                '/visites/show/'.$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,null,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id,null,null
                             );
 
                             $rdv=new Relance_Rdv_visite();
@@ -264,7 +264,7 @@ class VisiteController extends Controller
                             $rdv->type=2;//rdv
                             $rdv->rdv=$request->rdv;
                             $rdv->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                            $rdv->user_id=Auth::guard('api')->user()->id;
+                            $rdv->user_id=$userAuth->value('id');
                             $rdv->visite_id=$visite->id;
                             $rdv->save();
                         }
@@ -388,6 +388,8 @@ class VisiteController extends Controller
     {
         if(RoleHelper::ACSup()) {
             DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $relance = Relance_Rdv_visite::on('temp')->findOrFail($id);
 
             //if date !=null (nouvelle relance )
@@ -397,7 +399,7 @@ class VisiteController extends Controller
                         $prospect_id=$relance->visite->prospect_id;
                         $old_mode_relance=$relance->mode_relance;
                         $relance->type_traitement=3;//demi traitement
-                        $relance->user_id_traite=Auth::guard('api')->user()->id;
+                        $relance->user_id_traite=$userAuth->value('id');
                         if($relance->save()){
                             //delete old notificcation
                             $notif_exist_relance=Notification::on('temp')->where('type',$relance->type)->where('visite_id',$visite_id)->get();
@@ -424,20 +426,20 @@ class VisiteController extends Controller
 
                             }
                             $new_relance->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                            $new_relance->user_id=Auth::guard('api')->user()->id;
+                            $new_relance->user_id=$userAuth->value('id');;
                             $new_relance->visite_id=$visite_id;
                             $new_relance->save();
 
                             if($relance->type==1){
                             //store new notification
                             NotificationHelper::storeNotification(
-                                '/visites/show/'.$new_relance->visite->origin_id, $request->date,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite_id,$prospect_id,$new_relance->visite->projet_id
+                                '/visites/show/'.$new_relance->visite->origin_id, $request->date,1,'RELANCE VISITE',Auth::guard('api')->user()->id,null,$visite_id,$prospect_id,$new_relance->visite->projet_id,null,null
                             );
                             }
                             else{
                                 //store new notification
                             NotificationHelper::storeNotification(
-                                '/visites/show/'.$new_relance->visite->origin_id, $request->date,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite_id,$prospect_id,$new_relance->visite->projet_id
+                                '/visites/show/'.$new_relance->visite->origin_id, $request->date,2,'RDV VISITE',Auth::guard('api')->user()->id,null,$visite_id,$prospect_id,$new_relance->visite->projet_id,null,null
                             );
 
                             }
@@ -450,7 +452,7 @@ class VisiteController extends Controller
                         $relance->type_traitement=1;//manuelle
                         $relance->commentaire=$request->commentaire;
                         $relance->date_traitement=Carbon::now();
-                        $relance->user_id_traite=Auth::guard('api')->user()->id;
+                        $relance->user_id_traite=$userAuth->value('id');
                         if($relance->save()){
                             //delete old notificcation
                             $notif_exist_relance=Notification::on('temp')->where('type',$relance->type)->where('visite_id',$relance->visite_id)->get();
@@ -572,17 +574,10 @@ class VisiteController extends Controller
             if($request->interet==InteretEnum::INTERESSE->value){
                 $visite->bien_id = $request->bien_id;
                 $visite->statut= $request->statut;
-               if($request->statut==StatutVisiteEnum::VENDU->value){
-                    $visite->rdv = null;
-                    $visite->mode_relance=null;
-                    $visite->date_relance = null;
-                }
-
             }
 
             elseif($request->interet==InteretEnum::RECEPTIF->value){
                 $visite->statut= null;
-                $visite->rdv =null;
                 $visite->bien_id =null;
             }
             elseif($request->interet==InteretEnum::PERDU->value){
@@ -618,7 +613,7 @@ class VisiteController extends Controller
                         $old_visite->relance_relation->delete();
                     }
                     NotificationHelper::storeNotification(
-                        '/visites/show/'.$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$visite->id,$visite->prospect_id,$visite->projet_id
+                        '/visites/show/'.$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,null,$visite->id,$visite->prospect_id,$visite->projet_id,null,null
                     );
 
                     $relance=new Relance_Rdv_visite();
@@ -627,7 +622,7 @@ class VisiteController extends Controller
                     $relance->mode_relance=$request->mode_relance;
                     $relance->date_relance=$request->date_relance;
                     $relance->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                    $relance->user_id=Auth::guard('api')->user()->id;
+                    $relance->user_id=$userAuth->value('id');
                     $relance->visite_id=$visite->id;
                     $relance->save();
                 }
@@ -636,14 +631,14 @@ class VisiteController extends Controller
                         $old_visite->rdv_relation->delete();
                     }
                     NotificationHelper::storeNotification(
-                        '/visites/show/'.$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id
+                        '/visites/show/'.$visite->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,null,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id,null,null
                     );
                     $rdv=new Relance_Rdv_visite();
                     $rdv->setConnection('temp');
                     $rdv->type=2;//rdv
                     $rdv->rdv=$request->rdv;
                     $rdv->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                    $rdv->user_id=Auth::guard('api')->user()->id;
+                    $rdv->user_id=$userAuth->value('id');
                     $rdv->visite_id=$visite->id;
                     $rdv->save();
                 }
@@ -815,28 +810,30 @@ class VisiteController extends Controller
                 if($newVisit->statut==StatutVisiteEnum::PRE_RESERVATION->value ||$newVisit->interet==InteretEnum::RECEPTIF->value){
                     if ($request->date_relance != null) {
                         NotificationHelper::storeNotification(
-                            '/visites/show/'.$newVisit->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,$newVisit->id,$newVisit->prospect_id,$newVisit->projet_id
+                            '/visites/show/'.$newVisit->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,null,$newVisit->getAttribute('id'),$newVisit->prospect_id,$newVisit->projet_id,null,null
                         );
+
                         $relance=new Relance_Rdv_visite();
                         $relance->setConnection('temp');
                         $relance->type=1;//relance
                         $relance->mode_relance=$request->mode_relance;
                         $relance->date_relance=$request->date_relance;
                         $relance->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                        $relance->user_id=Auth::guard('api')->user()->id;
+                        $relance->user_id=$userAuth->value('id') ;
                         $relance->visite_id=$newVisit->id;
                         $relance->save();
                     }
                     if($request->rdv != null){
                         NotificationHelper::storeNotification(
-                            '/visites/show/'.$newVisit->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,$newVisit->getAttribute('id'),$newVisit->prospect_id,$newVisit->projet_id
+                            '/visites/show/'.$newVisit->origin_id, $request->rdv,2,'RDV VISITE',Auth::guard('api')->user()->id,null,$newVisit->id,$newVisit->prospect_id,$newVisit->projet_id,null,null
                         );
+
                         $rdv=new Relance_Rdv_visite();
                         $rdv->setConnection('temp');
                         $rdv->type=2;//rdv
                         $rdv->rdv=$request->rdv;
                         $rdv->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                        $rdv->user_id=Auth::guard('api')->user()->id;
+                        $rdv->user_id=$userAuth->value('id');
                         $rdv->visite_id=$newVisit->id;
                         $rdv->save();
                     }
@@ -874,11 +871,11 @@ class VisiteController extends Controller
                                     $old->user_id_traite=$old_visite->user_id;
                                 }
                                 else{
-                                    $old->user_id_traite=Auth::guard('api')->user()->id;
+                                    $old->user_id_traite=$userAuth->value('id');
                                 }
                             }
                             else{
-                                $old->user_id_traite=Auth::guard('api')->user()->id;
+                                $old->user_id_traite=$userAuth->value('id');
                             }
                             $old->save();
                         }

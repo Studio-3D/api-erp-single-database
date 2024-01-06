@@ -19,8 +19,8 @@ return new class extends Migration
             $table->integer('nb_acquereurs');
             $table->string('code_reservation')->nullable();
             $table->double('prix');
-            $table->enum('mode_financement',[ModeFinancement::COMPTANT->name,ModeFinancement::CREDIT->name,ModeFinancement::INDECIS->name]);
-            $table->enum('statut',[StatutReservationEnum::VALIDER->name,StatutReservationEnum::REFUSER->name,StatutReservationEnum::EN_ATTENTE->name,StatutReservationEnum::ANNULLER->name]);
+            $table->enum('mode_financement',[ModeFinancement::COMPTANT->value,ModeFinancement::CREDIT->value,ModeFinancement::INDECIS->value]);
+            $table->enum('statut',[StatutReservationEnum::VALIDER->value,StatutReservationEnum::REFUSER->value,StatutReservationEnum::EN_ATTENTE->value,StatutReservationEnum::ANNULLER->value]);
             $table->date('date_reservation');
             $table->date('date_limite_reservation');
             $table->string('commentaire')->nullable();
@@ -28,7 +28,6 @@ return new class extends Migration
             $table->string('prix_remise_lettre')->nullable();
             $table->double('prix_forfetaire')->nullable();
             $table->string('prix_forfetaire_lettre')->nullable();
-            $table->double('montant_encaisse')->nullable()->default(0);
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('bien_id')->constrained('biens')->onDelete('cascade');

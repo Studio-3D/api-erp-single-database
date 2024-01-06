@@ -276,7 +276,7 @@ class BienController extends Controller
         }
     }
 
-    public function reserverBien($bien_id)
+    public function reserverBien($bien_id,$visite_id,$reservation_id)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
@@ -285,7 +285,7 @@ class BienController extends Controller
             if($bien->save()){
                 $this->libere_bien_frein($bien->id);
             }
-            HistoriqueBienHelper::createHistoriqueBien(3, "reserver", $bien_id, Auth::guard('api')->user()->id,NULL,NULL);
+            HistoriqueBienHelper::createHistoriqueBien(3, "reserver", $bien_id, Auth::guard('api')->user()->id,$visite_id,$reservation_id);
             return response()->json(['message' => $bien], 200);
 
         } else {
@@ -295,10 +295,10 @@ class BienController extends Controller
 
     public function prereserverBien($bien_id,$visite_id,$appel_id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $bien = Bien::on('temp')->findOrFail($bien_id);
-            $bien->etat = EtatBien::PRE_RESERVATION->value;
+            $bien->etat = EtatBien::PRE_RESERVATION->name;
             if( $bien->save()){
                 $code='';
                 $biens_get_pre = PreReservation::on('temp')->orderByRaw("CAST(code_pre_reserve as UNSIGNED) DESC")
