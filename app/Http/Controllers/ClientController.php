@@ -114,6 +114,7 @@ class ClientController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
+
             $client=Client::on('temp')->where('id',$id)->get();
             $perPage = $request->input('pageSizee', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
@@ -132,6 +133,7 @@ class ClientController extends Controller
                 $prospect=null;
             }*/
         return response()->json(['client'=>$client]);
+
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -180,6 +182,7 @@ class ClientController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
     public function getClient_by_projet(Request $request, $projet_id)
     {
         if (RoleHelper::ACSup()) {
@@ -199,6 +202,7 @@ class ClientController extends Controller
 
         }
     }
+
     public function search_client_by_cin($cin)
     {
         if(RoleHelper::ACSup()){
@@ -266,4 +270,5 @@ class ClientController extends Controller
             return response()->json(['client' => $client,'prospect'=>$prospect]);
 
      }
+
 }

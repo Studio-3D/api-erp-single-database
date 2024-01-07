@@ -21,7 +21,7 @@ class Client extends Model
     {
        return $this->hasMany(Reservation::class);
     }
-    
+
     public function aquereur()
     {
        return $this->hasMany(Aquereur::class);
@@ -29,6 +29,7 @@ class Client extends Model
     
     public function prospect()
     {
-        return $this->belongsTo(Prospect::class,'id_prospect');
+        return $this->belongsTo(Prospect::class,'prospect_id');
     }
+
 }

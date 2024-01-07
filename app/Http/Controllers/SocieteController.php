@@ -188,7 +188,7 @@ class SocieteController extends Controller
                     $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
                 }
             }
-            /
+            
             Config::set('broadcasting.default', 'pusher_1');
             $societes = Societe::all();
             broadcast(new NewSocieteEvent($societes));

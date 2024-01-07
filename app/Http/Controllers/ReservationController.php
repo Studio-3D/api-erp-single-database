@@ -286,6 +286,4 @@ class ReservationController extends Controller
         }
     }
 
-
-   
 }
