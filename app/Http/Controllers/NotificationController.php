@@ -170,5 +170,23 @@ class NotificationController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
          }
     }
+    public function destory_force_by_column_id($text,$id){
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            if($text=='visite'){
+                $notifications=Notification::on('temp')->where('visite_id',$id)->get();
+            }
+            elseif($text=='reservation'){
+                $notifications=Notification::on('temp')->where('reservation_id',$id)->get();
+            }
+            foreach($notifications as $notif){
+                $notif->forceDelete();
+            }
+            return response()->json('done');
+        }
+         else{
+            return response()->json(['error' => 'Unauthorized'], 401);
+         }
+    }
 
 }

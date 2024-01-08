@@ -32,9 +32,9 @@ class ProjetController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_2');
+          //  Config::set('broadcasting.default', 'pusher_2');
             $projets = Projet::on('temp')->orderBy('created_at', 'desc')->get();
-            broadcast(new NewProjectEvent($projets));
+           // broadcast(new NewProjectEvent($projets));
             return response()->json(['projets' => $projets]);
         } else if (RoleHelper::Com()) {
             DatabaseHelper::Config();
@@ -46,7 +46,7 @@ class ProjetController extends Controller
             ->where('user_projets.user_id',$user_id)
             ->select('projets.*')
             ->get();
-            broadcast(new NewProjectEvent($projets));
+          //  broadcast(new NewProjectEvent($projets));
 
 
             return response()->json(['projets'=>  $projets]);
@@ -126,7 +126,7 @@ class ProjetController extends Controller
                     if($request->donneesTypeBien){
                         foreach ($request->donneesTypeBien as $typeBien) {
                             TypeBienController::AjouterTypeBien($typeBien, $projet->id);
-                        }    
+                        }
                     }
                     if($request->donneesVue){
                         foreach ($request->donneesVue as $vue) {
@@ -153,7 +153,7 @@ class ProjetController extends Controller
                                     return response()->json(['error' => 'Veuillez choisir le type de bien'], 422);//error not errors pour ne pas donner des prb dans le frontend
                                 }
                         }
-                    }    
+                    }
                         $all=0;
                         foreach($request->selectedUsers as $valeur) {
                             if($valeur['id']=='tous') {
@@ -178,9 +178,9 @@ class ProjetController extends Controller
                                 return response()->json(['projet' => $projet], 200);
 
                         }
-                    }    
+                    }
 
-            
+
 
 
           } else {
@@ -279,9 +279,9 @@ class ProjetController extends Controller
             DatabaseHelper::Config();
             $projet = Projet::on('temp')->findOrfail($id);
             if ($projet->delete()) {
-                Config::set('broadcasting.default', 'pusher_2');
+              //  Config::set('broadcasting.default', 'pusher_2');
                 $projets = Projet::on('temp')->orderBy('created_at', 'desc')->get();
-                broadcast(new NewProjectEvent($projets));
+               // broadcast(new NewProjectEvent($projets));
 
                 return response()->json(['message' => 'Projet supprimé avec succès'], 200);
             } else {

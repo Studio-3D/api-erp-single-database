@@ -13,6 +13,8 @@ class Aquereur extends Model
 
     protected $table='aquereurs';
     protected $dates=['deleted_at'];
+    protected $with = ['client'];
+
 
     public function client(){
         return $this->belongsTo(Client::class,'client_id');

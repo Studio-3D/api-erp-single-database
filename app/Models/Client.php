@@ -17,6 +17,6 @@ class Client extends Model
     protected $dates=['deleted_at'];
     public function prospect()
     {
-        return $this->belongsTo(Prospect::class,'id_prospect');
+        return $this->belongsTo(Prospect::class,'prospect_id');
     }
 }

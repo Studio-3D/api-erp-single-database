@@ -18,11 +18,11 @@ class Prospect extends Model
 
     public function client()
     {
-        return $this->belongsTo(Client::class,'id_prospect');
+        return $this->belongsTo(Client::class,'prospect_id');
     }
     public function visites_perdu()
     {
         return $this->hasMany(Visite::class,'prospect_id')->where('interet',3)->where('etat',1);
     }
-    
+
 }

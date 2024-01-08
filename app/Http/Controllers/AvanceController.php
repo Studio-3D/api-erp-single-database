@@ -9,7 +9,7 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreAvanceRequest;
 use App\Http\Requests\UpdateAvanceRequest;
 use App\Models\Avance;
-use App\Models\Fiche_Transmission;
+use App\Models\FicheTransmission;
 use App\Models\Encaissement;
 use App\Models\User;
 use App\Models\Reservation;
@@ -110,9 +110,9 @@ class AvanceController extends Controller
 
             if($avance->save()){
                 //send notification d'echeance
-                if ($avance->echeance != null && $avance->sr == true) {
+                if ($avance->echeance != null) {
                     NotificationHelper::storeNotification(
-                        '/reservations/show/'.$avance->reservation_id, Carbon::now(),5,'ECHEANCE',Auth::guard('api')->user()->id,null,null,null,$avance->reservation->projet_id,$avance->id,$request->reservation_id
+                        '/reservations/show/'.$avance->reservation_id, $avance->echeance,5,'ECHEANCE',Auth::guard('api')->user()->id,null,null,null,$avance->reservation->projet_id,$avance->id,$request->reservation_id
                     );
                 }
                 //si commercial==> demande validation du paiement
@@ -122,17 +122,17 @@ class AvanceController extends Controller
                     );
                 }
                 //store avance to fiche transmission
-                $fiche= new Fiche_Transmission();
+                $fiche= new FicheTransmission();
                 $fiche->setConnection('temp');
                 //num recu cree aujourdhui
-                $recu_now = Fiche_Transmission::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")->whereDate('created_at', Carbon::now())
+                $recu_now = FicheTransmission::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")->whereDate('created_at', Carbon::now())
                 ->get('num_recu')->first();
                 if ($recu_now!=null) {
                     $fiche->num_recu= $recu_now->num_recu;
 
                 } else {
                     //num recu cree != aujourdhui
-                    $rec_not_now= Fiche_Transmission::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")->whereDate('created_at','!=', Carbon::now())
+                    $rec_not_now= FicheTransmission::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")->whereDate('created_at','!=', Carbon::now())
                     ->get('num_recu')->first();
                     if($rec_not_now!=null){
                         $pp = $rec_not_now->num_recu + 1;
@@ -149,16 +149,19 @@ class AvanceController extends Controller
 
                 if(RoleHelper::AdminSup()){
                     //store encaissement
-                    $encaiss=new Encaissement();
-                    $encaiss->setConnection('temp');
-                    $encaiss->reservation_id=$request->reservation_id;
-                    $encaiss->type_encaissement = $request->type_encaissement;//Avances
-                    $encaiss->montant = $avance->montant;
-                    $encaiss->id_avance = $avance->id;
-                    $encaiss->date_reglement = $avance->created_at;
-                    $encaiss->date_encaissement = $request->date_encaissement;
-                    $encaiss->user_id_valider= $userAuth->value('id');
-                    $encaiss->save();
+                    if($request->date_encaissement!=null){
+                        $encaiss=new Encaissement();
+                        $encaiss->setConnection('temp');
+                        $encaiss->reservation_id=$request->reservation_id;
+                        $encaiss->type_encaissement = $request->type_encaissement;//Avances
+                        $encaiss->montant = $avance->montant;
+                        $encaiss->id_avance = $avance->id;
+                        $encaiss->date_reglement = $avance->created_at;
+                        $encaiss->date_encaissement = $request->date_encaissement;
+                        $encaiss->user_id_valider= $userAuth->value('id');
+                        $encaiss->save();
+                    }
+
                     //store commission a voir
                 }
 
@@ -238,16 +241,24 @@ class AvanceController extends Controller
     public function destoryUsingReservationId($reservation_id){
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
-            $avances=Avance::on('temp')->where('reservation_id',$reservation_id);
-            $reservation = Reservation::on('temp')->where('id',$avances->reservation_id)->get();
-            $reservation->montant_encaisse-=$avances->montant;
-            if($avances->delete()){
-                $reservation->save();
-                return response()->json(['message'=>'Avance deleted successfully'],200);
+            $avances=Avance::on('temp')->where('reservation_id',$reservation_id)->get();
+            foreach($avances as $av){
+                //fiche transmission
+                $fich_transmission=FicheTransmission::on('temp')->where('id_avance',$av->id)->get();
+                    foreach($fich_transmission as $f){
+                        $f->delete();
+                    }
+                //supprimer avan
+                $av->delete();
             }
-            else{
-                return response()->json(['message'=>'Avance non deleted '],400);
-            }
+            //encaissements
+              $encaiss=Encaissement::on('temp')->where('reservation_id',$reservation_id)->get();
+              foreach($encaiss as $en){
+                $en->delete();
+              }
+
+            return response()->json(['message'=>'Avance deleted successfully'],200);
+
         }
         return response()->json(['error'=>'Unauthorized'],401);
     }

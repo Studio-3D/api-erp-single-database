@@ -28,8 +28,7 @@ class StoreReservationRequest extends FormRequest
             "mode_financement"=>"required",
             "date_reservation"=>"date",
             "date_limite_reservation"=>"date",
-            "commentaire"=>"string",
-            "visite_id"=>"integer",
+            //"visite_id"=>"integer",
             "bien_id" => "integer",
         ];
     }

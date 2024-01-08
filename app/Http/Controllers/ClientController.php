@@ -114,8 +114,8 @@ class ClientController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $client=Client::on('temp')->findOrFail($id);
-            /*if($client->id_prospect!=null){
-                $prospect = Prospect::on('temp')->findorfail($client->id_prospect)->with('visites_perdu');
+            /*if($client->prospect_id!=null){
+                $prospect = Prospect::on('temp')->findorfail($client->prospect_id)->with('visites_perdu');
             }
             else{
                 $prospect=null;
@@ -178,13 +178,13 @@ class ClientController extends Controller
 
             if($client!=null){
                 //si client n'est pas prospect
-                if($client->id_prospect==null){
+                if($client->prospect_id==null){
                     $prospect = Prospect::on('temp')->with('visites_perdu')->where('cin',$cin)
                     ->get()->first();
                 }
                 else{
                     //client est un prospect
-                    $prospect = Prospect::on('temp')->where('id',$client->id_prospect)->with('visites_perdu')->get()->first();
+                    $prospect = Prospect::on('temp')->where('id',$client->prospect_id)->with('visites_perdu')->get()->first();
                 }
                 }
             else{
@@ -210,7 +210,7 @@ class ClientController extends Controller
 
             if($client!=null){
                         //si client n'est pas prospect
-                       if($client->id_prospect==null){
+                       if($client->prospect_id==null){
                          $prospect = Prospect::on('temp')->with('visites_perdu')
                          ->where(function($query) use ($phone) {
                             $query->where('telephone',$phone)
@@ -220,7 +220,7 @@ class ClientController extends Controller
                         }
                         else{
                             //client est un prospect
-                        $prospect = Prospect::on('temp')->where('id',$client->id_prospect)->with('visites_perdu')->get()->first();
+                        $prospect = Prospect::on('temp')->where('id',$client->prospect_id)->with('visites_perdu')->get()->first();
                         }
                         }
             else{

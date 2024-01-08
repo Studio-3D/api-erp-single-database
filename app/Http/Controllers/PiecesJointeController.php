@@ -152,13 +152,12 @@ class PiecesJointeController extends Controller
     public function destoryFileUsingReservationId($reservation_id){
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
-            $pj=PiecesJointe::on('temp')->where('reservation_id',$reservation_id);
-            if($pj->delete()){
+            $pj=PiecesJointe::on('temp')->where('reservation_id',$reservation_id)->get();
+            foreach($pj as $p){
+                $p->delete();
+            }
                 return response()->json(['message'=>'PJ deleted successfully'],200);
-            }
-            else{
-                return response()->json(['message'=>'PJ non deleted '],400);
-            }
+
         }
         return response()->json(['error'=>'Unauthorized'],401);
     }

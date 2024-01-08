@@ -123,7 +123,7 @@ class AquereurController extends Controller
     public function destroyAquerreursByReservationId($reservation_id){
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
-            $aquereurs=Aquereur::on('temp')->where('reservation_id',$reservation_id);
+            $aquereurs=Aquereur::on('temp')->where('reservation_id',$reservation_id)->get();
             foreach ($aquereurs as $aquereur){
                 if($aquereur->delete()){
                     return response()->json(['message'=>'Aquérreurs supprimés avec succès'],200);

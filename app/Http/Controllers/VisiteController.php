@@ -718,12 +718,8 @@ class VisiteController extends Controller
                 }
             }
             //notifications
-            $notif=Notification::on('temp')->where('visite_id',$id)->get();
-            if(count($notif)>0){
-                foreach($notif as $n){
-                    $n->delete();
-                }
-            }
+            $notif = new NotificationController();
+            $notif->destory_force_by_column_id('visite',$id);
             if($visite->delete()){
                 return response()->json(['message'=>'Visite supprimée avec succès.'],200);
             }

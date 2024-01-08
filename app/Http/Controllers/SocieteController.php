@@ -33,9 +33,9 @@ class SocieteController extends Controller
         if (RoleHelper::Superadmin()) {
             $societes = Societe::all();
             return response()->json(['societes' => $societes]);
-           
+
         }
-       
+
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -100,8 +100,8 @@ class SocieteController extends Controller
             $societe->save();
 
 
-            // $societes = Societe::whereNull('adresse')->get();     
-            // $societes=Societe::all();      
+            // $societes = Societe::whereNull('adresse')->get();
+            // $societes=Societe::all();
             // broadcast(new NewSocieteEvent($societes));
 
             $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
@@ -115,8 +115,8 @@ class SocieteController extends Controller
             } else {
                 return response()->json(['message' => $response->getOriginalContent()['message']]);
             }
-           
-                      
+
+
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -174,7 +174,7 @@ class SocieteController extends Controller
                 $societe->logo = $logo;
             }
             $societe->save();
-   
+
 
 
 
@@ -188,7 +188,7 @@ class SocieteController extends Controller
                     $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
                 }
             }
-            /
+            
             Config::set('broadcasting.default', 'pusher_1');
             $societes = Societe::all();
             broadcast(new NewSocieteEvent($societes));
@@ -213,7 +213,7 @@ class SocieteController extends Controller
             if ($societe->delete()) {
 
                 Config::set('broadcasting.default', 'pusher_1');
-                $societes=Societe::all();      
+                $societes=Societe::all();
 
                 broadcast(new NewSocieteEvent($societes));
                 return response()->json(['message' => 'Societe supprimée avec succès'], 200);
@@ -228,7 +228,7 @@ class SocieteController extends Controller
     public function restoreSociete($societe_id)
     {
         if (RoleHelper::Superadmin()) {
- 
+
             Societe::where('id', $societe_id)->withTrashed()->restore();
 
             return response()->json(['message' => 'Societe est restaurée avec succès'], 200);
