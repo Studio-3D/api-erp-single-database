@@ -115,7 +115,7 @@ class ClientController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
 
-            $client=Client::on('temp')->findOrFail($id)->get();
+            $client=Client::on('temp')->findOrFail($id);
             $perPage = $request->input('pageSizee', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
             $reservations=Reservation::on('temp')->join('aquereurs', 'aquereurs.reservation_id', '=', 'reservations.id')
