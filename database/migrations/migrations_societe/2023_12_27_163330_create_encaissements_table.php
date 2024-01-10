@@ -21,11 +21,11 @@ return new class extends Migration
             $table->date('date_reglement');
             $table->date('date_encaissement');
             $table->foreignId('user_id_valider')->constrained('users')->onDelete('cascade');
-            $table->foreignId('id_avance')->nullable()->constrained('avances')->onDelete('cascade');
-            $table->integer('id_deblocage')->nullable()->comment('Deblocage Credit');
-            $table->integer('id_restitution')->nullable()->comment('Table Restitution');
-            $table->integer('id_remboursement')->nullable()->comment('Table Remboursement');
-            $table->integer('id_decharge')->nullable()->comment('Table Decharge');
+            $table->foreignId('avance_id')->nullable()->constrained('avances')->onDelete('cascade');
+            $table->integer('deblocage_id')->nullable()->comment('Deblocage Credit');
+            $table->integer('restitution_id')->nullable()->comment('Table Restitution');
+            $table->integer('remboursement_id')->nullable()->comment('Table Remboursement');
+            $table->integer('decharge_id')->nullable()->comment('Table Decharge');
             $table->timestamps();
             $table->softDeletes();
 

@@ -15,13 +15,12 @@ class Aquereur extends Model
     protected $table='aquereurs';
     protected $dates=['deleted_at'];
 
-
     public function client(){
         return $this->belongsTo(Client::class,'client_id');
     }
     public function reservation(){
         return $this->belongsTo(Reservation::class,'reservation_id');
     }
-    
+
 
 }

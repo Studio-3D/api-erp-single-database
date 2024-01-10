@@ -160,7 +160,7 @@ class AvanceController extends Controller
                     }
 
                 }
-                $fiche->id_avance=$avance->id;
+                $fiche->avance_id=$avance->id;
                 $fiche->user_id=$userAuth->value('id');
                 $fiche->save();
 
@@ -172,7 +172,7 @@ class AvanceController extends Controller
                         $encaiss->reservation_id=$request->reservation_id;
                         $encaiss->type_encaissement = $request->type_encaissement;//Avances
                         $encaiss->montant = $avance->montant;
-                        $encaiss->id_avance = $avance->id;
+                        $encaiss->avance_id = $avance->id;
                         $encaiss->date_reglement = $avance->created_at;
                         $encaiss->date_encaissement = $request->date_encaissement;
                         $encaiss->user_id_valider= $userAuth->value('id');
@@ -258,7 +258,7 @@ class AvanceController extends Controller
             $avances=Avance::on('temp')->where('reservation_id',$reservation_id)->get();
             foreach($avances as $av){
                 //fiche transmission
-                $fich_transmission=FicheTransmission::on('temp')->where('id_avance',$av->id)->get();
+                $fich_transmission=FicheTransmission::on('temp')->where('avance_id',$av->id)->get();
                     foreach($fich_transmission as $f){
                         $f->delete();
                     }

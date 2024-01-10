@@ -22,6 +22,6 @@ class FicheTransmission extends Model
 
     public function avance()
     {
-        return $this->belongsTo(Avance::class,'id_avance');
+        return $this->belongsTo(Avance::class,'avance_id');
     }
 }

@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('commentaire')->nullable(); // car en peut recoit des vistes sans commentaire.
             $table->boolean('notifie')->default(false)->nullable();
             $table->enum('interet',[InteretEnum::INTERESSE->value,InteretEnum::RECEPTIF->value,InteretEnum::PERDU->value]);
-            $table->enum('statut',[StatutVisiteEnum::PRE_RESERVATION->value,StatutVisiteEnum::VENDU->value])->nullable();
+            $table->enum('statut',[StatutVisiteEnum::PRE_RESERVATION->value,StatutVisiteEnum::VENDU->value,StatutVisiteEnum::PRE_RESERVATION_PERDU->value,StatutVisiteEnum::RESERVATION_PERDU->value])->nullable();
             $table->boolean('etat')->default(true)->nullable();
             $table->unsignedBigInteger('old_v_id')->nullable();
             $table->string('description')->nullable();

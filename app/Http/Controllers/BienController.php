@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Http\Helpers\NotificationHelper;
 use App\Models\Notification;
+use App\Models\Visite;
 use Carbon\Carbon;
 use App\Http\Helpers\Bien_Helper;
 
@@ -204,7 +205,7 @@ class BienController extends Controller
             }
             if($bien->save()){
                 if($bien->etat==1){
-                    Bien_Helper::store_bien_frein($bien->id);
+                    Bien_Helper::libererBien($bien->id,null);
                 }
             }
 

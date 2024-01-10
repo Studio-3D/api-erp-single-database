@@ -13,7 +13,7 @@ class Encaissement extends Model
     protected $table = 'encaissements';
 
     protected $dates = ['deleted_at'];
-    protected $with = ['avance', 'avance'];
+    protected $with = ['avance'];
 
     public function user()
     {
@@ -22,6 +22,6 @@ class Encaissement extends Model
 
     public function avance()
     {
-        return $this->belongsTo(Avance::class,'id_avance');
+        return $this->belongsTo(Avance::class,'avance_id');
     }
 }

@@ -20,8 +20,6 @@ class TypeFreinSeeder extends Seeder
             ['description'=>'Avance'],
             ['description'=>'Prix'],
             ['description'=>'Superficie'],
-            ['description'=>'Prix/Superficie'],
-            ['description'=>'Emplacement'],
             ['description'=>'Typologie'],
             ['description'=>'Vue'],
             ['description'=>'Ne souhaite plus investir'],
