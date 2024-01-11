@@ -29,10 +29,6 @@ class Reservation extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function aquereur()
-    {
-       return $this->hasMany(Aquereur::class);
-    }
     
     public function user(){
         return $this->belongsTo(User::class,'user_id');

@@ -30,14 +30,14 @@ class UpdateClientRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            "type_client"=>"integer ",
+            "type_client"=>"string",
             "nom"=>"required|string ",
             "prenom"=>"required|string",
             "telephone_num1"=>"required|string",
             "telephone_num2"=>"string",
             "notifie"=>"boolean",
             "email"=>"string",
-            "civilite"=>"integer",
+            "civilite"=>"string",
             "adresse"=>"string",
             "ville"=>"string",
             "pays"=>"string",
@@ -49,7 +49,7 @@ class UpdateClientRequest extends FormRequest
             "age"=>"integer",
             "nom_responsable"=>"string",
             "relation_familliale"=>"string",
-            "situation_familliale"=>"integer",
+            "situation_familliale"=>"string",
             "nom_pere"=>"string",
             "nom_mere"=>"string",
         ];

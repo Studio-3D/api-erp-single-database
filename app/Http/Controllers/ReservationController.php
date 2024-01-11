@@ -39,7 +39,7 @@ class ReservationController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $perPage = $request->input('pageSizee', config('app.default_item_number_perpage'));
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
             $reservations = Reservation::on('temp')
                 ->orderBy('created_at', 'desc')
@@ -400,6 +400,7 @@ class ReservationController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
 
         }
+        
     }
 
 }
