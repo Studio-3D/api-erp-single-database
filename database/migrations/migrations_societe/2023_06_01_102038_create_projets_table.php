@@ -17,10 +17,10 @@ return new class extends Migration
             $table->string('code');
             $table->string('adresse');
             $table->date('date_autorisation_construction');
-            $table->date('date_permis_habiter');
-            $table->string('titre_foncier');
-            $table->double('surface_terrain', 20,2);
-            $table->double('prix_acquisition',20,2);
+            $table->date('date_permis_habiter')->nullable();
+            $table->string('titre_foncier')->nullable();
+            $table->double('surface_terrain', 20, 2);
+            $table->double('prix_acquisition', 20, 2);
             $table->integer('limite_annulation_reservation');
             $table->integer('max_etages')->default(0);
             $table->foreignId('type_id')->constrained('type_projets')->onDelete('cascade');

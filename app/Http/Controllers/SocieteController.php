@@ -10,13 +10,12 @@ use App\Models\Societe;
 use App\Models\User;
 use Pusher\Pusher;
 use App\Models\Projet;
-use File;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use \Illuminate\Support\Facades\Storage;
 use App\Events\Societes;
 use App\Events\NewSocieteEvent;
-
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Config;
 
 
@@ -86,6 +85,8 @@ class SocieteController extends Controller
     {
         if (RoleHelper::Superadmin()) {
             $societe = new Societe();
+            $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
+            $societe->raison_sociale_concatene = $raison_sociale_concatene;
             $societe->raison_sociale = $request->raison_sociale;
             $societe->adresse = $request->adresse;
             $societe->nom_contact = $request->nom_contact;
@@ -93,18 +94,19 @@ class SocieteController extends Controller
             $societe->tel = $request->tel;
             $societe->email = $request->email;
             if ($request->hasFile('logo')) {
-                $logo = time() . '.' . $request->raison_sociale . '.' . $request->logo->extension();
-                $request->logo->move(public_path('img/societes'), $logo);
-                $societe->logo = $logo;
+                $logo = time() . '.' . $raison_sociale_concatene . '.' . $request->logo->extension();
+                
             }
             $societe->save();
-
+            if ($request->hasFile('logo')) {
+                $request->logo->move(public_path('img/'. $raison_sociale_concatene.'_'.$societe->id.'/logos'), $logo);
+                $societe->logo = $logo;
+            }
 
             // $societes = Societe::whereNull('adresse')->get();
             // $societes=Societe::all();
             // broadcast(new NewSocieteEvent($societes));
 
-            $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
             $databaseSociete = new DatabaseHelper();
             $response = $databaseSociete->createNewClientDatabase($raison_sociale_concatene, $societe->id);
             Config::set('broadcasting.default', 'pusher_1');
@@ -154,8 +156,10 @@ class SocieteController extends Controller
     {
         if (RoleHelper::Superadmin()) {
             $societe = Societe::findOrfail($id);
-            $originalRaisonSociale = $societe->raison_sociale;
+            $originalRaisonSociale = $societe->raison_sociale_concatene;
             $societe->raison_sociale = $request->raison_sociale;
+            $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
+            $societe->raison_sociale_concatene = $raison_sociale_concatene;
             $societe->adresse = $request->adresse;
             $societe->nom_contact = $request->nom_contact;
             $societe->prenom_contact = $request->prenom_contact;
@@ -164,22 +168,19 @@ class SocieteController extends Controller
             if ($request->hasFile('logo')) {
 
                 if($societe->logo!=null){
-                    $image_path = public_path('img/societes/'.$societe->logo);
+                    $image_path = public_path('img/'.$societe->raison_sociale_concatene.'_'.$id.'/logos'.$societe->logo);
                     if(file_exists($image_path)){
-                      unlink($image_path);
+                      //unlink(C:\Users\HP\Desktop\20190513_174204.jpg);
+                      File::delete('C:\Users\HP\Desktop\20190513_174204.jpg');
                     }
                 }
-                $logo = time() . '.' . $originalRaisonSociale . '.' . $request->logo->extension();
-                $request->logo->move(public_path('img/societes'), $logo);
+                $logo = time() . '.' . $raison_sociale_concatene . '.' . $request->logo->extension();
+                $request->logo->move(public_path('img/'. $raison_sociale_concatene.'_'.$societe->id.'/logos'), $logo);
                 $societe->logo = $logo;
             }
             $societe->save();
-
-
-
-
             if ($request->has('raison_sociale')) {
-                $newRaisonSociale = $societe->raison_sociale;
+                $newRaisonSociale = $societe->raison_sociale_concatene;
                 if ($originalRaisonSociale !== $newRaisonSociale) {
                     $newDatabaseName = 'Erp_' . $newRaisonSociale . '_' . $id;
                     $oldDatabaseName = 'Erp_' . $originalRaisonSociale . '_' . $id;
@@ -193,6 +194,7 @@ class SocieteController extends Controller
             $societes = Societe::all();
             broadcast(new NewSocieteEvent($societes));
             return response()->json(['message' => $societe], 200);
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -200,23 +202,22 @@ class SocieteController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Societe $societe)
+    public function destroy($id)
     {
         if (RoleHelper::Superadmin()) {
             $user = Auth::guard('api')->user();
-
-            if ($user->societe_id == $societe->id) {
-                $user->societe_id = 1;
-                $user->save();
+            $societe = Societe::findOrFail($id);
+            $users = User::where('societe_id', $societe->id)->get();
+            foreach ($users as $user) {
+                UserController::destroy($user->id);
             }
-
             if ($societe->delete()) {
 
                 Config::set('broadcasting.default', 'pusher_1');
                 $societes=Societe::all();
 
                 broadcast(new NewSocieteEvent($societes));
-                return response()->json(['message' => 'Societe supprimée avec succès'], 200);
+                return response()->json(['message' => 'societe supprimé avec succes'], 200);
 
             } else {
                 return response()->json(['message' => 'Societe non supprimée'], 404);

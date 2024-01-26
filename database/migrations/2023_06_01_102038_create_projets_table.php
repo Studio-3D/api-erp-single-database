@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('code');
             $table->string('adresse');
             $table->date('date_autorisation_construction');
-            $table->date('date_permis_habiter');
+            $table->date('date_permis_habiter')->nullable();
             $table->string('titre_foncier');
             $table->double('surface_terrain', 12, 2);
             $table->double('prix_acquisition', 20, 2);

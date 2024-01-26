@@ -8,6 +8,7 @@ use App\Http\Helpers\UserProjetHelper;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Mail\ResetPasswordMail;
+use App\Models\Societe;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -117,7 +118,7 @@ class UserController extends Controller
     public function store(StoreUserRequest $request)
     {
         if ($request->cin != null) {
-            $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
+            $cin_exist = User::where('cin', $request->cin)->count();
             if ($cin_exist > 0) {
                 return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
             }
@@ -138,33 +139,33 @@ class UserController extends Controller
             $user->niveau_etude = $request->niveau_etude;
             $user->adresse = $request->adresse;
             $user->cnss = $request->cnss;
-            $user->is_actif = $request->is_actif ? $request->is_actif : 1;
+            $user->is_actif = $request->is_actif;
             $user->nb_appel_recu = $request->nb_appel_recu;
             $user->nb_appel_traite = $request->nb_appel_traite;
             $user->solde_conge = $request->solde_conge;
+            
             if ($request->hasFile('photo')) {
                 $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
-                $request->photo->move(public_path('img/users'), $photo);
-                $user->photo = $photo;
-                $request->photo = $photo;
+                $request->file('photo');
+
             }
             if ($user->save()) {
-
-                $this->createSubUser($request, $user->id);
+                if ($request->hasFile('photo')) {
+                    $societe = Societe::findOrfail($user->societe_id);
+                    $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
+                    $user->photo = $photo;
+                    $user->save();
+                }
+                $this->createSubUser($request, $user->id,$user->photo);
             }
             return response()->json(['message' => $user], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    public function createSubUser($request, $user_id)
+    public function createSubUser($request, $user_id,$user_photo)
     {
-        if ($request->cin != null) {
-            $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
-            if ($cin_exist > 0) {
-                return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
-            }
-        }
+        
         DatabaseHelper::Config($request->societe_id);
         $user = new User();
         $user->setConnection('temp');
@@ -182,14 +183,17 @@ class UserController extends Controller
         $user->niveau_etude = $request->niveau_etude;
         $user->adresse = $request->adresse;
         $user->cnss = $request->cnss;
-        $user->is_actif = $request->is_actif ? $request->is_actif : 1;
+        $user->is_actif = $request->is_actif;
         $user->nb_appel_recu = $request->nb_appel_recu;
         $user->nb_appel_traite = $request->nb_appel_traite;
         $user->solde_conge = $request->solde_conge;
         if ($request->hasFile('photo')) {
-            $user->photo = $request->photo;
+            $user->photo = $user_photo;
+
         }
         $user->save();
+        
+
     }
 
     /**
@@ -205,7 +209,6 @@ class UserController extends Controller
                 return response()->json(['message' => 'Utilisateur non trouvé'], 200);
             }
         } else if (RoleHelper::AdminSup()) {
-
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
             return response()->json(['user' => $user], 200);
@@ -224,8 +227,7 @@ class UserController extends Controller
         if ($request->is_profil) {
             $user = Auth::user();
             DatabaseHelper::Config();
-            $user = User::on('temp')->where('user_id_origin',Auth::guard('api')->user()->id)->first();
-           
+            $user = User::on('temp')->where('user_id_origin', Auth::guard('api')->user()->id)->first();
             $user->name = $request->input('name');
             $user->prenom = $request->input('prenom');
             $user->gender = $request->input('gender');
@@ -239,7 +241,8 @@ class UserController extends Controller
             $user->cnss = $request->input('cnss');
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
-
+            $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+            $user_origin = User::where('id', $user->user_id_origin)->first();
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = public_path('img/users/' . $user->photo);
@@ -247,21 +250,25 @@ class UserController extends Controller
                         unlink($image_path);
                     }
                 }
-                $photo = time() . '.' . $user->name . '.' . $request->photo->extension();
-                $request->photo->move(public_path('img/users'), $photo);
+                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+                $societe = Societe::findOrfail($user_origin->societe_id);
+                $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
                 $user->photo = $photo;
             }
 
             if ($user->save()) {
                 //Modifier dans la BDD Mère
                 $user_origin = User::where('id', $user->user_id_origin)->first();
-
                 if ($user_origin) {
                     $user_origin->update($request->all());
+                    if ($request->hasFile('photo')) {
+                        $user_origin->photo= $photo;
+                        $user_origin->save();
+                    }
                 }
-            
+
                 return response()->json(['message' => 'profil modifié avec succès'], 200);
-                
+
             }
         } else if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
             $user = User::findOrFail($id);
@@ -279,7 +286,7 @@ class UserController extends Controller
             $user->cnss = $request->input('cnss');
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
-
+            $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = public_path('img/users/' . $user->photo);
@@ -287,11 +294,11 @@ class UserController extends Controller
                         unlink($image_path);
                     }
                 }
-                $photo = time() . '.' . $user->name . '.' . $request->photo->extension();
-                $request->photo->move(public_path('img/users'), $photo);
+                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+                $societe = Societe::findOrfail($user->societe_id);
+                $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
                 $user->photo = $photo;
             }
-
             if ($user->save()) {
                 // Update the user in the 'temp' database connection (assuming this is what you intend to do)
                 DatabaseHelper::Config($user->societe_id);
@@ -299,13 +306,16 @@ class UserController extends Controller
 
                 if ($user_societes) {
                     $user_societes->update($request->all());
+                    if ($request->hasFile('photo')) {
+                        $user_societes->photo= $photo;
+                        $user_societes->save();
+                    }
                 }
             }
 
             return response()->json(['message' => 'Utilisateur modifié avec succès par super admin'], 200);
 
-        } else if (RoleHelper::Admin()) {
-
+        } else if (RoleHelper::Admin()||(RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id !== 1)) {
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
             $user->name = $request->input('name');
@@ -322,6 +332,8 @@ class UserController extends Controller
             $user->cnss = $request->input('cnss');
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
+            $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+            $user_societes = User::where('id', $user->user_id_origin)->first();
 
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
@@ -330,16 +342,20 @@ class UserController extends Controller
                         unlink($image_path);
                     }
                 }
-                $photo = time() . '.' . $user->name . '.' . $request->photo->extension();
-                $request->photo->move(public_path('img/users'), $photo);
+                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+                $societe = Societe::findOrfail($user_societes->societe_id);
+                $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
                 $user->photo = $photo;
             }
 
             if ($user->save()) {
-                $user_societes = User::where('id', $user->user_id_origin)->first();
 
                 if ($user_societes) {
                     $user_societes->update($request->all());
+                    if ($request->hasFile('photo')) {
+                        $user_societes->photo= $photo;
+                        $user_societes->save();
+                    }
                 }
             }
 
@@ -352,13 +368,24 @@ class UserController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(user $user)
+    public static function destroy($id)
     {
         if (RoleHelper::SuperAdmin()) {
+            $user = User::findOrFail($id);
+            $user->is_actif = 0;
+            $user->save();
 
             if ($user->delete()) {
-                DatabaseHelper::Config();
+
+                DatabaseHelper::Config($user->societe_id);
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
+                $user_societes->update(['is_actif' => 0]);
+                /* if ($user_societes->photo != null) {
+                $image_path = public_path('img/users/' . $user_societes->photo);
+                if (file_exists($image_path)) {
+                File::delete($image_path);
+                }
+                } */
                 $user_societes->delete();
                 return response()->json(['message' => 'utilisateur supprimé avec succès'], 200);
             } else {
@@ -394,19 +421,21 @@ class UserController extends Controller
     }
     public function desactivateUser($user_id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::SuperAdmin()) {
             $user = User::findOrFail($user_id);
-
             $user->is_actif = 0;
             if ($user->save()) {
-                DatabaseHelper::Config();
-                $user_societes = User::on('temp')->where('user_id_origin', $user->id);
+                DatabaseHelper::Config($user->societe_id);
+                $user_societes = User::on('temp')->where('user_id_origin', $user->id)->first();
                 $user_societes->update(['is_actif' => 0]);
+                return response()->json(['message' => 'utilisateur désactiver avec succès'], 200);
+            } else {
+                return response()->json(['message' => "Oups l'utilisatuer n'a pas été désactiver"], 404);
             }
-            return response()->json(['message' => 'Utilisateur désactivé avec succès'], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
+
     }
     public function restoreUser($user_id)
     {

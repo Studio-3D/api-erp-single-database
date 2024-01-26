@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('societes', function (Blueprint $table) {
             $table->id();
             $table->string('raison_sociale');
+            $table->string('raison_sociale_concatene');
             $table->string('adresse')->nullable();
             $table->string('nom_contact');
             $table->string('prenom_contact');

@@ -30,7 +30,7 @@ class UpdateProjetRequest extends FormRequest
         DatabaseHelper::Config();
         return [
             'date_autorisation_construction' => 'date',
-            'date_permis_habiter' => 'date',
+            'date_permis_habiter' => 'date|nullable',
             'societe_id' => 'integer',
             'surface_terrain' => 'numeric',
             'prix_acquisition' => 'numeric',
