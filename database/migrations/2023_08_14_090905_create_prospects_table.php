@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('email')->nullable()->unique();
             $table->string('origin');
             $table->integer('source');
-            $table->text('message');
+            $table->text('message')->nullable();
             $table->timestamps();
             $table->softDeletes();
             $table->index(['cin','telephone','telephone_num2']);

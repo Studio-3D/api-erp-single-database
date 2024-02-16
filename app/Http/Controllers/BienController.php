@@ -23,6 +23,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Events\PropositionUpdated;
+use Illuminate\Support\Facades\Config;
 
 class BienController extends Controller
 {
@@ -559,6 +561,8 @@ class BienController extends Controller
     {
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
             DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_4');
+
 
             if ($old_id == 0) {
                 $bien = Bien::on('temp')->findOrFail($bien_id);
@@ -569,6 +573,8 @@ class BienController extends Controller
                     $bien_propose->bien_id = $bien_id;
                     $bien_propose->user_id = Auth::guard('api')->user()->id;
                     $bien_propose->save();
+                    event(new PropositionUpdated($bien_id, $bien_propose->user_id));
+
                 }
 
             } else {
@@ -581,6 +587,8 @@ class BienController extends Controller
                     $bien_propose->bien_id = $bien_id;
                     $bien_propose->user_id = Auth::guard('api')->user()->id;
                     $bien_propose->save();
+                    event(new PropositionUpdated($bien_id, $bien_propose->user_id));
+
                 }
             }
             return response()->json(['message' => $bien], 200);
