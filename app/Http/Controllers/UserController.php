@@ -29,8 +29,7 @@ class UserController extends Controller
             'password' => 'required',
         ]);
         $User = User::where('email', $request->email)->first();
-        if($User->is_actif==1)
-        {if (Auth::attempt($credentials)) {
+        if ($User->is_actif == 1) {if (Auth::attempt($credentials)) {
             $user = Auth::user();
             $user->is_connected = 1;
             $user->save();
@@ -38,10 +37,9 @@ class UserController extends Controller
 
             return response()->json(['access_token' => $accessToken], 200);
         }
-        return response()->json(['error' => 'email ou mot de passe incorrect'], 422);
+            return response()->json(['error' => 'email ou mot de passe incorrect'], 422);
 
-    }
-        
+        }
 
         return response()->json(['error' => 'utilisateur non actif'], 422);
     }
@@ -156,6 +154,7 @@ class UserController extends Controller
             }
             if ($user->save()) {
                 if ($request->hasFile('photo')) {
+                    $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                     $societe = Societe::findOrfail($user->societe_id);
                     $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
                     $user->photo = $photo;
@@ -245,7 +244,6 @@ class UserController extends Controller
             $user->cnss = $request->input('cnss');
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
-            $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
             $user_origin = User::where('id', $user->user_id_origin)->first();
             $societe = Societe::findOrfail($user_origin->societe_id);
             if ($request->hasFile('photo')) {
@@ -267,6 +265,7 @@ class UserController extends Controller
                 if ($user_origin) {
                     $user_origin->update($request->all());
                     if ($request->hasFile('photo')) {
+                        $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                         $user_origin->photo = $photo;
                         $user_origin->save();
                     }
@@ -291,7 +290,6 @@ class UserController extends Controller
             $user->cnss = $request->input('cnss');
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
-            $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = public_path('img/users/' . $user->photo);
@@ -312,6 +310,7 @@ class UserController extends Controller
                 if ($user_societes) {
                     $user_societes->update($request->all());
                     if ($request->hasFile('photo')) {
+                        $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                         $user_societes->photo = $photo;
                         $user_societes->save();
                     }
@@ -337,9 +336,7 @@ class UserController extends Controller
             $user->cnss = $request->input('cnss');
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
-            $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
             $user_societes = User::where('id', $user->user_id_origin)->first();
-
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = public_path('img/users/' . $user->photo);
@@ -358,6 +355,7 @@ class UserController extends Controller
                 if ($user_societes) {
                     $user_societes->update($request->all());
                     if ($request->hasFile('photo')) {
+                        $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                         $user_societes->photo = $photo;
                         $user_societes->save();
                     }
