@@ -90,6 +90,24 @@ class ProspectController extends Controller
         $prospect->save();
     }
 
+    public static function Store_LandingPage($name, $prenom, $phone,$email,$societe_id)
+    {
+      
+        DatabaseHelper::Config($societe_id);
+        $prospect = new Prospect();
+        $prospect->setConnection("temp");
+        $prospect->cin = null;
+        $prospect->message =  null;
+        $prospect->nom = $name;
+        $prospect->prenom = $prenom;
+        $prospect->telephone = $phone;
+        $prospect->email = $email;
+        $prospect->origin = 'landingPage';
+        $prospect->source = 3;
+        $prospect->save();
+    }
+
+
     /**
      * Display the specified resource.
      */

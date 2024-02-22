@@ -30,6 +30,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\EnumController;
 use App\Http\Controllers\Facebook\FacebookController;
 use App\Http\Controllers\WhatsApp\WhatsAppController;
+use App\Http\Controllers\Landing_page\Landing_pageController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -46,14 +48,15 @@ use App\Http\Controllers\WhatsApp\WhatsAppController;
 
 Route::post('login', [UserController::class, 'login'])->name('login');
 Route::post('/validateToken/{token}', [UserController::class, 'validateToken']);
+
+
+    /*************************************APIs FROM Outside ***************************** */
+
 Route::post('handlemessage', [FacebookController::class, 'handleMessage']);
 Route::get('get_pivacy_policy', [FacebookController::class, 'get_pivacy_policy']);
 Route::post('/webhooks', [WhatsAppController::class, 'webhooks']);
+Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_page']);
 
-
-
-
-//Route::post('register', [UserController::class, 'register'])->name('register');
 
 Route::middleware('auth:api')->group(function () {
 
