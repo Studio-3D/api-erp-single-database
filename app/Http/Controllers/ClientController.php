@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enum\TypeClient;
 use App\Http\Helpers\DatabaseHelper;
+use App\Http\Helpers\PaginationHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
@@ -16,7 +17,6 @@ use App\Models\Visite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Http\Helpers\PaginationHelper;
 
 class ClientController extends Controller
 {
@@ -73,7 +73,7 @@ class ClientController extends Controller
             $client = new Client();
             $client->setConnection('temp');
             $client->type_client = $request->type_client;
-            if ($request->type_client ==  TypeClient::Société->value) {
+            if ($request->type_client == TypeClient::Société->value) {
                 $client->partenaire_id = $request->partenaire_id;
             }
             $client->nom = $request->nom;
@@ -116,55 +116,8 @@ class ClientController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
 
-            $client = Client::on('temp')->with('partenaire')->findOrFail($id);
-            $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
-            $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
-                ->groupby('reservation_id');
-            $reservations = Reservation::on('temp')->join('aquereurs', 'aquereurs.reservation_id', '=', 'reservations.id')
-                ->joinSub($avances, 'avances_req', function ($join) {
-                        $join->on('avances_req.reservation_id', '=', 'reservations.id');
-                })
-                ->select('reservations.*', 'aquereurs.pourcentage','avances_req.sum_avances')
-                ->where('aquereurs.client_id', $id)
-                ->orderBy('created_at', 'desc')
-                ->paginate($perPage, ['*'], 'page', $page);
-                $visites = Visite::on('temp')->latest('created_at')->where('etat',1)
-                ->select('visites.*')
-                ->where('prospect_id', $client->prospect_id)
-                ->get()->groupby('origin_id');
-                /* $visites = Visite::on('temp')->latest('created_at')->where('etat',1)
-                ->groupby('origin_id')
-                //->join('prospects', 'visites.prospect_id', '=', 'prospects.id')
-            // ->join('clients', 'prospects.client_id', '=', 'clients.id')
-                //->select('visites.*')
-                ->where('visites.prospect_id', $client->prospect_id)
-                ->get(); */
-                $visites = $visites->map(function ($visite) {
-                    return [
-                        'id' => $visite->first()->id,
-                        'origin_id' => $visite->first()->origin_id,
-                        'nom_cc' => $visite->first()->user->name,
-                        'prenom_cc' => $visite->first()->user->prenom,
-                        'date' => $visite->first()->created_at,
-                        'prospect_id' => $visite->first()->prospect->id,
-                        'cin' => $visite->first()->prospect->cin,
-                        'nom' => $visite->first()->prospect->nom,
-                        'prenom' => $visite->first()->prospect->prenom,
-                        'telephone' => $visite->first()->prospect->telephone,
-                        'telephone2' => $visite->first()->prospect->telephone_num2,
-                        'interet' => $visite->first()->interet,
-                        'statut' => $visite->first()->statut,
-                        'propriete_dite_bien' => $visite->first()->bien_id?$visite->first()->bien->propriete_dite_bien:'',
-                        'etat_bien' => $visite->first()->bien_id?$visite->first()->bien->etat:'',
-                        'bien_id' => $visite->first()->bien_id?$visite->first()->bien_id:'',
-                        'visit_count' => count($visite)
-
-
-                    ];});
-
-                  $data = PaginationHelper::paginate_array($visites->toArray(),$perPage,$page,$request->url());
-            return response()->json(['client' => $client, 'reservations' => $reservations, 'visites' => $data], 200);
+            $client = Client::on('temp')->findOrFail($id);
+            return response()->json(['client' => $client], 200);
 
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -300,6 +253,75 @@ class ClientController extends Controller
 
         return response()->json(['client' => $client, 'prospect' => $prospect]);
 
+    }
+    public function ReservationsByClient(Request $request, $client_id)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
+            $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
+                ->groupby('reservation_id');
+            $reservations = Reservation::on('temp')->join('aquereurs', 'aquereurs.reservation_id', '=', 'reservations.id')
+                ->joinSub($avances, 'avances_req', function ($join) {
+                    $join->on('avances_req.reservation_id', '=', 'reservations.id');
+                })
+                ->select('reservations.*', 'aquereurs.pourcentage', 'avances_req.sum_avances')
+                ->where('aquereurs.client_id', $client_id)
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage, ['*'], 'page', $page);
+            return response()->json(['reservations' => $reservations], 200);
+
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function VisitesByClient(Request $request, $client_id)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $client = Client::on('temp')->findOrFail($client_id);
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
+            $visites = Visite::on('temp')->latest('created_at')->where('etat', 1)
+                ->select('visites.*')
+                ->where('prospect_id', $client->prospect_id)
+                ->get()->groupby('origin_id');
+            /* $visites = Visite::on('temp')->latest('created_at')->where('etat',1)
+            ->groupby('origin_id')
+            //->join('prospects', 'visites.prospect_id', '=', 'prospects.id')
+            // ->join('clients', 'prospects.client_id', '=', 'clients.id')
+            //->select('visites.*')
+            ->where('visites.prospect_id', $client->prospect_id)
+            ->get(); */
+            $visites = $visites->map(function ($visite) {
+                return [
+                    'id' => $visite->first()->id,
+                    'origin_id' => $visite->first()->origin_id,
+                    'nom_cc' => $visite->first()->user->name,
+                    'prenom_cc' => $visite->first()->user->prenom,
+                    'date' => $visite->first()->created_at,
+                    'prospect_id' => $visite->first()->prospect->id,
+                    'cin' => $visite->first()->prospect->cin,
+                    'nom' => $visite->first()->prospect->nom,
+                    'prenom' => $visite->first()->prospect->prenom,
+                    'telephone' => $visite->first()->prospect->telephone,
+                    'telephone2' => $visite->first()->prospect->telephone_num2,
+                    'interet' => $visite->first()->interet,
+                    'statut' => $visite->first()->statut,
+                    'propriete_dite_bien' => $visite->first()->bien_id ? $visite->first()->bien->propriete_dite_bien : '',
+                    'etat_bien' => $visite->first()->bien_id ? $visite->first()->bien->etat : '',
+                    'bien_id' => $visite->first()->bien_id ? $visite->first()->bien_id : '',
+                    'visit_count' => count($visite),
+
+                ];});
+
+            $data = PaginationHelper::paginate_array($visites->toArray(), $perPage, $page, $request->url());
+            return response()->json(['visites' => $data], 200);
+
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
 
 }

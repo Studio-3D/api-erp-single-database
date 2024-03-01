@@ -227,8 +227,9 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('search_client_by_cin/{cin}', [ClientController::class, 'search_client_by_cin']);
     Route::get('search_client_by_phone/{phone}', [ClientController::class, 'search_client_by_phone']);
-
-
+    Route::get('ReservationsByClient/{client_id}', [ClientController::class, 'ReservationsByClient']);
+    Route::get('VisitesByClient/{client_id}', [ClientController::class, 'VisitesByClient']);
+    
 
     /*************************************Aquereurs***************************** */
     Route::resource('aquereur',AquereurController::class);
