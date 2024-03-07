@@ -44,6 +44,9 @@ use App\Models\HistoriqueVisite;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use App\Http\Helpers\Bien_Helper;
+use App\Events\NotificationEvent;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 
 
 
@@ -163,6 +166,8 @@ class VisiteController extends Controller
              $user = Auth::user();
              if (RoleHelper::ACSup()) {
                  DatabaseHelper::Config();
+                 Config::set('broadcasting.default', 'pusher_3');
+
                   //store prospect si client n'existe pas
 
              if($request->prospect_id==null){
@@ -253,6 +258,8 @@ class VisiteController extends Controller
                                             NotificationHelper::storeNotification(
                                                 '/visites/show/'.$visite->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,null,$visite->getAttribute('id'),$visite->prospect_id,$visite->projet_id,null,null
                                             );
+                                            broadcast(new NotificationEvent($visite->id));
+
                                             $relance=new Relance_Rdv_visite();
                                             $relance->setConnection('temp');
                                             $relance->type=1;//relance
@@ -1238,6 +1245,7 @@ class VisiteController extends Controller
     public function store_n_visite($id,Store_n_VisiteRequest $request){
 
         DatabaseHelper::Config();
+        Config::set('broadcasting.default', 'pusher_3');
         $originalVisite=Visite::on('temp')->find($id);
         if (!$originalVisite){ return response()->json(['error'=>"L'original de la visite n'a pas été trouvé."]);}
 
@@ -1295,6 +1303,8 @@ class VisiteController extends Controller
                             NotificationHelper::storeNotification(
                                 '/visites/show/'.$newVisit->origin_id, $request->date_relance,1,'RELANCE VISITE',Auth::guard('api')->user()->id,null,$newVisit->getAttribute('id'),$newVisit->prospect_id,$newVisit->projet_id,null,null
                             );
+                            broadcast(new NotificationEvent($visite->id));
+
 
                             $relance=new Relance_Rdv_visite();
                             $relance->setConnection('temp');
@@ -1514,7 +1524,6 @@ class VisiteController extends Controller
                                             'bien_id'=>$list_biens['bien_id'],
                                             'projet_id'=>$request->selectedProjet,
                                             'verifierPourcentages'=>true,
-                                            'origin'=>'visite',
                                             'cin'=>$prospect->cin,
                                             'nom'=>$prospect->nom,
                                             'prenom'=>$prospect->prenom,

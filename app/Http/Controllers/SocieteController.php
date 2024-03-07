@@ -63,20 +63,7 @@ class SocieteController extends Controller
     }
 
 
-    public function sendsociete()
-    {
-        $notificationData= [
-            'title' => 'New Notification',
-            'message' => 'You have a new notification!',
-            'created_at' => now()->toDateTimeString(),
-            // ... other relevant data
-        ];
-
-        broadcast(new NewNotificationEvent($notificationData));
-
-    return response()->json(['message' => 'Notification sent successfully']);
-    }
-
+   
 
     /**
      * Store a newly created resource in storage.
@@ -111,8 +98,8 @@ class SocieteController extends Controller
             $databaseSociete = new DatabaseHelper();
             $response = $databaseSociete->createNewClientDatabase($raison_sociale_concatene, $societe->id);
             Config::set('broadcasting.default', 'pusher_1');
-            $societes = Societe::all();
-            broadcast(new NewSocieteEvent($societes));
+            // $societes = Societe::all();
+            broadcast(new NewSocieteEvent($societe->id));
             if ($response->getStatusCode() == 200) {
                 return response()->json(['message' => $response->getOriginalContent()['message']]);
             } else {
@@ -192,8 +179,8 @@ class SocieteController extends Controller
             }
             
             Config::set('broadcasting.default', 'pusher_1');
-            $societes = Societe::all();
-            broadcast(new NewSocieteEvent($societes));
+            // $societes = Societe::all();
+            broadcast(new NewSocieteEvent($societe->id));
             return response()->json(['message' => $societe], 200);
 
         } else {
@@ -217,7 +204,7 @@ class SocieteController extends Controller
                 Config::set('broadcasting.default', 'pusher_1');
                 $societes=Societe::all();
 
-                broadcast(new NewSocieteEvent($societes));
+                broadcast(new NewSocieteEvent($societe->id));
                 return response()->json(['message' => 'societe supprimé avec succes'], 200);
 
             } else {

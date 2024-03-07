@@ -145,7 +145,7 @@ class NotificationController extends Controller
             $i=0;
             if(RoleHelper::AdminSup()){
 
-               $all_notifications=Notification::on('temp')->with('prospect','user')->where('projet_id',$projet_id)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('date','desc')->get();
+               $all_notifications=Notification::on('temp')->with('prospect','user')->where('projet_id',$projet_id)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('id','desc')->get();
                $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('deleted_at',null)->count();
 
             }else{

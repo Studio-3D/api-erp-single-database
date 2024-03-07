@@ -35,7 +35,7 @@ class StoreTrancheRequest extends FormRequest
                     ->where('projet_id', $this->projet_id);})],
             'date_lancement' => 'date|nullable',
             'date_livraison' => 'date|nullable',
-            'niveau_etages' => 'required|integer',
+            'niveau_etages' => 'integer|nullable',
             'nbre_blocs' => 'integer',
             'nbre_immeubles' => 'integer',
             'nbre_biens' => 'integer',

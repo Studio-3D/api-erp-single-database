@@ -13,6 +13,7 @@ use App\Models\Projet;
 use App\Models\User;
 use App\Models\UserProjet;
 use Illuminate\Http\Request;
+use App\Events\NewProjectEvent;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 
@@ -25,9 +26,9 @@ class ProjetController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            //  Config::set('broadcasting.default', 'pusher_2');
+             Config::set('broadcasting.default', 'pusher_2');
             $projets = Projet::on('temp')->orderBy('created_at', 'asc')->get();
-            // broadcast(new NewProjectEvent($projets));
+            // broadcast(new NewProjectEvent($projets->id));
             return response()->json(['projets' => $projets]);
         } else if (RoleHelper::Com()) {
             DatabaseHelper::Config();
@@ -39,7 +40,7 @@ class ProjetController extends Controller
                 ->where('user_projets.user_id', $user_id)
                 ->select('projets.*')
                 ->get();
-            //  broadcast(new NewProjectEvent($projets));
+            //  broadcast(new NewProjectEvent($projets->id));
 
             return response()->json(['projets' => $projets]);
 
@@ -47,6 +48,7 @@ class ProjetController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
     public function index(Request $request)
     {
         if (RoleHelper::AdminSup()) {
@@ -94,6 +96,8 @@ class ProjetController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_2');
+
             $projet = new Projet();
             $projet->setConnection('temp');
             $projet->nom = $request->nom;
@@ -161,6 +165,8 @@ class ProjetController extends Controller
                     foreach ($request->selectedUsers as $valeur) {
                         UserProjetHelper::createUserProjet($projet->id, $valeur['id']);
                     }
+                    broadcast(new NewProjectEvent($projet->id));
+
                     return response()->json(['projet' => $projet], 200);
 
                 }
@@ -207,6 +213,8 @@ class ProjetController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_2');
+
             $projet = Projet::on('temp')->findOrfail($id);
             $projet->nom = $request->nom;
             $projet->code = $request->code;
@@ -244,6 +252,8 @@ class ProjetController extends Controller
                     foreach ($request->selectedUsers as $valeur) {
                         UserProjetHelper::createUserProjet($projet->id,  $valeur['id']);
                     }
+                    broadcast(new NewProjectEvent($id));
+
                     return response()->json(['projet' => $projet], 200);
                 }
             }
@@ -259,11 +269,12 @@ class ProjetController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_2');
+
             $projet = Projet::on('temp')->findOrfail($id);
             if ($projet->delete()) {
-                //  Config::set('broadcasting.default', 'pusher_2');
                 $projets = Projet::on('temp')->orderBy('created_at', 'desc')->get();
-                // broadcast(new NewProjectEvent($projets));
+                broadcast(new NewProjectEvent($id));
 
                 return response()->json(['message' => 'Projet supprimé avec succès'], 200);
             } else {
