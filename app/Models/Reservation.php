@@ -14,7 +14,7 @@ class Reservation extends Model
 
     protected $table='reservations';
     protected $dates=['deleted_at'];
-    protected $with = ['bien', 'user', 'projet','aquereurs','historiques'];
+    protected $with = ['bien', 'user', 'projet','aquereurs','aquereurs_ancien','historiques'];
 
 
     public function visite(){
@@ -41,14 +41,34 @@ class Reservation extends Model
     {
         return $this->hasMany(Aquereur::class,'reservation_id');
     }
+    public function aquereurs_ancien()
+    {
+        return $this->hasMany(Aquereur::class,'reservation_id')->onlyTrashed();
+    }
     public function avances()
     {
         return $this->hasMany(Avance::class,'reservation_id');
+    }
+    public function avances_desist()
+    {
+        return $this->hasMany(Avance::class,'reservation_id')->onlyTrashed();
+    }
+    public function piece_jointe()
+    {
+        return $this->hasMany(PiecesJointe::class,'reservation_id');
+    }
+    public function piece_jointe_desiste()
+    {
+        return $this->hasMany(PiecesJointe::class,'reservation_id')->onlyTrashed();
     }
     public function historiques()
     {
         return $this->hasMany(HistoReservation::class,'reservation_id');
     }
 
+    public function desistements_valide()
+    {
+        return $this->hasMany(Desistement::class,'reservation_id')->where('statut',1);
+    }
 
 }

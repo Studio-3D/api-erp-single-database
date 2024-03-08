@@ -51,6 +51,7 @@ class ReservationController extends Controller
                 ->select('reservations.*', 'avances_req.sum_avances')
                 ->orderBy('reservations.created_at', 'desc')
                 ->where('reservations.projet_id', $projet_id)
+                ->where('reservations.etat', 1)
                 ->paginate($perPage, ['*'], 'page', $page);
 
             return response()->json(['reservations' => $reservations], 200);
@@ -74,6 +75,7 @@ class ReservationController extends Controller
                 ->whereColumn('sum_avances','<','reservations.prix')
                 ->where('reservations.id','!=',$dos_id)
                 ->orderBy('reservations.created_at', 'desc')
+                ->where('reservations.etat', 1)
                 ->where('reservations.projet_id', $projet_id)
                 ->get();
 
@@ -116,7 +118,6 @@ class ReservationController extends Controller
             $reservation->prix = $request->prix;
             $reservation->mode_financement = $request->mode_financement;
             $reservation->date_reservation = $request->date_reservation;
-            $reservation->date_limite_reservation = $request->date_limite_reservation;
             $reservation->commentaire = $request->commentaire;
             $reservation->visite_id = $request->visite_id;
             $reservation->prix_remise = $request->prix_remise;
@@ -164,7 +165,8 @@ class ReservationController extends Controller
                                 'telephone_num2'=>$request->telephone_num2,
                                 'notifie'=>$request->notifie,
                                 'prospect_id'=>$request->prospect_id,
-                                'civilite'=>'Mr',
+                                'civilite'=>$request->civilite,
+                                'situation_familliale'=>$request->situation_familliale,
                                 'type_client'=>1,
                             ];
                             $clientRequest->merge($dataClient);
@@ -208,10 +210,15 @@ class ReservationController extends Controller
                     $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
                     $mnt_lettre = $inWords->format($request->avance);
                     $dataAvance = [
+                        //addedd
+                        'desistement_id'=>null,
+                        'dossier_id_transfert'=>null,
+                        /////
                         'sr' => $request->sr,
                         'type_encaissement' => 1,
                         'montant' => $request->avance,
                         'mode_paiement' => $request->mode_paiement,
+                       // 'mode_transfert' => null,
                         'numero_paiement' => $request->numero_paiement,
                         'date_reglement' => $request->date_reglement,
                         'echeance' => $request->echeance,
@@ -271,12 +278,19 @@ class ReservationController extends Controller
          if (RoleHelper::ACSup()) {
              DatabaseHelper::Config();
              $reservation = Reservation::on('temp')->findOrFail($id);
+             $etat=$reservation->etat;
              $code=$reservation->code_reservation;
+             $code_desistement=$reservation->code_desistement;
              $prix=$reservation->prix;
-             $nb_aq=count($reservation->aquereurs);
+             if($reservation->etat>1){
+                $nb_aq=count($reservation->aquereurs_ancien);
+                $nb_pj=count($reservation->piece_jointe_desiste);
+             }else{
+                $nb_aq=count($reservation->aquereurs);
+                $nb_pj=count($reservation->piece_jointe);
+             }
              $nb_histo=count($reservation->historiques);
-             $nb_pj=0;
-             return response()->json(['code_res' => $code,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_histo'=>$nb_histo,'nb_pj'=>$nb_pj], 200);
+             return response()->json(['code_res' => $code,'code_desistement' => $code_desistement,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_histo'=>$nb_histo,'nb_pj'=>$nb_pj,'etat'=>$etat], 200);
          } else {
              return response()->json(['error' => 'Unauthorized'], 401);
          }
@@ -296,17 +310,34 @@ class ReservationController extends Controller
              }
              $sum_avances_valides=0;
              $sum_avances=0;
-             foreach($reservation->avances as $av){
-                //avance validé
-                if($av->statut==StatutReservationEnum::Validé->value){
-                    $sum_avances_valides+=$av->montant;
-                }
-                /*//tous les avances !=refuse
-                if($av->statut!=StatutReservationEnum::REFUSER->value){
-                    $sum_avances+=$av->montant;
-                }*/
+             //si dossier desiste
+             if($reservation->etat>1){
+                foreach($reservation->avances_desist as $av){
+                    //avance validé
+                    if($av->statut==StatutReservationEnum::Validé->value){
+                        $sum_avances_valides+=$av->montant;
+                    }
+                    /*//tous les avances !=refuse
+                    if($av->statut!=StatutReservationEnum::REFUSER->value){
+                        $sum_avances+=$av->montant;
+                    }*/
+                 }
+                 $count_avances=Avance::on('temp')->where('reservation_id',$id)->onlyTrashed()->count('id');
+
+             }else{
+                foreach($reservation->avances as $av){
+                    //avance validé
+                    if($av->statut==StatutReservationEnum::Validé->value){
+                        $sum_avances_valides+=$av->montant;
+                    }
+                    /*//tous les avances !=refuse
+                    if($av->statut!=StatutReservationEnum::REFUSER->value){
+                        $sum_avances+=$av->montant;
+                    }*/
+                 }
+                 $count_avances=Avance::on('temp')->where('reservation_id',$id)->count('id');
+
              }
-             $count_avances=Avance::on('temp')->where('reservation_id',$id)->count('id');
 
             return response()->json(['reservation' => $reservation,'propriete_dite_bien'=>$propriete,'sum_avances_valides'=>$sum_avances_valides,'count_avances'=>$count_avances], 200);
         } else {
@@ -350,7 +381,6 @@ class ReservationController extends Controller
             $reservation->prix = $request->prix;
             $reservation->mode_financement = $request->mode_financement;
             $reservation->date_reservation = $request->date_reservation;
-            $reservation->date_limite_reservation = $request->date_limite_reservation;
             $reservation->commentaire = $request->commentaire;
             $reservation->prix_remise = $request->prix_remise;
             $numberToWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
@@ -369,7 +399,7 @@ class ReservationController extends Controller
                             $bienController = new BienController();
                             $bienController->reserverBien($request->bien_id, null, $reservation->id);
                             //liberer l'ancien bien
-                            Bien_Helper::libererBien($old_bien_id, null);
+                            Bien_Helper::libererBien($old_bien_id, null,null);
                             //store to historique reservation
                             $histo = new HistoReservation();
                             $histo->setConnection('temp');
@@ -391,7 +421,7 @@ class ReservationController extends Controller
                     //delete aquereurs
                     $old_aquereurs = Aquereur::on('temp')->where('reservation_id', $id)->get();
                     foreach ($old_aquereurs as $aq) {
-                        $aq->delete();
+                        $aq->forceDelete();
                     }
                     //store new aqueereur
                     $clientController = new ClientController();
@@ -443,7 +473,7 @@ class ReservationController extends Controller
             DatabaseHelper::Config();
             $reservation = Reservation::on('temp')->findOrFail($id);
             //bien disponible
-            Bien_Helper::libererBien($reservation->bien_id, null);
+            Bien_Helper::libererBien($reservation->bien_id, null,null);
             $avanceController = new AvanceController();
             $avanceController->destoryUsingReservationId($id);
             $aquereurController = new AquereurController();
@@ -494,6 +524,7 @@ class ReservationController extends Controller
                 })
                 ->select('reservations.*', 'avances_req.sum_avances')
                 ->orderBy('reservations.created_at', 'desc')
+                 ->where('reservations.etat', 1)
                 ->where('reservations.projet_id', $projet_id)
                 ->get();
 
@@ -505,6 +536,7 @@ class ReservationController extends Controller
         }
     }
 
+    
     public function get_Historiques_by_reservation($id,Request $request)
     {
         if (Auth::guard('api')->check()) {

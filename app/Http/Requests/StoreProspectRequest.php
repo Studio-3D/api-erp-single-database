@@ -8,7 +8,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
-
 class StoreProspectRequest extends FormRequest
 {
     /**
@@ -27,17 +26,27 @@ class StoreProspectRequest extends FormRequest
     public function rules(): array
     {
         $societe_id = Auth::guard('api')->user()->societe_id;
-        $societe=Societe::findOrfail( $societe_id);
-        $DatabaseName='Erp_'.$societe->raison_sociale.'_'.$societe_id;
+        $societe = Societe::findOrfail($societe_id);
+        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
         return [
             'nom' => 'required|string',
             'prenom' => 'required|string',
             'telephone' => 'required|string',
             'telephone_num2' => 'string',
-            'source'=>'string',
-            'cin' => ['string', Rule::unique('temp.'.$DatabaseName.'.prospects','cin')->ignore($this->prospect)],
-            'email' => ['string', Rule::unique('temp.'.$DatabaseName.'.prospects','email')->ignore($this->prospect)],
+            'source' => 'string',
+            'cin' => ['string', Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')],
+            'email' => ['string', Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')],
+
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+
+            'cin.unique' => 'Le cin appartient à un autre utilisateur',
+            'email.unique' => 'L\'email appartient à un autre utilisateur',
 
         ];
     }

@@ -27,11 +27,11 @@ class UpdateReservationRequest extends FormRequest
     {
         $societe_id = Auth::guard('api')->user()->societe_id;
         $societe=Societe::findOrfail( $societe_id);
-        $DatabaseName='Erp_'.$societe->raison_sociale.'_'.$societe_id;
+        $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
             'nb_acquereurs' => 'required|integer',
-            'code_reservation' => 'required|string',
+            //'code_reservation' => 'required|string',
             'prix' => 'required',
             'mode_financement' => 'required',
             'date_reservation'=>'date',

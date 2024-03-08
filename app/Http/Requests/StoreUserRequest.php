@@ -34,8 +34,8 @@ class StoreUserRequest extends FormRequest
             'date_embauche' => 'date',
             'cnss' => 'integer|nullable',
             'is_actif' => 'integer|nullable',
-           // 'nb_appel_recu' => 'integer',
-           // 'nb_appel_traite' => 'integer',
+            // 'nb_appel_recu' => 'integer',
+            // 'nb_appel_traite' => 'integer',
             'solde_conge' => 'integer',
 
         ];

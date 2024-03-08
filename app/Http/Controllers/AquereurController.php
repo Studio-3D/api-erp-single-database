@@ -7,6 +7,8 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreAquereurRequest;
 use App\Http\Requests\UpdateAquereurRequest;
 use App\Models\Aquereur;
+use App\Models\AquereurDesistement;
+use App\Models\NouvelAquereurDesistement;
 use App\Models\Reservation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -42,11 +44,22 @@ class AquereurController extends Controller
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
              // Get the number of items per page
             $page = $request->input('page', 1);
-            $aquereurs = Aquereur::on('temp')
+            $reservation=Reservation::on('temp')->findorfail($reservation_id);
+            //si dossier desiste
+            if($reservation->etat>1){
+                $aquereurs = Aquereur::on('temp')
+                ->orderBy('created_at', 'desc')
+                ->onlyTrashed()
+                ->where('reservation_id', $reservation_id)
+                ->paginate($perPage, ['*'], 'page', $page);
+            }else{
+                $aquereurs = Aquereur::on('temp')
                 ->orderBy('created_at', 'desc')
                 ->where('reservation_id', $reservation_id)
                 ->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['aquereurs' => $aquereurs], 200);
+            }
+
+            return response()->json(['aquereurs' => $aquereurs,'etat_res'=>$reservation->etat], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -80,6 +93,43 @@ class AquereurController extends Controller
             $aquereur->reservation_id=$request->reservation_id;
             if($aquereur->save()){
                 return response()->json(['Aquérreur',$aquereur],200);
+            }
+        }
+        return  response()->json(['error','Unauthorized'],401);
+    }
+
+    public function store_aquereurs_desistement(Request $request)
+    {
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $aquereur=new AquereurDesistement();
+            $aquereur->setConnection('temp');
+            $aquereur->desistement_id=$request->desistement_id;
+            $aquereur->pourcentage=$request->pourcentage;
+            $aquereur->client_id=$request->client_id;
+            $aquereur->aq_id=$request->aq_id;
+            //desisteur ou profit
+            $aquereur->type=$request->type_desisteur;
+            if($aquereur->save()){
+                return response()->json(['Aquérreur',$aquereur],200);
+            }
+        }
+        return  response()->json(['error','Unauthorized'],401);
+    }
+    public function store_new_aquereurs_desistement(Request $request)
+    {
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $nv_aq=new NouvelAquereurDesistement();
+            $nv_aq->setConnection('temp');
+            $nv_aq->desistement_id=$request->desistement_id;
+            $nv_aq->cin=$request->cin;
+            $nv_aq->nom=$request->nom;
+            $nv_aq->prenom=$request->prenom;
+            $nv_aq->telephone=$request->telephone;
+            $nv_aq->pourcentage=$request->pourcentage;
+            if($nv_aq->save()){
+                return response()->json(['Aquérreur',$nv_aq],200);
             }
         }
         return  response()->json(['error','Unauthorized'],401);
@@ -134,7 +184,7 @@ class AquereurController extends Controller
             DatabaseHelper::Config();
             $aquereur=Aquereur::on('temp')->findOrFail($id);
 
-            if($aquereur->delete()){
+            if($aquereur->forceDelete()){
                 return response()->json(['message'=>'Aquérreur supprimé avec succès'],200);
             }
             else{
@@ -149,7 +199,7 @@ class AquereurController extends Controller
             DatabaseHelper::Config();
             $aquereurs=Aquereur::on('temp')->where('reservation_id',$reservation_id)->get();
             foreach ($aquereurs as $aquereur){
-                if($aquereur->delete()){
+                if($aquereur->forceDelete()){
                     return response()->json(['message'=>'Aquérreurs supprimés avec succès'],200);
                 }
                 else{
@@ -158,9 +208,22 @@ class AquereurController extends Controller
             }
 
         }
+        
         return response()->json(['error'=>'Unauthorized'],401);
     }
 
+    public function soft_destroy_aqueureurs_by_reservationId($reservation_id){
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::Config();
+            $aquereurs=Aquereur::on('temp')->where('reservation_id',$reservation_id)->get();
+            foreach ($aquereurs as $aquereur){
+                $aquereur->delete();
+            }
+            return response()->json(['message'=>'Aquereurs supprimés avec succès'],200);
+
+        }
+        return response()->json(['error'=>'Unauthorized'],401);
+    }
 
 
 

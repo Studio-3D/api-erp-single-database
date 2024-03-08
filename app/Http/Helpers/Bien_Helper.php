@@ -22,13 +22,15 @@ use Carbon\Carbon;
 
 class Bien_Helper
 {
-    public static function libererBien($id,$text)
+    
+    public static function libererBien($id,$text,$dst_id)
 
     {
         $user = Auth::user();
         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
         $bien = Bien::on('temp')->findOrfail($id);
         $bien->etat = EtatBien::DISPONIBLE->value;
+        $bien->desistement_id=$dst_id;
         if($bien->save()){
             Bien_Helper::store_bien_frein($bien->id);
             //UPDATE DERNIER VISITE pre reserve=>pre reserve_perdu // vendu==>reservation_perdu

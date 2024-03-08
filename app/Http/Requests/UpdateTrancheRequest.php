@@ -32,7 +32,7 @@ class UpdateTrancheRequest extends FormRequest
             'projet_id' => 'integer',
             'date_lancement' => 'date|nullable',
             'date_livraison' => 'date|nullable',
-            'niveau_etages' => 'integer',
+            'niveau_etages' => 'integer|nullable',
             'nbre_blocs' => 'integer ',
             'nbre_immeubles' => 'integer',
             'nbre_biens' => 'integer',

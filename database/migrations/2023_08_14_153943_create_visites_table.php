@@ -22,7 +22,7 @@ return new class extends Migration
             $table->boolean('etat')->default(true)->nullable();
             $table->unsignedBigInteger('old_v_id')->nullable();
             $table->string('description')->nullable();
-            $table->string('show_id')->nullable();
+            $table->string('show')->nullable();
             $table->string('related_show_id')->nullable();
             $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->id();
             $table->double('montant');
             $table->string('num_recu');
+            $table->string('ancien_recu')->nullable();
             $table->string('montant_par_lettre');
             $table->bigInteger('numero_paiement')->nullable();
             $table->date('date_reglement');
@@ -35,6 +36,9 @@ return new class extends Migration
             $table->timestamp('date_validation')->nullable();
             $table->date('date_encaissement')->nullable();
             $table->string('num_remise')->nullable();
+            $table->foreignId('dossier_id_transfert')->nullable()->constrained('reservations')->onDelete('cascade');
+            $table->integer('desistement_id')->nullable();
+            $table->foreignId('reservation_id_ancien')->nullable()->constrained('reservations')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });

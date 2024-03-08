@@ -34,17 +34,17 @@ class UpdateProspectRequest extends FormRequest
             'prenom' => 'required|string',
             'telephone' => 'required|string',
             'telephone_num2' => 'string',
-            'email'=>'string',
             'source'=>'string',
-            'cin'=>'required',
-           // 'cin' => ['required', Rule::unique('temp.'.$DatabaseName.'.prospects','cin')->ignore($this->prospect)],
+           'cin' => [Rule::unique('temp.'.$DatabaseName.'.prospects','cin')->ignore($this->prospect)],
+           'email' => [Rule::unique('temp.'.$DatabaseName.'.prospects','email')->ignore($this->prospect)],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'cin.unique' => 'Ce prospect existe déjà dans cette société.',
+            'cin.unique' => 'Le cin appartient à un autre utilisateur',
+            'email.unique' => 'L\'email appartient à un autre utilisateur',
         ];
     }
 }

@@ -195,7 +195,9 @@ class BienController extends Controller
     {
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            Bien_Helper::libererBien($id, null);
+            Config::set('broadcasting.default', 'pusher_4');
+            Bien_Helper::libererBien($id, null,null);
+            event(new PropositionUpdated($id, null));
             return response()->json('le bien est liberé');
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -231,7 +233,7 @@ class BienController extends Controller
             }
             if ($bien->save()) {
                 if ($bien->etat == 1) {
-                    Bien_Helper::libererBien($bien->id, null);
+                    Bien_Helper::libererBien($bien->id, null,null);
                 }
             }
 
@@ -568,7 +570,7 @@ class BienController extends Controller
             DatabaseHelper::Config();
             Config::set('broadcasting.default', 'pusher_4');
             if($old_id!=0){
-                Bien_Helper::libererBien($old_id,null);
+                Bien_Helper::libererBien($old_id,null,null);
             }
             $bien = Bien::on('temp')->findOrFail($bien_id);
             $bien->etat=EtatBien::ENCOURS_DE_PROPOSITION->value;

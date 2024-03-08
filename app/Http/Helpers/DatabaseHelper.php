@@ -93,7 +93,7 @@ class DatabaseHelper
         $connection = DatabaseHelper::Connection_database($DatabaseName);
         config(['database.connections.temp' => $connection]);
     }
-    
+
     // public static function Config($societe_id = null)
     // {
     //     if (!$societe_id) {
@@ -145,7 +145,7 @@ class DatabaseHelper
                        foreach($propositions as $prop){
                         $bien=Bien::on('temp')->findorfail($prop->bien_id);
                         if($bien->etat=='ENCOURS_DE_PROPOSITION'){
-                            Bien_Helper::libererBien($bien->id,'console');
+                            Bien_Helper::libererBien($bien->id,'console',null);
                         }
                         $prop->forceDelete();
                        }
@@ -161,7 +161,7 @@ class DatabaseHelper
                         foreach($propositions as $prop){
                         $bien=Bien::on('temp')->findorfail($prop->bien_id);
                         if($bien->etat=='ENCOURS_DE_PROPOSITION'){
-                            Bien_Helper::libererBien($bien->id,'console');
+                            Bien_Helper::libererBien($bien->id,'console',null);
                         }
                         $prop->forceDelete();
                        }
@@ -222,7 +222,7 @@ class DatabaseHelper
                             $diff_in_days =Carbon::parse($bien->last_pre_reservation->date_pre_reserve)->diffInDays($cur_date);
                             if ($diff_in_days >= $bien->projet->limite_annulation_reservation+$bien->projet->prolongation_reservation) {
                                 //if diff>=3 libere bien
-                                Bien_Helper::libererBien($bien->id,'console');
+                                Bien_Helper::libererBien($bien->id,'console',null);
                             }
                             else if($diff_in_days == $bien->projet->limite_annulation_reservation){
 

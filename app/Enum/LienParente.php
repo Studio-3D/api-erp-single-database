@@ -2,7 +2,7 @@
 
 namespace App\Enum;
 
-enum TypeDesistementProfit:int
+enum LienParente:int
 {
     case Parents=1;
     case Fils=2;

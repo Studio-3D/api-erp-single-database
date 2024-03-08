@@ -40,6 +40,8 @@ return new class extends Migration
             $table->foreignId('immeuble_id')->nullable()->constrained('immeubles')->onDelete('cascade');
             $table->foreignId('vue_id')->nullable()->constrained('vues')->onDelete('cascade');
             $table->foreignId('typologie_id')->nullable()->constrained('typologies')->onDelete('cascade');
+            $table->integer('desistement_id')->nullable();
+            $table->integer('remboursement_id')->nullable();
 
         });
     }

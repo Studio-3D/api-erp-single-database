@@ -1,6 +1,5 @@
 <?php
 
-use App\Enum\TypePJ;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -14,12 +13,13 @@ return new class extends Migration
     {
         Schema::create('pieces_jointes', function (Blueprint $table) {
             $table->id();
-            $table->string('fichier');
-            $table->string('type');
             $table->foreignId('reservation_id')->nullable()->constrained('reservations')->onDelete('cascade');
+            $table->foreignId('desistement_id')->nullable()->constrained('desistements')->onDelete('cascade');
             $table->foreignId('avance_id')->nullable()->constrained('avances')->onDelete('cascade');
-            $table->timestamps();
+            $table->foreignId('penalite_id')->nullable()->constrained('penalites_desistements')->onDelete('cascade');
+            $table->string('piece_jointe');
             $table->softDeletes();
+            $table->timestamps();
         });
     }
 

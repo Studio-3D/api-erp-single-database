@@ -10,4 +10,5 @@ enum ModePaiement:int
     case Chèque_Certifié=4;
     case Virement=5;
     case Versement=6;
+    case transfert_dossier=7;
 }

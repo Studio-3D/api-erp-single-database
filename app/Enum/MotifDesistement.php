@@ -2,7 +2,7 @@
 
 namespace App\Enum;
 
-enum TypeDesistement:int
+enum MotifDesistement:int
 {
     case Incapacité_Financière=1;
     case Décès=2;

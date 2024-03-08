@@ -75,10 +75,16 @@ class UserController extends Controller
 
     public function get_users()
     {
-        if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
-            $users = User::all();
-            return response()->json(['users' => $users]);
-        } else if (RoleHelper::AdminSup()) {
+        if (RoleHelper::Superadmin()) {
+            if(Auth::guard('api')->user()->societe_id == 1){
+                $users = User::all();
+                return response()->json(['users' => $users]);
+            }else{
+                $users = User::where('societe_id', Auth::guard('api')->user()->societe_id)->get();
+                return response()->json(['users' => $users]);
+            }
+           
+        } else if (RoleHelper::Admin()) {
             DatabaseHelper::Config();
             $users = User::on('temp')->get();
             return response()->json(['users' => $users], 200);
@@ -88,14 +94,23 @@ class UserController extends Controller
     }
     public function index(Request $request)
     {
-        if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
-
-            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
-            $page = $request->input('page', 1);
-            $users = User::orderBy('created_at', 'desc')
-                ->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['users' => $users]);
-        } else if (RoleHelper::AdminSup()) {
+        if (RoleHelper::Superadmin()) {
+            if(Auth::guard('api')->user()->societe_id == 1){
+                $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+                $page = $request->input('page', 1);
+                $users = User::orderBy('created_at', 'desc')
+                            ->paginate($perPage, ['*'], 'page', $page);
+                return response()->json(['users' => $users]);
+            }else{
+                $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+                $page = $request->input('page', 1);
+                $users = User::where('societe_id', Auth::guard('api')->user()->societe_id)
+                        ->orderBy('created_at', 'desc')
+                        ->paginate($perPage, ['*'], 'page', $page);
+                return response()->json(['users' => $users]);
+            }
+           
+        } else if (RoleHelper::Admin()) {
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
@@ -148,17 +163,15 @@ class UserController extends Controller
             $user->solde_conge = $request->solde_conge;
 
             if ($request->hasFile('photo')) {
-                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
-                $request->file('photo');
+                $photo = time() . '.' . $request->name. '_' . $request->prenom . '.' . $request->photo->extension();
+                $request->photo = $photo;
 
             }
             if ($user->save()) {
                 if ($request->hasFile('photo')) {
-                    $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                     $societe = Societe::findOrfail($user->societe_id);
                     $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
-                    $user->photo = $photo;
-                    $user->save();
+                    
                 }
                 $this->createSubUser($request, $user->id, $user->photo);
             }
@@ -204,14 +217,15 @@ class UserController extends Controller
      */
     public function show($id)
     {
-        if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
+        if (RoleHelper::Superadmin()) {
             $user = User::findOrfail($id);
+            
             if ($user) {
                 return response()->json(['user' => $user], 200);
             } else {
                 return response()->json(['message' => 'Utilisateur non trouvé'], 200);
             }
-        } else if (RoleHelper::AdminSup()) {
+        } else if (RoleHelper::Admin()) {
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
             return response()->json(['user' => $user], 200);
@@ -246,6 +260,7 @@ class UserController extends Controller
             $user->solde_conge = $request->input('solde_conge');
             $user_origin = User::where('id', $user->user_id_origin)->first();
             $societe = Societe::findOrfail($user_origin->societe_id);
+            $photo = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = asset('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users' . $user_origin->photo);
@@ -254,18 +269,17 @@ class UserController extends Controller
                         unlink($image_path);
                     }
                 }
-                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+                $photo = time() . '.' . $request->name. '_' . $request->prenom  . '.' . $request->photo->extension();
                 $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
                 $user->photo = $photo;
             }
 
             if ($user->save()) {
                 //Modifier dans la BDD Mère
-                $user_origin = User::where('id', $user->user_id_origin)->first();
+                $user_origin = User::findOrFail($id);
                 if ($user_origin) {
                     $user_origin->update($request->all());
                     if ($request->hasFile('photo')) {
-                        $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                         $user_origin->photo = $photo;
                         $user_origin->save();
                     }
@@ -274,7 +288,7 @@ class UserController extends Controller
                 return response()->json(['message' => 'profil modifié avec succès'], 200);
 
             }
-        } else if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
+        } else if (RoleHelper::Superadmin()) {
             $user = User::findOrFail($id);
             $user->name = $request->input('name');
             $user->prenom = $request->input('prenom');
@@ -290,6 +304,7 @@ class UserController extends Controller
             $user->cnss = $request->input('cnss');
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
+            $photo = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = public_path('img/users/' . $user->photo);
@@ -297,7 +312,7 @@ class UserController extends Controller
                         unlink($image_path);
                     }
                 }
-                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+                $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $societe = Societe::findOrfail($user->societe_id);
                 $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
                 $user->photo = $photo;
@@ -310,7 +325,6 @@ class UserController extends Controller
                 if ($user_societes) {
                     $user_societes->update($request->all());
                     if ($request->hasFile('photo')) {
-                        $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                         $user_societes->photo = $photo;
                         $user_societes->save();
                     }
@@ -319,7 +333,7 @@ class UserController extends Controller
 
             return response()->json(['message' => 'Utilisateur modifié avec succès par super admin'], 200);
 
-        } else if (RoleHelper::Admin() || (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id !== 1)) {
+        } else if (RoleHelper::Admin()) {
             DatabaseHelper::Config();
             $user = User::on('temp')->findOrfail($id);
             $user->name = $request->input('name');
@@ -337,6 +351,7 @@ class UserController extends Controller
             $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
             $user->solde_conge = $request->input('solde_conge');
             $user_societes = User::where('id', $user->user_id_origin)->first();
+            $photo = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = public_path('img/users/' . $user->photo);
@@ -344,7 +359,7 @@ class UserController extends Controller
                         unlink($image_path);
                     }
                 }
-                $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
+                $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $societe = Societe::findOrfail($user_societes->societe_id);
                 $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
                 $user->photo = $photo;
@@ -355,7 +370,6 @@ class UserController extends Controller
                 if ($user_societes) {
                     $user_societes->update($request->all());
                     if ($request->hasFile('photo')) {
-                        $photo = time() . '.' . $request->name . '.' . $request->photo->extension();
                         $user_societes->photo = $photo;
                         $user_societes->save();
                     }

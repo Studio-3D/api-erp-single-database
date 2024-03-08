@@ -42,8 +42,6 @@ return new class extends Migration
             $table->double('superficie_total', 12, 2);
             $table->double('superficie_vendable', 12, 2);
             $table->enum('etat', [EtatBien::DISPONIBLE->name, EtatBien::PRE_RESERVATION->name, EtatBien::RESERVATION->name, EtatBien::BLOQUE->name, EtatBien::VENDU->name, EtatBien::ENCOURS_DE_PROPOSITION->name]); //1=disponible, 2=pré-réservé, 3=réservé, 4=bloqué
-            $table->timestamps();
-            $table->softDeletes();
             $table->foreignId('type_id')->constrained('type_biens');
             $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
             $table->foreignId('tranche_id')->nullable()->constrained('tranches')->onDelete('cascade');
@@ -51,6 +49,12 @@ return new class extends Migration
             $table->foreignId('immeuble_id')->nullable()->constrained('immeubles')->onDelete('cascade');
             $table->foreignId('vue_id')->nullable()->constrained('vues')->onDelete('cascade');
             $table->foreignId('typologie_id')->nullable()->constrained('typologies')->onDelete('cascade');
+            $table->integer('desistement_id')->nullable();
+            $table->integer('remboursement_id')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+
+
         });
     }
 

@@ -36,7 +36,7 @@ class BanqueController extends Controller
         if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
             $banques = Banque::all();
             return response()->json(['banques' => $banques]);
-        } else if (RoleHelper::AdminSup()) {
+        } else {
             DatabaseHelper::Config();
             $banques = Banque::on('temp')->get();
             return response()->json(['banques' => $banques], 200);

@@ -15,8 +15,8 @@ return new class extends Migration
             $table->id();
             $table->string('num_recu');
             $table->date('date');
-            $table->foreignId('avance_id')->constrained('avances')->nullable()->onDelete('cascade');
-            $table->integer('penalite_id')->nullable()->comment('Table Penalite');
+            $table->foreignId('avance_id')->nullable()->constrained('avances')->onDelete('cascade');
+            $table->integer('penalite_id')->nullable();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();

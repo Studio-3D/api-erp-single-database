@@ -22,4 +22,10 @@ class PiecesJointe extends Model
     public function avance(){
         return $this->belongsTo(Avance::class,'avance_id');
     }
+    public function desistement(){
+        return $this->belongsTo(Desistement::class,'desistement_id');
+    }
+    public function penalite(){
+        return $this->belongsTo(Penalite_desistement::class,'penalite_id');
+    }
 }

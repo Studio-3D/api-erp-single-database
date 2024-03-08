@@ -22,10 +22,12 @@ use App\Http\Helpers\NotificationHelper;
 use Carbon\Carbon;
 use App\Enum\RoleEnum;
 use \NumberFormatter;
+use App\Enum\ModePaiement;
 
 
 
-class AvanceController extends Controller
+
+class AvanceController  extends Controller
 {
     /**
      * Display a listing of the resource.
@@ -52,8 +54,9 @@ class AvanceController extends Controller
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
-            $reservation=Reservation::on('temp')->select('prix')->findorfail($reservation_id);
-            $avances = Avance::on('temp')
+            $reservation=Reservation::on('temp')->select('prix','etat')->findorfail($reservation_id);
+            if($reservation->etat==1){
+                $avances = Avance::on('temp')
                 ->withcount('historiques')
                 ->orderBy('created_at', 'desc')
                 ->where('reservation_id', $reservation_id)
@@ -65,14 +68,32 @@ class AvanceController extends Controller
                         $sum_avances+=$av->montant;
                     }
                  }
+            }else{
+                //si dossier desiste
+                $avances = Avance::on('temp')
+                ->withcount('historiques')
+                ->orderBy('created_at', 'desc')
+                ->onlyTrashed()
+                ->where('reservation_id', $reservation_id)
+                ->get();
+                $sum_avances=0;
+                foreach($avances as $av){
+                    //tous les avances !=refuse
+                    if($av->statut!=StatutReservationEnum::Refusé->value){
+                        $sum_avances+=$av->montant;
+                    }
+                 }
+            }
+
             $data = PaginationHelper::paginate_array($avances->toArray(),$perPage,$page,$request->url());
-            return response()->json(['avances' => $data,'sum_avances'=>$sum_avances,'prix'=>$reservation->prix], 200);
+            return response()->json(['avances' => $data,'sum_avances'=>$sum_avances,'prix'=>$reservation->prix,'etat_res'=>$reservation->etat], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
 
         }
     }
+
     public function historiques_avance(Request $request,$id)
     {
         if(Auth::guard('api')->check()){
@@ -140,16 +161,30 @@ class AvanceController extends Controller
             }
 
             $avance->reservation_id=$request->reservation_id;
-            if(RoleHelper::Com()){
-                $avance->statut=StatutReservationEnum::En_Attente->value;
-            }
-            elseif(RoleHelper::AdminSup()){
+            if($request->desistement_id!=null){
+                $avance->desistement_id=$request->desistement_id;
+                $avance->dossier_id_transfert=$request->dossier_id_transfert;
                 $avance->statut=StatutReservationEnum::Validé->value;
                 $avance->user_id_valider=$userAuth->value('id');
                 $avance->date_validation=Carbon::now();
                 $avance->date_encaissement=$request->date_encaissement;
-                $avance->num_remise = $request->num_remise;
+                $avance->num_remise =ModePaiement::transfert_dossier->value;
+               // $avance->mode_transfert = $request->mode_transfert;
             }
+            else{
+                if(RoleHelper::Com()){
+                    $avance->statut=StatutReservationEnum::En_Attente->value;
+                }
+                elseif(RoleHelper::AdminSup()){
+                    $avance->statut=StatutReservationEnum::Validé->value;
+                    $avance->user_id_valider=$userAuth->value('id');
+                    $avance->date_validation=Carbon::now();
+                    $avance->date_encaissement=$request->date_encaissement;
+                    $avance->num_remise = $request->num_remise;
+                }
+            }
+
+
 
 
             if($avance->save()){
@@ -390,19 +425,19 @@ class AvanceController extends Controller
             $avance=Avance::on('temp')->findOrFail($id);
             $histo=HistoriqueAvance::on('temp')->where('avance_id',$id)->get();
             foreach($histo as $h){
-                $h->delete();
+                $h->forceDelete();
             }
             $fiche=FicheTransmission::on('temp')->where('avance_id',$id)->get();
             foreach($fiche as $f){
-                $f->delete();
+                $f->forceDelete();
             }
             $encaiss=Encaissement::on('temp')->where('avance_id',$id)->get();
 
             foreach($encaiss as $en){
-                $en->delete();
+                $en->forceDelete();
             }
 
-            if ($avance->delete()) {
+            if ($avance->forceDelete()) {
                 return response()->json(['message' => 'avance deleted succesfully'], 200);
             }
             else{
@@ -412,6 +447,33 @@ class AvanceController extends Controller
         return response()->json(['error'=>'Unauthorized'],401);
     }
 
+    public function soft_destroy_avances_by_reservationId($reservation_id)
+    {
+        if(RoleHelper::ACSup()){
+            DatabaseHelper::config();
+            $avances=Avance::on('temp')->where('reservation_id',$reservation_id)->get();
+            foreach ($avances as $avance){
+                $histo=HistoriqueAvance::on('temp')->where('avance_id',$avance->id)->get();
+                foreach($histo as $h){
+                    $h->delete();
+                }
+                $fiche=FicheTransmission::on('temp')->where('avance_id',$avance->id)->get();
+                foreach($fiche as $f){
+                    $f->delete();
+                }
+                $encaiss=Encaissement::on('temp')->where('avance_id',$avance->id)->get();
+
+                foreach($encaiss as $en){
+                    $en->delete();
+                }
+                $avance->delete();
+
+            }
+            return response()->json(['message'=>'Avances supprimés avec succès'],200);
+
+        }
+        return response()->json(['error'=>'Unauthorized'],401);
+    }
     public function destoryUsingReservationId($reservation_id){
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
