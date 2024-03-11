@@ -115,7 +115,6 @@ class ClientController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-
             $client = Client::on('temp')->findOrFail($id);
             return response()->json(['client' => $client], 200);
 

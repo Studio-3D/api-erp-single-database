@@ -19,7 +19,6 @@ use App\Enum\TypeDesistementProfit;
 use App\Enum\MotifDesistement;
 use App\Enum\LienParente;
 
-
 class EnumController extends Controller
 {
     /**
@@ -35,7 +34,7 @@ class EnumController extends Controller
 
         return response()->json(['list_interets' => $list_interets,'list_orientations' => $list_orientations,'list_type_notifs' => $list_type_notifs,'list_statut_Visites'=>$list_statut_Visites]);
     }
-    
+
     public function get_enums_desistements()
     {
         $type_desistements=array_column(TypeDesistement::cases(), 'name', 'value');
@@ -94,6 +93,7 @@ class EnumController extends Controller
     {
         return response()->json(['list' => array_column(EtatBien::cases(), 'name', 'value')]);
     }
+
     /**
      * Show the form for creating a new resource.
      */

@@ -284,7 +284,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('Enums_desistements', [EnumController::class,'get_enums_desistements'])->name('');
 
 
-
     /************************NotificationController********************* */
     Route::get('get_relances_visites/{projet_id}', [NotificationController::class,'get_relances_visites'])->name('');
     Route::get('get_rdv_visites/{projet_id}', [NotificationController::class,'get_rdv_visites'])->name('');
