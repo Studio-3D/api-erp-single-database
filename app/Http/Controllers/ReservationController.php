@@ -268,7 +268,7 @@ class ReservationController extends Controller
      {
          if(RoleHelper::ACSup()){
               DatabaseHelper::Config();
-              $reservation = Reservation::on('temp')->where('code_reservation',$code)
+              $reservation = Reservation::on('temp')->where('code_reservation',$code)->where('etat',1)
                  ->get()->first();
              return response()->json(['reservation' => $reservation]);
           }
