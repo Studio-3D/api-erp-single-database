@@ -265,7 +265,7 @@ class ReservationController extends Controller
                 $avanceController->store($avanceRequest);
                 //****store piece jointe***
 
-                //////storer les pieces jointe de paiement
+                //////storer les pieces jointe de résérvation
                 if ($request->file('files_reservation')) {
                     foreach ($request->file('files_reservation') as $file) {
                         $piecesJointeController = new PiecesJointeController();
@@ -518,11 +518,13 @@ class ReservationController extends Controller
                             }}
                     
 
-                    //****delete piece jointe***
+                    //****edit piece jointe***
                     if ($request->file('files_reservation')) {
+                            //****delete old piece jointe***
+
                             $pjController = new PiecesJointeController();
                             $pjController->destoryFileUsingReservationId($id);
-                        foreach ($request->file('files_reservation') as $file) {
+                            foreach ($request->file('files_reservation') as $file) {
                             $piecesJointeController = new PiecesJointeController();
                             $pieceJointeRequest = new StorePiecesJointeRequest();
                             $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();

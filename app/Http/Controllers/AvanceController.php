@@ -202,13 +202,13 @@ class AvanceController  extends Controller
 
                         // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
-                        $Myfile = time() . '.' .$fileName;
+                        //$Myfile = time() . '.' .$fileName;
                         $directory = public_path('files/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiement');
                         File::makeDirectory($directory, 0755, true, true);
-                        $file->move($directory, $Myfile);
+                        $file->move($directory, $fileName);
                         $fileType = $file->getClientOriginalExtension();
                         $datapieceJointe = [
-                            'fichier' => $Myfile,
+                            'fichier' => $fileName,
                             'type' => $fileType,
                             'avance_id' => $avance->id,
                         ];

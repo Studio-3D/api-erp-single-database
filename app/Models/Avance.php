@@ -14,7 +14,7 @@ class Avance extends Model
 
     protected $table='avances';
     protected $dates=['deleted_at'];
-    protected $with = ['banque','user','reservation'];
+    protected $with = ['banque','user','reservation','piece_jointe'];
 
     public function banque()
     {
@@ -35,5 +35,9 @@ class Avance extends Model
     public function historiques()
     {
         return $this->hasMany(HistoriqueAvance::class,'avance_id');
+    }
+    public function piece_jointe()
+    {
+        return $this->hasMany(PiecesJointe::class, 'reservation_id');
     }
 }
