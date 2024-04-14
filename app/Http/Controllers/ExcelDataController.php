@@ -72,7 +72,7 @@ class ExcelDataController extends Controller
            
                         foreach($bloc as $blocs)
                         {
-                            $immeuble = Immeuble::where('description', $tem['immeuble'])->where('tranche_id',  $tranches->id)->where('project_id', $projet_id)->where('bloc_id', $blocs->id)->get(['id']);
+                            $immeuble = Immeuble::where('nom', $tem['immeuble'])->where('tranche_id',  $tranches->id)->where('project_id', $projet_id)->where('bloc_id', $blocs->id)->get(['id']);
                             if($immeuble)
                             {
                                 Log::info('immeuble exist ');
@@ -629,14 +629,14 @@ class ExcelDataController extends Controller
                         // bloc not exist 
                       $blocc=new Bloc();
                       $blocc->setConnetion('temp');
-                      $blocc->description=$item['bloc'];
+                      $blocc->nom=$item['bloc'];
                       $blocc->project_id=$projet_id;
                       $blocc->tranche_id=$tranches->id;
                       if($bloc->id){
 
                         $immeuble=new Immeuble();
                         $immeuble->setConnetion('temp');
-                        $immeuble->description=$item['immeuble'];
+                        $immeuble->nom=$item['immeuble'];
                         $immeuble->project_id=$projet_id;
                         $immeuble->tranche_id=$tranches->id;
                         $immeuble->bloc_id=$blocc->id;
@@ -898,20 +898,20 @@ class ExcelDataController extends Controller
                 $nv=null;
               $tranche=new Tranche();
               $tranche->setConnection('temp');
-              $tranche->description=$item['tranche'];
+              $tranche->nom=$item['tranche'];
               $tranche->project_id=$projet_id;
               if($tranche->save){
 
                 $bloc=new Bloc();
                 $bloc->setConnection('temp');
-                $bloc->description=$item['bloc'];
+                $bloc->nom=$item['bloc'];
                 $bloc->project_id=$projet_id;
                 $bloc->tranche_id=$tranche->id;
                 if($bloc->save())
                 {
                     $immeuble=new Immeuble();
                     $immeuble->setConnection('temp');
-                    $immeuble->description=$row['immeuble'];
+                    $immeuble->nom=$row['immeuble'];
                     $immeuble->project_id=$projet_id;
                     $immeuble->tranche_id=$tranche->id;
                     $immeuble->bloc_id=$bloc->id;
