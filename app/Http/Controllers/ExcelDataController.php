@@ -48,7 +48,7 @@ class ExcelDataController extends Controller
         foreach ($data as $item) {
 
 
-            $tranche = Tranche::on('temp')
+            $tranche =Tranche::on('temp')
             ->where('nom', $item['tranche'])
             ->where('projet_id', $projet_id)
             ->get();
@@ -350,7 +350,7 @@ class ExcelDataController extends Controller
                             else{
                                $immeuble=new Immeuble();
                                $immeuble->setConnection('temp');
-                               $immeuble->description=$item['immeuble'];
+                               $immeuble->nom=$item['immeuble'];
                                $immeuble->project_id=$projet_id;
                                $immeuble->tranche_id=$tranches->id;
                                $immeuble->bloc_id=$blocs->id;
