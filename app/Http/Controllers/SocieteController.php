@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Config;
 
 
 
+
 class SocieteController extends Controller
 {
     /**

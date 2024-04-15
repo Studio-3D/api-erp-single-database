@@ -33,6 +33,7 @@ use App\Http\Controllers\WhatsApp\WhatsAppController;
 use App\Http\Controllers\Landing_page\Landing_pageController;
 use App\Http\Controllers\DesistementController;
 use App\Http\Controllers\RemboursementController;
+use App\Http\Controllers\ExcelDataController;
 
 
 /*
@@ -62,6 +63,8 @@ Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_
 
 Route::middleware('auth:api')->group(function () {
 
+    Route::post('upload-excel-data', [ExcelDataController::class, 'UploadDataExcel'])->name('upload-excel-data');
+    Route::post('testfunction', [ExcelDataController::class, 'testfunction'])->name('upload-excel-data');
 
 
 
