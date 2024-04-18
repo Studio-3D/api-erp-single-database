@@ -12,7 +12,7 @@ use App\Models\TypeBien;
 use App\Models\Immeuble;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
-use Maatwebsite\Excel\Concerns\WithHeadingitem;
+use Maatwebsite\Excel\Concerns\WithHeadingcolumn;
 use Illuminate\Support\Str;
 use App\Http\Helpers\DatabaseHelper;
 
@@ -45,12 +45,16 @@ class ExcelDataController extends Controller
         // Initialize an array to store blocs
     
         // Iterate through each element in the $data array
-        // loping data from  data intm  item  from front end 
-        foreach ($data as $item) {
+        // loping data from  data intm  column  from front end 
+        foreach ($data as $column) {
 
 
+            // if(array_key_exists('tranche',$column))
+            // {
+
+            // }
             $tranche =Tranche::on('temp')
-            ->where('nom', $item['tranche'])
+            ->where('nom', $column['tranche'])
             ->where('projet_id', $projet_id)
             ->get();
 
@@ -64,15 +68,19 @@ class ExcelDataController extends Controller
                 foreach($tranche as $tranches)
                 {
                     
+                    Log::info(' loop tranche');
+                    
+                    
                     Log::info($tranches->id);
                     
                     $bloc = Bloc::on('temp')
-                    ->where('nom', $item['Bloc'])
+                    ->where('nom', $column['Bloc'])
                     ->where('tranche_id', $tranches->id)
                     ->where('projet_id', $projet_id)
                     ->get();
 
                Log::info($bloc);
+               
 
                     if($bloc)
                     {
@@ -81,13 +89,16 @@ class ExcelDataController extends Controller
                         foreach($bloc as $blocs)
                         {
                             
+                            Log::info('loop bloc ');
+                            
+                            
                             Log::info($blocs->id);
                             
                             $immeuble = Immeuble::on('temp')
-                            ->where('nom', $item['immeuble'])
+                            ->where('nom', $column['immeuble'])
                             ->where('tranche_id',  $tranches->id)
-                            ->where('projet_id', $projet_id)->get();
-                            // ->where('bloc_id', $blocs->id)->get();
+                            ->where('projet_id', $projet_id)
+                            ->where('bloc_id', $blocs->id)->get();
                             
                               
                             
@@ -99,13 +110,16 @@ class ExcelDataController extends Controller
                                foreach($immeuble as $immeubles)
                                {
                                 
+                                Log::info(' loop immeu');
+                                
+                                
                                 Log::info($immeubles->id);
                                 
 
                                 $nv=0;
-                                $bien_exist=Bien::on('temp')->where(function ($query) use ($item){
-                                    $query->where('propriete_dite_bien',$item['Appt_Num']);
-                                    //->orwhere('propriete_dite_bien',$item['MAGASIN_Num']);
+                                $bien_exist=Bien::on('temp')->where(function ($query) use ($column){
+                                    $query->where('propriete_dite_bien',$column['Appt_Num']);
+                                    //->orwhere('propriete_dite_bien',$column['MAGASIN_Num']);
                                 })->where('tranche_id', $tranches->id)->where('projet_id', $projet_id)->where('bloc_id', $blocs->id)->count();
 
                                 log::info('uts done here 1');
@@ -118,99 +132,101 @@ class ExcelDataController extends Controller
                                     $bien->bloc_id=$blocs->id;
                                     $bien->immeuble_id = $immeubles->id;
 
-                                    if (array_key_exists("Appt_Num",$item) && $item['Appt_Num']!=null ){
+                                    if (array_key_exists("Appt_Num",$column) && $column['Appt_Num']!=null ){
                                         log::info('uts done here 3');
 
-                                            $explode_numero = explode("Appt", $item['Appt_Num']);
+                                            $explode_numero = explode("Appt", $column['Appt_Num']);
                                             $bien->numero=$explode_numero[1];
-                                            $bien->propriete_dite_bien=$item['Appt_Num'];
+                                            $bien->propriete_dite_bien=$column['Appt_Num'];
                                        
 ;
                                     }
-                                    if (array_key_exists("magasin_num",$item) && $item['magasin_num']!=null){
+                                    if (array_key_exists("magasin_num",$column) && $column['magasin_num']!=null){
                                        
-                                             $bien->numero=$item['magasin_num'];
-                                             $bien->propriete_dite_bien=$item['magasin_num'];
+                                             $bien->numero=$column['magasin_num'];
+                                             $bien->propriete_dite_bien=$column['magasin_num'];
 
                                         
                                     }
 
-                                    if (array_key_exists("niveau",$item) && array_key_exists("etage",$item)){
+                                        log::info('its done here 4');
 
-                                        if($item['niveau']!=null){
+                                    if (array_key_exists("Niveau",$column) && array_key_exists("etage",$column)){
+
+                                        if($column['Niveau']!=null){
 
 
-                                             if (str_contains($item['niveau'], 'er etage')) {
-                                                  $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                                  $bien->niveau=$explode_niveau_1[0];
-                                                  $nv=$explode_niveau_1[0];
-                                             }elseif(str_contains($item['niveau'], 'eme etage')){
-                                                  $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                                  $bien->niveau=$explode_niveau_2[0];
-                                                  $nv=$explode_niveau_2[0];
+                                             if (str_contains($column['Niveau'], 'er etage')) {
+                                                  $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                                  $bien->Niveau=$explode_Niveau_1[0];
+                                                  $nv=$explode_Niveau_1[0];
+                                             }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                                  $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                                  $bien->Niveau=$explode_Niveau_2[0];
+                                                  $nv=$explode_Niveau_2[0];
 
-                                             }elseif(str_contains($item['niveau'], 'ème etage')){
-                                                  $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                                  $bien->niveau=$explode_niveau_3[0];
-                                                  $nv=$explode_niveau_2[0];
+                                             }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                                  $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                                  $bien->Niveau=$explode_Niveau_3[0];
+                                                  $nv=$explode_Niveau_2[0];
                                              }
-                                             elseif(str_contains($item['niveau'], 'RDC')){
-                                                $bien->niveau=0;
+                                             elseif(str_contains($column['Niveau'], 'RDC')){
+                                                $bien->Niveau=0;
                                                 $nv=0;
                                              }
 
 
-                                        }elseif($item['etage']!=null){
-                                            $bien->niveau=$item['etage'];
-                                             $nv=$item['etage'];
+                                        }elseif($column['etage']!=null){
+                                            $bien->Niveau=$column['etage'];
+                                             $nv=$column['etage'];
 
                                         }
                                     }else{
-                                        if($item['niveau']!=null){
-                                            if (str_contains($item['niveau'], 'er etage')) {
-                                                     $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                                     $bien->niveau=$explode_niveau_1[0];
-                                                     $nv=$explode_niveau_1[0];
-                                                }elseif(str_contains($item['niveau'], 'eme etage')){
-                                                     $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                                     $bien->niveau=$explode_niveau_2[0];
-                                                     $nv=$explode_niveau_2[0];
+                                        if($column['Niveau']!=null){
+                                            if (str_contains($column['Niveau'], 'er etage')) {
+                                                     $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                                     $bien->Niveau=$explode_Niveau_1[0];
+                                                     $nv=$explode_Niveau_1[0];
+                                                }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                                     $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                                     $bien->Niveau=$explode_Niveau_2[0];
+                                                     $nv=$explode_Niveau_2[0];
 
-                                                }elseif(str_contains($item['niveau'], 'ème etage')){
-                                                     $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                                     $bien->niveau=$explode_niveau_3[0];
-                                                     $nv=$explode_niveau_2[0];
+                                                }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                                     $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                                     $bien->Niveau=$explode_Niveau_3[0];
+                                                     $nv=$explode_Niveau_2[0];
                                                 }
-                                                elseif(str_contains($item['niveau'], 'RDC')){
-                                                   $bien->niveau=0;
+                                                elseif(str_contains($column['Niveau'], 'RDC')){
+                                                   $bien->Niveau=0;
                                                    $nv=0;
                                                 }
                                        }
 
                                     }
 
+                                    log::info('uts done here 5');
 
-
-                                    if ($item['type_local']=='APPARTEMENT'){
+                                    if ($column['type_local']=='APPARTEMENT'){
                                         $type=TypeBien::on('temp')->where('type','Appartement')->get()->first();
                                         $bien->type_id=$type->id;
 
                                     }
 
-                                    elseif ($item['type_local']=='LOCAL COMMERCIAL') {
+                                    elseif ($column['type_local']=='LOCAL COMMERCIAL') {
                                         $type=TypeBien::on('temp')->where('type','Magasin')->get()->first();
                                         $bien->type_id=$type->id;
 
                                     }
 
-                                    $bien->partie_p = $item['partie_p'];
+                                    // $bien->partie_p = $column['partie_p'];
 
-                                    if (array_key_exists("parking",$item)){
-                                        if ($item['parking'] == NULL) {
+                                    if (array_key_exists("parking",$column)){
+                                        if ($column['parking'] == NULL) {
 
                                              $bien->prix_parking = 0;
                                         } else {
-                                             $bien->prix_parking = $item['parking'];
+                                             $bien->prix_parking = $column['parking'];
                                         }
                                     }
 
@@ -218,13 +234,13 @@ class ExcelDataController extends Controller
                                         $bien->superficie_balcon = 0;
                                    }
 
-                                   if (array_key_exists("balcon",$item)){
-                                    if ($item['balcon'] == NULL || $item['balcon'] == 'SYNDIC PROPOSE'||$item['balcon']=='SYNDIC PLAN') {
+                                   if (array_key_exists("balcon",$column)){
+                                    if ($column['balcon'] == NULL || $column['balcon'] == 'SYNDIC PROPOSE'||$column['balcon']=='SYNDIC PLAN') {
                                         $sup_balcon=0;
                                          $bien->superficie_balcon = 0;
 
                                     } else {
-                                        $bien->superficie_balcon = $item['balcon'];
+                                        $bien->superficie_balcon = $column['balcon'];
 
                                     }
                                     
@@ -232,40 +248,43 @@ class ExcelDataController extends Controller
                                     $bien->superficie_balcon = 0;
 
                                   }
-                                  if (array_key_exists("terrasse",$item)){
-                                    if ($item['terrasse'] == NULL) {
-                                        $bien->superficie_terasse = 0;
+                                  if (array_key_exists("terrasse",$column)){
+                                    if ($column['terrasse'] == NULL) {
+                                        log::info('uts done here 6');
+
+                                        $bien->superficie_terrasse = 0;
+                                        
 
                                     } else {
 
-                                        $bien->superficie_terasse = $item['terrasse'];
+                                        $bien->superficie_terrasse = $column['terrasse'];
 
                                     }
                                 }else{
 
-                                    $bien->superficie_terasse = 0;
+                                    $bien->superficie_terrasse = 0;
 
                                 }
-                                $bien->superficie_terasse_calculee=$bien->superficie_terasse;
-                                $bien->superficie_balcon_calculee= $bien->superficie_balcon;
+                                $bien->superficie_terrasse_calculer=$bien->superficie_terrasse;
+                                $bien-> superficie_balcon_calculer=$bien->superficie_balcon;
 
-                                if (array_key_exists("superficie_architect",$item)){
-                                    if ($item['superficie_architect'] == NULL) {
-                                        $bien->superficie =0;
+                                if (array_key_exists("superficie_architect",$column)){
+                                    if ($column['superficie_architect'] == NULL) {
+                                        $bien-> superficie_architecte =0;
 
                                     } else {
-                                        $bien->superficie =$item['superficie_architect']-$bien->superficie_terasse_calculee-$bien->superficie_balcon_calculee;
+                                        $bien->superficie_architecte =$column['superficie_architect']-$bien->superficie_terrasse_calculer-$bien-> superficie_balcon_calculer;
 
                                     }
                                 }else{
 
-                                    $bien->superficie = 0;
+                                    $bien->superficie_architecte = 0;
 
                                 }
                                 $bien->superficie_architecte = 0;
 
-                                if (array_key_exists("pu",$item)){
-                                    if ($item['pu'] == NULL) {
+                                if (array_key_exists("pu",$column)){
+                                    if ($column['pu'] == NULL) {
                                     
                                         if($nv==0){
                                             $bien->prix_unitaire=11500;
@@ -276,22 +295,22 @@ class ExcelDataController extends Controller
 
                                     }
                                     else{
-                                        $bien->prix_unitaire=$item['pu'];
+                                        $bien->prix_unitaire=$column['pu'];
                                     }
                                 }else{
-                                    if($item['type_local']=='LOCAL COMMERCIAL'){
+                                    if($column['type_local']=='LOCAL COMMERCIAL'){
                                         $bien->prix_unitaire=25000;
 
                                     }else{
                                         $bien->prix_unitaire=0;
                                     }
                                 }
-                                if (array_key_exists("prix_box",$item)){
-                                    if ($item['prix_box'] == NULL) {
+                                if (array_key_exists("prix_box",$column)){
+                                    if ($column['prix_box'] == NULL) {
                                         $bien->prix_box = 0;
 
                                     } else {
-                                        $bien->prix_box = $item['prix_box'];
+                                        $bien->prix_box = $column['prix_box'];
 
                                     }
                                 }else{
@@ -300,18 +319,28 @@ class ExcelDataController extends Controller
                                 }
 
                                                     $sup=$bien->superficie;
-                                                    $bien->superficie_totale=$sup+$bien->superficie_balcon+$bien->superficie_terasse;
+                                                    $bien->superficie_total=$sup+$bien->superficie_balcon+$bien->superficie_terrasse;
                                                     $bien->prix=$bien->prix_unitaire*($sup)+$bien->prix_parking+ $bien->prix_box;
                                                     $bien->etat='disponible';
-                                                    $bien->orientation = null;
+                                                    $bien->orientation = 'N';
                                                     $bien->conventionne = 0;
                                                     $bien->tranche_id = $tranches->id;
                                                     $bien->projet_id = $projet_id;
-                                                    $bien->avance_min = 0;
+                                                    $bien->avance_minimale = 0;
+                                                    $bien->nbre_facades=0;
+                                                    $bien->superficie_vendable=0;
+
+                                                    
+                                                    Log::info('bien  before save');
+                                                    
                                                     if($bien->save()){
-                                                        if (array_key_exists("categorie",$item)){
+                                                        Log::info('bien   save  Succ');
+
+
+
+                                                        if (array_key_exists("categorie",$column)){
                                                             $pattern = "/[,\s.]/";
-                                                            $exp=preg_split($pattern, $item['categorie']);
+                                                            $exp=preg_split($pattern, $column['categorie']);
 
                                                             $balcon=0;
                                                             $chambre=0;
@@ -372,22 +401,27 @@ class ExcelDataController extends Controller
                                                     }
 
                                 }
+                                log::info(' bien  exist ');
+
                                 
                                }
+                               
                             }
                             //  immeuble else
 
                             else{
+
+                                log::info('im  in  else imme');
                                $immeuble=new Immeuble();
                                $immeuble->setConnection('temp');
-                               $immeuble->nom=$item['immeuble'];
+                               $immeuble->nom=$column['immeuble'];
                                $immeuble->projet_id=$projet_id;
                                $immeuble->tranche_id=$tranches->id;
                                $immeuble->bloc_id=$blocs->id;
                                if($immeuble->save()){
                                 $nv=0;
-                                $bien_exist=Bien::on('temp')->where(function ($query) use ($item){
-                                    $query->where('propriete_dite_bien',$item['Appt_Num'])->orwhere('propriete_dite_bien',$item['magasin_num']);
+                                $bien_exist=Bien::on('temp')->where(function ($query) use ($column){
+                                    $query->where('propriete_dite_bien',$column['Appt_Num'])->orwhere('propriete_dite_bien',$column['magasin_num']);
                                 })->where('tranche_id', $tranches->id)->where('projet_id', $projet_id)->where('bloc_id', $blocs->id)->where('immeuble_id', $immeubles->id)->count();
                                 if($bien_exist==0)
                                 {
@@ -396,144 +430,144 @@ class ExcelDataController extends Controller
                                     $bien->bloc_id = $blocs->id;
                                     $bien->immeuble_id = $immeubles->id;
                                 }
-                                if (array_key_exists("Appt_Num",$item)){
-                                    if($item['Appt_Num']!=null){
-                                    $explode_numero = explode("Appt", $item['Appt_Num']);
+                                if (array_key_exists("Appt_Num",$column)){
+                                    if($column['Appt_Num']!=null){
+                                    $explode_numero = explode("Appt", $column['Appt_Num']);
                                     $bien->numero=$explode_numero[1];
-                                     $bien->propriete_dite_bien=$item['Appt_Num'];
+                                     $bien->propriete_dite_bien=$column['Appt_Num'];
                                     }
                                 }
-                                if (array_key_exists("magasin_num",$item)){
-                                    if($item['magasin_num']!=null){
-                                         $bien->numero=$item['magasin_num'];
-                                        $bien->propriete_dite_bien=$item['magasin_num'];
+                                if (array_key_exists("magasin_num",$column)){
+                                    if($column['magasin_num']!=null){
+                                         $bien->numero=$column['magasin_num'];
+                                        $bien->propriete_dite_bien=$column['magasin_num'];
 
                                     }
                                 }
 
-                                if (array_key_exists("niveau",$item) && array_key_exists("etage",$item)){
+                                if (array_key_exists("Niveau",$column) && array_key_exists("etage",$column)){
 
-                                    if($item['niveau']!=null){
+                                    if($column['Niveau']!=null){
 
 
-                                         if (str_contains($item['niveau'], 'er etage')) {
-                                              $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                              $bien->niveau=$explode_niveau_1[0];
-                                              $nv=$explode_niveau_1[0];
-                                         }elseif(str_contains($item['niveau'], 'eme etage')){
-                                              $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                              $bien->niveau=$explode_niveau_2[0];
-                                              $nv=$explode_niveau_2[0];
+                                         if (str_contains($column['Niveau'], 'er etage')) {
+                                              $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                              $bien->Niveau=$explode_Niveau_1[0];
+                                              $nv=$explode_Niveau_1[0];
+                                         }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                              $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                              $bien->Niveau=$explode_Niveau_2[0];
+                                              $nv=$explode_Niveau_2[0];
 
-                                         }elseif(str_contains($item['niveau'], 'ème etage')){
-                                              $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                              $bien->niveau=$explode_niveau_3[0];
-                                              $nv=$explode_niveau_2[0];
+                                         }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                              $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                              $bien->Niveau=$explode_Niveau_3[0];
+                                              $nv=$explode_Niveau_2[0];
                                          }
-                                         elseif(str_contains($item['niveau'], 'RDC')){
-                                            $bien->niveau=0;
+                                         elseif(str_contains($column['Niveau'], 'RDC')){
+                                            $bien->Niveau=0;
                                             $nv=0;
                                          }
 
 
-                                    }elseif($item['etage']!=null){
-                                        $bien->niveau=$item['etage'];
-                                         $nv=$item['etage'];
+                                    }elseif($column['etage']!=null){
+                                        $bien->Niveau=$column['etage'];
+                                         $nv=$column['etage'];
 
                                     }
                                 }
                                 else{
-                                    if($item['niveau']!=null){
-                                        if (str_contains($item['niveau'], 'er etage')) {
-                                                 $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                                 $bien->niveau=$explode_niveau_1[0];
-                                                 $nv=$explode_niveau_1[0];
-                                            }elseif(str_contains($item['niveau'], 'eme etage')){
-                                                 $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                                 $bien->niveau=$explode_niveau_2[0];
-                                                 $nv=$explode_niveau_2[0];
+                                    if($column['Niveau']!=null){
+                                        if (str_contains($column['Niveau'], 'er etage')) {
+                                                 $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                                 $bien->Niveau=$explode_Niveau_1[0];
+                                                 $nv=$explode_Niveau_1[0];
+                                            }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                                 $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                                 $bien->Niveau=$explode_Niveau_2[0];
+                                                 $nv=$explode_Niveau_2[0];
 
-                                            }elseif(str_contains($item['niveau'], 'ème etage')){
-                                                 $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                                 $bien->niveau=$explode_niveau_3[0];
-                                                 $nv=$explode_niveau_2[0];
+                                            }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                                 $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                                 $bien->Niveau=$explode_Niveau_3[0];
+                                                 $nv=$explode_Niveau_2[0];
                                             }
-                                            elseif(str_contains($item['niveau'], 'RDC')){
-                                               $bien->niveau=0;
+                                            elseif(str_contains($column['Niveau'], 'RDC')){
+                                               $bien->Niveau=0;
                                                $nv=0;
                                             }
                                    }
                                 }
-                                if ($item['type_local']=='APPARTEMENT'){
+                                if ($column['type_local']=='APPARTEMENT'){
                                     $type=TypeBien::on('temp')->where('type','Appartement')->get()->first();
 
                                     $bien->type_id=$type->id;
 
                                 }
-                                elseif ($item['type_local']=='LOCAL COMMERCIAL') {
+                                elseif ($column['type_local']=='LOCAL COMMERCIAL') {
                                     $type=TypeBien::on('temp')->where('type','Magasin')->get()->first();
                                     $bien->type_id=$type->id;
 
                                 }
-                                $bien->partie_p = $item['partie_p'];
+                                // $bien->partie_p = $column['partie_p'];
 
-                                if (array_key_exists("parking",$item)){
-                                    if ($item['parking'] == NULL) {
+                                if (array_key_exists("parking",$column)){
+                                    if ($column['parking'] == NULL) {
 
                                          $bien->prix_parking = 0;
                                     } else {
-                                         $bien->prix_parking = $item['parking'];
+                                         $bien->prix_parking = $column['parking'];
                                     }
                                 }
                                 else{
                                     $bien->prix_parking = 0;
                                     }
-                                    if (array_key_exists("balcon",$item)){
-                                        if ($item['balcon'] == NULL||$item['balcon'] == 'SYNDIC PROPOSE'||$item['balcon']=='SYNDIC PLAN') {
+                                    if (array_key_exists("balcon",$column)){
+                                        if ($column['balcon'] == NULL||$column['balcon'] == 'SYNDIC PROPOSE'||$column['balcon']=='SYNDIC PLAN') {
                                             $sup_balcon=0;
                                              $bien->superficie_balcon = 0;
 
                                         } else {
-                                            $bien->superficie_balcon = $item['balcon'];
+                                            $bien->superficie_balcon = $column['balcon'];
 
                                         }
                                     }else{
                                         $bien->superficie_balcon = 0;
                                     }
 
-                                    if (array_key_exists("terrasse",$item)){
-                                        if ($item['terrasse'] == NULL) {
-                                            $bien->superficie_terasse = 0;
+                                    if (array_key_exists("terrasse",$column)){
+                                        if ($column['terrasse'] == NULL) {
+                                            $bien->superficie_terrasse = 0;
 
                                         } else {
 
-                                            $bien->superficie_terasse = $item['terrasse'];
+                                            $bien->superficie_terrasse = $column['terrasse'];
 
                                         }
                                     }else{
-                                        $bien->superficie_terasse = 0;
+                                        $bien->superficie_terrasse = 0;
 
 
                                     }
-                                    $bien->superficie_terasse_calculee=$bien->superficie_terasse;
-                                    $bien->superficie_balcon_calculee= $bien->superficie_balcon;
+                                    $bien->superficie_terrasse_calculer=$bien->superficie_terrasse;
+                                    $bien-> superficie_balcon_calculer= $bien->superficie_balcon;
 
-                                    if (array_key_exists("superficie_architect",$item)){
-                                        if ($item['superficie_architect'] == NULL) {
-                                            $bien->superficie =0;
+                                    if (array_key_exists("superficie_architect",$column)){
+                                        if ($column['superficie_architect'] == NULL) {
+                                            $bien-> superficie_architecte =0;
 
                                         } else {
-                                            $bien->superficie =$item['superficie_architect']-$bien->superficie_terasse_calculee-$bien->superficie_balcon_calculee;
+                                            $bien->superficie_architecte =$column['superficie_architect']-$bien->superficie_terrasse_calculer-$bien-> superficie_balcon_calculer;
 
                                         }
                                     }else{
-                                        $bien->superficie = 0;
+                                        $bien->superficie_architecte = 0;
 
                                     }
                                     $bien->superficie_architecte = 0;
 
-                                    if (array_key_exists("pu",$item)){
-                                        if ($item['pu'] == NULL) {
+                                    if (array_key_exists("pu",$column)){
+                                        if ($column['pu'] == NULL) {
                                             //rdc
                                             if($nv==0){
                                                 $bien->prix_unitaire=11500;
@@ -544,10 +578,10 @@ class ExcelDataController extends Controller
 
                                         }
                                         else{
-                                            $bien->prix_unitaire=$item['pu'];
+                                            $bien->prix_unitaire=$column['pu'];
                                         }
                                     }else{
-                                        if($item['type_local']=='LOCAL COMMERCIAL'){
+                                        if($column['type_local']=='LOCAL COMMERCIAL'){
                                             $bien->prix_unitaire=25000;
 
                                         }else{
@@ -556,12 +590,12 @@ class ExcelDataController extends Controller
 
                                     }
 
-                                    if (array_key_exists("prix_box",$item)){
-                                        if ($item['prix_box'] == NULL) {
+                                    if (array_key_exists("prix_box",$column)){
+                                        if ($column['prix_box'] == NULL) {
                                             $bien->prix_box = 0;
 
                                         } else {
-                                            $bien->prix_box = $item['prix_box'];
+                                            $bien->prix_box = $column['prix_box'];
 
                                         }
                                     }
@@ -571,19 +605,19 @@ class ExcelDataController extends Controller
                                    }
 
                                        $sup=$bien->superficie;
-                                        $bien->superficie_totale=$sup+$bien->superficie_balcon+$bien->superficie_terasse;
+                                        $bien->superficie_total=$sup+$bien->superficie_balcon+$bien->superficie_terrasse;
                                         $bien->prix=$bien->prix_unitaire*($sup)+$bien->prix_parking+ $bien->prix_box;
                                         $bien->etat='disponible';
                                         $bien->orientation = null;
                                         $bien->conventionne = 0;
                                         $bien->tranche_id = $tranches->id;
                                         $bien->projet_id = $projet_id;
-                                        $bien->avance_min = 0;
+                                        $bien->avance_minimale = 0;
                                         if($bien->save()){
 
-                                            if (array_key_exists("categorie",$item)){
+                                            if (array_key_exists("categorie",$column)){
                                                 $pattern = "/[,\s.]/";
-                                                $exp=preg_split($pattern, $item['categorie']);
+                                                $exp=preg_split($pattern, $column['categorie']);
 
                                                 $balcon=0;
                                                 $chambre=0;
@@ -655,23 +689,26 @@ class ExcelDataController extends Controller
                     }
                     // bloc else 
                     else{
+                        
+                        Log::info('im  i   else bloc');
+                        
                         $nv=null;
                         // bloc not exist 
                       $bloc=new Bloc();
                       $bloc->setConnetion('temp');
-                      $bloc->nom=$item['bloc'];
+                      $bloc->nom=$column['bloc'];
                       $bloc->projet_id=$projet_id;
                       $bloc->tranche_id=$tranches->id;
                       if($bloc->save()){
                         $immeuble=new Immeuble();
                         $immeuble->setConnetion('temp');
-                        $immeuble->nom=$item['immeuble'];
+                        $immeuble->nom=$column['immeuble'];
                         $immeuble->projet_id=$projet_id;
                         $immeuble->tranche_id=$tranches->id;
                         $immeuble->bloc_id=$bloc->id;
                         if($immeuble->save()){
-                            $bien_exist=Bien::on('temp')->where(function ($query ) use ($item){
-                                $query->where('propriete_dite_bien',$item['Appt_Num'])->orwhere('propriete_dite_bien',$item['magasin_num']);
+                            $bien_exist=Bien::on('temp')->where(function ($query ) use ($column){
+                                $query->where('propriete_dite_bien',$column['Appt_Num'])->orwhere('propriete_dite_bien',$column['magasin_num']);
                             })->where('tranche_id', $tranches->id)->where('projet_id', $projet_id)->where('bloc_id', $bloc->id)->where('immeuble_id',$immeuble->id)->count();
 
                             if($bien_exist==0)
@@ -680,98 +717,98 @@ class ExcelDataController extends Controller
                                 $bien->setConnetion('temp');
                                 $bien->bloc_id = $bloc->id;
                                 $bien->immeuble_id = $immeuble->id;
-                                if (array_key_exists("Appt_Num",$item)){
-                                    if($item['Appt_Num']!=null){
-                                    $explode_numero = explode("Appt", $item['Appt_Num']);
+                                if (array_key_exists("Appt_Num",$column)){
+                                    if($column['Appt_Num']!=null){
+                                    $explode_numero = explode("Appt", $column['Appt_Num']);
                                     $bien->numero=$explode_numero[1];
-                                     $bien->propriete_dite_bien=$item['Appt_Num'];
+                                     $bien->propriete_dite_bien=$column['Appt_Num'];
                                     }
                                 }
-                                if (array_key_exists("magasin_num",$item)){
-                                    if($item['magasin_num']!=null){
-                                         $bien->numero=$item['magasin_num'];
-                                        $bien->propriete_dite_bien=$item['magasin_num'];
+                                if (array_key_exists("magasin_num",$column)){
+                                    if($column['magasin_num']!=null){
+                                         $bien->numero=$column['magasin_num'];
+                                        $bien->propriete_dite_bien=$column['magasin_num'];
 
                                     }
                                 }
 
-                                if (array_key_exists("niveau",$item) && array_key_exists("etage",$item)){
-                                    if($item['niveau']!=null){
-                                       if (str_contains($item['niveau'], 'er etage')) {
-                                              $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                              $bien->niveau=$explode_niveau_1[0];
-                                              $nv=$explode_niveau_1[0];
-                                         }elseif(str_contains($item['niveau'], 'eme etage')){
-                                              $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                              $bien->niveau=$explode_niveau_2[0];
-                                              $nv=$explode_niveau_2[0];
+                                if (array_key_exists("Niveau",$column) && array_key_exists("etage",$column)){
+                                    if($column['Niveau']!=null){
+                                       if (str_contains($column['Niveau'], 'er etage')) {
+                                              $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                              $bien->Niveau=$explode_Niveau_1[0];
+                                              $nv=$explode_Niveau_1[0];
+                                         }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                              $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                              $bien->Niveau=$explode_Niveau_2[0];
+                                              $nv=$explode_Niveau_2[0];
 
-                                         }elseif(str_contains($item['niveau'], 'ème etage')){
-                                              $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                              $bien->niveau=$explode_niveau_3[0];
-                                              $nv=$explode_niveau_2[0];
+                                         }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                              $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                              $bien->Niveau=$explode_Niveau_3[0];
+                                              $nv=$explode_Niveau_2[0];
                                          }
-                                         elseif(str_contains($item['niveau'], 'RDC')){
-                                            $bien->niveau=0;
+                                         elseif(str_contains($column['Niveau'], 'RDC')){
+                                            $bien->Niveau=0;
                                             $nv=0;
                                          }
-                                    }elseif($item['etage']!=null){
-                                        $bien->niveau=$item['etage'];
-                                         $nv=$item['etage'];
+                                    }elseif($column['etage']!=null){
+                                        $bien->Niveau=$column['etage'];
+                                         $nv=$column['etage'];
 
                                     }else{
-                                        if($item['niveau']!=null){
-                                            if (str_contains($item['niveau'], 'er etage')) {
-                                                       $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                                       $bien->niveau=$explode_niveau_1[0];
-                                                       $nv=$explode_niveau_1[0];
-                                                  }elseif(str_contains($item['niveau'], 'eme etage')){
-                                                       $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                                       $bien->niveau=$explode_niveau_2[0];
-                                                       $nv=$explode_niveau_2[0];
+                                        if($column['Niveau']!=null){
+                                            if (str_contains($column['Niveau'], 'er etage')) {
+                                                       $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                                       $bien->Niveau=$explode_Niveau_1[0];
+                                                       $nv=$explode_Niveau_1[0];
+                                                  }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                                       $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                                       $bien->Niveau=$explode_Niveau_2[0];
+                                                       $nv=$explode_Niveau_2[0];
 
-                                                  }elseif(str_contains($item['niveau'], 'ème etage')){
-                                                       $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                                       $bien->niveau=$explode_niveau_3[0];
-                                                       $nv=$explode_niveau_2[0];
+                                                  }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                                       $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                                       $bien->Niveau=$explode_Niveau_3[0];
+                                                       $nv=$explode_Niveau_2[0];
                                                   }
-                                                  elseif(str_contains($item['niveau'], 'RDC')){
-                                                     $bien->niveau=0;
+                                                  elseif(str_contains($column['Niveau'], 'RDC')){
+                                                     $bien->Niveau=0;
                                                      $nv=0;
                                                   }
                                          }
 
-                                         if ($item['type_local']=='APPARTEMENT'){
+                                         if ($column['type_local']=='APPARTEMENT'){
                                             $type=TypeBien::on('temp')->where('type','Appartement')->get()->first();
                                             $bien->type_id=$type->id;
 
                                         }
-                                        elseif ($item['type_local']=='LOCAL COMMERCIAL') {
+                                        elseif ($column['type_local']=='LOCAL COMMERCIAL') {
                                             $type=TypeBien::on('temp')->where('type','Magasin')->get()->first();
                                             $bien->type_id=$type->id;
 
                                         }
-                                        $bien->partie_p = $item['partie_p'];
+                                        // $bien->partie_p = $column['partie_p'];
 
-                                        if (array_key_exists("balcon",$item)){
-                                            if ($item['balcon'] == NULL||$item['balcon'] == 'SYNDIC PROPOSE'||$item['balcon']=='SYNDIC PLAN') {
+                                        if (array_key_exists("balcon",$column)){
+                                            if ($column['balcon'] == NULL||$column['balcon'] == 'SYNDIC PROPOSE'||$column['balcon']=='SYNDIC PLAN') {
 
                                                  $bien->superficie_balcon = 0;
 
                                             } else {
-                                                $bien->superficie_balcon = $item['balcon'];
+                                                $bien->superficie_balcon = $column['balcon'];
 
                                             }
                                         }else{
-                                            $bien->superficie_terasse = 0;
+                                            $bien->superficie_terrasse = 0;
                                         }
 
-                                        if (array_key_exists("parking",$item)){
-                                            if ($item['parking'] == NULL) {
+                                        if (array_key_exists("parking",$column)){
+                                            if ($column['parking'] == NULL) {
 
                                                  $bien->prix_parking = 0;
                                             } else {
-                                                 $bien->prix_parking = $item['parking'];
+                                                 $bien->prix_parking = $column['parking'];
                                             }
                                         }
                                         else{
@@ -779,25 +816,25 @@ class ExcelDataController extends Controller
                                         }
 
                                         
-                                        $bien->superficie_terasse_calculee=$bien->superficie_terasse;
-                                        $bien->superficie_balcon_calculee= $bien->superficie_balcon;
-                                        if (array_key_exists("superficie_architect",$item)){
-                                            if ($item['superficie_architect'] == NULL) {
-                                                $bien->superficie =0;
+                                        $bien->superficie_terrasse_calculer=$bien->superficie_terrasse;
+                                        $bien-> superficie_balcon_calculer= $bien->superficie_balcon;
+                                        if (array_key_exists("superficie_architect",$column)){
+                                            if ($column['superficie_architect'] == NULL) {
+                                                $bien-> superficie_architecte =0;
 
                                             } else {
-                                                $bien->superficie =$item['superficie_architect']-$bien->superficie_terasse_calculee-$bien->superficie_balcon_calculee;
+                                                $bien->superficie_architecte =$column['superficie_architect']-$bien->superficie_terrasse_calculer-$bien-> superficie_balcon_calculer;
 
                                             }
                                         }else{
 
-                                            $bien->superficie = 0;
+                                            $bien->superficie_architecte = 0;
 
                                         }
                                         $bien->superficie_architecte = 0;
 
-                                        if (array_key_exists("pu",$item)){
-                                            if ($item['pu'] == NULL) {
+                                        if (array_key_exists("pu",$column)){
+                                            if ($column['pu'] == NULL) {
                                                 //rdc
                                                 if($nv==0){
                                                     $bien->prix_unitaire=11500;
@@ -808,45 +845,45 @@ class ExcelDataController extends Controller
 
                                             }
                                             else{
-                                                $bien->prix_unitaire=$item['pu'];
+                                                $bien->prix_unitaire=$column['pu'];
                                             }
                                         }else{
-                                            if($item['type_local']=='LOCAL COMMERCIAL'){
+                                            if($column['type_local']=='LOCAL COMMERCIAL'){
                                                 $bien->prix_unitaire=25000;
 
                                             }else{
                                                 $bien->prix_unitaire=0;
                                             }
                                         }
-                                        if (array_key_exists("prix_box",$item)){
-                                            if ($item['prix_box'] == NULL) {
+                                        if (array_key_exists("prix_box",$column)){
+                                            if ($column['prix_box'] == NULL) {
                                                 $bien->prix_box = 0;
 
                                             } else {
-                                                $bien->prix_box = $item['prix_box'];
+                                                $bien->prix_box = $column['prix_box'];
 
                                             }
                                         }else{
-                                            $bien->prix_box = $item['prix_box'];
+                                            $bien->prix_box = $column['prix_box'];
 
                                         }
 
 
-                                        $sup=$bien->superficie ;
-                                        $bien->superficie_totale=$sup+$bien->superficie_balcon+$bien->superficie_terasse;
-                                        $bien->prix=$bien->prix_unitaire*($sup+$bien->superficie_balcon+$bien->superficie_terasse)+$bien->prix_parking+ $bien->prix_box;
+                                        $sup=$bien->superficie_architecte ;
+                                        $bien->superficie_total=$sup+$bien->superficie_balcon+$bien->superficie_terrasse;
+                                        $bien->prix=$bien->prix_unitaire*($sup+$bien->superficie_balcon+$bien->superficie_terrasse)+$bien->prix_parking+ $bien->prix_box;
                                         $bien->etat='disponible';
                                         $bien->orientation = null;
                                         $bien->conventionne = 0;
                                         $bien->tranche_id = $tranches->id;
                                         $bien->projet_id = $projet_id;
-                                        $bien->avance_min = 0;
+                                        $bien->avance_minimale = 0;
 
                                         if($bien->save())
                                         {
-                                            if (array_key_exists("categorie",$item)){
+                                            if (array_key_exists("categorie",$column)){
                                                 $pattern = "/[,\s.]/";
-                                                $exp=preg_split($pattern, $item['categorie']);
+                                                $exp=preg_split($pattern, $column['categorie']);
 
                                                 $balcon=0;
                                                 $chambre=0;
@@ -924,16 +961,18 @@ class ExcelDataController extends Controller
                 // tranche not exist 
 
                 
+                Log::info('tranche else');
+                
               $nv=null;
               $tranche=new Tranche();
               $tranche->setConnection('temp');
-              $tranche->nom=$item['tranche'];
+              $tranche->nom=$column['tranche'];
               $tranche->projet_id=$projet_id;
               if($tranche->save){
 
                 $bloc=new Bloc();
                 $bloc->setConnection('temp');
-                $bloc->nom=$item['bloc'];
+                $bloc->nom=$column['bloc'];
                 $bloc->projet_id=$projet_id;
                 $bloc->tranche_id=$tranche->id;
                 if($bloc->save())
@@ -946,8 +985,8 @@ class ExcelDataController extends Controller
                     $immeuble->bloc_id=$bloc->id;
                 }
                 if($immeuble->save()){
-                    $bien_exist=Bien::on('temp')->where(function ($query ) use ($item){
-                        $query->where('propriete_dite_bien',$item['Appt_Num'])->orwhere('propriete_dite_bien',$item['magasin_num']);
+                    $bien_exist=Bien::on('temp')->where(function ($query ) use ($column){
+                        $query->where('propriete_dite_bien',$column['Appt_Num'])->orwhere('propriete_dite_bien',$column['magasin_num']);
                     })->where('tranche_id', $tranche->id)->where('projet_id', $projet_id)->where('bloc_id', $bloc->id)->where('immeuble_id',$immeuble->id)->count();
                     if($bien_exist==0)
                     {
@@ -955,98 +994,98 @@ class ExcelDataController extends Controller
                         $bien->setConnection('temp');
                         $bien->bloc_id = $bloc->id;
                         $bien->immeuble_id = $immeuble->id;
-                        if (array_key_exists("Appt_Num",$item)){
-                            if($item['Appt_Num']!=null){
-                            $explode_numero = explode("Appt", $item['Appt_Num']);
+                        if (array_key_exists("Appt_Num",$column)){
+                            if($column['Appt_Num']!=null){
+                            $explode_numero = explode("Appt", $column['Appt_Num']);
                             $bien->numero=$explode_numero[1];
-                             $bien->propriete_dite_bien=$item['Appt_Num'];
+                             $bien->propriete_dite_bien=$column['Appt_Num'];
                             }
                         }
-                        if (array_key_exists("magasin_num",$item)){
-                            if($item['magasin_num']!=null){
-                                 $bien->numero=$item['magasin_num'];
-                                $bien->propriete_dite_bien=$item['magasin_num'];
+                        if (array_key_exists("magasin_num",$column)){
+                            if($column['magasin_num']!=null){
+                                 $bien->numero=$column['magasin_num'];
+                                $bien->propriete_dite_bien=$column['magasin_num'];
 
                             }
                         }
 
-                        if (array_key_exists("niveau",$item) && array_key_exists("etage",$item)){
-                            if($item['niveau']!=null){
-                               if (str_contains($item['niveau'], 'er etage')) {
-                                      $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                      $bien->niveau=$explode_niveau_1[0];
-                                      $nv=$explode_niveau_1[0];
-                                 }elseif(str_contains($item['niveau'], 'eme etage')){
-                                      $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                      $bien->niveau=$explode_niveau_2[0];
-                                      $nv=$explode_niveau_2[0];
+                        if (array_key_exists("Niveau",$column) && array_key_exists("etage",$column)){
+                            if($column['Niveau']!=null){
+                               if (str_contains($column['Niveau'], 'er etage')) {
+                                      $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                      $bien->Niveau=$explode_Niveau_1[0];
+                                      $nv=$explode_Niveau_1[0];
+                                 }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                      $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                      $bien->Niveau=$explode_Niveau_2[0];
+                                      $nv=$explode_Niveau_2[0];
 
-                                 }elseif(str_contains($item['niveau'], 'ème etage')){
-                                      $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                      $bien->niveau=$explode_niveau_3[0];
-                                      $nv=$explode_niveau_2[0];
+                                 }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                      $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                      $bien->Niveau=$explode_Niveau_3[0];
+                                      $nv=$explode_Niveau_2[0];
                                  }
-                                 elseif(str_contains($item['niveau'], 'RDC')){
-                                    $bien->niveau=0;
+                                 elseif(str_contains($column['Niveau'], 'RDC')){
+                                    $bien->Niveau=0;
                                     $nv=0;
                                  }
-                            }elseif($item['etage']!=null){
-                                $bien->niveau=$item['etage'];
-                                 $nv=$item['etage'];
+                            }elseif($column['etage']!=null){
+                                $bien->Niveau=$column['etage'];
+                                 $nv=$column['etage'];
 
                             }else{
-                                if($item['niveau']!=null){
-                                    if (str_contains($item['niveau'], 'er etage')) {
-                                               $explode_niveau_1 = explode("er etage", $item['niveau']);
-                                               $bien->niveau=$explode_niveau_1[0];
-                                               $nv=$explode_niveau_1[0];
-                                          }elseif(str_contains($item['niveau'], 'eme etage')){
-                                               $explode_niveau_2 = explode("eme etage", $item['niveau']);
-                                               $bien->niveau=$explode_niveau_2[0];
-                                               $nv=$explode_niveau_2[0];
+                                if($column['Niveau']!=null){
+                                    if (str_contains($column['Niveau'], 'er etage')) {
+                                               $explode_Niveau_1 = explode("er etage", $column['Niveau']);
+                                               $bien->Niveau=$explode_Niveau_1[0];
+                                               $nv=$explode_Niveau_1[0];
+                                          }elseif(str_contains($column['Niveau'], 'eme etage')){
+                                               $explode_Niveau_2 = explode("eme etage", $column['Niveau']);
+                                               $bien->Niveau=$explode_Niveau_2[0];
+                                               $nv=$explode_Niveau_2[0];
 
-                                          }elseif(str_contains($item['niveau'], 'ème etage')){
-                                               $explode_niveau_3 = explode("ème etage", $item['niveau']);
-                                               $bien->niveau=$explode_niveau_3[0];
-                                               $nv=$explode_niveau_2[0];
+                                          }elseif(str_contains($column['Niveau'], 'ème etage')){
+                                               $explode_Niveau_3 = explode("ème etage", $column['Niveau']);
+                                               $bien->Niveau=$explode_Niveau_3[0];
+                                               $nv=$explode_Niveau_2[0];
                                           }
-                                          elseif(str_contains($item['niveau'], 'RDC')){
-                                             $bien->niveau=0;
+                                          elseif(str_contains($column['Niveau'], 'RDC')){
+                                             $bien->Niveau=0;
                                              $nv=0;
                                           }
                                  }
 
-                                 if ($item['type_local']=='APPARTEMENT'){
+                                 if ($column['type_local']=='APPARTEMENT'){
                                     $type=TypeBien::on('temp')->where('type','Appartement')->get()->first();
                                     $bien->type_id=$type->id;
 
                                 }
-                                elseif ($item['type_local']=='LOCAL COMMERCIAL') {
+                                elseif ($column['type_local']=='LOCAL COMMERCIAL') {
                                     $type=TypeBien::on('temp')->where('type','Magasin')->get()->first();
                                     $bien->type_id=$type->id;
 
                                 }
-                                $bien->partie_p = $item['partie_p'];
+                                // $bien->partie_p = $column['partie_p'];
 
-                                if (array_key_exists("balcon",$item)){
-                                    if ($item['balcon'] == NULL||$item['balcon'] == 'SYNDIC PROPOSE'||$item['balcon']=='SYNDIC PLAN') {
+                                if (array_key_exists("balcon",$column)){
+                                    if ($column['balcon'] == NULL||$column['balcon'] == 'SYNDIC PROPOSE'||$column['balcon']=='SYNDIC PLAN') {
 
                                          $bien->superficie_balcon = 0;
 
                                     } else {
-                                        $bien->superficie_balcon = $item['balcon'];
+                                        $bien->superficie_balcon = $column['balcon'];
 
                                     }
                                 }else{
-                                    $bien->superficie_terasse = 0;
+                                    $bien->superficie_terrasse = 0;
                                 }
 
-                                if (array_key_exists("parking",$item)){
-                                    if ($item['parking'] == NULL) {
+                                if (array_key_exists("parking",$column)){
+                                    if ($column['parking'] == NULL) {
 
                                          $bien->prix_parking = 0;
                                     } else {
-                                         $bien->prix_parking = $item['parking'];
+                                         $bien->prix_parking = $column['parking'];
                                     }
                                 }
                                 else{
@@ -1054,25 +1093,25 @@ class ExcelDataController extends Controller
                                 }
 
                                 
-                                $bien->superficie_terasse_calculee=$bien->superficie_terasse;
-                                $bien->superficie_balcon_calculee= $bien->superficie_balcon;
-                                if (array_key_exists("superficie_architect",$item)){
-                                    if ($item['superficie_architect'] == NULL) {
-                                        $bien->superficie =0;
+                                $bien->superficie_terrasse_calculer=$bien->superficie_terrasse;
+                                $bien-> superficie_balcon_calculer= $bien->superficie_balcon;
+                                if (array_key_exists("superficie_architect",$column)){
+                                    if ($column['superficie_architect'] == NULL) {
+                                        $bien-> superficie_architecte =0;
 
                                     } else {
-                                        $bien->superficie =$item['superficie_architect']-$bien->superficie_terasse_calculee-$bien->superficie_balcon_calculee;
+                                        $bien->superficie_architecte =$column['superficie_architect']-$bien->superficie_terrasse_calculer-$bien-> superficie_balcon_calculer;
 
                                     }
                                 }else{
 
-                                    $bien->superficie = 0;
+                                    $bien->superficie_architecte = 0;
 
                                 }
                                 $bien->superficie_architecte = 0;
 
-                                if (array_key_exists("pu",$item)){
-                                    if ($item['pu'] == NULL) {
+                                if (array_key_exists("pu",$column)){
+                                    if ($column['pu'] == NULL) {
                                         //rdc
                                         if($nv==0){
                                             $bien->prix_unitaire=11500;
@@ -1083,45 +1122,45 @@ class ExcelDataController extends Controller
 
                                     }
                                     else{
-                                        $bien->prix_unitaire=$item['pu'];
+                                        $bien->prix_unitaire=$column['pu'];
                                     }
                                 }else{
-                                    if($item['type_local']=='LOCAL COMMERCIAL'){
+                                    if($column['type_local']=='LOCAL COMMERCIAL'){
                                         $bien->prix_unitaire=25000;
 
                                     }else{
                                         $bien->prix_unitaire=0;
                                     }
                                 }
-                                if (array_key_exists("prix_box",$item)){
-                                    if ($item['prix_box'] == NULL) {
+                                if (array_key_exists("prix_box",$column)){
+                                    if ($column['prix_box'] == NULL) {
                                         $bien->prix_box = 0;
 
                                     } else {
-                                        $bien->prix_box = $item['prix_box'];
+                                        $bien->prix_box = $column['prix_box'];
 
                                     }
                                 }else{
-                                    $bien->prix_box = $item['prix_box'];
+                                    $bien->prix_box = $column['prix_box'];
 
                                 }
 
 
-                                $sup=$bien->superficie ;
-                                $bien->superficie_totale=$sup+$bien->superficie_balcon+$bien->superficie_terasse;
-                                $bien->prix=$bien->prix_unitaire*($sup+$bien->superficie_balcon+$bien->superficie_terasse)+$bien->prix_parking+ $bien->prix_box;
+                                $sup=$bien->superficie_architecte ;
+                                $bien->superficie_total=$sup+$bien->superficie_balcon+$bien->superficie_terrasse;
+                                $bien->prix=$bien->prix_unitaire*($sup+$bien->superficie_balcon+$bien->superficie_terrasse)+$bien->prix_parking+ $bien->prix_box;
                                 $bien->etat='disponible';
                                 $bien->orientation = null;
                                 $bien->conventionne = 0;
                                 $bien->tranche_id = $tranches->id;
                                 $bien->projet_id = $projet_id;
-                                $bien->avance_min = 0;
+                                $bien->avance_minimale = 0;
 
                                 if($bien->save())
                                 {
-                                    if (array_key_exists("categorie",$item)){
+                                    if (array_key_exists("categorie",$column)){
                                         $pattern = "/[,\s.]/";
-                                        $exp=preg_split($pattern, $item['categorie']);
+                                        $exp=preg_split($pattern, $column['categorie']);
 
                                         $balcon=0;
                                         $chambre=0;
@@ -1210,13 +1249,13 @@ class ExcelDataController extends Controller
     public function testfunction( Request $request)
     {
         $data = $request->input('data');
-        foreach($data as $item)
+        foreach($data as $column)
         {
-            if(array_key_exists('NUM',$item))
+            if(array_key_exists('NUM',$column))
             
-            // $explode_numero = explode("Appt", $item['Appt_Num']);
+            // $explode_numero = explode("Appt", $column['Appt_Num']);
             
-            Log::info($item);
+            Log::info($column);
             
             // log::info($explode_numero);
 
@@ -1242,10 +1281,10 @@ class ExcelDataController extends Controller
 //     $blocs = []; // Initialize an array to store blocs
 
 //     // Iterate through each element in the $data array
-//     foreach ($data as $item) {
-//         // Retrieve blocs from the 'temp' database connection where 'nom', 'tranche_id', and 'projet_id' match the item's values
+//     foreach ($data as $column) {
+//         // Retrieve blocs from the 'temp' database connection where 'nom', 'tranche_id', and 'projet_id' match the column's values
 //         $bloc = Bloc::on('temp')
-//             ->where('nom', $item['Bloc'])
+//             ->where('nom', $column['Bloc'])
 //             ->where('tranche_id', $tranche_id)
 //             ->where('projet_id', $projet_id)
 //             ->get();
@@ -1254,7 +1293,7 @@ class ExcelDataController extends Controller
 //         $blocs = array_merge($blocs, $bloc);
 
 //         // Log the current bloc's name
-//         Log::info($item['Bloc']);
+//         Log::info($column['Bloc']);
 //     }
 
 //     // Log the retrieved blocs
