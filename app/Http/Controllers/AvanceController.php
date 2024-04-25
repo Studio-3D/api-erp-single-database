@@ -305,6 +305,7 @@ class AvanceController extends Controller
                             'fichier' => $fileName,
                             'type' => $fileType,
                             'avance_id' => $avance->id,
+                            'pj_scanner'=> 0,
                         ];
 
                         $pieceJointeRequest->merge($datapieceJointe);
@@ -459,6 +460,8 @@ class AvanceController extends Controller
                             'fichier' => $Myfile,
                             'type' => $fileType,
                             'avance_id' => $avance->id,
+                            'pj_scanner'=> 0,
+
                         ];
 
                         $pieceJointeRequest->merge($datapieceJointe);

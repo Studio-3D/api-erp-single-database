@@ -37,9 +37,7 @@ class UserController extends Controller
 
             return response()->json(['access_token' => $accessToken], 200);
         }
-            return response()->json(['error' => 'email ou mot de passe incorrect'], 422);
-
-        }
+            return response()->json(['error' => 'email ou mot de passe incorrect'], 422);}
 
         return response()->json(['error' => 'utilisateur non actif'], 422);
     }
@@ -105,6 +103,7 @@ class UserController extends Controller
                 $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
                 $page = $request->input('page', 1);
                 $users = User::where('societe_id', Auth::guard('api')->user()->societe_id)
+                    ->where('role', '!=', 1)
                     ->orderBy('created_at', 'desc')
                     ->paginate($perPage, ['*'], 'page', $page);
                 return response()->json(['users' => $users]);

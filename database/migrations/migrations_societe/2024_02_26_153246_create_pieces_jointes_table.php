@@ -18,8 +18,8 @@ return new class extends Migration
             $table->foreignId('avance_id')->nullable()->constrained('avances')->onDelete('cascade');
             $table->foreignId('penalite_id')->nullable()->constrained('penalites_desistements')->onDelete('cascade');
             $table->string('fichier');
-            $table->string('type')->nullable();
-            $table->integer('pj_scanner')->nullable()->default(0);
+            $table->string('type');
+            $table->integer('pj_scanner')->default(0);
             $table->softDeletes();
             $table->timestamps();
         });

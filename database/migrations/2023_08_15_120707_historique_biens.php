@@ -24,7 +24,7 @@ return new class extends Migration
             $table->foreignId('reservation_id')->nullable()->constrained('reservations')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
-            $table->index(['visite_id','reservation_id']);
+            $table->index(['visite_id', 'reservation_id']);
         });
     }
 

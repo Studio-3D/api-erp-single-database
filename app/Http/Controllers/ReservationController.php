@@ -340,6 +340,8 @@ class ReservationController extends Controller
                             'fichier' => $Myfile,
                             'type' => $fileType,
                             'reservation_id' => $reservation->id,
+                            'pj_scanner'=> 0,
+
                         ];
 
                         $pieceJointeRequest->merge($datapieceJointe);
@@ -627,6 +629,8 @@ class ReservationController extends Controller
                                 'fichier' => $Myfile,
                                 'type' => $fileType,
                                 'reservation_id' => $reservation->id,
+                                'pj_scanner'=> 0,
+
                             ];
 
                             $pieceJointeRequest->merge($datapieceJointe);

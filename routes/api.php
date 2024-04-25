@@ -262,7 +262,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('piecesjointes/{projet_id}', [PiecesJointeController::class,'index'])->name('piecesjointes');
     Route::delete('destoryFileUsingReservationId/{reservation_id}',[PiecesJointeController::class,'destoryFileUsingReservationId'])->name('destoryFileUsingReservationId');
     Route::get('getFileUsingReservationId/{reservation_id}',[PiecesJointeController::class,'getFileUsingReservationId'])->name('getFileUsingReservationId');
-
+    Route::post('scanner_file',[PiecesJointeController::class,'scanner_file'])->name('scanner_file');
     /*************************************Reservation***************************** */
     Route::resource('reservation',ReservationController::class);
     Route::get('info_reservation/{projet_id}', [ReservationController::class,'info_reservation'])->name('');
