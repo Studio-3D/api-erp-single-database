@@ -12,6 +12,9 @@ use App\Http\Helpers\PaginationHelper;
 use DB;
 use App\Models\User;
 use Carbon\Carbon;
+use App\Models\Avance;
+use App\Models\Reservation;
+
 class NotificationController extends Controller
 {
     /**
@@ -187,6 +190,35 @@ class NotificationController extends Controller
          else{
             return response()->json(['error' => 'Unauthorized'], 401);
          }
+    }
+
+    public function get_notif_rejete_commercial($projet_id){
+        $user = Auth::user();
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            //reservation
+            $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
+            ->groupby('reservation_id');
+            $nb_res_rejete = Reservation::on('temp')->with('last_statut')
+            ->joinSub($avances, 'avances_req', function ($join) {
+                $join->on('avances_req.reservation_id', '=', 'reservations.id');
+            })
+            ->where('reservations.projet_id', $projet_id)
+            ->where('reservations.statut', 2)
+            ->where('reservations.user_id',  $userAuth->value('id'))
+            ->where('reservations.etat', 1)->count();
+                //avances
+            $nb_avance_rejete = Avance::on('temp')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+            ->where('reservations.etat', 1)
+            ->where('avances.statut',2)
+            ->where('avances.user_id',  $userAuth->value('id'))
+            ->where('reservations.projet_id',$projet_id)->count();
+
+            return response()->json(['nb_res_rejete'=>$nb_res_rejete,
+            'nb_avance_rejete'=>$nb_avance_rejete,
+        ]);
+        } else  return response()->json(['error'=>'Unauthorized'], 401);
     }
 
 }

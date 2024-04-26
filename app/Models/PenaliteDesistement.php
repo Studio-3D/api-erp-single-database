@@ -26,5 +26,9 @@ class PenaliteDesistement extends Model
     {
         return $this->belongsTo(Banque::class,'banque_id');
     }
+    public function last_statut()
+    {
+        return $this->hasOne(StatutAvancePenalite::class,'penalite_id')->latest();
+    }
 
 }

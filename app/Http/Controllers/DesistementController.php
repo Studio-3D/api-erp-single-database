@@ -45,6 +45,7 @@ use App\Http\Requests\StoreClientRequest;
 use App\Http\Helpers\Bien_Helper;
 use App\Http\Helpers\HistoriqueBienHelper;
 use DB;
+use App\Models\StatutAvancePenalite;
 
 use Illuminate\Support\Facades\Config;
 
@@ -1170,6 +1171,101 @@ class DesistementController extends Controller
         }
     }
 
+    public function get_dossiers_by_bien(Request $request, $bien_id)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+            $array=array();
+
+                $data=HistoriqueDesistement::on('temp')->where('bien_id',$bien_id)->orderBy('date','asc')->get();
+                $data_s = $data->map(function ($dt) {
+                    $desisteurs=null;
+                    $au_profits=null;
+                    $data_nv_aq=null;
+                    $bien_new_propriete=null;
+                    $sum_avances=null;
+                    $penalite_montant=null;
+                        if($dt->desistement_id!=null){
+                            //si ligne desistement
+
+                            $aquereur_desisteurs=AquereurDesistement::on('temp')->where('desistement_id',$dt->desistement_id)->where('type','desisteur')->get();
+                            $aquereur_profit=AquereurDesistement::on('temp')->where('desistement_id',$dt->desistement_id)->where('type','au_profit')->get();
+
+                            if(count($aquereur_desisteurs)>0){
+                                    $desisteurs= $aquereur_desisteurs->map(function ($aq_dt) {
+                                        return [
+                                        'client_nom' => $aq_dt->client->nom,
+                                        'client_prenom' => $aq_dt->client->prenom,
+                                        'client_percent' => $aq_dt->aquereur->pourcentage,
+                                        'type' => $aq_dt->type,
+                                    ];});
+                            }
+
+                            if(count($aquereur_profit)>0){
+
+                                $au_profits= $aquereur_profit->map(function ($aq_dt) {
+                                    return [
+                                        'client_nom' => $aq_dt->client->nom,
+                                        'client_prenom' => $aq_dt->client->prenom,
+                                        'client_percent' => $aq_dt->aquereur->pourcentage,
+                                        'type' => $aq_dt->type,
+                                    ];});
+                            }
+
+                            $nv_aquereur_desistement=NouvelAquereurDesistement::on('temp')->where('desistement_id',$dt->desistement_id)->get();
+                            if(count($nv_aquereur_desistement)>0){
+                                $data_nv_aq = $nv_aquereur_desistement->map(function ($aq_nv) {
+                                    return [
+                                        'nv_client_cin' => $aq_nv->cin,
+                                        'nv_client_nom' => $aq_nv->nom,
+                                        'nv_client_prenom' => $aq_nv->prenom,
+                                        'nv_client_telephone' => $aq_nv->telephone,
+                                        'nv_client_percent' => $aq_nv->pourcentage,
+                                    ];});
+                            }else{
+                                $data_nv_aq=null;
+                            }
+                            if($dt->desistement->bien_id_new!=null){
+                                $bien=Bien::on('temp')->findorfail($dt->desistement->bien_id_new);
+                                $bien_new_propriete=$bien->propriete_dite_bien;
+                            }
+
+                            //penalite
+                            $penalite=PenaliteDesistement::on('temp')->where('desistement_id',$dt->desistement_id)->get()->first();
+                            if($penalite!=null){
+                                $penalite_montant=$penalite->montant;
+
+                            }
+
+
+                        }
+                        if($dt->reservation_id!=null){
+                            $sum_avances = Avance::on('temp')->where('reservation_id',$dt->reservation_id)->where('statut',1)->withTrashed()->sum('montant');
+                        }
+
+                      //array
+                    return [
+                        'histo' => $dt,
+                        'desisteurs'=>$desisteurs,
+                        'au_profits'=>$au_profits,
+                        'new_aquereur_desistement'=>$data_nv_aq,
+                        'bien_new_propriete'=>$bien_new_propriete,
+                        'sum_avances'=>$sum_avances,
+                        'penalite_montant'=>$penalite_montant,
+                    ];});
+
+                $data_mm = PaginationHelper::paginate_array($data_s->toArray(),$perPage,$page,$request->url());
+
+            return response()->json(['historiques' => $data_mm], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
     /**
      * Display the specified resource.
      */
@@ -1907,8 +2003,8 @@ class DesistementController extends Controller
             ->count();
 
 
-            return response()->json(['nb_pen_valide'=>$nb_pen_valide,
-            'nb_pen_rejete'=>$nb_pen_rejete,
+            return response()->json(['nb_valide'=>$nb_pen_valide,
+            'nb_rejete'=>$nb_pen_rejete,
         ]);
         } else  return response()->json(['error'=>'Unauthorized'], 401);
     }
@@ -1920,9 +2016,7 @@ class DesistementController extends Controller
             ->where('penalites_desistements.archive',0)
             ->where('desistements.archive',0)
             ->where('desistements.projet_id',$projet_id)->where('penalites_desistements.statut',0)->count();
-
-
-            return response()->json(['nb_pen_att_valide'=>$nb_pen_att_valide]);
+            return response()->json(['nb_att_valide'=>$nb_pen_att_valide]);
         } else  return response()->json(['error'=>'Unauthorized'], 401);
     }
 
@@ -2054,7 +2148,7 @@ class DesistementController extends Controller
             if(RoleHelper::AdminSup()){
                 DatabaseHelper::Config();
                 $penalites = PenaliteDesistement::on('temp')->select('penalites_desistements.*')
-                    ->with('banque')
+                    ->with('banque','last_statut')
                     ->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
                     ->orderBy('created_at', 'desc')
                     ->where('penalites_desistements.statut',$statut)
@@ -2069,7 +2163,7 @@ class DesistementController extends Controller
                     $user = Auth::user();
                     $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                     $penalites = PenaliteDesistement::on('temp')->select('penalites_desistements.*')
-                    ->with('banque')
+                    ->with('banque','last_statut')
                     ->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
                     ->orderBy('created_at', 'desc')
                     ->where('penalites_desistements.statut',$statut)
@@ -2088,7 +2182,7 @@ class DesistementController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $penalite = PenaliteDesistement::on('temp')->with('banque')->findOrFail($id);
+            $penalite = PenaliteDesistement::on('temp')->with('banque','last_statut')->findOrFail($id);
             $reservation_ancien=Reservation::on('temp')->findorfail($penalite->desistement->reservation_id);
             $sum_avances_valides=0;
             //si dossier desiste
@@ -2114,7 +2208,7 @@ class DesistementController extends Controller
         }
     }
 
-    public static function traiter_penalite($id,Request $request)
+    public function traiter_penalite($id,Request $request)
     {
         if(RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -2123,27 +2217,34 @@ class DesistementController extends Controller
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $penalite = PenaliteDesistement::on('temp')->findOrFail($id);
             $penalite->statut=$request->etat;
-            if($request->etat==1){
-                $penalite->num_remise=$request->num_remise;
-                $penalite->date_encaissement=$request->date_encaissement;
-                $penalite->user_id_valider=$userAuth->value('id');
-                $penalite->date_validation=Carbon::now();
-                $penalite->save();
+                if($penalite->save()){
+                                 //store statut_avances_penalites table=>si validé
 
-            }else{
-                $penalite->commentaire_validation=$request->commentaire;
-                $penalite->save();
-            }
+                    $st_pen = new StatutAvancePenalite();
+                    $st_pen->setConnection('temp');
+                    if($request->etat==1){
+                        $st_pen->num_remise=$request->n_remise;
+                        $st_pen->date_encaissement=$request->date_encaiss;
+
+                    }else{
+                        $st_pen->commentaire=$request->commentaire;
+                    }
+
+                    $st_pen->penalite_id=$penalite->id;
+                    $st_pen->user_id_valider = $userAuth->value('id');
+                    $st_pen->date_validation = Carbon::now();
+                    $st_pen->save();
+                }
                 if($request->etat==1){
-                    //store new notification validé
-                    NotificationHelper::storeNotification(
-                        '/desistements/penalites/show/'.$penalite->id, Carbon::now(),13,'penalité validé',Auth::guard('api')->user()->id,null,null,null,$penalite->desistement->projet_id,null,null
-                        );
-                        broadcast(new NotificationEvent($id));
+                //store new notification validé
+                NotificationHelper::storeNotification(
+                    '/desistements/penalites/show/'.$penalite->id, Carbon::now(),13,'penalité validé',Auth::guard('api')->user()->id,null,null,null,$penalite->desistement->projet_id,null,null
+                    );
+                    broadcast(new NotificationEvent($id));
                 }else{
                     //store new notification rejeté
                     NotificationHelper::storeNotification(
-                        '/desistements/penalites/show/'.$penalite->id, Carbon::now(),13,'penalité rejeté',Auth::guard('api')->user()->id,null,null,null,$penalite->desistement->projet_id,null,null
+                        '/desistements/penalites/show/'.$penalite->id, Carbon::now(),14,'penalité rejeté',Auth::guard('api')->user()->id,null,null,null,$penalite->desistement->projet_id,null,null
                         );
                         broadcast(new NotificationEvent($id));
                 }

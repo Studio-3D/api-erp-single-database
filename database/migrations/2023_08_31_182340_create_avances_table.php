@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('montant_par_lettre');
             $table->bigInteger('numero_paiement')->nullable();
             $table->date('date_reglement');
-            $table->enum('mode_paiement',[ModePaiement::Espèce->value,ModePaiement::Chèque->value,ModePaiement::Chèque_Banque->value,ModePaiement::Chèque_Certifié->value,ModePaiement::Virement->value,ModePaiement::Versement->value]);
+            $table->enum('mode_paiement',[ModePaiement::Espèce->value,ModePaiement::Chèque->value,ModePaiement::Chèque_Banque->value,ModePaiement::Chèque_Certifié->value,ModePaiement::Virement->value,ModePaiement::Versement->value,ModePaiement::transfert_dossier->value]);
             $table->date('echeance')->nullable();
             $table->string('fichier')->nullable();
             $table->string('recu_scanne')->nullable();
@@ -32,10 +32,10 @@ return new class extends Migration
             $table->foreignId('banque_id')->nullable()->constrained('banques')->onDelete('cascade');
             $table->foreignId('reservation_id')->constrained('reservations')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('user_id_valider')->nullable()->constrained('users')->onDelete('cascade');
+            /*$table->foreignId('user_id_valider')->nullable()->constrained('users')->onDelete('cascade');
             $table->timestamp('date_validation')->nullable();
             $table->date('date_encaissement')->nullable();
-            $table->string('num_remise')->nullable();
+            $table->string('num_remise')->nullable();*/
             $table->foreignId('dossier_id_transfert')->nullable()->constrained('reservations')->onDelete('cascade');
             $table->integer('desistement_id')->nullable();
             $table->foreignId('reservation_id_ancien')->nullable()->constrained('reservations')->onDelete('cascade');

@@ -186,7 +186,7 @@ class TypeBienController extends Controller
     }
     public static function AjouterTypeBien($typeBien, $projet_id)
     {
-        
+
             $typeBienController = new TypeBienController();
             $typeBienRequest = new StoreTypeBienRequest;
                 $dataTypebien = [
@@ -195,11 +195,11 @@ class TypeBienController extends Controller
                 ];
                 $typeBienRequest->merge($dataTypebien);
                 $typeBienController->store($typeBienRequest);
-            
-        
-       
+
+
+
     }
 
-    
+
 
 }

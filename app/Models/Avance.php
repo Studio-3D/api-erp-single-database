@@ -40,4 +40,8 @@ class Avance extends Model
     {
         return $this->hasMany(PiecesJointe::class, 'avance_id');
     }
+    public function last_statut()
+    {
+        return $this->hasOne(StatutAvancePenalite::class,'avance_id')->latest();
+    }
 }

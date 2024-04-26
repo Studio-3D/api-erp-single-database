@@ -25,6 +25,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use \NumberFormatter;
+use App\Models\StatutAvancePenalite;
+use DB;
+use Illuminate\Support\Facades\Config;
+use App\Events\NotificationEvent;
 
 class AvanceController extends Controller
 {
@@ -39,8 +43,8 @@ class AvanceController extends Controller
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
             $avances = Avance::on('temp')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
-                ->join('projets', 'reservations.projet_id', '=', 'projets.id')
-                ->where('projets.id', $projet_id)
+                ->where('reservations.projet_id', $projet_id)
+                ->where('reservations.etat', 1)
                 ->select('avances.*')->orderBy('created_at', 'desc')
                 ->paginate($perPage, ['*'], 'page', $page);
             return response()->json(['avances' => $avances], 200);
@@ -56,6 +60,7 @@ class AvanceController extends Controller
             $reservation = Reservation::on('temp')->select('prix', 'etat')->findorfail($reservation_id);
             if ($reservation->etat == 1) {
                 $avances = Avance::on('temp')
+                    ->with('last_statut')
                     ->withcount('historiques')
                     ->orderBy('created_at', 'desc')
                     ->where('reservation_id', $reservation_id)
@@ -70,6 +75,7 @@ class AvanceController extends Controller
             } else {
                 //si dossier desiste
                 $avances = Avance::on('temp')
+                    ->with('last_statut')
                     ->withcount('historiques')
                     ->orderBy('created_at', 'desc')
                     ->onlyTrashed()
@@ -103,6 +109,95 @@ class AvanceController extends Controller
             return response()->json(['historiques' => $historiques], 200);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function get_avances_by_etat($projet_id, $statut,Request $request)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+            if(RoleHelper::AdminSup()){
+                $avances = Avance::on('temp')->with('last_statut')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+                ->select('avances.*')
+                ->where('reservations.projet_id', $projet_id)
+                ->where('avances.statut', $statut)
+                ->where('reservations.etat', 1)
+                ->orderBy('avances.created_at', 'desc')
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            }elseif(RoleHelper::Com()){
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+                $avances = Avance::on('temp')->with('last_statut')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+                ->select('avances.*')
+                ->where('reservations.projet_id', $projet_id)
+                ->where('avances.statut', $statut)
+                ->where('reservations.etat', 1)
+                ->where('avances.user_id', $userAuth->value('id'))
+                ->orderBy('avances.created_at', 'desc')
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            }
+            return response()->json(['avances' => $avances]);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+
+    }
+
+    public function traiter_avance($id,Request $request)
+    {
+        if(RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_3');
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $avance = Avance::on('temp')->findOrFail($id);
+            $avance->statut=$request->etat;
+                if($avance->save()){
+                                 //store statut_avances_penalites table=>si validé
+
+                    $st_av = new StatutAvancePenalite();
+                    $st_av->setConnection('temp');
+                    if($request->etat==1){
+                        $st_av->num_remise=$request->n_remise;
+                        $st_av->date_encaissement=$request->date_encaiss;
+
+                    }else{
+                        $st_av->commentaire=$request->commentaire;
+                    }
+
+                    $st_av->avance_id=$avance->id;
+                    $st_av->user_id_valider = $userAuth->value('id');
+                    $st_av->date_validation = Carbon::now();
+                    $st_av->save();
+                }
+                if($request->etat==1){
+                //store new notification validé
+                NotificationHelper::storeNotification(
+                    '/reservations/show/'.$avance->reservation_id, Carbon::now(),17,'avance validé',Auth::guard('api')->user()->id,null,null,null,$avance->reservation->projet_id,$avance->id,$avance->reservation_id
+                    );
+                    broadcast(new NotificationEvent($id));
+                }else{
+                    //store new notification rejeté
+                    NotificationHelper::storeNotification(
+                        '/reservations/show/'.$avance->reservation_id, Carbon::now(),18,'avance rejeté',Auth::guard('api')->user()->id,null,null,null,$avance->reservation->projet_id,$avance->id,$avance->reservation_id
+                        );
+                        broadcast(new NotificationEvent($id));
+                }
+
+            return response()->json(['message' => 'données enregistrés avec succès.'], 200);
+
+
+
+       } else {
+           return response()->json(['error' => 'Unauthorized'], 401);
+       }
+
     }
 
     /**
@@ -174,14 +269,22 @@ class AvanceController extends Controller
                     $avance->statut = StatutReservationEnum::En_Attente->value;
                 } elseif (RoleHelper::AdminSup()) {
                     $avance->statut = StatutReservationEnum::Validé->value;
-                    $avance->user_id_valider = $userAuth->value('id');
-                    $avance->date_validation = Carbon::now();
-                    $avance->date_encaissement = $request->date_encaissement;
-                    $avance->num_remise = $request->num_remise;
                 }
             }
 
             if ($avance->save()) {
+                //store statut_avances table=>si validé
+                if($avance->statut==StatutReservationEnum::Validé->value ){
+                    $st_avance = new StatutAvancePenalite();
+                    $st_avance->setConnection('temp');
+                    $st_avance->avance_id=$avance->id;
+                    $st_avance->user_id_valider = $userAuth->value('id');
+                    $st_avance->date_validation = Carbon::now();
+                    $st_avance->date_encaissement = $request->date_encaissement;
+                    $st_avance->num_remise = $request->num_remise;
+                    $st_avance->save();
+                }
+
                 ////storer les pieces jointe de paiement
 
                 {if ($request->files_avance) {
@@ -402,6 +505,12 @@ class AvanceController extends Controller
                         $avance->statut = StatutReservationEnum::Validé->value;
                     }
                 }
+                //si commercial  si deja rejete on fait statut =>en cours
+                elseif(RoleHelper::Com()){
+                    if ($avance->statut == StatutReservationEnum::Refusé->value) {
+                        $avance->statut = StatutReservationEnum::En_Attente->value;
+                    }
+                }
                 if ($request->montant == 0) {
                     $avance->statut = StatutReservationEnum::Validé->value;
                 }
@@ -582,5 +691,50 @@ class AvanceController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
 
+    }
+
+    public function get_notif_avances_att_validation($projet_id){
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            $nb_att_validation = Avance::on('temp')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+            ->where('reservations.etat', 1)
+            ->where('avances.statut',3)
+            ->where('reservations.projet_id',$projet_id)->count();
+            return response()->json(['nb_att_valide'=>$nb_att_validation]);
+        } else  return response()->json(['error'=>'Unauthorized'], 401);
+    }
+
+
+    public function get_avances_rejets($projet_id,Request $request){
+
+            if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+                DatabaseHelper::Config();
+                $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+                $page = $request->input('page', 1);
+
+                /*if (RoleHelper::AdminSup()) {
+                    //ADMIN
+                    $avances = Avance::on('temp')->with('last_statut')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+                    ->select('avances.*')
+                    ->where('reservations.etat', 1)
+                    ->where('avances.statut',2)
+                    ->where('reservations.projet_id',$projet_id)->orderBy('created_at', 'desc')
+                    ->paginate($perPage, ['*'], 'page', $page);
+
+                }else*/
+                if(RoleHelper::Com()){
+                    $user = Auth::user();
+                    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                    $avances = Avance::on('temp')->with('last_statut')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+                    ->select('avances.*')
+                    ->where('reservations.etat', 1)
+                    ->where('avances.statut',2)
+                    ->where('avances.user_id',$userAuth->value('id'))
+                    ->where('reservations.projet_id',$projet_id)->orderBy('created_at', 'desc')
+                    ->paginate($perPage, ['*'], 'page', $page);
+
+                }
+            return response()->json(['avances'=>$avances]);
+        } else  return response()->json(['error'=>'Unauthorized'], 401);
     }
 }
