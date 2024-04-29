@@ -53,7 +53,7 @@ Route::post('login', [UserController::class, 'login'])->name('login');
 Route::post('/validateToken/{token}', [UserController::class, 'validateToken']);
 
 
-    /*************************************APIs FROM Outside ***************************** */
+/*************************************APIs FROM Outside ***************************** */
 
 Route::post('handlemessage', [FacebookController::class, 'handleMessage']);
 Route::get('get_pivacy_policy', [FacebookController::class, 'get_pivacy_policy']);
@@ -78,6 +78,7 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************User***************************** */
     Route::resource('user', UserController::class);
+    Route::get('users', [UserController::class, 'getAll'])->name('users');
     Route::get('getUsersBySocieteId/{id}', [UserController::class, 'getUsersBySocieteId'])->name('getUsersBySocieteId');
     Route::put('activateUser/{id}', [UserController::class, 'activateUser'])->name('activateUser');
     Route::put('desactivateUser/{id}', [UserController::class, 'desactivateUser'])->name('desactivateUser');
@@ -133,8 +134,8 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************Bien***************************** */
     Route::resource('bien', BienController::class);
-    Route::get('biens/{projet_id}', [BienController::class,'index'])->name('biens');
-    Route::get('biensProposition/{projet_id}', [BienController::class,'biens_proposition'])->name('');
+    Route::get('biens/{projet_id}', [BienController::class, 'index'])->name('biens');
+    Route::get('biensProposition/{projet_id}', [BienController::class, 'biens_proposition'])->name('');
     Route::post('restoreBien/{id}', [BienController::class, 'restoreBien'])->name('restoreBien');
     Route::get('getTrashedBiens', [BienController::class, 'getTrashedBiens'])->name('getTrashedBiens');
     Route::put('bloquerBien/{id}', [BienController::class, 'bloquerBien'])->name('bloquerBien');
@@ -143,7 +144,7 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('libererBien/{id}', [BienController::class, 'libererBien_function'])->name('libererBien');
     Route::get('getHistoriqueBien/{id}', [BienController::class, 'getHistoriqueBien'])->name('getHistoriqueBien');
     Route::resource('compositionBien', CompositionBienController::class);
-    Route::get('compositionBiens/{bien_id}', [CompositionBienController::class,'index'])->name('compositionBiens');
+    Route::get('compositionBiens/{bien_id}', [CompositionBienController::class, 'index'])->name('compositionBiens');
     Route::post('restoreCompositionBien/{id}', [CompositionBienController::class, 'restoreCompositionBien'])->name('restoreCompositionBien');
     Route::get('getTrashedCompositionBiens', [CompositionBienController::class, 'getTrashedCompositionBiens'])->name('getTrashedCompositionBiens');
     Route::get('getCompositionBybien/{id}', [CompositionBienController::class, 'getComposition'])->name('getComposition');
@@ -167,18 +168,18 @@ Route::middleware('auth:api')->group(function () {
     Route::get('get_typeBiensByProjet/{id}', [TypeBienController::class, 'get_typeBiensByProjet'])->name('get_typeBiensByProjet');
     Route::post('restoreTypeBien/{id}', [TypeBienController::class, 'restoreTypeBien'])->name('restoreTypeBien');
     Route::get('getTrashedTypesBien', [TypeBienController::class, 'getTrashedTypesBien'])->name('getTrashedTypesBien');
-    Route::get('TypeBiens/{projet_id}', [TypeBienController::class,'index'])->name('TypeBiens');
+    Route::get('TypeBiens/{projet_id}', [TypeBienController::class, 'index'])->name('TypeBiens');
 
     /*************************************Visite***************************** */
-    Route::resource('visite',VisiteController::class);
-    Route::get('visites/{projet_id}', [VisiteController::class,'index'])->name('visites');
-    Route::get('relance_rdv_by_visite/{id}', [VisiteController::class,'relance_rdv_by_visite'])->name('');
-    Route::post('store_n_visite/{id}',[VisiteController::class,'store_n_visite'])->name('store_n_visite');
-    Route::get('getAllAttributes',[VisiteController::class,'getAllAttributes'])->name('getAllAttributes');
+    Route::resource('visite', VisiteController::class);
+    Route::get('visites/{projet_id}', [VisiteController::class, 'index'])->name('visites');
+    Route::get('relance_rdv_by_visite/{id}', [VisiteController::class, 'relance_rdv_by_visite'])->name('');
+    Route::post('store_n_visite/{id}', [VisiteController::class, 'store_n_visite'])->name('store_n_visite');
+    Route::get('getAllAttributes', [VisiteController::class, 'getAllAttributes'])->name('getAllAttributes');
     Route::get('get_historiques_visite/{origin_id}', [VisiteController::class, 'get_historiques'])->name('get_historiques');
-    Route::put('traiter_relance_rdv_visite/{id}',[VisiteController::class,'traiter_relance_rdv_visite'])->name('');
+    Route::put('traiter_relance_rdv_visite/{id}', [VisiteController::class, 'traiter_relance_rdv_visite'])->name('');
     Route::get('get_oldBien_visite_pre_reserve/{origin_id}', [VisiteController::class, 'get_oldBien_visite_pre_reserve'])->name('');
-    Route::put('update_visite_bien_pre_reserve/{origin_id}',[VisiteController::class,'update_visite_bien_pre_reserve'])->name('');
+    Route::put('update_visite_bien_pre_reserve/{origin_id}', [VisiteController::class, 'update_visite_bien_pre_reserve'])->name('');
 
     /*************************************type_Freins***************************** */
     Route::resource('type_freins', TypeFreinController::class);
@@ -189,10 +190,10 @@ Route::middleware('auth:api')->group(function () {
     /*************************************Frein***************************** */
     Route::resource('frein', FreinController::class);
     Route::get('get_clients_freins/{projet_id}', [FreinController::class, 'get_clients_freins'])->name('');
-    Route::get('biens_by_frein/{id}', [FreinController::class,'biens_by_frein'])->name('');
-    Route::put('traiter_bien_frein/{bien_id}/{frein_id}', [FreinController::class,'traiter_bien_frein'])->name('');
+    Route::get('biens_by_frein/{id}', [FreinController::class, 'biens_by_frein'])->name('');
+    Route::put('traiter_bien_frein/{bien_id}/{frein_id}', [FreinController::class, 'traiter_bien_frein'])->name('');
     /*************************************Prospect***************************** */
-    Route::resource('prospect',ProspectController::class);
+    Route::resource('prospect', ProspectController::class);
     Route::get('search_prospect_by_email/{email}', [ProspectController::class, 'search_prospect_by_email']);
     Route::get('search_prospect_by_cin/{cin}', [ProspectController::class, 'search_prospect_by_cin']);
     Route::get('search_prospect_by_phone/{phone}', [ProspectController::class, 'search_prospect_by_phone']);
@@ -203,31 +204,31 @@ Route::middleware('auth:api')->group(function () {
 
 
     /*************************************Source***************************** */
-    Route::resource('sources',SourceController::class);
+    Route::resource('sources', SourceController::class);
     Route::get('get_sources', [SourceController::class, 'get_sources'])->name('get_sources');
 
 
     /*************************************Vue***************************** */
     Route::resource('vue', VueController::class);
     Route::get('get_vuesByProjet/{id}', [VueController::class, 'get_vuesByProjet'])->name('get_vuesByProjet');
-    Route::get('vues/{projet_id}', [VueController::class,'index'])->name('vues');
+    Route::get('vues/{projet_id}', [VueController::class, 'index'])->name('vues');
 
-   /*************************************Partenaires***************************** */
-   Route::resource('partenaire', PartenaireController::class);
-   Route::get('partenaires/{projet_id}', [PartenaireController::class,'index'])->name('');
-   Route::get('get_partenaires/{projet_id}', [PartenaireController::class, 'get_partenaires'])->name('get_partenaires');
+    /*************************************Partenaires***************************** */
+    Route::resource('partenaire', PartenaireController::class);
+    Route::get('partenaires/{projet_id}', [PartenaireController::class, 'index'])->name('');
+    Route::get('get_partenaires/{projet_id}', [PartenaireController::class, 'get_partenaires'])->name('get_partenaires');
 
 
     /*************************************Typologie***************************** */
     Route::resource('typologie', TypologieController::class);
     Route::get('get_typologiesByProjet/{id}', [TypologieController::class, 'get_typologiesByProjet'])->name('get_typologiesByProjet');
-    Route::get('typologies/{projet_id}', [TypologieController::class,'index'])->name('typologies');
+    Route::get('typologies/{projet_id}', [TypologieController::class, 'index'])->name('typologies');
     /*************************************Banque***************************** */
-    Route::resource('banque',BanqueController::class);
+    Route::resource('banque', BanqueController::class);
     Route::get('get_banques', [BanqueController::class, 'get_banques'])->name('get_banques');
 
     /*************************************Client***************************** */
-    Route::resource('client',ClientController::class);
+    Route::resource('client', ClientController::class);
     Route::get('get_clients', [ClientController::class, 'get_clients'])->name('get_clients');
     Route::get('getClient_by_projet/{projet_id}', [ClientController::class, 'getClient_by_projet'])->name('getClient_by_projet');
 
@@ -238,99 +239,99 @@ Route::middleware('auth:api')->group(function () {
 
 
     /*************************************Aquereurs***************************** */
-    Route::resource('aquereur',AquereurController::class);
-    Route::get('aquereurs/{projet_id}', [AquereurController::class,'index'])->name('aquereurs');
-    Route::delete('destoryAquereurUsingReservationId/{reservation_id}',[AquereurController::class, 'destroyAquerreursByReservationId'])->name('destoryAquereurUsingReservationId');
-    Route::get('getAquereur_by_Reservation/{reservation_id}',[AquereurController::class, 'getAquereur_by_Reservation'])->name('getAquereur_by_Reservation');
+    Route::resource('aquereur', AquereurController::class);
+    Route::get('aquereurs/{projet_id}', [AquereurController::class, 'index'])->name('aquereurs');
+    Route::delete('destoryAquereurUsingReservationId/{reservation_id}', [AquereurController::class, 'destroyAquerreursByReservationId'])->name('destoryAquereurUsingReservationId');
+    Route::get('getAquereur_by_Reservation/{reservation_id}', [AquereurController::class, 'getAquereur_by_Reservation'])->name('getAquereur_by_Reservation');
 
     /*************************************Avances***************************** */
     Route::resource('avance', AvanceController::class);
-    Route::get('avances/{projet_id}', [AvanceController::class,'index'])->name('avances');
-    Route::delete('destoryUsingReservationId/{reservation_id}',[AvanceController::class,'destoryUsingReservationId'])->name('destoryUsingReservationId');
-    Route::put('valideAvance/{id}',[AvanceController::class,'valideAvance'])->name('valideAvance');
-    Route::put('refuseAvance/{id}',[AvanceController::class,'refuseAvance'])->name('refuseAvance');
-    Route::get('getAvances_by_Reservation/{reservation_id}', [AvanceController::class,'getAvances_by_Reservation'])->name('getAvances_by_Reservation');
-    Route::get('historiques_avance/{id}', [AvanceController::class,'historiques_avance'])->name('');
-    Route::get('get_notif_avances_att_validation/{projet_id}', [AvanceController::class,'get_notif_avances_att_validation'])->name('');
-    Route::get('avances_by_etat/{projet_id}/{etat}', [AvanceController::class,'get_avances_by_etat'])->name('');
-    Route::put('traiter_avance/{id}',[AvanceController::class,'traiter_avance'])->name('');
-    Route::get('avances_rejets/{projet_id}',[AvanceController::class,'get_avances_rejets'])->name('');
+    Route::get('avances/{projet_id}', [AvanceController::class, 'index'])->name('avances');
+    Route::delete('destoryUsingReservationId/{reservation_id}', [AvanceController::class, 'destoryUsingReservationId'])->name('destoryUsingReservationId');
+    Route::put('valideAvance/{id}', [AvanceController::class, 'valideAvance'])->name('valideAvance');
+    Route::put('refuseAvance/{id}', [AvanceController::class, 'refuseAvance'])->name('refuseAvance');
+    Route::get('getAvances_by_Reservation/{reservation_id}', [AvanceController::class, 'getAvances_by_Reservation'])->name('getAvances_by_Reservation');
+    Route::get('historiques_avance/{id}', [AvanceController::class, 'historiques_avance'])->name('');
+    Route::get('get_notif_avances_att_validation/{projet_id}', [AvanceController::class, 'get_notif_avances_att_validation'])->name('');
+    Route::get('avances_by_etat/{projet_id}/{etat}', [AvanceController::class, 'get_avances_by_etat'])->name('');
+    Route::put('traiter_avance/{id}', [AvanceController::class, 'traiter_avance'])->name('');
+    Route::get('avances_rejets/{projet_id}', [AvanceController::class, 'get_avances_rejets'])->name('');
 
 
     /*************************************PiecesJointe***************************** */
-    Route::resource('piecesjointe',PiecesJointeController::class);
-    Route::get('piecesjointes/{projet_id}', [PiecesJointeController::class,'index'])->name('piecesjointes');
-    Route::delete('destoryFileUsingReservationId/{reservation_id}',[PiecesJointeController::class,'destoryFileUsingReservationId'])->name('destoryFileUsingReservationId');
-    Route::get('getFileUsingReservationId/{reservation_id}',[PiecesJointeController::class,'getFileUsingReservationId'])->name('getFileUsingReservationId');
-    Route::post('scanner_file',[PiecesJointeController::class,'scanner_file'])->name('scanner_file');
+    Route::resource('piecesjointe', PiecesJointeController::class);
+    Route::get('piecesjointes/{projet_id}', [PiecesJointeController::class, 'index'])->name('piecesjointes');
+    Route::delete('destoryFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'destoryFileUsingReservationId'])->name('destoryFileUsingReservationId');
+    Route::get('getFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'getFileUsingReservationId'])->name('getFileUsingReservationId');
+    Route::post('scanner_file', [PiecesJointeController::class, 'scanner_file'])->name('scanner_file');
     /*************************************Reservation***************************** */
-    Route::resource('reservation',ReservationController::class);
-    Route::get('info_reservation/{projet_id}', [ReservationController::class,'info_reservation'])->name('');
-    Route::get('reservations/{projet_id}', [ReservationController::class,'index'])->name('reservations');
-    Route::get('getAllInformationsReservation/{id}',[ReservationController::class,'getAllInformationsReservation'])->name('getAllInformationsReservation');
-    Route::get('getReservationssByProjet/{id}',[ReservationController::class,'getReservationssByProjet'])->name('getReservationssByProjet');
-    Route::get('get_Historiques_by_reservation/{id}',[ReservationController::class,'get_Historiques_by_reservation'])->name('');
-    Route::get('getDossiers/{projet_id}/{dos_id}', [ReservationController::class,'get_dossiers'])->name('');
+    Route::resource('reservation', ReservationController::class);
+    Route::get('info_reservation/{projet_id}', [ReservationController::class, 'info_reservation'])->name('');
+    Route::get('reservations/{projet_id}', [ReservationController::class, 'index'])->name('reservations');
+    Route::get('getAllInformationsReservation/{id}', [ReservationController::class, 'getAllInformationsReservation'])->name('getAllInformationsReservation');
+    Route::get('getReservationssByProjet/{id}', [ReservationController::class, 'getReservationssByProjet'])->name('getReservationssByProjet');
+    Route::get('get_Historiques_by_reservation/{id}', [ReservationController::class, 'get_Historiques_by_reservation'])->name('');
+    Route::get('getDossiers/{projet_id}/{dos_id}', [ReservationController::class, 'get_dossiers'])->name('');
     Route::get('search_reservation_by_code/{code_res}', [ReservationController::class, 'search_reservation_by_code']);
-    Route::get('reservations_by_etat/{projet_id}/{etat}', [ReservationController::class,'get_reservations_by_etat'])->name('');
-    Route::put('traiter_reservation/{id}',[ReservationController::class,'traiter_reservation'])->name('');
-    Route::get('get_notif_reservation_att_validation/{projet_id}', [ReservationController::class,'get_notif_reservation_att_validation'])->name('');
-    Route::get('reservations_rejets/{projet_id}',[ReservationController::class,'get_reservations_rejets'])->name('');
-    Route::get('relancer_reservation/{id}', [ReservationController::class,'relancer_reservation'])->name('');
+    Route::get('reservations_by_etat/{projet_id}/{etat}', [ReservationController::class, 'get_reservations_by_etat'])->name('');
+    Route::put('traiter_reservation/{id}', [ReservationController::class, 'traiter_reservation'])->name('');
+    Route::get('get_notif_reservation_att_validation/{projet_id}', [ReservationController::class, 'get_notif_reservation_att_validation'])->name('');
+    Route::get('reservations_rejets/{projet_id}', [ReservationController::class, 'get_reservations_rejets'])->name('');
+    Route::get('relancer_reservation/{id}', [ReservationController::class, 'relancer_reservation'])->name('');
 
     /******************************Typologie **********************/
     Route::get('get_typologiesByProjet/{id}', [TypologieController::class, 'get_typologiesByProjet'])->name('get_typologiesByProjet');
-    Route::get('typologies/{projet_id}', [TypologieController::class,'index'])->name('typologies');
+    Route::get('typologies/{projet_id}', [TypologieController::class, 'index'])->name('typologies');
 
     /*************************************EnumController***************************** */
-    Route::get('Enums', [EnumController::class,'get_enums'])->name('');
-    Route::get('InteretEnum', [EnumController::class,'InteretEnum_get'])->name('');
-    Route::get('OrientationEnum', [EnumController::class,'OrientationEnum_get'])->name('');
-    Route::get('TypeNotificationEnum', [EnumController::class,'TypeNotificationEnum_get'])->name('');
-    Route::get('StatutVisiteEnum', [EnumController::class,'StatutVisiteEnum_get'])->name('');
-    Route::get('Mode_finance_Enum', [EnumController::class,'ModefinanceEnum_get'])->name('');
-    Route::get('Mode_paiement_Enum', [EnumController::class,'ModePaiementEnum_get'])->name('');
-    Route::get('StatutReservationEnum', [EnumController::class,'StatutReservationEnum_get'])->name('');
-    Route::get('TypesClient_Enum', [EnumController::class,'TypesClientEnum_get'])->name('');
-    Route::get('Civilite_Enum', [EnumController::class,'CiviliteEnum_get'])->name('');
-    Route::get('StatutFamilleEnum', [EnumController::class,'StatutFamilleEnum_get'])->name('');
-    Route::get('EtatBien', [EnumController::class,'EtatBien_get'])->name('');
-    Route::get('Enums_desistements', [EnumController::class,'get_enums_desistements'])->name('');
+    Route::get('Enums', [EnumController::class, 'get_enums'])->name('');
+    Route::get('InteretEnum', [EnumController::class, 'InteretEnum_get'])->name('');
+    Route::get('OrientationEnum', [EnumController::class, 'OrientationEnum_get'])->name('');
+    Route::get('TypeNotificationEnum', [EnumController::class, 'TypeNotificationEnum_get'])->name('');
+    Route::get('StatutVisiteEnum', [EnumController::class, 'StatutVisiteEnum_get'])->name('');
+    Route::get('Mode_finance_Enum', [EnumController::class, 'ModefinanceEnum_get'])->name('');
+    Route::get('Mode_paiement_Enum', [EnumController::class, 'ModePaiementEnum_get'])->name('');
+    Route::get('StatutReservationEnum', [EnumController::class, 'StatutReservationEnum_get'])->name('');
+    Route::get('TypesClient_Enum', [EnumController::class, 'TypesClientEnum_get'])->name('');
+    Route::get('Civilite_Enum', [EnumController::class, 'CiviliteEnum_get'])->name('');
+    Route::get('StatutFamilleEnum', [EnumController::class, 'StatutFamilleEnum_get'])->name('');
+    Route::get('EtatBien', [EnumController::class, 'EtatBien_get'])->name('');
+    Route::get('Enums_desistements', [EnumController::class, 'get_enums_desistements'])->name('');
 
 
     /************************NotificationController********************* */
-    Route::get('get_relances_visites/{projet_id}', [NotificationController::class,'get_relances_visites'])->name('');
-    Route::get('get_rdv_visites/{projet_id}', [NotificationController::class,'get_rdv_visites'])->name('');
-    Route::get('get_relances_menu/{projet_id}', [NotificationController::class,'get_relances_menu'])->name('');
-    Route::get('get_relances_visites/{projet_id}', [NotificationController::class,'get_relances_visites'])->name('');
-    Route::get('get_notifications/{projet_id}', [NotificationController::class,'get_notifications'])->name('');
-    Route::get('DestroyNotif/{id}', [NotificationController::class,'DestroyNotif'])->name('');
-    Route::get('notifications/{projet_id}', [NotificationController::class,'index'])->name('');
-    Route::get('get_notif_rejete_commercial/{projet_id}', [NotificationController::class,'get_notif_rejete_commercial'])->name('');
+    Route::get('get_relances_visites/{projet_id}', [NotificationController::class, 'get_relances_visites'])->name('');
+    Route::get('get_rdv_visites/{projet_id}', [NotificationController::class, 'get_rdv_visites'])->name('');
+    Route::get('get_relances_menu/{projet_id}', [NotificationController::class, 'get_relances_menu'])->name('');
+    Route::get('get_relances_visites/{projet_id}', [NotificationController::class, 'get_relances_visites'])->name('');
+    Route::get('get_notifications/{projet_id}', [NotificationController::class, 'get_notifications'])->name('');
+    Route::get('DestroyNotif/{id}', [NotificationController::class, 'DestroyNotif'])->name('');
+    Route::get('notifications/{projet_id}', [NotificationController::class, 'index'])->name('');
+    Route::get('get_notif_rejete_commercial/{projet_id}', [NotificationController::class, 'get_notif_rejete_commercial'])->name('');
 
     /********************************DesistemenController*********** */
-    Route::resource('desistement',DesistementController::class);
-    Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [DesistementController::class,'get_historiques_desistement_by_reservation'])->name('');
-    Route::put('validation_desistement/{id}', [DesistementController::class,'validation_desitement'])->name('');
-    Route::get('get_notif_dst_commercial/{projet_id}', [DesistementController::class,'get_notif_dst_commercial'])->name('');
-    Route::get('get_notif_dst_admin/{projet_id}', [DesistementController::class,'get_notif_dst_admin'])->name('');
-    Route::get('get_desistements/{projet_id}/{type}/{etat}', [DesistementController::class,'get_desistements'])->name('');
-    Route::post('desistement/corriger_desistement', [DesistementController::class,'store'])->name('');
-    Route::get('get_dossiers_by_bien/{bien_id}', [DesistementController::class,'get_dossiers_by_bien'])->name('');
+    Route::resource('desistement', DesistementController::class);
+    Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [DesistementController::class, 'get_historiques_desistement_by_reservation'])->name('');
+    Route::put('validation_desistement/{id}', [DesistementController::class, 'validation_desitement'])->name('');
+    Route::get('get_notif_dst_commercial/{projet_id}', [DesistementController::class, 'get_notif_dst_commercial'])->name('');
+    Route::get('get_notif_dst_admin/{projet_id}', [DesistementController::class, 'get_notif_dst_admin'])->name('');
+    Route::get('get_desistements/{projet_id}/{type}/{etat}', [DesistementController::class, 'get_desistements'])->name('');
+    Route::post('desistement/corriger_desistement', [DesistementController::class, 'store'])->name('');
+    Route::get('get_dossiers_by_bien/{bien_id}', [DesistementController::class, 'get_dossiers_by_bien'])->name('');
 
     //penalites
-    Route::get('penalites/{projet_id}/{etat}', [DesistementController::class,'get_all_penalites'])->name('');
-    Route::put('traiter_penalite/{id}',[DesistementController::class,'traiter_penalite'])->name('');
-    Route::get('show_penalite/{id}',[DesistementController::class,'show_penalite'])->name('');
-    Route::post('penalites/corriger_penalite',[DesistementController::class,'corriger_penalite'])->name('');
-    Route::get('get_notif_penalite_admin/{projet_id}', [DesistementController::class,'get_notif_pen_admin'])->name('');
-    Route::get('get_notif_penalite_commercial/{projet_id}', [DesistementController::class,'get_notif_pen_commercial'])->name('');
-    Route::get('get_historiques_penalites/{desistement_id}', [DesistementController::class,'get_historiques_penalites_by_desId'])->name('');
+    Route::get('penalites/{projet_id}/{etat}', [DesistementController::class, 'get_all_penalites'])->name('');
+    Route::put('traiter_penalite/{id}', [DesistementController::class, 'traiter_penalite'])->name('');
+    Route::get('show_penalite/{id}', [DesistementController::class, 'show_penalite'])->name('');
+    Route::post('penalites/corriger_penalite', [DesistementController::class, 'corriger_penalite'])->name('');
+    Route::get('get_notif_penalite_admin/{projet_id}', [DesistementController::class, 'get_notif_pen_admin'])->name('');
+    Route::get('get_notif_penalite_commercial/{projet_id}', [DesistementController::class, 'get_notif_pen_commercial'])->name('');
+    Route::get('get_historiques_penalites/{desistement_id}', [DesistementController::class, 'get_historiques_penalites_by_desId'])->name('');
 
 
     /******************************************* */
-    Route::resource('remboursement',RemboursementController::class);
-    Route::get('get_detail_transfert/{reservation_id}', [RemboursementController::class,'get_detail_transfert'])->name('');
+    Route::resource('remboursement', RemboursementController::class);
+    Route::get('get_detail_transfert/{reservation_id}', [RemboursementController::class, 'get_detail_transfert'])->name('');
 
 
 });

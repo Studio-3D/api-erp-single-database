@@ -29,15 +29,17 @@ class UserController extends Controller
             'password' => 'required',
         ]);
         $User = User::where('email', $request->email)->first();
-        if ($User->is_actif == 1) {if (Auth::attempt($credentials)) {
-            $user = Auth::user();
-            $user->is_connected = 1;
-            $user->save();
-            $accessToken = $user->createToken('API Token')->accessToken;
+        if ($User->is_actif == 1) {
+            if (Auth::attempt($credentials)) {
+                $user = Auth::user();
+                $user->is_connected = 1;
+                $user->save();
+                $accessToken = $user->createToken('API Token')->accessToken;
 
-            return response()->json(['access_token' => $accessToken], 200);
+                return response()->json(['access_token' => $accessToken], 200);
+            }
+            return response()->json(['error' => 'email ou mot de passe incorrect'], 422);
         }
-            return response()->json(['error' => 'email ou mot de passe incorrect'], 422);}
 
         return response()->json(['error' => 'utilisateur non actif'], 422);
     }
@@ -90,6 +92,46 @@ class UserController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+    public function getAll(Request $request)
+    {
+        $size = $request->input('size', config('app.default_item_number_perpage'));
+        $page = $request->input('page', 1);
+
+        if (RoleHelper::Superadmin()) {
+            if (Auth::guard('api')->user()->societe_id == 1) {
+                $users = User::orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+            } else {
+                $users = User::where('societe_id', Auth::guard('api')->user()->societe_id)
+                    ->where('role', '!=', 1)
+                    ->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+            }
+        } else if (RoleHelper::Admin()) {
+            DatabaseHelper::Config();
+            $users = User::on('temp')->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        // Extract pagination properties from the paginator
+        $pagination = [
+            'currentPage' => $users->currentPage(),
+            'totalItems' => $users->total(),
+            'totalPages' => $users->lastPage(),
+        ];
+
+        // Extract user items from paginator
+        $users = $users->items();
+
+        // Return simplified response
+        return response()->json([
+            'users' => $users,
+            'pagination' => $pagination
+        ], 200);
+    }
+
     public function index(Request $request)
     {
         if (RoleHelper::Superadmin()) {
