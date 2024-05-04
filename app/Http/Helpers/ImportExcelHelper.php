@@ -7,6 +7,8 @@ use App\Models\Frein;
 use App\Models\Tranche;
 use App\Models\Bien;
 use App\Models\Bloc;
+use App\Models\Projet;
+
 use App\Models\CompositionBien; 
 use App\Models\TypeBien;
 use App\Models\Immeuble;
