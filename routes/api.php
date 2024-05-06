@@ -14,6 +14,7 @@ use App\Http\Controllers\ProjetController;
 use App\Http\Controllers\ProspectController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\SocieteController;
+use App\Http\Controllers\SocieteControllerV1;
 use App\Http\Controllers\SourceController;
 use App\Http\Controllers\TrancheController;
 use App\Http\Controllers\TypeBienController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\TypeFreinController;
 use App\Http\Controllers\TypeProjetController;
 use App\Http\Controllers\TypologieController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserControllerV1;
 use App\Http\Controllers\VisiteController;
 use App\Http\Controllers\PartenaireController;
 use App\Http\Controllers\VueController;
@@ -70,6 +72,7 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************Société***************************** */
     Route::resource('societe', SocieteController::class);
+    Route::resource('societes', SocieteControllerV1::class);
     Route::post('restoreSociete/{id}', [SocieteController::class, 'restoreSociete'])->name('restoreSociete');
     Route::get('getTrashedSocietes', [SocieteController::class, 'getTrashedSocietes'])->name('getTrashedSocietes');
     Route::put('Switch_Societes', [SocieteController::class, 'Switch_Societes'])->name('Switch_Societes');
@@ -78,7 +81,8 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************User***************************** */
     Route::resource('user', UserController::class);
-    Route::get('users', [UserController::class, 'getAll'])->name('users');
+    Route::resource('users', UserControllerV1::class);
+
     Route::get('getUsersBySocieteId/{id}', [UserController::class, 'getUsersBySocieteId'])->name('getUsersBySocieteId');
     Route::put('activateUser/{id}', [UserController::class, 'activateUser'])->name('activateUser');
     Route::put('desactivateUser/{id}', [UserController::class, 'desactivateUser'])->name('desactivateUser');
