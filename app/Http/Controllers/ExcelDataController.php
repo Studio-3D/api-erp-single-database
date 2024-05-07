@@ -45,7 +45,7 @@ class ExcelDataController extends Controller{
 
         $keys = array_keys($data[0]);
         
-        Log::info($keys);
+   
         
 
         $importMethod = $this->determineImportMethod($keys);
@@ -61,30 +61,26 @@ class ExcelDataController extends Controller{
         
             if ($hasTranche && $hasBloc && $hasImmeuble) {
                 return 'ImportStockByProjet';
-                Log::info('ImportStockByProjet');
+           
 
             } elseif ($hasTranche && $hasBloc && !$hasImmeuble) {
-                Log::info('ImportStockByProjetWithoutImmeuble');
+         
 
                 return 'ImportStockByProjetWithoutImmeuble';
             } elseif ($hasTranche && !$hasBloc && $hasImmeuble) {
-                Log::info('ImportStockByProjetWithoutBloc');
+          
 
                 return 'ImportStockByProjetWithoutBloc';
             } elseif ($hasTranche && !$hasBloc && !$hasImmeuble) {
-                Log::info('ImportStockByProjetWithoutBlocAndImmeuble');
 
                 return 'ImportStockByProjetWithoutBlocAndImmeuble';
             } elseif (!$hasTranche && $hasBloc && $hasImmeuble) {
-                Log::info('ImportStockByProjetWithoutTranche');
 
                 return 'ImportStockByProjetWithoutTranche';
             } elseif (!$hasTranche && $hasBloc && !$hasImmeuble) {
-                Log::info('ImportStockByProjetWithoutTrancheAndImmeuble');
 
                 return 'ImportStockByProjetWithoutTrancheAndImmeuble';
             } elseif (!$hasTranche && !$hasBloc && $hasImmeuble) {
-                Log::info('ImportStockByProjetWithoutTrancheAndBloc');
 
                 return 'ImportStockByProjetWithoutTrancheAndBloc';
             } else {
