@@ -39,7 +39,10 @@ class StoreDesistementRequest extends FormRequest
                 //mode remboursement obligatoire
                 $rules['type_remb']='required';
                 if($request->type_remb!=null){
-                    if($request->type_remb=='direct'){
+                    if($request->type_remb=='transfert'){
+                        $rules['dossier_id']='required';
+                    }
+                    /*if($request->type_remb=='direct'){
                         $rules['date_remboursement']='required';
                         $rules['mode_remboursement']='required';
                         $rules['num_paiement']='required';
@@ -72,7 +75,7 @@ class StoreDesistementRequest extends FormRequest
                              }
 
                         }
-                    }
+                    }*/
                 }
             }
         }

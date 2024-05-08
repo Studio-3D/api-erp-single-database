@@ -44,6 +44,10 @@ class Bien extends Model
     {
         return $this->belongsTo(Typologie::class, 'typologie_id');
     }
+    public function desistement()
+    {
+        return $this->belongsTo(Desistement::class, 'desistement_id');
+    }
 
     public function is_proposed()
     {

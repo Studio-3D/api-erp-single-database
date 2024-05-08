@@ -86,14 +86,17 @@ class AquereurController extends Controller
     {
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
-            $aquereur=new Aquereur();
-            $aquereur->setConnection('temp');
-            $aquereur->pourcentage=$request->pourcentage;
-            $aquereur->client_id=$request->client_id;
-            $aquereur->reservation_id=$request->reservation_id;
-            if($aquereur->save()){
-                return response()->json(['Aquérreur',$aquereur],200);
+            if($request->client_id!=null){
+                $aquereur=new Aquereur();
+                $aquereur->setConnection('temp');
+                $aquereur->pourcentage=$request->pourcentage;
+                $aquereur->client_id=$request->client_id;
+                $aquereur->reservation_id=$request->reservation_id;
+                if($aquereur->save()){
+                    return response()->json(['Aquérreur',$aquereur],200);
+                }
             }
+
         }
         return  response()->json(['error','Unauthorized'],401);
     }
@@ -208,7 +211,7 @@ class AquereurController extends Controller
             }
 
         }
-        
+
         return response()->json(['error'=>'Unauthorized'],401);
     }
 

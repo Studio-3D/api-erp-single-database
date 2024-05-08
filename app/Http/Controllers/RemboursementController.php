@@ -8,6 +8,16 @@ use App\Models\Remboursement;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
+use App\Models\User;
+use App\Models\Societe;
+use Illuminate\Support\Facades\File;
+use App\Enum\RoleEnum;
+use App\Http\Helpers\NotificationHelper;
+use Carbon\Carbon;
+use App\Events\NotificationEvent;
+use App\Models\Encaissement;
+
 
 
 class RemboursementController extends Controller
@@ -15,8 +25,242 @@ class RemboursementController extends Controller
     /**
      * Display a listing of the resource.
      */
+    public function index(Request $request,$projet_id,$action)    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
 
-     
+            if(RoleHelper::AdminSup()){
+                //demande de remboursement (apres vente)
+                if($action==0){
+                    $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                    ->select('remboursements.*','desistements.id as des_id')
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',0)->where('remboursements.etat',1)
+                    ->orderBy('remboursements.created_at','desc')
+                    ->where(function ($query) use ($request) {
+                        $query->where('remboursements.mode_rembourse', 'apres_vente')
+                            ->orwhere('remboursements.mode_rembourse', 'transfert_rem_apres_vente')
+                        ;})
+                        ->where('desistements.deleted_at',NULL)
+                    ->paginate($perPage, ['*'], 'page', $page);
+                    //3= attente accuses du chéque
+                }elseif($action==3){
+                    $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                    ->select('remboursements.*','desistements.id as des_id')
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',1)->where('remboursements.etat',1)
+                    ->where('remboursements.remis_le',NULL)
+                    ->where('remboursements.cheque_client_signe',NULL)
+                    ->where('remboursements.user_id_remis',NULL)
+                    ->orderBy('remboursements.created_at','desc')
+                    ->where('desistements.deleted_at',NULL)
+                    ->paginate($perPage, ['*'], 'page', $page);
+
+                }
+                // att decaissement
+                elseif($action==1){
+                    $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                    ->select('remboursements.*','desistements.id as des_id')
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',2)->where('remboursements.etat',1)
+                    ->where('remboursements.user_id_remis','!=',NULL)
+                    ->orderBy('remboursements.created_at','desc')
+                    ->where('desistements.deleted_at',NULL)
+                    ->paginate($perPage, ['*'], 'page', $page);
+
+                }
+                //2=Liste des Accusé
+                elseif($action==2){
+                    $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                    ->select('remboursements.*','desistements.id as des_id')->with('banque')
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',3)->where('remboursements.etat',1)
+                    ->where('remboursements.date_decaissement','!=',NULL)
+                    ->where('remboursements.banque_id','!=',NULL)
+                    ->orderBy('remboursements.created_at','desc')
+                    ->where('desistements.deleted_at',NULL)
+                    ->paginate($perPage, ['*'], 'page', $page);
+
+                }
+
+
+
+            }elseif(RoleHelper::Com()){
+
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+              //demande de remboursement (apres vente)
+               if($action==0){
+                $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                ->select('remboursements.*','desistements.id as des_id')
+                ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',0)->where('remboursements.etat',1)
+                ->orderBy('remboursements.created_at','desc')
+                ->where(function ($query) use ($request) {
+                    $query->where('remboursements.mode_rembourse', 'apres_vente')
+                        ->orwhere('remboursements.mode_rembourse', 'transfert_rem_apres_vente')
+                    ;})
+                    ->where('desistements.deleted_at',NULL)
+                ->where('desistements.user_id', $userAuth->value('id'))
+                ->paginate($perPage, ['*'], 'page', $page);
+                   //3==>att accusé chesque par user_id
+                }elseif($action==3){
+                    $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                    ->select('remboursements.*','desistements.id as des_id')
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',1)->where('remboursements.etat',1)
+                    ->where('desistements.user_id', $userAuth->value('id'))
+                    ->where('remboursements.remis_le',NULL)
+                    ->where('remboursements.cheque_client_signe',NULL)
+                    ->where('remboursements.user_id_remis',NULL)
+                    ->orderBy('remboursements.created_at','desc')
+                    ->where('desistements.deleted_at',NULL)
+                    ->paginate($perPage, ['*'], 'page', $page);
+                }
+                //4==> accuses_cheque_traiter par user_id
+                elseif($action==4){
+                    $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                    ->select('remboursements.*','desistements.id as des_id')
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',2)->where('remboursements.etat',1)
+                    ->where('desistements.user_id', $userAuth->value('id'))
+                    ->where('remboursements.user_id_remis',$userAuth->value('id'))
+                    ->orderBy('remboursements.created_at','desc')
+                    ->where('desistements.deleted_at',NULL)
+                    ->paginate($perPage, ['*'], 'page', $page);
+                }
+
+            }
+            return response()->json(['remboursements' => $remboursements]);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+    public function traiter_demande_pre_rembourse($id,Request $request)
+    {
+
+        if(RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_3');
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+            $societe = Societe::findOrfail($user_societes->societe_id);
+
+            $remboursement = Remboursement::on('temp')->findOrFail($id);
+            $remboursement->statut=1;
+            $remboursement->user_id_valider=$userAuth->value('id');;
+            $remboursement->date_rembourse=$request->date_remboursement;
+            $remboursement->mode_rembourse_client=$request->mode_rembourse_client;
+            $remboursement->pour_le_compte=$request->pour_le_compte;
+            $remboursement->num_paiement=$request->num_paiement;
+
+            if ($request->hasFile('fichier_autorisation')) {
+                $remboursement->fichier_autorisation =$request->file('fichier_autorisation')->getClientOriginalName();
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisation');
+                File::makeDirectory($directory, 0755, true, true);
+                $request->file('fichier_autorisation')->move($directory,$request->file('fichier_autorisation')->getClientOriginalName());
+            }
+            if ($request->hasFile('cheque_recu')) {
+                $remboursement->cheque =$request->file('cheque_recu')->getClientOriginalName();
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
+                File::makeDirectory($directory, 0755, true, true);
+                $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
+            }
+            $remboursement->save();
+                /*if($remboursement->save()){
+                    //store new notification validé
+                    NotificationHelper::storeNotification(
+                        '/remboursements/accuses_reception', Carbon::now(),20,'pré remboursement /le chèque de remboursement du Bien est prêt',Auth::guard('api')->user()->id,null,null,null,$reservation->projet_id,null,null
+                        );
+                        broadcast(new NotificationEvent($id));
+                }*/
+
+            return response()->json(['message' => 'le chèque de remboursement  est prêt.'], 200);
+
+
+
+       } else {
+           return response()->json(['error' => 'Unauthorized'], 401);
+       }
+
+    }
+
+    public function traiter_accuse($id,Request $request)
+    {
+
+
+       if(RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_3');
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+            $societe = Societe::findOrfail($user_societes->societe_id);
+
+            $remboursement = Remboursement::on('temp')->findOrFail($id);
+            $remboursement->statut=2;
+            $remboursement->remis_le=$request->remis_le;
+            $remboursement->user_id_remis=$userAuth->value('id');
+            if ($request->hasFile('cheque_client_signe')) {
+                $remboursement->cheque =$request->file('cheque_client_signe')->getClientOriginalName();
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
+                File::makeDirectory($directory, 0755, true, true);
+                $request->file('cheque_client_signe')->move($directory,$request->file('cheque_client_signe')->getClientOriginalName());
+            }
+            if($remboursement->save()){
+                if(RoleHelper::Com()){
+                    //si commercial ==> envoi notif au admin que client a pris le cheque de remboursement
+                    NotificationHelper::storeNotification(
+                        '/remboursements/att_decaissement', Carbon::now(),21,'client a pris le chéque du remboursement',null,RoleEnum::ADMIN->value,null,null,$remboursement->reservation->projet_id,null,$remboursement->reservation_id
+                        );
+                        broadcast(new NotificationEvent($id));
+                }
+            }
+
+            return response()->json(['message' => 'le Chèque du Remboursement est distribué au client.'], 200);
+
+
+
+       } else {
+           return response()->json(['error' => 'Unauthorized'], 401);
+       }
+
+    }
+    public function traiter_decaissement($id,Request $request)
+    {
+
+
+       if(RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            Config::set('broadcasting.default', 'pusher_3');
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $remboursement = Remboursement::on('temp')->findOrFail($id);
+            $remboursement->statut=3;
+            $remboursement->date_accuse=Carbon::now();
+            $remboursement->date_decaissement=$request->date_decaissement;
+            $remboursement->banque_id=$request->banque_id;
+
+            if($remboursement->save()){
+                $encaiss = new Encaissement();
+                $encaiss->setConnection('temp');
+                $encaiss->remboursement_id = $id;
+                $encaiss->reservation_id = $remboursement->reservation_id;
+                $encaiss->type_encaissement = 3; //Remboursements
+                $encaiss->montant = $remboursement->montant_a_rembourser;
+                $encaiss->date_reglement = Carbon::now();
+                $encaiss->date_encaissement =$request->date_decaissement;
+                $encaiss->user_id_valider = $userAuth->value('id');
+                $encaiss->save();
+            }
+
+            return response()->json(['message' => 'le Chèque du Remboursement est distribué au client.'], 200);
+
+       } else {
+           return response()->json(['error' => 'Unauthorized'], 401);
+       }
+
+    }
+
      public function get_detail_transfert(Request $request, $reservation_id)
      {
          if (RoleHelper::ACSup()) {
@@ -35,6 +279,30 @@ class RemboursementController extends Controller
 
          }
      }
+     public function get_notif_demande_pre_remboursement($projet_id){
+        DatabaseHelper::Config();
+        if (RoleHelper::AdminSup()) {
+            $nb_demande = Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+            ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',0)->where('remboursements.etat',1)
+            ->where(function ($query) {
+                $query->where('remboursements.mode_rembourse', 'apres_vente')
+                    ->orwhere('remboursements.mode_rembourse', 'transfert_rem_apres_vente')
+                ;})->count();
+                return response()->json(['nb_att_valide'=>$nb_demande]);
+        }elseif(RoleHelper::Com()){
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $nb_demande = Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+            ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',0)->where('remboursements.etat',1)
+            ->where('desistements.user_id', $userAuth->value('id'))
+            ->where(function ($query) {
+                $query->where('remboursements.mode_rembourse', 'apres_vente')
+                    ->orwhere('remboursements.mode_rembourse', 'transfert_rem_apres_vente')
+                ;})->count();
+            return response()->json(['nb_att_valide'=>$nb_demande]);
+
+        } else  return response()->json(['error'=>'Unauthorized'], 401);
+    }
 
 
 

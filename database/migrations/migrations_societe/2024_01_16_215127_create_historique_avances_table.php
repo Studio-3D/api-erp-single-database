@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('fichier')->nullable();
             $table->boolean('sr')->default(false);
             $table->string('commentaireAvance')->nullable();
+            $table->string('commentaire_rejete')->nullable();
             $table->enum('statut',[StatutReservationEnum::Validé->value,StatutReservationEnum::Refusé->value,StatutReservationEnum::En_Attente->value]);
             $table->foreignId('banque_id')->nullable()->constrained('banques')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');

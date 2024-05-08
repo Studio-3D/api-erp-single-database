@@ -80,7 +80,6 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('user', UserController::class);
     Route::get('getUsersBySocieteId/{id}', [UserController::class, 'getUsersBySocieteId'])->name('getUsersBySocieteId');
     Route::put('activateUser/{id}', [UserController::class, 'activateUser'])->name('activateUser');
-    Route::put('desactivateUser/{id}', [UserController::class, 'desactivateUser'])->name('desactivateUser');
     Route::post('restoreUser/{id}', [UserController::class, 'restoreUser'])->name('restoreUser');
     Route::get('getTrashedUsers', [UserController::class, 'getTrashedUsers'])->name('getTrashedUsers');
     Route::get('dashboard', [UserController::class, 'dashboard'])->name('dashboard');
@@ -330,7 +329,12 @@ Route::middleware('auth:api')->group(function () {
 
     /******************************************* */
     Route::resource('remboursement',RemboursementController::class);
+    Route::get('get_remboursements/{projet_id}/{etat}', [RemboursementController::class,'index'])->name('');
     Route::get('get_detail_transfert/{reservation_id}', [RemboursementController::class,'get_detail_transfert'])->name('');
+    Route::post('traiter_demande_pre_rembourse/{id}', [RemboursementController::class, 'traiter_demande_pre_rembourse'])->name('');
+    Route::get('get_notif_demande_pre_remboursement/{projet_id}', [RemboursementController::class,'get_notif_demande_pre_remboursement'])->name('');
+    Route::post('traiter_accuse/{id}', [RemboursementController::class, 'traiter_accuse'])->name('');
+    Route::post('traiter_decaissement/{id}', [RemboursementController::class, 'traiter_decaissement'])->name('');
 
 
 });

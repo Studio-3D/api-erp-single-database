@@ -49,6 +49,10 @@ class Reservation extends Model
     {
         return $this->hasMany(Avance::class,'reservation_id');
     }
+    public function first_avance()
+    {
+        return $this->hasOne(Avance::class,'reservation_id')->orderby('created_at','asc')->latest();
+    }
     public function avances_desist()
     {
         return $this->hasMany(Avance::class,'reservation_id')->onlyTrashed();

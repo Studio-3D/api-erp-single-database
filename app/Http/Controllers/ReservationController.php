@@ -49,7 +49,7 @@ class ReservationController extends Controller
             $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
                 ->groupby('reservation_id');
 
-            $reservations = Reservation::on('temp')->with('desistement_att_validation_rejete')
+            $reservations = Reservation::on('temp')->with('desistement_att_validation_rejete','last_statut','first_avance')
                 ->joinSub($avances, 'avances_req', function ($join) {
                     $join->on('avances_req.reservation_id', '=', 'reservations.id');
                 })
@@ -127,6 +127,7 @@ class ReservationController extends Controller
                 ->where('reservations.user_id',  $userAuth->value('id'))
                 ->where('reservations.projet_id', $projet_id)
                 ->paginate($perPage, ['*'], 'page', $page);
+                return response()->json(['reservations' => $reservations], 200);
             }
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -151,11 +152,9 @@ class ReservationController extends Controller
             //test si le user connecte celui qui a  fait la proposition /etat du bien
             if ($request->bien_id != null) {
                 $bien_prop = Bien::on('temp')->findorfail($request->bien_id);
-                /* if($bien_prop->etat!=EtatBien::DISPONIBLE->name){
-                return response()->json(['error' => 'Ce bien n\'est pas disponible'], 422);
-                }*/
-                if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id != Auth::guard('api')->user()->id) {
-                    return response()->json(['error' => 'le bien choisi :' . $bien_prop->propriete_dite_bien . ' est en cours de proposition  par : ' . $bien_prop->is_proposed->user->name . ' ' . $bien_prop->is_proposed->user->prenom]);
+
+                if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id != $userAuth->value('user_id_origin')) {
+                    return response()->json(['error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien . ' est en cours de proposition  par : ' . $bien_prop->is_proposed->user->name . ' ' . $bien_prop->is_proposed->user->prenom], 333);
                 }
 
             }
@@ -166,7 +165,7 @@ class ReservationController extends Controller
             $reservation->prix = $request->prix;
             $reservation->mode_financement = $request->mode_financement;
             $reservation->date_reservation = $request->date_reservation;
-            $reservation->commentaire = $request->commentaire;
+            $reservation->commentaire=$request->input('commentaire')=="null"?null:$request->input('commentaire');
             $reservation->visite_id = $request->visite_id;
             $reservation->prix_remise = $request->prix_remise;
             $numberToWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
@@ -190,6 +189,7 @@ class ReservationController extends Controller
                 if($reservation->statut==StatutReservationEnum::Validé->value){
                     $statut_R = new StatutReservation();
                     $statut_R->setConnection('temp');
+                    $statut_R->reservation_id=$reservation->id;
                     $statut_R->statut= StatutReservationEnum::Validé->value;
                     $statut_R->date_validation=Carbon::now();
                     $statut_R->user_id_valider=$userAuth->value('id');
@@ -237,28 +237,6 @@ class ReservationController extends Controller
                     $aquereurRequest->merge($dataAquereur);
                     $aquereurController->store($aquereurRequest);
                 } else {
-                    /* if ($request->clients) {
-                    foreach ($request->clients as $clientInfo) {
-                    $clientRequest->merge($clientInfo);
-                    $clientData = $clientController->store($clientRequest);
-                    $dataAquereur = [
-                    'pourcentage' => $clientInfo['pourcentage'],
-                    'client_id' => $clientData->id,
-                    'reservation_id' => $reservation->id,
-                    ];
-                    $aquereurRequest->merge($dataAquereur);
-                    $aquereurController->store($aquereurRequest);
-                    }}
-                    if ($request->oldClients) {
-                    foreach ($request->oldClients as $clientInfo) {
-                    $dataAquereur = [
-                    'pourcentage' => $clientInfo['pourcentage1'],
-                    'client_id' => $clientInfo['id'],
-                    'reservation_id' => $reservation->id,
-                    ];
-                    $aquereurRequest->merge($dataAquereur);
-                    $aquereurController->store($aquereurRequest);
-                    }} */
                     // Parse the string back to an array
                     $dataArray_clients = json_decode($request->input('clients'), true);
                     $dataArrayString = $request->input('oldClients', '[]');
@@ -315,7 +293,6 @@ class ReservationController extends Controller
                     'num_remise' => $request->num_remise,
                     'date_encaissement' => $request->date_encaissement,
                     'files_avance' => $request->file('files_avance'),
-                    'user_connecter' => $userAuth->value('user_id_origin'),
                 ];
                 $avanceRequest->merge($dataAvance);
                 $avanceController->store($avanceRequest);
@@ -379,6 +356,7 @@ class ReservationController extends Controller
              $code=$reservation->code_reservation;
              $code_desistement=$reservation->code_desistement;
              $prix=$reservation->prix;
+             $user_id=$reservation->user_id;
              if($reservation->etat>1){
                 $nb_aq=count($reservation->aquereurs_ancien);
                 $nb_pj=count($reservation->piece_jointe_desiste);
@@ -387,7 +365,7 @@ class ReservationController extends Controller
                 $nb_pj=count($reservation->piece_jointe);
              }
              $nb_histo=count($reservation->historiques);
-             return response()->json(['code_res' => $code,'code_desistement' => $code_desistement,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_histo'=>$nb_histo,'nb_pj'=>$nb_pj,'etat'=>$etat,'transfert'=>$reservation->remboursement_dd_with_transfert,'statut'=>$statut], 200);
+             return response()->json(['code_res' => $code,'code_desistement' => $code_desistement,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_histo'=>$nb_histo,'nb_pj'=>$nb_pj,'etat'=>$etat,'transfert'=>$reservation->remboursement_dd_with_transfert,'statut'=>$statut,'user_id'=>$user_id], 200);
          } else {
              return response()->json(['error' => 'Unauthorized'], 401);
          }
@@ -481,6 +459,8 @@ class ReservationController extends Controller
      */
     public function update(UpdateReservationRequest $request, $id)
     {
+
+
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $user = Auth::user();
@@ -490,22 +470,19 @@ class ReservationController extends Controller
             //test si le user connecte celui qui a  fait la proposition /etat du bien
             if ($old_bien_id != $request->input('bien_id')) {
                 $bien_prop = Bien::on('temp')->findorfail($request->input('bien_id'));
-                /*if($bien_prop->etat!=EtatBien::DISPONIBLE->name){
-                return response()->json(['error' => 'Ce bien n\'est pas disponible'], 422);
-                }*/
-                if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id != $userAuth->value('id')) {
-                    return response()->json(['error' => 'le bien choisi :' . $bien_prop->propriete_dite_bien . ' est en cours de proposition  par : ' . $bien_prop->is_proposed->user->name . ' ' . $bien_prop->is_proposed->user->prenom]);
+
+                if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id != $userAuth->value('user_id_origin')) {
+                    return response()->json(['error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien . ' est en cours de proposition  par : ' . $bien_prop->is_proposed->user->name . ' ' . $bien_prop->is_proposed->user->prenom], 333);
                 }
 
             }
-
             $reservation->setConnection('temp');
             $reservation->nb_acquereurs = $request->input('nb_acquereurs');
             $reservation->code_reservation = $request->input('code_reservation');
             $reservation->prix = $request->input('prix');
             $reservation->mode_financement = $request->input('mode_financement');
             $reservation->date_reservation = $request->input('date_reservation');
-            $reservation->commentaire = $request->input('commentaire');
+            $reservation->commentaire=$request->input('commentaire')=="null"?null:$request->input('commentaire');
             $reservation->prix_remise = $request->input('prix_remise');
             $numberToWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
             $prix_remise_lettre = $numberToWords->format($request->input('prix_remise'));
@@ -552,28 +529,6 @@ class ReservationController extends Controller
                     $clientRequest = new StoreClientRequest();
                     $aquereurController = new AquereurController();
                     $aquereurRequest = new StoreAquereurRequest();
-                    /* if ($request->clients) {
-                        foreach ($request->clients as $clientInfo) {
-                            $clientRequest->merge($clientInfo);
-                            $clientData = $clientController->store($clientRequest);
-                            $dataAquereur = [
-                                'pourcentage' => $clientInfo['pourcentage'],
-                                'client_id' => $clientData->id,
-                                'reservation_id' => $reservation->id,
-                            ];
-                            $aquereurRequest->merge($dataAquereur);
-                            $aquereurController->store($aquereurRequest);
-                        }}
-                    if ($request->oldClients) {
-                        foreach ($request->oldClients as $clientInfo) {
-                            $dataAquereur = [
-                                'pourcentage' => $clientInfo['pourcentage1'],
-                                'client_id' => $clientInfo['id'],
-                                'reservation_id' => $reservation->id,
-                            ];
-                            $aquereurRequest->merge($dataAquereur);
-                            $aquereurController->store($aquereurRequest);
-                        }} */
                         $dataArray_clients = json_decode($request->input('clients'), true);
                         $dataArrayString = $request->input('oldClients', '[]');
 
@@ -604,26 +559,35 @@ class ReservationController extends Controller
 
 
                     //****edit piece jointe***
+                    $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+                    $societe = Societe::findOrfail($user_societes->societe_id);
+
+                   if (!$request->file('files_reservation')) {
+                        $pjController = new PiecesJointeController();
+                        $pjController->destoryFileUsingReservationId($id,$societe);
+                    }
                     if ($request->file('files_reservation')) {
-                            //****delete old piece jointe***
+
+                            //*delete old piece jointe**
 
                             $pjController = new PiecesJointeController();
-                            $pjController->destoryFileUsingReservationId($id);
+                            $pjController->destoryFileUsingReservationId($id,$societe);
                             foreach ($request->file('files_reservation') as $file) {
                             $piecesJointeController = new PiecesJointeController();
                             $pieceJointeRequest = new StorePiecesJointeRequest();
-                            $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
-                            $societe = Societe::findOrfail($user_societes->societe_id);
 
                             // Récupérer le nom du fichier
                             $Myfile = $file->getClientOriginalName();
 
+
+                            $fileType = $file->getClientOriginalExtension();
+
+                            // Déplacer le fichier vers le répertoire de destination
                             $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations');
                             File::makeDirectory($directory, 0755, true, true);
-                            if(!file_exists($directory . '/' . $Myfile)){
-                                $file->move($directory, $Myfile);
-                            }
-                            $fileType = $file->getClientOriginalExtension();
+
+                            $file->move($directory, $Myfile);
+
                             $datapieceJointe = [
                                 'fichier' => $Myfile,
                                 'type' => $fileType,
@@ -639,8 +603,6 @@ class ReservationController extends Controller
                     //store new pieces jointes
                 }
                 return response()->json(['reservation' => $reservation], 200);
-
-            //return response()->json(['reservation' => $reservation], 200);
         }
         return response()->json(['error', 'Unauthorized'], 401);
     }
@@ -731,7 +693,7 @@ class ReservationController extends Controller
             $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
             ->groupby('reservation_id');
             if(RoleHelper::AdminSup()){
-            $reservations = Reservation::on('temp')->with('last_statut')
+            $reservations = Reservation::on('temp')->with('last_statut','first_avance')
                 ->joinSub($avances, 'avances_req', function ($join) {
                     $join->on('avances_req.reservation_id', '=', 'reservations.id');
                 })
@@ -791,31 +753,43 @@ class ReservationController extends Controller
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $reservation = Reservation::on('temp')->findOrFail($id);
-            $reservation->statut=$request->statut;
+            $reservation->statut=$request->statut_res;
             if( $reservation->save()){
                 $res_statut = new statutReservation();
                 $res_statut->setConnection('temp');
                 $res_statut->reservation_id=$id;
                 $res_statut->user_id_valider=$userAuth->value('id');
                 $res_statut->date_validation=Carbon::now();
-                if($request->statut==2){
-                    $res_statut->commentaire=$request->commentaire;
+                if($request->statut_res==2){
+                    $res_statut->commentaire=$request->commentaire_res;
                 }
                 $res_statut->save();
             }
 
-                if($request->statut==1){
+                if($request->statut_res==1){
                     //store new notification validé
                     NotificationHelper::storeNotification(
-                        '/reservations/show/'.$id, Carbon::now(),15,'reservation validé',Auth::guard('api')->user()->id,null,null,null,$reservation->projet_id,null,null
+                        '/reservations/show/'.$id, Carbon::now(),15,'reservation validé',$reservation->user->user_id_origin,null,null,null,$reservation->projet_id,null,null
                         );
                         broadcast(new NotificationEvent($id));
                 }else{
                     //store new notification rejeté
                     NotificationHelper::storeNotification(
-                        '/reservations/show/'.$id, Carbon::now(),16,'reservation rejeté',Auth::guard('api')->user()->id,null,null,null,$reservation->projet_id,null,null
+                        '/reservations/show/'.$id, Carbon::now(),16,'reservation rejeté',$reservation->user->user_id_origin,null,null,null,$reservation->projet_id,null,null
                         );
                         broadcast(new NotificationEvent($id));
+                }
+                //traiter reservation with avance
+                if($request->with_avance==1){
+                    $avanceController = new AvanceController();
+
+                    $data_avance = [
+                        'etat'=>$request->statut_av,
+                        'n_remise'=>$request->n_remise,
+                        'date_encaiss'=>$request->date_encaiss,
+                        'commentaire'=>$request->commentaire_av,
+                    ];
+                    $avanceController->traiter_avance($request->av_id,$request->merge($data_avance));
                 }
 
             return response()->json(['message' => 'données enregistrés avec succès.'], 200);

@@ -9,4 +9,5 @@ enum TypeEncaissement:int
     case Remboursement=3;
     case Décharge=4;
     case Déblocage_Crédit=5;
+    case Penalites=6;
 }
