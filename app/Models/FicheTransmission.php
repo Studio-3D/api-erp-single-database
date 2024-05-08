@@ -17,11 +17,11 @@ class FicheTransmission extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class ,'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function avance()
     {
-        return $this->belongsTo(Avance::class,'avance_id');
+        return $this->belongsTo(Avance::class, 'avance_id');
     }
 }

@@ -2,17 +2,33 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
+use App\Models\Bien;
+use App\Models\User;
+use \NumberFormatter;
 use App\Enum\RoleEnum;
-use App\Enum\StatutReservationEnum;
-use App\Http\Helpers\Bien_Helper;
-use App\Http\Helpers\DatabaseHelper;
-use App\Http\Helpers\NotificationHelper;
+use App\Models\Avance;
+use App\Models\Client;
+use App\Models\Societe;
+use App\Models\Aquereur;
+use App\Models\Reservation;
+use App\Models\PiecesJointe;
+use Illuminate\Http\Request;
 use App\Http\Helpers\RoleHelper;
-use App\Http\Requests\StoreAquereurRequest;
+use App\Models\HistoReservation;
+use App\Http\Helpers\Bien_Helper;
+use Illuminate\Support\Facades\DB;
+use App\Enum\StatutReservationEnum;
+use App\Http\Helpers\DatabaseHelper;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
+use App\Http\Helpers\NotificationHelper;
 use App\Http\Requests\StoreAvanceRequest;
 use App\Http\Requests\StoreClientRequest;
-use App\Http\Requests\StorePiecesJointeRequest;
+use App\Http\Requests\StoreAquereurRequest;
 use App\Http\Requests\StoreReservationRequest;
+use App\Http\Requests\StorePiecesJointeRequest;
 use App\Http\Requests\UpdateReservationRequest;
 use App\Models\Aquereur;
 use App\Models\Avance;
@@ -457,7 +473,7 @@ class ReservationController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateReservationRequest $request, $id)
+  public function update(UpdateReservationRequest $request, $id)
     {
 
 
@@ -626,6 +642,11 @@ class ReservationController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $reservation = Reservation::on('temp')->findOrFail($id);
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+            $societe = Societe::findOrfail($user_societes->societe_id);
+
             //bien disponible
             Bien_Helper::libererBien($reservation->bien_id, null, null);
             $avanceController = new AvanceController();
@@ -633,7 +654,7 @@ class ReservationController extends Controller
             $aquereurController = new AquereurController();
             $aquereurController->destroyAquerreursByReservationId($id);
             $pjController = new PiecesJointeController();
-            $pjController->destoryFileUsingReservationId($id);
+            $pjController->destoryFileUsingReservationId($id,$user_societes,$societe);
             $notif = new NotificationController();
             $notif->destory_force_by_column_id('reservation', $id);
             if ($reservation->delete()) {
