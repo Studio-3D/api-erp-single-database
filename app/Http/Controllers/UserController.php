@@ -2,21 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Helpers\DatabaseHelper;
+use App\Models\User;
+use App\Models\Societe;
+use Illuminate\Support\Str;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use App\Mail\ResetPasswordMail;
+use Illuminate\Validation\Rule;
 use App\Http\Helpers\RoleHelper;
+use Illuminate\Support\Facades\DB;
+use App\Http\Helpers\DatabaseHelper;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use App\Http\Helpers\UserProjetHelper;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
-use App\Mail\ResetPasswordMail;
-use App\Models\Societe;
-use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
@@ -136,12 +137,7 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request)
     {
-        /*  if ($request->cin != null) {
-        $cin_exist = User::where('cin', $request->cin)->count();
-        if ($cin_exist > 0) {
-        return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
-        }
-        } */
+        
         if (RoleHelper::SuperAdmin()) {
             $user = new User();
             $user->name = $request->name;
@@ -236,12 +232,15 @@ class UserController extends Controller
     }
     public function update(UpdateUserRequest $request, $id)
     {
-        /* if ($request->cin != null) {
-        $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
-        if ($cin_exist > 0) {
-        return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
+        $user = User::findOrFail($id);
+        if ($request->has('cin')) {
+            $request->validate([
+                'cin' => [
+                    'string',
+                    Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+                ],
+            ]);
         }
-        } */
         if ($request->is_profil) {
             $user = Auth::user();
             DatabaseHelper::Config();

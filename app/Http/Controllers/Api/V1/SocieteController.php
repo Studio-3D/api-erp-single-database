@@ -2,18 +2,19 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\User;
+use App\Models\Societe;
+use Illuminate\Http\Request;
+use App\Events\NewSocieteEvent;
+use App\Http\Helpers\RoleHelper;
+use App\Http\Helpers\FichierHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Helpers\DatabaseHelper;
-use App\Http\Helpers\RoleHelper;
-use App\Http\Requests\StoreSocieteRequest;
-use App\Http\Requests\UpdateSocieteRequest;
-use App\Models\Societe;
-use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Events\NewSocieteEvent;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Config;
+use App\Http\Requests\StoreSocieteRequest;
+use App\Http\Requests\UpdateSocieteRequest;
 
 class SocieteController extends Controller
 {
@@ -34,10 +35,21 @@ class SocieteController extends Controller
             if ($request->filled('raison_sociale')) {
                 $query->where('raison_sociale', 'like', '%' . $request->input('raison_sociale') . '%');
             }
+            if ($request->filled('nom_contact')) {
+                $query->where('nom_contact', 'like', '%' . $request->input('nom_contact') . '%');
+            }
+            if ($request->filled('prenom_contact')) {
+                $query->where('prenom_contact', 'like', '%' . $request->input('prenom_contact') . '%');
+            }
+            if ($request->filled('email')) {
+                $query->where('email', 'like', '%' . $request->input('email') . '%');
+            }
+            if ($request->filled('tel')) {
+                $query->where('tel', 'like', '%' . $request->input('tel') . '%');
+            }
 
-            $societes = Societe::where('id', '!=', 1)
-                ->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
+            $societes = $query->orderBy('created_at', 'desc')
+            ->paginate($size, ['*'], 'page', $page);
 
             // Extraire les propriétés du paginateur
             $pagination = [
@@ -76,10 +88,12 @@ class SocieteController extends Controller
             }
             $societe->save();
             if ($request->hasFile('logo')) {
-                $request->logo->move(public_path('img/' . $raison_sociale_concatene . '_' . $societe->id . '/logos'), $logo);
+                FichierHelper::ajouter_fichier($request->logo,$raison_sociale_concatene,$societe->id,'logos',$logo);
+                //$request->logo->move(public_path('img/' . $raison_sociale_concatene . '_' . $societe->id . '/logos'), $logo);
                 $societe->logo = $logo;
                 $societe->save();
             }
+            
 
             // $societes = Societe::whereNull('adresse')->get();
             // $societes=Societe::all();
@@ -144,7 +158,7 @@ class SocieteController extends Controller
                     }
                 }
                 $logo = time() . '.' . $raison_sociale_concatene . '.' . $request->logo->extension();
-                $request->logo->move(public_path('img/' . $raison_sociale_concatene . '_' . $societe->id . '/logos'), $logo);
+                FichierHelper::ajouter_fichier($request->logo,$raison_sociale_concatene,$societe->id,'logos',$logo);
                 $societe->logo = $logo;
             }
             $societe->save();

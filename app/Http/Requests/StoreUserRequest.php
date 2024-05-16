@@ -29,14 +29,14 @@ class StoreUserRequest extends FormRequest
             'password_confirmation' => 'required|min:6',
             'role' => 'required|integer',
             'phone' => 'string|min:10|max:14|nullable',
-            'photo' => 'image|mimes:png,jpg,jpeg|max:2048',
-            'cin' => 'string|unique:users',
-            'date_embauche' => 'date',
+            'photo' => 'image|mimes:png,jpg,jpeg|max:2048|nullable',
+            'cin' => 'string|unique:users|nullable',
+            'date_embauche' => 'date|nullable',
             'cnss' => 'integer|nullable',
             'is_actif' => 'integer|nullable',
             // 'nb_appel_recu' => 'integer',
             // 'nb_appel_traite' => 'integer',
-            'solde_conge' => 'integer',
+            'solde_conge' => 'integer|nullable',
 
         ];
     }

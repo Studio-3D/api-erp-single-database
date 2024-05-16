@@ -17,7 +17,7 @@ use App\Events\Societes;
 use App\Events\NewSocieteEvent;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Config;
-
+use App\Http\Helpers\FichierHelper;
 
 
 
@@ -88,7 +88,8 @@ class SocieteController extends Controller
             }
             $societe->save();
             if ($request->hasFile('logo')) {
-                $request->logo->move(public_path('Docs/'. $raison_sociale_concatene.'_'.$societe->id.'/logos'), $logo);
+                FichierHelper::ajouter_fichier($request->logo,$raison_sociale_concatene,$societe->id,'logos',$logo);
+                //$request->logo->move(public_path('Docs/'. $raison_sociale_concatene.'_'.$societe->id.'/logos'), $logo);
                 $societe->logo = $logo;
                 $societe->save();
             }

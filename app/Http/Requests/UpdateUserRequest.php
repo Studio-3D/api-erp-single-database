@@ -25,18 +25,18 @@ class UpdateUserRequest extends FormRequest
         return [
             'name' => 'string',
             'prenom' => 'string',
-            'role' => 'integer',
+            'role' => 'integer|nullable',
             'phone' => 'string|min:10|max:14|nullable',
-            'photo' => 'image|mimes:png,jpg,jpeg|max:2048',
-           'cin' => [
-                Rule::unique('users')->ignore($this->user),
-            ],
-            'date_embauche' => 'date',
+            'photo' => 'nullable|image|mimes:png,jpg,jpeg|max:2048|nullable',
+            'date_embauche' => 'date|nullable',
             'cnss' => 'integer|nullable',
-            'is_actif' => 'integer',
+            'is_actif' => 'integer|nullable',
             'solde_conge' => 'integer|nullable',
             'password' => 'min:6|nullable',
-
+            //rien ne va changer avec cette validation
+            /* 'cin' => [
+                Rule::unique('users')->ignore($this->user),
+            ], */
 
         ];
     }

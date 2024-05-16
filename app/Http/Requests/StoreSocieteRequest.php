@@ -28,7 +28,7 @@ class StoreSocieteRequest extends FormRequest
             'prenom_contact' => 'required|min:3',
             'tel' => 'min:10|max:14|nullable',
             'email' => 'required|email|nullable',
-            'logo' => 'image|mimes:png,jpg,jpeg|max:2048',
+            'logo' => 'image|mimes:png,jpg,jpeg|max:2048|nullable',
 
         ];
     }

@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
-use App\Http\Helpers\DatabaseHelper;
-use App\Http\Helpers\RoleHelper;
-use App\Http\Requests\StoreUserRequest;
-use App\Http\Requests\UpdateUserRequest;
 use App\Models\Societe;
 use App\Models\V1\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use App\Http\Helpers\RoleHelper;
+use App\Http\Helpers\FichierHelper;
+use App\Http\Controllers\Controller;
+use App\Http\Helpers\DatabaseHelper;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 
 class UserController extends Controller
 {
@@ -127,7 +129,8 @@ class UserController extends Controller
             if ($user->save()) {
                 if ($request->hasFile('photo')) {
                     $societe = Societe::findOrfail($user->societe_id);
-                    $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
+                    //$request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
+                    FichierHelper::ajouter_fichier($request->photo,$societe->raison_sociale_concatene ,$user->societe_id,'users',$photo);
 
                 }
                 $this->createSubUser($request, $user->id, $user->photo);
@@ -153,12 +156,17 @@ class UserController extends Controller
     }
     public function update(UpdateUserRequest $request, $id)
     {
-        /* if ($request->cin != null) {
-        $cin_exist = User::where('cin', $request->cin)->where('id', '!=', $id)->count();
-        if ($cin_exist > 0) {
-        return response()->json(['error' => 'Le Cin que vous avez saisi' . $request->cin . ' apprtient à un autre utilisateur'], 422);
+        
+        $user = User::findOrFail($id);
+        if ($request->has('cin')) {
+            $request->validate([
+                'cin' => [
+                    'string',
+                    Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+                ],
+            ]);
         }
-        } */
+        
         if ($request->is_profil) {
             $user = Auth::user();
             DatabaseHelper::Config();
@@ -188,7 +196,7 @@ class UserController extends Controller
                     }
                 }
                 $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
-                $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
+                FichierHelper::ajouter_fichier($request->photo,$societe->raison_sociale_concatene ,$societe->id,'users',$photo);
                 $user->photo = $photo;
             }
 
@@ -208,6 +216,7 @@ class UserController extends Controller
             }
         } else if (RoleHelper::Superadmin()) {
             $user = User::findOrFail($id);
+            
             $user->name = $request->input('name');
             $user->prenom = $request->input('prenom');
             $user->email = $request->input('email');
@@ -232,7 +241,8 @@ class UserController extends Controller
                 }
                 $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $societe = Societe::findOrfail($user->societe_id);
-                $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
+                //$request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
+                FichierHelper::ajouter_fichier($request->photo,$societe->raison_sociale_concatene ,$user->societe_id,'users',$photo);
                 $user->photo = $photo;
             }
             if ($user->save()) {
@@ -279,7 +289,8 @@ class UserController extends Controller
                 }
                 $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $societe = Societe::findOrfail($user_societes->societe_id);
-                $request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
+                //$request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
+                FichierHelper::ajouter_fichier($request->photo,$societe->raison_sociale_concatene ,$societe->id,'users',$photo);
                 $user->photo = $photo;
             }
 
