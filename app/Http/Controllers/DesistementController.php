@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Http\Controllers;
-
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreDesistementRequest;
@@ -18,11 +16,8 @@ use App\Enum\TypeDesistementProfit;
 use App\Http\Helpers\PaginationHelper;
 use App\Enum\StatutReservationEnum;
 use App\Models\Societe;
-
 use Illuminate\Support\Facades\File;
-
 use App\Events\NotificationEvent;
-
 use App\Enum\ModePaiement;
 use App\Models\PiecesJointe;
 use App\Models\HistoriqueDesistement;
@@ -30,8 +25,6 @@ use App\Models\Avance;
 use App\Models\Client;
 use App\Models\PenaliteDesistement;
 use App\Models\FicheTransmission;
-
-
 use App\Enum\EtatBien;
 use App\Models\User;
 use App\Models\Aquereur;
@@ -51,9 +44,8 @@ use App\Http\Helpers\Bien_Helper;
 use App\Http\Helpers\HistoriqueBienHelper;
 use DB;
 use App\Models\StatutAvancePenalite;
-
 use Illuminate\Support\Facades\Config;
-
+use App\Events\NotifMenuEvent;
 
 
 
@@ -127,7 +119,11 @@ class DesistementController extends Controller
                     $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
                     $mont_lettre = $inWords->format($request->montant_a_ajouter);
                     $desistement->montant_a_ajouter_par_lettre=$request->mont_lettre;
-                    $desistement->sr= (bool)$request->sr;
+                   if($request->sr=='false'){
+                    $desistement->sr=0;
+                   }else{
+                    $desistement->sr=1;
+                   }
                     $desistement->mode_paiement=$request->input("mode_paiement");
                     //cheque cheque-banque cheque cetifice
                     if($request->mode_paiement==2||$request->mode_paiement==3||$request->mode_paiement==4){
@@ -172,124 +168,126 @@ class DesistementController extends Controller
                     if($request->type==TypeDesistement::Désistement_Définitif->value){
                             //store Remboursement
                         //si sum_avances >0
-                        if($request->type_remb!=null){
+                        if ($request->type_remb != null) {
                             //store one  Remboursement si transfert vers un autre dossier
-                            if($request->type_remb=='transfert'){
-                                $remboursement=new Remboursement();
+                            if ($request->type_remb == 'transfert') {
+                                $remboursement = new Remboursement();
                                 $remboursement->setConnection('temp');
-                                $remboursement->desistement_id=$desistement->id;
-                                $remboursement->reservation_id=$request->reservation_id;
-                                $remboursement->s_avances=$request->sum_avances_valides;
-                                $remboursement->statut=1;
-                                $remboursement->etat=1;
-                                $remboursement->mode_rembourse=$request->type_remb;
-                                $remboursement->dossier_id_transfert=$request->dossier_id;
-                                $remboursement->montant_transfert=$request->sum_avances_valides;
+                                $remboursement->desistement_id = $desistement->id;
+                                $remboursement->reservation_id = $request->reservation_id;
+                                $remboursement->s_avances = $request->sum_avances_valides;
+                                $remboursement->statut = 1;
+                                $remboursement->etat = 1;
+                                $remboursement->mode_rembourse = $request->type_remb;
+                                $remboursement->dossier_id_transfert = $request->dossier_id;
+                                $remboursement->montant_transfert = $request->sum_avances_valides;
                                 $remboursement->save();
-                            }else{
+                            } else {
                                 // multiple remnboursement
                                 $data_inputlist_remb = $request->input('inputlist_remb', '[]');
                                 $dataArray_inputlist_remb = json_decode($data_inputlist_remb, true); // Ensure it's an array
 
-                                 if ($dataArray_inputlist_remb) {
+                                if ($dataArray_inputlist_remb) {
 
-                                    foreach ($dataArray_inputlist_remb as $cl_remb) {
-                                    $remboursement=new Remboursement();
-                                    $remboursement->setConnection('temp');
-                                    $remboursement->desistement_id=$desistement->id;
-                                    $remboursement->reservation_id=$request->reservation_id;
-                                    $remboursement->s_avances=$request->sum_avances_valides;
-                                    $remboursement->statut=0;
-                                    $remboursement->aquereur_id=$cl_remb['aq_id'];
-                                      //montant rembourse lettre
+                                    foreach ($dataArray_inputlist_remb as $index => $cl_remb) {
+                                        $remboursement=new Remboursement();
+                                        $remboursement->setConnection('temp');
+                                        $remboursement->desistement_id=$desistement->id;
+                                        $remboursement->reservation_id=$request->reservation_id;
+                                        $remboursement->s_avances=$request->sum_avances_valides;
+                                        $remboursement->statut=0;
+                                        $remboursement->aquereur_id=$cl_remb['aq_id'];
+                                        $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+                                        $societe = Societe::findOrfail($user_societes->societe_id);
+                                        if ($request->hasFile('fichier_autorisation_' . $index)) {
+                                            $remboursement->fichier_autorisation= $request->file('fichier_autorisation_' . $index)->getClientOriginalName();
+                                            File::makeDirectory(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements'.'/'.'fichier_autorisations'), 0755, true, true);
+                                            $request->file('fichier_autorisation_' . $index)->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements'.'/'.'fichier_autorisations'), $request->file('fichier_autorisation_' . $index)->getClientOriginalName());
 
-                                      if($request->penalite_montant!=null){
-                                         $sum=$request->reste_a_rembourse-(double)$request->penalite_montant;
-                                         $mont_a_rembourser=$sum*((double)$cl_remb['pourcentage'])/100;
-                                        }else{
-                                            $mont_a_rembourser=($request->reste_a_rembourse*((double)($cl_remb['pourcentage'])/100));
                                         }
-                                      $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-                                        $mont_remb_lettre = $inWords->format($mont_a_rembourser);
+                                        if ($request->hasFile('cheque_recu_' . $index)) {
 
-                                    if($request->type_remb=='transfert_remb'){
-                                        $remboursement->dossier_id_transfert=$request->dossier_id;
-                                        $remboursement->date_rembourse=$cl_remb['date_rembourse'];
-                                        $remboursement->mode_rembourse_client=$cl_remb['mode_rembourse'];
-                                        $remboursement->pour_le_compte=$cl_remb['pour_le_compte'];
-                                        $remboursement->num_paiement=$cl_remb['num_paiement'];
+                                            $remboursement->cheque = $request->file('cheque_recu_' . $index)->getClientOriginalName();
+                                            File::makeDirectory(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements'.'/'.'cheques'), 0755, true, true);
+                                            $request->file('cheque_recu_' . $index)->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements'.'/'.'cheques'),  $request->file('cheque_recu_' . $index)->getClientOriginalName());
 
-
-                                        /*if ($request->hasFile($cl_remb['fichier_autorisation']) ) {
-                                            $remboursement->fichier_autorisation =$request->file('fichier_autorisation')->getClientOriginalName();
-                                            $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisation');
-                                            File::makeDirectory($directory, 0755, true, true);
-                                            $request->file('fichier_autorisation')->move($directory,$request->file('fichier_autorisation')->getClientOriginalName());
                                         }
-                                        if ($request->hasFile($cl_remb['cheque_recu'])) {
-                                            $remboursement->cheque =$request->file('cheque_recu')->getClientOriginalName();
-                                            $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
-                                            File::makeDirectory($directory, 0755, true, true);
-                                            $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
-                                        }*/
-                                        $remboursement->montant_transfert=$request->montant_transferer;
-                                        $remboursement->montant_a_rembourser=$mont_a_rembourser;
-                                        $remboursement->montant_a_rembourser_par_lettre=$mont_remb_lettre;
-                                        if($request->type_remb_transfere=='immediat'){
-                                            $remboursement->mode_rembourse='transfert_rem_direct';
-                                            $remboursement->statut=1;
-                                            $remboursement->etat=1;
-                                            $remboursement->user_id_valider=$userAuth->value('id');
+                                        //montant rembourse lettre
 
-                                        }else{
-                                            $remboursement->mode_rembourse='transfert_rem_apres_vente';
+                                        if($request->penalite_montant!=null){
+                                            $sum=$request->reste_a_rembourse-(double)$request->penalite_montant;
+                                            $mont_a_rembourser=$sum*((double)$cl_remb['pourcentage'])/100;
+                                            }else{
+                                                $mont_a_rembourser=($request->reste_a_rembourse*((double)($cl_remb['pourcentage'])/100));
+                                            }
+                                        $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
+                                            $mont_remb_lettre = $inWords->format($mont_a_rembourser);
+
+                                        if($request->type_remb=='transfert_remb'){
+                                            $remboursement->dossier_id_transfert=$request->dossier_id;
+                                            $remboursement->date_rembourse=$cl_remb['date_rembourse'];
+                                            $remboursement->mode_rembourse_client=$cl_remb['mode_rembourse'];
+                                            $remboursement->pour_le_compte=$cl_remb['pour_le_compte'];
+                                            $remboursement->num_paiement=$cl_remb['num_paiement'];
+
+
+                                            /*if ($request->hasFile($cl_remb['fichier_autorisation']) ) {
+                                                $remboursement->fichier_autorisation =$request->file('fichier_autorisation')->getClientOriginalName();
+                                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisation');
+                                                File::makeDirectory($directory, 0755, true, true);
+                                                $request->file('fichier_autorisation')->move($directory,$request->file('fichier_autorisation')->getClientOriginalName());
+                                            }
+                                            if ($request->hasFile($cl_remb['cheque_recu'])) {
+                                                $remboursement->cheque =$request->file('cheque_recu')->getClientOriginalName();
+                                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
+                                                File::makeDirectory($directory, 0755, true, true);
+                                                $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
+                                            }*/
+                                            $remboursement->montant_transfert=$request->montant_transferer;
+                                            $remboursement->montant_a_rembourser=$mont_a_rembourser;
+                                            $remboursement->montant_a_rembourser_par_lettre=$mont_remb_lettre;
+                                            if($request->type_remb_transfere=='immediat'){
+                                                $remboursement->mode_rembourse='transfert_rem_direct';
+                                                $remboursement->statut=1;
+                                                $remboursement->etat=1;
+                                                $remboursement->user_id_valider=$userAuth->value('id');
+
+                                            }else{
+                                                $remboursement->mode_rembourse='transfert_rem_apres_vente';
+                                                $remboursement->statut=0;
+                                                $remboursement->etat=0;
+                                            }
+
+                                        }elseif($request->type_remb=='apres_vente'){
+                                            $remboursement->mode_rembourse=$request->type_remb;
                                             $remboursement->statut=0;
                                             $remboursement->etat=0;
+                                            $remboursement->montant_a_rembourser=$mont_a_rembourser;
+                                            $remboursement->montant_a_rembourser_par_lettre=$mont_remb_lettre;
+
                                         }
-
-                                    }elseif($request->type_remb=='apres_vente'){
-                                        $remboursement->mode_rembourse=$request->type_remb;
-                                        $remboursement->statut=0;
-                                        $remboursement->etat=0;
-                                        $remboursement->montant_a_rembourser=$mont_a_rembourser;
-                                        $remboursement->montant_a_rembourser_par_lettre=$mont_remb_lettre;
-
-                                    }
-                                    elseif($request->type_remb=='direct'){
-                                        $remboursement->mode_rembourse=$request->type_remb;
-                                        $remboursement->date_rembourse=$cl_remb['date_rembourse'];
-                                        $remboursement->mode_rembourse_client=$cl_remb['mode_rembourse'];
-                                        $remboursement->pour_le_compte=$cl_remb['pour_le_compte'];
-                                        $remboursement->num_paiement=$cl_remb['num_paiement'];
-                                        $remboursement->statut=1;
-                                        $remboursement->user_id_valider=$userAuth->value('id');
-                                        $remboursement->etat =1;
-                                        $remboursement->montant_a_rembourser=$mont_a_rembourser;
-                                        $remboursement->montant_a_rembourser_par_lettre=$mont_remb_lettre;
-
-                                        /*if ($request->hasFile('fichier_autorisation')) {
-                                            $remboursement->fichier_autorisation =$request->file('fichier_autorisation')->getClientOriginalName();
-                                            $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisation');
-                                            File::makeDirectory($directory, 0755, true, true);
-                                            $request->file('fichier_autorisation')->move($directory,$request->file('fichier_autorisation')->getClientOriginalName());
+                                        elseif($request->type_remb=='direct'){
+                                            $remboursement->mode_rembourse=$request->type_remb;
+                                            $remboursement->date_rembourse=$cl_remb['date_rembourse'];
+                                            $remboursement->mode_rembourse_client=$cl_remb['mode_rembourse'];
+                                            $remboursement->pour_le_compte=$cl_remb['pour_le_compte'];
+                                            $remboursement->num_paiement=$cl_remb['num_paiement'];
+                                            $remboursement->statut=1;
+                                            $remboursement->user_id_valider=$userAuth->value('id');
+                                            $remboursement->etat =1;
+                                            $remboursement->montant_a_rembourser=$mont_a_rembourser;
+                                            $remboursement->montant_a_rembourser_par_lettre=$mont_remb_lettre;
                                         }
-                                        if ($request->hasFile('cheque_recu')) {
-                                            $remboursement->cheque =$request->file('cheque_recu')->getClientOriginalName();
-                                            $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
-                                            File::makeDirectory($directory, 0755, true, true);
-                                            $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
-                                        }*/
+                                        $remboursement->save();
                                     }
-                                    $remboursement->save();
                                 }
-                             }
                             }
 
                             $bien = Bien::on('temp')->findOrFail($request->bien_id_ancien);
                             $bien->setConnection('temp');
-                            $bien->desistement_id=$desistement->id;
+                            $bien->desistement_id = $desistement->id;
                             $bien->save();
-                      }
+                        }
 
                     }
                     elseif($request->type==TypeDesistement::Désistement_Au_Profit->value){
@@ -788,6 +786,52 @@ class DesistementController extends Controller
                                                 $av_new->updated_at = Carbon::now();
                                                 if($av_new->save()){
                                                     $av_old->delete();
+                                                            //replicate statut
+                                                        $av_last_statut = StatutAvancePenalite::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                        if($av_last_statut!=null){
+                                                            $st_av_new = $av_last_statut->replicate();
+                                                            $st_av_new->avance_id=$av_new->id;
+                                                            $st_av_new->setConnection('temp');
+                                                            if($st_av_new->save()){
+                                                                $av_last_statut->delete();
+                                                            }
+                                                        }
+                                                            //replicate pice jointe
+
+                                                        $av_old_pj = PiecesJointe::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                        if($av_old_pj!=null){
+                                                            $pj_new = $av_old_pj->replicate();
+                                                            $pj_new->avance_id=$av_new->id;
+                                                            $pj_new->setConnection('temp');
+                                                            if($pj_new->save()){
+                                                                $av_old_pj->delete();
+                                                            }
+                                                        }
+
+                                                        //replicate fiche transmission
+
+                                                        $old_f = FicheTransmission::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                        if($old_f!=null){
+                                                            $f_new = $old_f->replicate();
+                                                            $f_new->avance_id=$av_new->id;
+                                                            $f_new->setConnection('temp');
+                                                            if($f_new->save()){
+                                                                $old_f->delete();
+                                                            }
+                                                        }
+                                                        //replicate encaissement
+
+                                                         $old_en = Encaissement::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                         if($old_en!=null){
+                                                             $new_encais = $old_en->replicate();
+                                                             $new_encais->reservation_id=$resv_new->id;
+                                                             $new_encais->avance_id=$av_new->id;
+                                                             $new_encais->setConnection('temp');
+                                                             if($new_encais->save()){
+                                                                 $old_en->delete();
+                                                             }
+                                                         }
+
                                                 }
                                             }
                                         }
@@ -1058,33 +1102,59 @@ class DesistementController extends Controller
                                             $av_new->updated_at = Carbon::now();
                                             if($av_new->save()){
                                                 $av_old->delete();
-                                            }
-                                            //replicate statut
-                                            $av_last_statut = StatutAvancePenalite::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->firstorfail();
-                                            if($av_last_statut!=null){
-                                                $st_av_new = $av_last_statut->replicate();
-                                                $st_av_new->setConnection('temp');
-                                                if($st_av_new->save()){
-                                                    $av_last_statut->delete();
+                                                 //replicate statut
+                                                $av_last_statut = StatutAvancePenalite::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                if($av_last_statut!=null){
+                                                    $st_av_new = $av_last_statut->replicate();
+                                                    $st_av_new->avance_id=$av_new->id;
+                                                    $st_av_new->setConnection('temp');
+                                                    if($st_av_new->save()){
+                                                        $av_last_statut->delete();
+                                                    }
                                                 }
-                                             }
-                                            //replicate pice jointe
+                                                    //replicate pice jointe
 
-                                             $av_old_pj = PiecesJointe::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->firstorfail();
-                                             if($av_old_pj!=null){
-                                                 $pj_new = $av_old_pj->replicate();
-                                                 $pj_new->setConnection('temp');
-                                                 if($pj_new->save()){
-                                                     $av_old_pj->delete();
+                                                $av_old_pj = PiecesJointe::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                if($av_old_pj!=null){
+                                                    $pj_new = $av_old_pj->replicate();
+                                                    $pj_new->avance_id=$av_new->id;
+                                                    $pj_new->setConnection('temp');
+                                                    if($pj_new->save()){
+                                                        $av_old_pj->delete();
+                                                    }
+                                                }
+                                                 //replicate fiche transmission
+
+                                                 $old_f = FicheTransmission::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                 if($old_f!=null){
+                                                     $f_new = $old_f->replicate();
+                                                     $f_new->avance_id=$av_new->id;
+                                                     $f_new->setConnection('temp');
+                                                     if($f_new->save()){
+                                                         $old_f->delete();
+                                                     }
                                                  }
-                                              }
+                                                 //replicate encaissement
+
+                                                  $old_en = Encaissement::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                  if($old_en!=null){
+                                                      $new_encais = $old_en->replicate();
+                                                      $new_encais->avance_id=$av_new->id;
+                                                      $new_encais->reservation_id=$resv_new->id;
+                                                      $new_encais->setConnection('temp');
+                                                      if($new_encais->save()){
+                                                          $old_en->delete();
+                                                      }
+                                                  }
+
+                                            }
 
 
                                         }
 
 
                                     }
-                                  //replicate Aquereur
+                                  //replicate piece jointe
                                   $old_aqu_s = Aquereur::on('temp')->where('reservation_id',$request->reservation_id)->get();
                                   if(count($old_aqu_s)>0){
                                       foreach($old_aqu_s as $aq_old){
@@ -1448,6 +1518,8 @@ class DesistementController extends Controller
         if(RoleHelper::AdminSup()){
             Config::set('broadcasting.default', 'pusher_3');
             DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $desistement = Desistement::on('temp')->findOrFail($id);
             $reservation = Reservation::on('temp')->findOrFail($desistement->reservation_id);
             $remboursement=Remboursement::on('temp')->where('desistement_id',$id)->get()->first();
@@ -1544,454 +1616,544 @@ class DesistementController extends Controller
                         }
                     }
                 }
-            //DP
-            elseif($desistement->type==TypeDesistement::Désistement_Au_Profit->value){
+                    //DP
+                    elseif($desistement->type==TypeDesistement::Désistement_Au_Profit->value){
 
-                    //dp_proche//dp_co
-                    if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value||$desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
-                        $aq_non_desisteur=AquereurDesistement::on('temp')->where('desistement_id',$id)->where('type','non_desisteur')->get();
-                        $nouvel_aqu=NouvelAquereurDesistement::on('temp')->where('desistement_id',$id)->get();
-                        $les_au_profit=AquereurDesistement::on('temp')->where('desistement_id',$id)->where('type','au_profit')->get();
+                            //dp_proche//dp_co
+                            if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value||$desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
+                                $aq_non_desisteur=AquereurDesistement::on('temp')->where('desistement_id',$id)->where('type','non_desisteur')->get();
+                                $nouvel_aqu=NouvelAquereurDesistement::on('temp')->where('desistement_id',$id)->get();
+                                $les_au_profit=AquereurDesistement::on('temp')->where('desistement_id',$id)->where('type','au_profit')->get();
 
-                    }else{
-                        //partiel
-                        $les_partiel=AquereurDesistement::on('temp')->where('desistement_id',$id)->where('type','partiel')->get();
-                        $nouvel_aqu=NouvelAquereurDesistement::on('temp')->where('desistement_id',$id)->get();
+                            }else{
+                                //partiel
+                                $les_partiel=AquereurDesistement::on('temp')->where('desistement_id',$id)->where('type','partiel')->get();
+                                $nouvel_aqu=NouvelAquereurDesistement::on('temp')->where('desistement_id',$id)->get();
+                            }
+
+
+                            $resv_ancien = Reservation::on('temp')->findOrFail($desistement->reservation_id);
+                            //coppier ancien reservation meme code _reservation
+                            $resv_new = $resv_ancien->replicate();
+                            $resv_new->setConnection('temp');
+                            $resv_new->ancien_id = $resv_ancien->id;
+                            $resv_new->code_reservation= $resv_ancien->code_reservation;
+                            $resv_new->code_desistement=$code_desist_reservation;
+                            $resv_new->etat= 1;
+                            if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value){
+                                $resv_new->nb_acquereurs = count($aq_non_desisteur)+count($nouvel_aqu);
+                            }elseif($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
+                                $resv_new->nb_acquereurs = count($aq_non_desisteur)+count($les_au_profit);
+                            }
+                            elseif($desistement->type_dp==TypeDesistementProfit::Désistement_Partiel->value){
+                                $resv_new->nb_acquereurs = count($les_partiel)+count($nouvel_aqu);
+                            }
+
+                            $resv_new->created_at = Carbon::now();
+                            $resv_new->updated_at = Carbon::now();
+                            if($resv_new->save()){
+                                //set resv ancien etat
+                                $resv_ancien->setConnection('temp');
+                                if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value){
+                                    $resv_ancien->etat=EtatReservationEnum::desist_profit_proche->value;
+                                }elseif($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
+                                    $resv_ancien->etat=EtatReservationEnum::desist_profit_co->value;
+
+                                }elseif($desistement->type_dp==TypeDesistementProfit::Désistement_Partiel->value){
+                                    $resv_ancien->etat=EtatReservationEnum::desist_partiel->value;
+                                }
+                                $resv_ancien->code_desistement=$code_desist_reservation;
+
+                                if($resv_ancien->save()){
+                                    //replicate piece jointe
+                                    $pj_ancien = PiecesJointe::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
+                                    if(count($pj_ancien)>0){
+                                        foreach($pj_ancien as $pj_old){
+                                            $pj_new = $pj_old->replicate();
+                                            $pj_new->setConnection('temp');
+                                            $pj_new->reservation_id = $resv_new->id;
+                                            $pj_new->created_at = Carbon::now();
+                                            $pj_new->updated_at = Carbon::now();
+                                            if($pj_new->save()){
+                                                $pj_old->delete();
+                                            }
+                                        }
+                                    }
+
+                                    //replicate avance
+                                    $av_ancien = Avance::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
+                                    if(count($av_ancien)>0){
+                                        foreach($av_ancien as $av_old){
+                                            $av_new = $av_old->replicate();
+                                            $av_new->setConnection('temp');
+                                            $av_new->reservation_id = $resv_new->id;
+                                            $av_new->reservation_id_ancien = $desistement->reservation_id;
+                                            $av_new->desistement_id = $desistement->id;
+                                            $av_new->ancien_recu = $av_old->num_recu;
+                                            $last_num_recu = Avance::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")
+                                            ->get('num_recu')->first();
+                                            if ($last_num_recu!=null) {
+                                                $n_recu = $last_num_recu->num_recu + 1;
+                                                $av_new->num_recu = '00' . $n_recu . '';
+                                            } else {
+                                                $av_new->num_recu = '001';
+                                            }
+                                            $av_new->created_at = Carbon::now();
+                                            $av_new->updated_at = Carbon::now();
+                                            if($av_new->save()){
+                                                $av_old->delete();
+                                                //replicate statut
+                                                $av_last_statut = StatutAvancePenalite::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                if($av_last_statut!=null){
+                                                    $st_av_new = $av_last_statut->replicate();
+                                                    $st_av_new->avance_id=$av_new->id;
+                                                    $st_av_new->setConnection('temp');
+                                                    if($st_av_new->save()){
+                                                        $av_last_statut->delete();
+                                                    }
+                                                }
+                                                    //replicate pice jointe
+
+                                                $av_old_pj = PiecesJointe::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                if($av_old_pj!=null){
+                                                    $pj_new = $av_old_pj->replicate();
+                                                    $pj_new->avance_id=$av_new->id;
+                                                    $pj_new->setConnection('temp');
+                                                    if($pj_new->save()){
+                                                        $av_old_pj->delete();
+                                                    }
+                                                }
+                                                 //replicate fiche transmission
+
+                                                 $old_f = FicheTransmission::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                 if($old_f!=null){
+                                                     $f_new = $old_f->replicate();
+                                                     $f_new->avance_id=$av_new->id;
+                                                     $f_new->setConnection('temp');
+                                                     if($f_new->save()){
+                                                         $old_f->delete();
+                                                     }
+                                                 }
+                                                 //replicate encaissement
+
+                                                  $old_en = Encaissement::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                                  if($old_en!=null){
+                                                      $new_encais = $old_en->replicate();
+                                                      $new_encais->avance_id=$av_new->id;
+                                                      $new_encais->reservation_id=$resv_new->id;
+                                                      $new_encais->setConnection('temp');
+                                                      if($new_encais->save()){
+                                                          $old_en->delete();
+                                                      }
+                                                  }
+                                            }
+                                        }
+                                    }
+                                    //soft delete ancien aquereurs
+                                    $aquController = new AquereurController();
+                                    $aquController->soft_destroy_aqueureurs_by_reservationId($desistement->reservation_id);
+
+                                }
+                                if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value){
+                                    //store les non desisteur
+                                    $aqu_non_desist_Controller = new AquereurController();
+                                    $aquRequest = new StoreAquereurRequest();
+                                    if (count($aq_non_desisteur)>0) {
+                                        foreach ($aq_non_desisteur as $aq_nfo) {
+                                            $dataAquereur = [
+                                                'pourcentage' => $aq_nfo->pourcentage,
+                                                'client_id' => $aq_nfo->client_id,
+                                                'reservation_id' => $resv_new->id,
+                                            ];
+                                            $aquRequest->merge($dataAquereur);
+                                            $aqu_non_desist_Controller->store($aquRequest);
+                                        }
+                                    }
+                                    //store les new clients
+                                    $clientController = new ClientController();
+                                    $clientRequest = new StoreClientRequest();
+                                    $aquereurController = new AquereurController();
+                                    $aquereurRequest = new StoreAquereurRequest();
+                                        if(count($nouvel_aqu)>0){
+                                        foreach ($nouvel_aqu as $info) {
+                                            $client_exist=Client::on('temp')->where('cin',$info->cin)->orderBy('created_at', 'DESC')->get()->first();
+
+                                                if($client_exist!=null){
+                                                    $clientData =$client_exist;
+                                                }else{
+                                                    // si est un prospect
+                                                    $prospect_exist = Prospect::on('temp')->where(function($query) use ($info) {
+                                                    $query->where('telephone',$info->telephone)
+                                                        ->orwhere('telephone_num2',$info->telephone)
+                                                        ->orwhere('cin',$info->cin)
+                                                        ;})
+                                                        ->get()->first();
+                                                    if($prospect_exist!=null){
+                                                        $dataClient= [
+                                                            'cin'=>$info->cin,
+                                                            'nom'=>$info->nom,
+                                                            'prenom'=>$info->prenom,
+                                                            'telephone_num1'=>$info->telephone,
+                                                            'telephone_num2'=>$prospect_exist->telephone_num2,
+                                                            'notifie'=>$prospect_exist->notifie,
+                                                            'civilite'=>'Mr',
+                                                            'situation_familliale'=>'Célibataire',
+                                                            'type_client'=>1,
+                                                        ];
+                                                    }else{
+                                                        //new client
+                                                        $dataClient= [
+                                                            'cin'=>$info->cin,
+                                                            'nom'=>$info->nom,
+                                                            'prenom'=>$info->prenom,
+                                                            'telephone_num1'=>$info->telephone,
+                                                            'telephone_num2'=>null,
+                                                            'notifie'=>0,
+                                                            'civilite'=>'Mr',
+                                                            'situation_familliale'=>'Célibataire',
+                                                            'type_client'=>1,
+                                                        ];
+                                                    }
+
+                                                    $clientRequest->merge($dataClient);
+                                                    $clientData = $clientController->store($clientRequest);
+                                                }
+                                                $dataAquereur = [
+                                                    'pourcentage' => $info->pourcentage,
+                                                    'client_id' => $clientData->id,
+                                                    'reservation_id' => $resv_new->id,
+                                                ];
+                                                $aquereurRequest->merge($dataAquereur);
+                                                $aquereurController->store($aquereurRequest);
+                                        }
+                                    }
+                                }
+                                elseif($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
+                                    //store les non desisteur
+                                    $aqu_non_desist_Controller = new AquereurController();
+                                    $aquRequest = new StoreAquereurRequest();
+                                    if (count($aq_non_desisteur)>0) {
+                                        foreach ($aq_non_desisteur as $aq_nfo) {
+                                            $dataAquereur = [
+                                                'pourcentage' => $aq_nfo->pourcentage,
+                                                'client_id' => $aq_nfo->client_id,
+                                                'reservation_id' => $resv_new->id,
+                                            ];
+                                            $aquRequest->merge($dataAquereur);
+                                            $aqu_non_desist_Controller->store($aquRequest);
+                                        }
+                                    }
+                                    //store les au profit + new pourcenage
+                                    $aqu_profit_Controller = new AquereurController();
+                                    $aquRequest_pr = new StoreAquereurRequest();
+                                    if (count($les_au_profit)>0) {
+                                        foreach ($les_au_profit as $aq_nfo) {
+                                            //get old pourcentage
+                                            $aquer_old_percent=Aquereur::on('temp')->onlyTrashed()->findorfail($aq_nfo->aq_id);
+                                            $dataAquereur = [
+                                                'pourcentage' => $aq_nfo->pourcentage+$aquer_old_percent->pourcentage,
+                                                'client_id' => $aq_nfo->client_id,
+                                                'reservation_id' => $resv_new->id,
+                                            ];
+                                            $aquRequest_pr->merge($dataAquereur);
+                                            $aqu_profit_Controller->store($aquRequest_pr);
+                                        }
+                                    }
+                                }
+                                elseif($desistement->type_dp==TypeDesistementProfit::Désistement_Partiel->value){
+                                    //store les desisteur partiel
+                                    $les_partiel_Controller = new AquereurController();
+                                    $aquRequest = new StoreAquereurRequest();
+                                    if (count($les_partiel)>0) {
+                                        foreach ($les_partiel as $aq_nfo) {
+                                            $dataAquereur = [
+                                                'pourcentage' => $aq_nfo->pourcentage,
+                                                'client_id' => $aq_nfo->client_id,
+                                                'reservation_id' => $resv_new->id,
+                                            ];
+                                            $aquRequest->merge($dataAquereur);
+                                            $les_partiel_Controller->store($aquRequest);
+                                        }
+                                    }
+                                    //store les new clients partiel
+                                    $clientController = new ClientController();
+                                    $clientRequest = new StoreClientRequest();
+                                    $aquereurController = new AquereurController();
+                                    $aquereurRequest = new StoreAquereurRequest();
+                                        if(count($nouvel_aqu)>0){
+                                        foreach ($nouvel_aqu as $info) {
+                                            $client_exist=Client::on('temp')->where('cin',$info->cin)->orderBy('created_at', 'DESC')->get()->first();
+
+                                                if($client_exist!=null){
+                                                    $clientData =$client_exist;
+                                                }else{
+                                                    // si est un prospect
+                                                    $prospect_exist = Prospect::on('temp')->where(function($query) use ($info) {
+                                                    $query->where('telephone',$info->telephone)
+                                                        ->orwhere('telephone_num2',$info->telephone)
+                                                        ->orwhere('cin',$info->cin)
+                                                        ;})
+                                                        ->get()->first();
+                                                    if($prospect_exist!=null){
+                                                        $dataClient= [
+                                                            'cin'=>$info->cin,
+                                                            'nom'=>$info->nom,
+                                                            'prenom'=>$info->prenom,
+                                                            'telephone_num1'=>$info->telephone,
+                                                            'telephone_num2'=>$prospect_exist->telephone_num2,
+                                                            'notifie'=>$prospect_exist->notifie,
+                                                            'civilite'=>'Mr',
+                                                            'situation_familliale'=>'Célibataire',
+                                                            'type_client'=>1,
+                                                        ];
+                                                    }else{
+                                                        //new client
+                                                        $dataClient= [
+                                                            'cin'=>$info->cin,
+                                                            'nom'=>$info->nom,
+                                                            'prenom'=>$info->prenom,
+                                                            'telephone_num1'=>$info->telephone,
+                                                            'telephone_num2'=>null,
+                                                            'notifie'=>0,
+                                                            'civilite'=>'Mr',
+                                                            'situation_familliale'=>'Célibataire',
+                                                            'type_client'=>1,
+                                                        ];
+                                                    }
+
+                                                    $clientRequest->merge($dataClient);
+                                                    $clientData = $clientController->store($clientRequest);
+                                                }
+                                                $dataAquereur = [
+                                                    'pourcentage' => $info->pourcentage,
+                                                    'client_id' => $clientData->id,
+                                                    'reservation_id' => $resv_new->id,
+                                                ];
+                                                $aquereurRequest->merge($dataAquereur);
+                                                $aquereurController->store($aquereurRequest);
+                                        }
+                                    }
+                                }
+                                //validation du desistement et add reservation_id_new
+                                    $desistement->reservation_id_new=$resv_new->id;
+                                    if($desistement->save()){
+
+                                        /**store Historique */
+                                        //test si res_id exist deja en table historique
+                                        $histo_count_res_ancien=HistoriqueDesistement::on('temp')->where('reservation_id',$desistement->reservation_id)->count();
+                                        if($histo_count_res_ancien==0){
+                                            $this->store_historique_desistement($desistement->reservation_id,null,$desistement->bien_id_ancien,$code_desist_reservation,$reservation->created_at);
+                                        }
+                                        // store histo desi
+                                        $this->store_historique_desistement(null,$desistement->id,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
+                                        //store histo res_new
+                                        $this->store_historique_desistement($resv_new->id,null,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
+
+                                    }
+                            }
+
                     }
+                    //CHANGEMENT DE BIEN
 
+                    elseif($desistement->type==TypeDesistement::Changement_De_Bien->value){
+                        //set bien Pré-Réservé
+                        $bien_c=new BienController();
+                        $bien_c->prereserverBien($desistement->bien_id_new,null,null);
+                        //replicate reservation
+                        $resv_ancien = Reservation::on('temp')->findOrFail($desistement->reservation_id);
+                        //coppier ancien reservation meme code _reservation
+                        $resv_new = $resv_ancien->replicate();
+                        $resv_new->setConnection('temp');
+                        $resv_new->ancien_id = $resv_ancien->id;
+                        $resv_new->bien_id = $desistement->bien_id_new;
+                        $resv_new->code_reservation= $resv_ancien->code_reservation;
+                        $resv_new->etat= 1;
+                        $resv_new->created_at = Carbon::now();
+                        $resv_new->updated_at = Carbon::now();
+                        $resv_new->code_desistement=$code_desist_reservation;
 
-                    $resv_ancien = Reservation::on('temp')->findOrFail($desistement->reservation_id);
-                    //coppier ancien reservation meme code _reservation
-                    $resv_new = $resv_ancien->replicate();
-                    $resv_new->setConnection('temp');
-                    $resv_new->ancien_id = $resv_ancien->id;
-                    $resv_new->code_reservation= $resv_ancien->code_reservation;
-                    $resv_new->code_desistement=$code_desist_reservation;
-                    $resv_new->etat= 1;
-                    if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value){
-                        $resv_new->nb_acquereurs = count($aq_non_desisteur)+count($nouvel_aqu);
-                    }elseif($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
-                        $resv_new->nb_acquereurs = count($aq_non_desisteur)+count($les_au_profit);
-                    }
-                    elseif($desistement->type_dp==TypeDesistementProfit::Désistement_Partiel->value){
-                        $resv_new->nb_acquereurs = count($les_partiel)+count($nouvel_aqu);
-                    }
+                        if($resv_new->save()){
+                            //set resv ancien etat
+                            $resv_ancien->setConnection('temp');
+                            $resv_ancien->etat=EtatReservationEnum::desist_change_bien->value;
+                            $resv_ancien->code_desistement=$code_desist_reservation;
 
-                    $resv_new->created_at = Carbon::now();
-                    $resv_new->updated_at = Carbon::now();
-                    if($resv_new->save()){
-                        //set resv ancien etat
-                        $resv_ancien->setConnection('temp');
-                        if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value){
-                            $resv_ancien->etat=EtatReservationEnum::desist_profit_proche->value;
-                        }elseif($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
-                            $resv_ancien->etat=EtatReservationEnum::desist_profit_co->value;
+                            if($resv_ancien->save()){
+                                //replicate piece jointe
+                                $pj_ancien = PiecesJointe::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
+                                if(count($pj_ancien)>0){
+                                    foreach($pj_ancien as $pj_old){
+                                        $pj_new = $pj_old->replicate();
+                                        $pj_new->setConnection('temp');
+                                        $pj_new->reservation_id = $resv_new->id;
+                                        $pj_new->created_at = Carbon::now();
+                                        $pj_new->updated_at = Carbon::now();
+                                        if($pj_new->save()){
+                                            $pj_old->delete();
+                                        }
+                                    }
+                                }
 
-                        }elseif($desistement->type_dp==TypeDesistementProfit::Désistement_Partiel->value){
-                            $resv_ancien->etat=EtatReservationEnum::desist_partiel->value;
-                        }
-                        $resv_ancien->code_desistement=$code_desist_reservation;
+                                //replicate avance
+                                $av_ancien = Avance::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
+                                if(count($av_ancien)>0){
+                                    foreach($av_ancien as $av_old){
+                                        $av_new = $av_old->replicate();
+                                        $av_new->setConnection('temp');
+                                        $av_new->reservation_id = $resv_new->id;
+                                        $av_new->reservation_id_ancien = $desistement->reservation_id;
+                                        $av_new->desistement_id = $desistement->id;
+                                        $av_new->ancien_recu = $av_old->num_recu;
+                                        $last_num_recu = Avance::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")
+                                        ->get('num_recu')->first();
+                                        if ($last_num_recu!=null) {
+                                            $n_recu = $last_num_recu->num_recu + 1;
+                                            $av_new->num_recu = '00' . $n_recu . '';
+                                        } else {
+                                            $av_new->num_recu = '001';
+                                        }
+                                        $av_new->created_at = Carbon::now();
+                                        $av_new->updated_at = Carbon::now();
+                                        if($av_new->save()){
+                                            $av_old->delete();
+                                            //replicate statut
+                                            $av_last_statut = StatutAvancePenalite::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                            if($av_last_statut!=null){
+                                                $st_av_new = $av_last_statut->replicate();
+                                                $st_av_new->avance_id=$av_new->id;
+                                                $st_av_new->setConnection('temp');
+                                                if($st_av_new->save()){
+                                                    $av_last_statut->delete();
+                                                }
+                                            }
+                                                //replicate pice jointe
 
-                        if($resv_ancien->save()){
+                                            $av_old_pj = PiecesJointe::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                            if($av_old_pj!=null){
+                                                $pj_new = $av_old_pj->replicate();
+                                                $pj_new->avance_id=$av_new->id;
+                                                $pj_new->setConnection('temp');
+                                                if($pj_new->save()){
+                                                    $av_old_pj->delete();
+                                                }
+                                            }
+                                             //replicate fiche transmission
+
+                                             $old_f = FicheTransmission::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                             if($old_f!=null){
+                                                 $f_new = $old_f->replicate();
+                                                 $f_new->avance_id=$av_new->id;
+                                                 $f_new->setConnection('temp');
+                                                 if($f_new->save()){
+                                                     $old_f->delete();
+                                                 }
+                                             }
+                                             //replicate encaissement
+
+                                              $old_en = Encaissement::on('temp')->where('avance_id',$av_old->id)->orderby('created_at','desc')->first();
+                                              if($old_en!=null){
+                                                  $new_encais = $old_en->replicate();
+                                                  $new_encais->avance_id=$av_new->id;
+                                                  $new_encais->reservation_id=$resv_new->id;
+                                                  $new_encais->setConnection('temp');
+                                                  if($new_encais->save()){
+                                                      $old_en->delete();
+                                                  }
+                                              }
+                                        }
+                                    }
+                                }
                             //replicate piece jointe
-                            $pj_ancien = PiecesJointe::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
-                            if(count($pj_ancien)>0){
-                                foreach($pj_ancien as $pj_old){
-                                    $pj_new = $pj_old->replicate();
-                                    $pj_new->setConnection('temp');
-                                    $pj_new->reservation_id = $resv_new->id;
-                                    $pj_new->created_at = Carbon::now();
-                                    $pj_new->updated_at = Carbon::now();
-                                    if($pj_new->save()){
-                                        $pj_old->delete();
+                            $old_aqu_s = Aquereur::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
+                            if(count($old_aqu_s)>0){
+                                foreach($old_aqu_s as $aq_old){
+                                    $aq_new = $aq_old->replicate();
+                                    $aq_new->setConnection('temp');
+                                    $aq_new->reservation_id = $resv_new->id;
+                                    $aq_new->created_at = Carbon::now();
+                                    $aq_new->updated_at = Carbon::now();
+                                    if($aq_new->save()){
+                                        $aq_old->delete();
                                     }
                                 }
                             }
 
-                            //replicate avance
-                            $av_ancien = Avance::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
-                            if(count($av_ancien)>0){
-                                foreach($av_ancien as $av_old){
-                                    $av_new = $av_old->replicate();
-                                    $av_new->setConnection('temp');
-                                    $av_new->reservation_id = $resv_new->id;
-                                    $av_new->reservation_id_ancien = $desistement->reservation_id;
-                                    $av_new->desistement_id = $desistement->id;
-                                    $av_new->ancien_recu = $av_old->num_recu;
-                                    $last_num_recu = Avance::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")
-                                    ->get('num_recu')->first();
-                                    if ($last_num_recu!=null) {
-                                        $n_recu = $last_num_recu->num_recu + 1;
-                                        $av_new->num_recu = '00' . $n_recu . '';
-                                    } else {
-                                        $av_new->num_recu = '001';
-                                    }
-                                    $av_new->created_at = Carbon::now();
-                                    $av_new->updated_at = Carbon::now();
-                                    if($av_new->save()){
-                                        $av_old->delete();
-                                    }
-                                }
                             }
-                            //soft delete ancien aquereurs
-                            $aquController = new AquereurController();
-                            $aquController->soft_destroy_aqueureurs_by_reservationId($desistement->reservation_id);
+                            //if(montant_a_ajouter >0)
+                            if($desistement->montant_a_ajouter>0){
 
-                        }
-                        if($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value){
-                            //store les non desisteur
-                            $aqu_non_desist_Controller = new AquereurController();
-                            $aquRequest = new StoreAquereurRequest();
-                            if (count($aq_non_desisteur)>0) {
-                                foreach ($aq_non_desisteur as $aq_nfo) {
-                                    $dataAquereur = [
-                                        'pourcentage' => $aq_nfo->pourcentage,
-                                        'client_id' => $aq_nfo->client_id,
-                                        'reservation_id' => $resv_new->id,
-                                    ];
-                                    $aquRequest->merge($dataAquereur);
-                                    $aqu_non_desist_Controller->store($aquRequest);
+                                //store avance
+                                $avanceController = new AvanceController();
+                                $avanceRequest = new StoreAvanceRequest();
+
+                                $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
+                                $montant=$desistement->montant_a_ajouter;
+                                $mnt_lettre = $inWords->format($montant);
+                                $dataAvance = [
+                                    //addedd
+                                    'desistement_id'=>$desistement->id,
+                                    'dossier_id_transfert'=>null,
+                                    'reservation_id'=>$resv_new->id,
+                                    /////
+                                    'sr' => (bool)$desistement->sr,
+                                    'type_encaissement' => 1,
+                                    'montant' => $montant,
+                                    'mode_paiement' => $desistement->mode_paiement,
+                                    'numero_paiement' => $desistement->numero_paiement,
+                                    'date_reglement' => Carbon::now(),
+                                    'echeance' => $desistement->echeance,
+                                    'banque_id' => $desistement->banque_id,
+                                    'montant_par_lettre' => $mnt_lettre,
+                                    'commentaireAvance' => null,
+                                    'num_remise' => null,
+                                    'date_encaissement' =>null,
+
+                                ];
+                                $avanceRequest->merge($dataAvance);
+                                $avanceController->store($avanceRequest);
                                 }
+                                //send piece jointes
                             }
-                            //store les new clients
-                            $clientController = new ClientController();
-                            $clientRequest = new StoreClientRequest();
-                            $aquereurController = new AquereurController();
-                            $aquereurRequest = new StoreAquereurRequest();
-                                if(count($nouvel_aqu)>0){
-                                foreach ($nouvel_aqu as $info) {
-                                    $client_exist=Client::on('temp')->where('cin',$info->cin)->orderBy('created_at', 'DESC')->get()->first();
 
-                                        if($client_exist!=null){
-                                            $clientData =$client_exist;
-                                        }else{
-                                            // si est un prospect
-                                            $prospect_exist = Prospect::on('temp')->where(function($query) use ($info) {
-                                            $query->where('telephone',$info->telephone)
-                                                ->orwhere('telephone_num2',$info->telephone)
-                                                ->orwhere('cin',$info->cin)
-                                                ;})
-                                                ->get()->first();
-                                            if($prospect_exist!=null){
-                                                $dataClient= [
-                                                    'cin'=>$info->cin,
-                                                    'nom'=>$info->nom,
-                                                    'prenom'=>$info->prenom,
-                                                    'telephone_num1'=>$info->telephone,
-                                                    'telephone_num2'=>$prospect_exist->telephone_num2,
-                                                    'notifie'=>$prospect_exist->notifie,
-                                                    'civilite'=>'Mr',
-                                                    'situation_familliale'=>'Célibataire',
-                                                    'type_client'=>1,
-                                                ];
-                                            }else{
-                                                //new client
-                                                $dataClient= [
-                                                    'cin'=>$info->cin,
-                                                    'nom'=>$info->nom,
-                                                    'prenom'=>$info->prenom,
-                                                    'telephone_num1'=>$info->telephone,
-                                                    'telephone_num2'=>null,
-                                                    'notifie'=>0,
-                                                    'civilite'=>'Mr',
-                                                    'situation_familliale'=>'Célibataire',
-                                                    'type_client'=>1,
-                                                ];
-                                            }
+                            //libration de l'ancien bien
+                            Bien_Helper::libererBien($desistement->bien_id_ancien,null,$desistement->id);
 
-                                            $clientRequest->merge($dataClient);
-                                            $clientData = $clientController->store($clientRequest);
+
+
+                    //validation du desistement et add reservation_id_new
+                        $desistement->reservation_id_new=$resv_new->id;
+                        if($desistement->save()){
+                                        /**store Historique */
+                                        //test si res_id exist deja en table historique
+                                        $histo_count_res_ancien=HistoriqueDesistement::on('temp')->where('reservation_id',$desistement->reservation_id)->count();
+                                        if($histo_count_res_ancien==0){
+                                            $this->store_historique_desistement($desistement->reservation_id,null,$desistement->bien_id_ancien,$code_desist_reservation,$reservation->created_at);
                                         }
-                                        $dataAquereur = [
-                                            'pourcentage' => $info->pourcentage,
-                                            'client_id' => $clientData->id,
-                                            'reservation_id' => $resv_new->id,
-                                        ];
-                                        $aquereurRequest->merge($dataAquereur);
-                                        $aquereurController->store($aquereurRequest);
-                                }
-                            }
+                                        // store histo desi
+                                        $this->store_historique_desistement(null,$desistement->id,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
+                                        //store histo res_new
+                                        $this->store_historique_desistement($resv_new->id,null,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
+
                         }
-                        elseif($desistement->type_dp==TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value){
-                            //store les non desisteur
-                            $aqu_non_desist_Controller = new AquereurController();
-                            $aquRequest = new StoreAquereurRequest();
-                            if (count($aq_non_desisteur)>0) {
-                                foreach ($aq_non_desisteur as $aq_nfo) {
-                                    $dataAquereur = [
-                                        'pourcentage' => $aq_nfo->pourcentage,
-                                        'client_id' => $aq_nfo->client_id,
-                                        'reservation_id' => $resv_new->id,
-                                    ];
-                                    $aquRequest->merge($dataAquereur);
-                                    $aqu_non_desist_Controller->store($aquRequest);
-                                }
-                            }
-                            //store les au profit + new pourcenage
-                            $aqu_profit_Controller = new AquereurController();
-                            $aquRequest_pr = new StoreAquereurRequest();
-                            if (count($les_au_profit)>0) {
-                                foreach ($les_au_profit as $aq_nfo) {
-                                    //get old pourcentage
-                                    $aquer_old_percent=Aquereur::on('temp')->onlyTrashed()->findorfail($aq_nfo->aq_id);
-                                    $dataAquereur = [
-                                        'pourcentage' => $aq_nfo->pourcentage+$aquer_old_percent->pourcentage,
-                                        'client_id' => $aq_nfo->client_id,
-                                        'reservation_id' => $resv_new->id,
-                                    ];
-                                    $aquRequest_pr->merge($dataAquereur);
-                                    $aqu_profit_Controller->store($aquRequest_pr);
-                                }
-                            }
-                        }
-                        elseif($desistement->type_dp==TypeDesistementProfit::Désistement_Partiel->value){
-                            //store les desisteur partiel
-                            $les_partiel_Controller = new AquereurController();
-                            $aquRequest = new StoreAquereurRequest();
-                            if (count($les_partiel)>0) {
-                                foreach ($les_partiel as $aq_nfo) {
-                                    $dataAquereur = [
-                                        'pourcentage' => $aq_nfo->pourcentage,
-                                        'client_id' => $aq_nfo->client_id,
-                                        'reservation_id' => $resv_new->id,
-                                    ];
-                                    $aquRequest->merge($dataAquereur);
-                                    $les_partiel_Controller->store($aquRequest);
-                                }
-                            }
-                            //store les new clients partiel
-                            $clientController = new ClientController();
-                            $clientRequest = new StoreClientRequest();
-                            $aquereurController = new AquereurController();
-                            $aquereurRequest = new StoreAquereurRequest();
-                                if(count($nouvel_aqu)>0){
-                                foreach ($nouvel_aqu as $info) {
-                                    $client_exist=Client::on('temp')->where('cin',$info->cin)->orderBy('created_at', 'DESC')->get()->first();
-
-                                        if($client_exist!=null){
-                                            $clientData =$client_exist;
-                                        }else{
-                                            // si est un prospect
-                                            $prospect_exist = Prospect::on('temp')->where(function($query) use ($info) {
-                                            $query->where('telephone',$info->telephone)
-                                                ->orwhere('telephone_num2',$info->telephone)
-                                                ->orwhere('cin',$info->cin)
-                                                ;})
-                                                ->get()->first();
-                                            if($prospect_exist!=null){
-                                                $dataClient= [
-                                                    'cin'=>$info->cin,
-                                                    'nom'=>$info->nom,
-                                                    'prenom'=>$info->prenom,
-                                                    'telephone_num1'=>$info->telephone,
-                                                    'telephone_num2'=>$prospect_exist->telephone_num2,
-                                                    'notifie'=>$prospect_exist->notifie,
-                                                    'civilite'=>'Mr',
-                                                    'situation_familliale'=>'Célibataire',
-                                                    'type_client'=>1,
-                                                ];
-                                            }else{
-                                                //new client
-                                                $dataClient= [
-                                                    'cin'=>$info->cin,
-                                                    'nom'=>$info->nom,
-                                                    'prenom'=>$info->prenom,
-                                                    'telephone_num1'=>$info->telephone,
-                                                    'telephone_num2'=>null,
-                                                    'notifie'=>0,
-                                                    'civilite'=>'Mr',
-                                                    'situation_familliale'=>'Célibataire',
-                                                    'type_client'=>1,
-                                                ];
-                                            }
-
-                                            $clientRequest->merge($dataClient);
-                                            $clientData = $clientController->store($clientRequest);
-                                        }
-                                        $dataAquereur = [
-                                            'pourcentage' => $info->pourcentage,
-                                            'client_id' => $clientData->id,
-                                            'reservation_id' => $resv_new->id,
-                                        ];
-                                        $aquereurRequest->merge($dataAquereur);
-                                        $aquereurController->store($aquereurRequest);
-                                }
-                            }
-                        }
-                        //validation du desistement et add reservation_id_new
-                            $desistement->reservation_id_new=$resv_new->id;
-                            if($desistement->save()){
-
-                                /**store Historique */
-                                  //test si res_id exist deja en table historique
-                                  $histo_count_res_ancien=HistoriqueDesistement::on('temp')->where('reservation_id',$desistement->reservation_id)->count();
-                                  if($histo_count_res_ancien==0){
-                                      $this->store_historique_desistement($desistement->reservation_id,null,$desistement->bien_id_ancien,$code_desist_reservation,$reservation->created_at);
-                                  }
-                                  // store histo desi
-                                  $this->store_historique_desistement(null,$desistement->id,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
-                                  //store histo res_new
-                                  $this->store_historique_desistement($resv_new->id,null,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
-
-                            }
                     }
+                    $desistement->statut=1;
+                    $desistement->date_validation=Carbon::now();
+                    $desistement->user_id_valider=intval($userAuth->value('id'));
 
-            }
-            //CHANGEMENT DE BIEN
-
-            elseif($desistement->type==TypeDesistement::Changement_De_Bien->value){
-                //set bien Pré-Réservé
-                $bien_c=new BienController();
-                $bien_c->prereserverBien($desistement->bien_id_new,null,null);
-                //replicate reservation
-                $resv_ancien = Reservation::on('temp')->findOrFail($desistement->reservation_id);
-                //coppier ancien reservation meme code _reservation
-                $resv_new = $resv_ancien->replicate();
-                $resv_new->setConnection('temp');
-                $resv_new->ancien_id = $resv_ancien->id;
-                $resv_new->bien_id = $desistement->bien_id_new;
-                $resv_new->code_reservation= $resv_ancien->code_reservation;
-                $resv_new->etat= 1;
-                $resv_new->created_at = Carbon::now();
-                $resv_new->updated_at = Carbon::now();
-                $resv_new->code_desistement=$code_desist_reservation;
-
-                if($resv_new->save()){
-                    //set resv ancien etat
-                    $resv_ancien->setConnection('temp');
-                    $resv_ancien->etat=EtatReservationEnum::desist_change_bien->value;
-                    $resv_ancien->code_desistement=$code_desist_reservation;
-
-                    if($resv_ancien->save()){
-                        //replicate piece jointe
-                        $pj_ancien = PiecesJointe::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
-                        if(count($pj_ancien)>0){
-                            foreach($pj_ancien as $pj_old){
-                                $pj_new = $pj_old->replicate();
-                                $pj_new->setConnection('temp');
-                                $pj_new->reservation_id = $resv_new->id;
-                                $pj_new->created_at = Carbon::now();
-                                $pj_new->updated_at = Carbon::now();
-                                if($pj_new->save()){
-                                    $pj_old->delete();
-                                }
-                            }
-                        }
-
-                        //replicate avance
-                        $av_ancien = Avance::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
-                        if(count($av_ancien)>0){
-                            foreach($av_ancien as $av_old){
-                                $av_new = $av_old->replicate();
-                                $av_new->setConnection('temp');
-                                $av_new->reservation_id = $resv_new->id;
-                                $av_new->reservation_id_ancien = $desistement->reservation_id;
-                                $av_new->desistement_id = $desistement->id;
-                                $av_new->ancien_recu = $av_old->num_recu;
-                                $last_num_recu = Avance::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")
-                                ->get('num_recu')->first();
-                                if ($last_num_recu!=null) {
-                                    $n_recu = $last_num_recu->num_recu + 1;
-                                    $av_new->num_recu = '00' . $n_recu . '';
-                                } else {
-                                    $av_new->num_recu = '001';
-                                }
-                                $av_new->created_at = Carbon::now();
-                                $av_new->updated_at = Carbon::now();
-                                if($av_new->save()){
-                                    $av_old->delete();
-                                }
-                            }
-                        }
-                      //replicate piece jointe
-                      $old_aqu_s = Aquereur::on('temp')->where('reservation_id',$desistement->reservation_id)->get();
-                      if(count($old_aqu_s)>0){
-                          foreach($old_aqu_s as $aq_old){
-                              $aq_new = $aq_old->replicate();
-                              $aq_new->setConnection('temp');
-                              $aq_new->reservation_id = $resv_new->id;
-                              $aq_new->created_at = Carbon::now();
-                              $aq_new->updated_at = Carbon::now();
-                              if($aq_new->save()){
-                                  $aq_old->delete();
-                              }
-                          }
-                      }
-
+                    if( $desistement->save()){
+                            //desistement validé
+                            NotificationHelper::storeNotification(
+                                '/desistements/show/'.$desistement->id, Carbon::now(),11,'desistement validé',null,RoleEnum::ADMIN->value,null,null,$desistement->projet_id,null,$desistement->reservation_id
+                            );
+                            broadcast(new NotificationEvent($desistement->id));
                     }
-                    //if(montant_a_ajouter >0)
-                    if($desistement->montant_a_ajouter>0){
-
-                        //store avance
-                        $avanceController = new AvanceController();
-                        $avanceRequest = new StoreAvanceRequest();
-
-                        $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-                        $montant=$desistement->montant_a_ajouter;
-                        $mnt_lettre = $inWords->format($montant);
-                        $dataAvance = [
-                            //addedd
-                            'desistement_id'=>$desistement->id,
-                            'dossier_id_transfert'=>null,
-                            'reservation_id'=>$resv_new->id,
-                            /////
-                            'sr' => (bool)$desistement->sr,
-                            'type_encaissement' => 1,
-                            'montant' => $montant,
-                            'mode_paiement' => $desistement->mode_paiement,
-                            'numero_paiement' => $desistement->numero_paiement,
-                            'date_reglement' => Carbon::now(),
-                            'echeance' => $desistement->echeance,
-                            'banque_id' => $desistement->banque_id,
-                            'montant_par_lettre' => $mnt_lettre,
-                            'commentaireAvance' => null,
-                            'num_remise' => null,
-                            'date_encaissement' =>null,
-
-                        ];
-                        $avanceRequest->merge($dataAvance);
-                        $avanceController->store($avanceRequest);
-                        }
-                        //send piece jointes
-                    }
-
-                    //libration de l'ancien bien
-                    Bien_Helper::libererBien($desistement->bien_id_ancien,null,$desistement->id);
-
-
-
-             //validation du desistement et add reservation_id_new
-                 $desistement->reservation_id_new=$resv_new->id;
-                if($desistement->save()){
-                                /**store Historique */
-                                  //test si res_id exist deja en table historique
-                                  $histo_count_res_ancien=HistoriqueDesistement::on('temp')->where('reservation_id',$desistement->reservation_id)->count();
-                                  if($histo_count_res_ancien==0){
-                                      $this->store_historique_desistement($desistement->reservation_id,null,$desistement->bien_id_ancien,$code_desist_reservation,$reservation->created_at);
-                                  }
-                                  // store histo desi
-                                  $this->store_historique_desistement(null,$desistement->id,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
-                                  //store histo res_new
-                                  $this->store_historique_desistement($resv_new->id,null,$desistement->bien_id_ancien,$code_desist_reservation,Carbon::now());
-
-                }
-            }
-            $desistement->statut=1;
-            $desistement->date_validation=Carbon::now();
-
-            if( $desistement->save()){
-                    //desistement validé
-                    NotificationHelper::storeNotification(
-                        '/desistements/show/'.$desistement->id, Carbon::now(),11,'desistement validé',null,RoleEnum::ADMIN->value,null,null,$desistement->projet_id,null,$desistement->reservation_id
-                    );
-                    broadcast(new NotificationEvent($desistement->id));
-            }
 
             }else{
                 //rejeter
                 $desistement->statut=$request->statut;
                 $desistement->commentaire_rejete=$request->commentaire;
                 $desistement->date_validation=Carbon::now();
+                $desistement->user_id_valider=intval($userAuth->value('id'));
 
                 if($desistement->save()){
                      //desistement validé
@@ -2010,11 +2172,11 @@ class DesistementController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $nb_desistement_valide = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',1)->where('user_id', $userAuth->value('id'))->whereDate('date_validation', Carbon::now())->count();
-            $nb_desistement_rejete = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',2)->where('user_id', $userAuth->value('id'))->whereDate('date_validation', Carbon::now())->count();
-            //$nb_desistement_encours = Desistement::on('temp')->where('projet_id',$projet_id)->where('statut',0)->where('user_id', $userAuth->value('id'))->count();
+           // $nb_desistement_valide = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',1)->where('user_id', $userAuth->value('id'))->whereDate('date_validation', Carbon::now())->count();
+          //  $nb_desistement_rejete = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',2)->where('user_id', $userAuth->value('id'))->whereDate('date_validation', Carbon::now())->count();
+            $nb_desistement_encours = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',0)->where('user_id', $userAuth->value('id'))->count();
 
-            //par type
+            /*par type
             $nb_desistement_valide_par_type =Desistement::on('temp')->select(DB::raw('count(id) as nb_dst,type,type_dp'))
             ->where('projet_id',$projet_id)->where('archive',0)->where('statut',1)->where('user_id', $userAuth->value('id'))->whereDate('date_validation', Carbon::now())->groupBy('type','type_dp')->get();
             $nb_desistement_rejete_par_type =Desistement::on('temp')->select(DB::raw('count(id) as nb_dst,type,type_dp'))
@@ -2024,11 +2186,12 @@ class DesistementController extends Controller
 
 
 
-            return response()->json(['nb_dst_valide'=>$nb_desistement_valide,
-            'nb_dst_rejete'=>$nb_desistement_rejete,
-            //'nb_dst_encours'=>$nb_desistement_encours,
-            'nb_desistement_valide_par_type'=>$nb_desistement_valide_par_type,
-            'nb_desistement_rejete_par_type'=>$nb_desistement_rejete_par_type,
+            return response()->json([
+           // 'nb_dst_valide'=>$nb_desistement_valide,
+           // 'nb_dst_rejete'=>$nb_desistement_rejete,
+            'nb_dst_encours'=>$nb_desistement_encours,
+           /* 'nb_desistement_valide_par_type'=>$nb_desistement_valide_par_type,
+            'nb_desistement_rejete_par_type'=>$nb_desistement_rejete_par_type,*/
             //'nb_desistement_encours_par_type'=>$nb_desistement_encours_par_type
         ]);
         } else  return response()->json(['error'=>'Unauthorized'], 401);
@@ -2039,10 +2202,10 @@ class DesistementController extends Controller
             DatabaseHelper::Config();
             $nb_desistement_att_valide = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',0)->count();
             //nb_des desistement par type
-            $nb_desistement_att_valide_par_type =Desistement::on('temp')->select(DB::raw('count(id) as nb_dst,type,type_dp'))
-            ->where('projet_id',$projet_id)->where('archive',0)->where('statut',0)->groupBy('type','type_dp')->get();
+          /*  $nb_desistement_att_valide_par_type =Desistement::on('temp')->select(DB::raw('count(id) as nb_dst,type,type_dp'))
+            ->where('projet_id',$projet_id)->where('archive',0)->where('statut',0)->groupBy('type','type_dp')->get();*/
 
-            return response()->json(['nb_dst_att_valide'=>$nb_desistement_att_valide,'nb_dst_att_valide_par_type'=>$nb_desistement_att_valide_par_type]);
+        return response()->json(['nb_dst_att_valide'=>$nb_desistement_att_valide/*,'nb_dst_att_valide_par_type'=>$nb_desistement_att_valide_par_type*/]);
         } else  return response()->json(['error'=>'Unauthorized'], 401);
     }
 
@@ -2079,7 +2242,7 @@ class DesistementController extends Controller
 
         if(RoleHelper::AdminSup()){
             DatabaseHelper::Config();
-            $desistements = Desistement::on('temp')->with('penalite_desistement','remboursement','nouvel_aquereurs_desistements','aquereurs_desisteurs','aquereurs_profits','aquereurs_partiel','Bien_nouveau')->orderBy('created_at', 'desc')
+            $desistements = Desistement::on('temp')->with('penalite_desistement','remboursement','nouvel_aquereurs_desistements','aquereurs_desisteurs','aquereurs_profits','aquereurs_partiel','Bien_nouveau','responsable_validation')->orderBy('created_at', 'desc')
                 ->where('statut',$statut)
                 ->where('type',$type_e)
                 ->where('type_dp',$type_e_dp)
@@ -2092,7 +2255,7 @@ class DesistementController extends Controller
             DatabaseHelper::Config();
              $user = Auth::user();
          $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $desistements = Desistement::on('temp')->with('penalite_desistement','remboursement','nouvel_aquereurs_desistements','aquereurs_desisteurs','aquereurs_profits','aquereurs_partiel','Bien_nouveau')->orderBy('created_at', 'desc')
+            $desistements = Desistement::on('temp')->with('penalite_desistement','remboursement','nouvel_aquereurs_desistements','aquereurs_desisteurs','aquereurs_profits','aquereurs_partiel','Bien_nouveau','responsable_validation')->orderBy('created_at', 'desc')
                 ->where('statut',$statut)
                 ->where('type',$type_e)
                 ->where('user_id', $userAuth->value('id'))
@@ -2123,25 +2286,27 @@ class DesistementController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $nb_pen_valide = PenaliteDesistement::on('temp')->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
+            $nb_pen_en_cours = PenaliteDesistement::on('temp')->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
             ->where('penalites_desistements.archive',0)
             ->where('desistements.archive',0)
             ->where('desistements.projet_id',$projet_id)
-            ->where('penalites_desistements.statut',1)
+            ->where('penalites_desistements.statut',0)
             ->where('desistements.user_id', $userAuth->value('id'))
-            ->whereDate('penalites_desistements.date_validation', Carbon::now())->count();
+            ->where('desistements.deleted_at',NULL)
+            ->count();
 
-            $nb_pen_rejete =PenaliteDesistement::on('temp')->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
+            /*$nb_pen_rejete =PenaliteDesistement::on('temp')->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
             ->where('penalites_desistements.archive',0)
             ->where('desistements.archive',0)
             ->where('desistements.projet_id',$projet_id)
             ->where('penalites_desistements.statut',2)
             ->where('desistements.user_id', $userAuth->value('id'))
-            ->count();
+            ->where('desistements.deleted_at',NULL)
+            ->count();*/
 
 
-            return response()->json(['nb_valide'=>$nb_pen_valide,
-            'nb_rejete'=>$nb_pen_rejete,
+            return response()->json(['nb_encours'=>$nb_pen_en_cours,
+            //'nb_rejete'=>$nb_pen_rejete,
         ]);
         } else  return response()->json(['error'=>'Unauthorized'], 401);
     }
@@ -2291,7 +2456,7 @@ class DesistementController extends Controller
             if(RoleHelper::AdminSup()){
                 DatabaseHelper::Config();
                 $penalites = PenaliteDesistement::on('temp')->select('penalites_desistements.*')
-                    ->with('banque','last_statut')
+                    ->with('banque','last_statut','responsable_validation')
                     ->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
                     ->orderBy('created_at', 'desc')
                     ->where('penalites_desistements.statut',$statut)
@@ -2300,14 +2465,13 @@ class DesistementController extends Controller
                     ->where('penalites_desistements.archive',0)
                     ->where('desistements.deleted_at',NULL)
                     ->paginate($perPage, ['*'], 'page', $page);
-                    return response()->json(['penalites' => $penalites],200);
 
             }elseif(RoleHelper::Com()){
                     DatabaseHelper::Config();
                     $user = Auth::user();
                     $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                     $penalites = PenaliteDesistement::on('temp')->select('penalites_desistements.*')
-                    ->with('banque','last_statut')
+                    ->with('banque','last_statut','responsable_validation')
                     ->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
                     ->orderBy('created_at', 'desc')
                     ->where('penalites_desistements.statut',$statut)
@@ -2315,9 +2479,8 @@ class DesistementController extends Controller
                     ->where('desistements.archive',0)
                     ->where('penalites_desistements.archive',0)
                     ->where('desistements.deleted_at',NULL)
-                    ->where('user_id', $userAuth->value('id'))
+                    ->where('desistements.user_id', $userAuth->value('id'))
                     ->paginate($perPage, ['*'], 'page', $page);
-                    return response()->json(['penalites' => $penalites],200);
             }
             return response()->json(['penalites' => $penalites], 200);
         }
@@ -2357,7 +2520,8 @@ class DesistementController extends Controller
     {
         if(RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_3');
+           // Config::set('broadcasting.default', 'pusher_3');
+           Config::set('broadcasting.default', 'pusher_5');
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $penalite = PenaliteDesistement::on('temp')->findOrFail($id);
@@ -2397,13 +2561,17 @@ class DesistementController extends Controller
                 NotificationHelper::storeNotification(
                     '/desistements/penalites/show/'.$penalite->id, Carbon::now(),13,'penalité validé',$penalite->desistement->user->user_id_origin,null,null,null,$penalite->desistement->projet_id,null,null
                     );
-                    broadcast(new NotificationEvent($id));
+                      //3 traitement  penalite
+                     broadcast(new NotifMenuEvent(3));
+                   // broadcast(new NotificationEvent($id));
                 }else{
                     //store new notification rejeté
                     NotificationHelper::storeNotification(
                         '/desistements/penalites/show/'.$penalite->id, Carbon::now(),14,'penalité rejeté',$penalite->desistement->user->user_id_origin,null,null,null,$penalite->desistement->projet_id,null,null
                         );
-                        broadcast(new NotificationEvent($id));
+                          //3 traitement  penalite
+                         broadcast(new NotifMenuEvent(3));
+                       // broadcast(new NotificationEvent($id));
                 }
 
             return response()->json(['message' => 'données enregistrés avec succès.'], 200);

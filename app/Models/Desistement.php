@@ -19,6 +19,10 @@ class Desistement extends Model
     {
         return $this->belongsTo(User::class);
     }
+    public function responsable_validation()
+    {
+        return $this->belongsTo(User::class,'user_id_valider');
+    }
 
     public function reservation(){
         return $this->belongsTo(Reservation::class,'reservation_id_new');

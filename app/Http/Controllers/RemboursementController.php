@@ -17,6 +17,7 @@ use App\Http\Helpers\NotificationHelper;
 use Carbon\Carbon;
 use App\Events\NotificationEvent;
 use App\Models\Encaissement;
+use App\Events\NotifMenuEvent;
 
 
 
@@ -139,7 +140,8 @@ class RemboursementController extends Controller
 
         if(RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_3');
+           // Config::set('broadcasting.default', 'pusher_3');
+           Config::set('broadcasting.default', 'pusher_5');
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
@@ -166,6 +168,8 @@ class RemboursementController extends Controller
                 $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
             }
             $remboursement->save();
+            //4 demande pre rembourse
+            broadcast(new NotifMenuEvent(4));
                 /*if($remboursement->save()){
                     //store new notification validé
                     NotificationHelper::storeNotification(

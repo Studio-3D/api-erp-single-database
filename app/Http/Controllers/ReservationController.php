@@ -33,6 +33,8 @@ use App\Models\Aquereur;
 use App\Models\StatutReservation;
 use Illuminate\Support\Facades\Config;
 use App\Events\NotificationEvent;
+use App\Events\NotifMenuEvent;
+
 
 
 class ReservationController extends Controller
@@ -100,7 +102,7 @@ class ReservationController extends Controller
             $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
             ->groupby('reservation_id');
 
-            /*if (RoleHelper::AdminSup()) {
+            if (RoleHelper::AdminSup()) {
                 //ADMIN
                 $reservations = Reservation::on('temp')->with('last_statut')
                 ->joinSub($avances, 'avances_req', function ($join) {
@@ -113,7 +115,7 @@ class ReservationController extends Controller
                 ->where('reservations.projet_id', $projet_id)
                 ->paginate($perPage, ['*'], 'page', $page);
 
-            }else*/
+            }else
             if(RoleHelper::Com()){
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -128,8 +130,9 @@ class ReservationController extends Controller
                 ->where('reservations.user_id',  $userAuth->value('id'))
                 ->where('reservations.projet_id', $projet_id)
                 ->paginate($perPage, ['*'], 'page', $page);
-                return response()->json(['reservations' => $reservations], 200);
             }
+            return response()->json(['reservations' => $reservations], 200);
+
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -422,7 +425,7 @@ class ReservationController extends Controller
      }
 
 
-   public function getReservationssByProjet($projet_id)
+    public function getReservationssByProjet($projet_id)
      {
          if (RoleHelper::ACSup()) {
              DatabaseHelper::Config();
@@ -458,7 +461,7 @@ class ReservationController extends Controller
     /**
      * Update the specified resource in storage.
      */
-  public function update(UpdateReservationRequest $request, $id)
+     public function update(UpdateReservationRequest $request, $id)
     {
 
 
@@ -737,25 +740,33 @@ class ReservationController extends Controller
 
 
     public function get_notif_reservation_att_validation($projet_id){
-        if (RoleHelper::AdminSup()) {
-            DatabaseHelper::Config();
-            $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
-            ->groupby('reservation_id');
-            $nb_att_validation = Reservation::on('temp')->with('last_statut')
-            ->joinSub($avances, 'avances_req', function ($join) {
-                $join->on('avances_req.reservation_id', '=', 'reservations.id');
-            })
-            ->where('reservations.projet_id', $projet_id)
-            ->where('reservations.statut', 3)
-            ->where('reservations.etat', 1)->count();
+        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+              DatabaseHelper::Config();
+            if (RoleHelper::AdminSup()) {
+
+                $nb_att_validation = Reservation::on('temp')->with('last_statut')
+                ->where('projet_id', $projet_id)
+                ->where('statut', 3)
+                ->where('etat', 1)->count();
+            }else if(RoleHelper::Com()){
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                $nb_att_validation = Reservation::on('temp')->with('last_statut')
+                ->where('projet_id', $projet_id)
+                ->where('statut', 3)
+                ->where('etat', 1)->where('user_id',  $userAuth->value('id'))->count();
+            }
             return response()->json(['nb_att_valide'=>$nb_att_validation]);
-        } else  return response()->json(['error'=>'Unauthorized'], 401);
+
+        }
+        else  return response()->json(['error'=>'Unauthorized'], 401);
     }
     public function traiter_reservation($id,Request $request)
     {
         if(RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_3');
+            Config::set('broadcasting.default', 'pusher_5');
+            // Config::set('broadcasting.default', 'pusher_3');
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $reservation = Reservation::on('temp')->findOrFail($id);
@@ -764,6 +775,7 @@ class ReservationController extends Controller
                 $res_statut = new statutReservation();
                 $res_statut->setConnection('temp');
                 $res_statut->reservation_id=$id;
+                $res_statut->statut=$request->statut_res;
                 $res_statut->user_id_valider=$userAuth->value('id');
                 $res_statut->date_validation=Carbon::now();
                 if($request->statut_res==2){
@@ -777,13 +789,18 @@ class ReservationController extends Controller
                     NotificationHelper::storeNotification(
                         '/reservations/show/'.$id, Carbon::now(),15,'reservation validé',$reservation->user->user_id_origin,null,null,null,$reservation->projet_id,null,null
                         );
-                        broadcast(new NotificationEvent($id));
+                       // broadcast(new NotificationEvent($id));
+                         //1 traitement reservation
+                        broadcast(new NotifMenuEvent(1));
                 }else{
                     //store new notification rejeté
                     NotificationHelper::storeNotification(
                         '/reservations/show/'.$id, Carbon::now(),16,'reservation rejeté',$reservation->user->user_id_origin,null,null,null,$reservation->projet_id,null,null
                         );
-                        broadcast(new NotificationEvent($id));
+                       // broadcast(new NotificationEvent($id));
+                         //1 traitement reservation
+                        broadcast(new NotifMenuEvent(1));
+
                 }
                 //traiter reservation with avance
                 if($request->with_avance==1){
@@ -807,5 +824,9 @@ class ReservationController extends Controller
        }
 
     }
+
+
+
+
 
 }
