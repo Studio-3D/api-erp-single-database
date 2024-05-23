@@ -37,6 +37,7 @@ class StoreUserRequest extends FormRequest
             // 'nb_appel_recu' => 'integer',
             // 'nb_appel_traite' => 'integer',
             'solde_conge' => 'integer|nullable',
+            'societe_id' => 'required|integer',
 
         ];
     }
@@ -45,6 +46,7 @@ class StoreUserRequest extends FormRequest
         return [
             'cin.unique' => 'Le Cin que vous avez saisi apprtient à un autre utilisateur',
             'email.unique' => 'L\'email que vous avez saisi appartient à un autre utilisateur',
+            'societe_id.required' => 'la societe est requise',
         ];
     }
 }

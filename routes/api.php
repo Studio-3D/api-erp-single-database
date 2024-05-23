@@ -1,5 +1,15 @@
 <?php
 
+use App\Http\Controllers\Api\V1\SocieteController as V1SocieteController;
+use App\Http\Controllers\Api\V1\UserController as V1UserController;
+use App\Http\Controllers\Api\V1\BanqueController as V1BanqueController;
+use App\Http\Controllers\Api\V1\TypeProjetController as V1TypeProjetController;
+use App\Http\Controllers\Api\V1\TypeBienController as V1TypeBienController;
+use App\Http\Controllers\Api\V1\VueController as V1VueController;
+use App\Http\Controllers\Api\V1\TypologieController as V1TypologieController;
+use App\Http\Controllers\Api\V1\TypeFreinController as V1TypeFreinController;
+use App\Http\Controllers\Api\V1\SourceController as V1SourceController;
+use App\Http\Controllers\Api\V1\PartenaireController as V1PartenaireController;
 use App\Http\Controllers\AquereurController;
 use App\Http\Controllers\AvanceController;
 use App\Http\Controllers\BanqueController;
@@ -7,14 +17,21 @@ use App\Http\Controllers\BienController;
 use App\Http\Controllers\BlocController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CompositionBienController;
+use App\Http\Controllers\DesistementController;
+use App\Http\Controllers\EnumController;
+use App\Http\Controllers\ExcelDataController;
+use App\Http\Controllers\Facebook\FacebookController;
 use App\Http\Controllers\FreinController;
 use App\Http\Controllers\ImmeubleController;
+use App\Http\Controllers\Landing_page\Landing_pageController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PartenaireController;
 use App\Http\Controllers\PiecesJointeController;
 use App\Http\Controllers\ProjetController;
 use App\Http\Controllers\ProspectController;
+use App\Http\Controllers\RemboursementController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\SocieteController;
-use App\Http\Controllers\SocieteControllerV1;
 use App\Http\Controllers\SourceController;
 use App\Http\Controllers\TrancheController;
 use App\Http\Controllers\TypeBienController;
@@ -23,20 +40,9 @@ use App\Http\Controllers\TypeProjetController;
 use App\Http\Controllers\TypologieController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisiteController;
-use App\Http\Controllers\PartenaireController;
 use App\Http\Controllers\VueController;
-use App\Http\Controllers\NotificationController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\EnumController;
-use App\Http\Controllers\Facebook\FacebookController;
 use App\Http\Controllers\WhatsApp\WhatsAppController;
-use App\Http\Controllers\Landing_page\Landing_pageController;
-use App\Http\Controllers\DesistementController;
-use App\Http\Controllers\RemboursementController;
-use App\Http\Controllers\ExcelDataController;
-
-use App\Http\Controllers\Api\V1\UserController as V1UserController;
-use App\Http\Controllers\Api\V1\SocieteController as V1SocieteController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,11 +55,8 @@ use App\Http\Controllers\Api\V1\SocieteController as V1SocieteController;
 |
  */
 
-
-
 Route::post('login', [UserController::class, 'login'])->name('login');
 Route::post('/validateToken/{token}', [UserController::class, 'validateToken']);
-
 
 /*************************************APIs FROM Outside ***************************** */
 
@@ -61,7 +64,6 @@ Route::post('handlemessage', [FacebookController::class, 'handleMessage']);
 Route::get('get_pivacy_policy', [FacebookController::class, 'get_pivacy_policy']);
 Route::post('/webhooks', [WhatsAppController::class, 'webhooks']);
 Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_page']);
-
 
 Route::middleware('auth:api')->group(function () {
     //Il est nécessaire de versionner l'API pour garantir son évolutivité et une gestion efficace des modifications futures.
@@ -71,13 +73,27 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('/utilisateurs', V1UserController::class);
         // l'API societes
         Route::resource('societes', V1SocieteController::class);
-        // ici, vous pouvez ajouter les autres APIs...
+        // l'API typeProjets
+        Route::resource('typeProjets', V1TypeProjetController::class);
+        // l'API typeBiens
+        Route::resource('typeBiens',V1TypeBienController::class);
+        //l'API banques
+        Route::resource('banques', V1BanqueController::class);
+        //l'API VUES
+        Route::resource('vues', V1VueController::class);
+        //l'API Typologie
+        Route::resource('typologies', V1TypologieController::class);
+        //l'API Typologie
+        Route::resource('typefreins', V1TypeFreinController::class);
+        //l'API Typologie
+        Route::resource('sources', V1SourceController::class);
+        //l'API Typologie
+        Route::resource('partenaires', V1PartenaireController::class);
+
     });
 
     Route::post('upload-excel-data', [ExcelDataController::class, 'UploadDataExcel'])->name('upload-excel-data');
     Route::post('testfunction', [ExcelDataController::class, 'testfunction'])->name('upload-excel-data');
-
-
 
     /*************************************Société***************************** */
     Route::resource('societe', SocieteController::class);
@@ -105,7 +121,6 @@ Route::middleware('auth:api')->group(function () {
 
     Route::post('/resetPassword/{token}', [UserController::class, 'resetPassword']);
 
-
     /*************************************Projet***************************** */
     Route::resource('projet', ProjetController::class);
     Route::resource('typeProjet', TypeProjetController::class);
@@ -130,7 +145,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getBlocsByProjet/{id}', [BlocController::class, 'getBlocsByProjet'])->name('getBlocsByProjet');
     Route::get('getBlocsByTranche/{id}', [BlocController::class, 'getBlocsByTranche'])->name('getBlocsByTranche');
     Route::get('getBlocsByTranchepaginate/{id}', [BlocController::class, 'getBlocsByTranchepaginate'])->name('getBlocsByTranchepaginate');
-
 
     /*************************************Immeuble***************************** */
     Route::resource('immeuble', ImmeubleController::class);
@@ -212,12 +226,9 @@ Route::middleware('auth:api')->group(function () {
     // Route::post('Store_WhatsApp', [ProspectController::class, 'Store_WhatsApp']);
     Route::get('VisitesByprospect/{prospect_id}', [ProspectController::class, 'VisitesByprospect']);
 
-
-
     /*************************************Source***************************** */
     Route::resource('sources', SourceController::class);
     Route::get('get_sources', [SourceController::class, 'get_sources'])->name('get_sources');
-
 
     /*************************************Vue***************************** */
     Route::resource('vue', VueController::class);
@@ -228,7 +239,6 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('partenaire', PartenaireController::class);
     Route::get('partenaires/{projet_id}', [PartenaireController::class, 'index'])->name('');
     Route::get('get_partenaires/{projet_id}', [PartenaireController::class, 'get_partenaires'])->name('get_partenaires');
-
 
     /*************************************Typologie***************************** */
     Route::resource('typologie', TypologieController::class);
@@ -247,7 +257,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('search_client_by_phone/{phone}', [ClientController::class, 'search_client_by_phone']);
     Route::get('ReservationsByClient/{client_id}', [ClientController::class, 'ReservationsByClient']);
     Route::get('VisitesByClient/{client_id}', [ClientController::class, 'VisitesByClient']);
-
 
     /*************************************Aquereurs***************************** */
     Route::resource('aquereur', AquereurController::class);
@@ -269,14 +278,13 @@ Route::middleware('auth:api')->group(function () {
     Route::get('avances_rejets/{projet_id}', [AvanceController::class, 'get_avances_rejets'])->name('');
     Route::get('get_echeances/{projet_id}', [AvanceController::class, 'get_echeances'])->name('');
 
-
     /*************************************PiecesJointe***************************** */
-    Route::resource('piecesjointe',PiecesJointeController::class);
-    Route::get('piecesjointes/{projet_id}', [PiecesJointeController::class,'index'])->name('piecesjointes');
-    Route::delete('destoryFileUsingReservationId/{reservation_id}',[PiecesJointeController::class,'destoryFileUsingReservationId'])->name('destoryFileUsingReservationId');
-    Route::get('getFileUsingReservationId/{reservation_id}',[PiecesJointeController::class,'getFileUsingReservationId'])->name('getFileUsingReservationId');
-    Route::post('scanner_file',[PiecesJointeController::class,'scanner_file'])->name('scanner_file');
-    Route::get('files_docs/{docs}',[PiecesJointeController::class,'files_docs'])->name('files_docs');
+    Route::resource('piecesjointe', PiecesJointeController::class);
+    Route::get('piecesjointes/{projet_id}', [PiecesJointeController::class, 'index'])->name('piecesjointes');
+    Route::delete('destoryFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'destoryFileUsingReservationId'])->name('destoryFileUsingReservationId');
+    Route::get('getFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'getFileUsingReservationId'])->name('getFileUsingReservationId');
+    Route::post('scanner_file', [PiecesJointeController::class, 'scanner_file'])->name('scanner_file');
+    Route::get('files_docs/{docs}', [PiecesJointeController::class, 'files_docs'])->name('files_docs');
 
 
     /*************************************Reservation***************************** */
@@ -313,7 +321,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('EtatBien', [EnumController::class, 'EtatBien_get'])->name('');
     Route::get('Enums_desistements', [EnumController::class, 'get_enums_desistements'])->name('');
 
-
     /************************NotificationController********************* */
     Route::get('get_relances_visites/{projet_id}', [NotificationController::class, 'get_relances_visites'])->name('');
     Route::get('get_rdv_visites/{projet_id}', [NotificationController::class, 'get_rdv_visites'])->name('');
@@ -346,17 +353,15 @@ Route::middleware('auth:api')->group(function () {
     Route::get('get_notif_penalite_commercial/{projet_id}', [DesistementController::class, 'get_notif_pen_commercial'])->name('');
     Route::get('get_historiques_penalites/{desistement_id}', [DesistementController::class, 'get_historiques_penalites_by_desId'])->name('');
 
-
     /******************************************* */
 
-    Route::resource('remboursement',RemboursementController::class);
-    Route::get('get_remboursements/{projet_id}/{etat}', [RemboursementController::class,'index'])->name('');
-    Route::get('get_detail_transfert/{reservation_id}', [RemboursementController::class,'get_detail_transfert'])->name('');
+    Route::resource('remboursement', RemboursementController::class);
+    Route::get('get_remboursements/{projet_id}/{etat}', [RemboursementController::class, 'index'])->name('');
+    Route::get('get_detail_transfert/{reservation_id}', [RemboursementController::class, 'get_detail_transfert'])->name('');
     Route::post('traiter_demande_pre_rembourse/{id}', [RemboursementController::class, 'traiter_demande_pre_rembourse'])->name('');
-    Route::get('get_notif_demande_pre_remboursement/{projet_id}', [RemboursementController::class,'get_notif_demande_pre_remboursement'])->name('');
+    Route::get('get_notif_demande_pre_remboursement/{projet_id}', [RemboursementController::class, 'get_notif_demande_pre_remboursement'])->name('');
     Route::post('traiter_accuse/{id}', [RemboursementController::class, 'traiter_accuse'])->name('');
     Route::post('traiter_decaissement/{id}', [RemboursementController::class, 'traiter_decaissement'])->name('');
-
 
 });
 Route::get('sendResetPasswordEmail', [UserController::class, 'sendResetPasswordEmail']);

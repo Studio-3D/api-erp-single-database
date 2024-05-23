@@ -30,8 +30,7 @@ class UpdateSourceRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'source'=>['required',Rule::unique('temp.'.$DatabaseName.'.sources','source')
-                ->ignore($this->source)],
+            //'source'=>['required',Rule::unique('temp.'.$DatabaseName.'.sources','source')],
         ];
     }
     public function messages(): array
