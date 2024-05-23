@@ -77,6 +77,20 @@ return [
                 'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
             ],
         ],
+        'pusher_5' => [
+            'driver' => 'pusher',
+            'key' => env('PUSHER_APP_KEY_5'),
+            'secret' => env('PUSHER_APP_SECRET_5'),
+            'app_id' => env('PUSHER_APP_ID_5'),
+            'options' => [
+                'cluster' => env('PUSHER_APP_CLUSTER_5'),
+                'host' => env('PUSHER_HOST') ?: 'api-' . env('PUSHER_APP_CLUSTER_5', 'eu') . '.pusher.com',
+                'port' => env('PUSHER_PORT', 443),
+                'scheme' => env('PUSHER_SCHEME', 'https'),
+                'encrypted' => true,
+                'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
+            ],
+        ],
         'pusher_4' => [
             'driver' => 'pusher',
             'key' => env('PUSHER_APP_KEY_4'),
@@ -91,6 +105,7 @@ return [
                 'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
             ],
         ],
+
 
         'ably' => [
             'driver' => 'ably',

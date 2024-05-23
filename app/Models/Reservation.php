@@ -59,11 +59,11 @@ class Reservation extends Model
     }
     public function piece_jointe()
     {
-        return $this->hasMany(PiecesJointe::class,'reservation_id');
+        return $this->hasMany(PiecesJointe::class,'reservation_id')->where('active',1);
     }
     public function piece_jointe_desiste()
     {
-        return $this->hasMany(PiecesJointe::class,'reservation_id')->onlyTrashed();
+        return $this->hasMany(PiecesJointe::class,'reservation_id')->where('active',1)->onlyTrashed();
     }
     public function historiques()
     {

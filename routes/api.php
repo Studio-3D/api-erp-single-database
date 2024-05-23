@@ -276,6 +276,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('avances_by_etat/{projet_id}/{etat}', [AvanceController::class, 'get_avances_by_etat'])->name('');
     Route::put('traiter_avance/{id}', [AvanceController::class, 'traiter_avance'])->name('');
     Route::get('avances_rejets/{projet_id}', [AvanceController::class, 'get_avances_rejets'])->name('');
+    Route::get('get_echeances/{projet_id}', [AvanceController::class, 'get_echeances'])->name('');
 
     /*************************************PiecesJointe***************************** */
     Route::resource('piecesjointe', PiecesJointeController::class);
@@ -284,6 +285,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'getFileUsingReservationId'])->name('getFileUsingReservationId');
     Route::post('scanner_file', [PiecesJointeController::class, 'scanner_file'])->name('scanner_file');
     Route::get('files_docs/{docs}', [PiecesJointeController::class, 'files_docs'])->name('files_docs');
+
 
     /*************************************Reservation***************************** */
     Route::resource('reservation', ReservationController::class);
@@ -328,6 +330,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('DestroyNotif/{id}', [NotificationController::class, 'DestroyNotif'])->name('');
     Route::get('notifications/{projet_id}', [NotificationController::class, 'index'])->name('');
     Route::get('get_notif_rejete_commercial/{projet_id}', [NotificationController::class, 'get_notif_rejete_commercial'])->name('');
+    Route::get('notifications_menu_horizontal_vente_admin/{projet_id}', [NotificationController::class, 'get_notif_menu_horizontal_vente_admin'])->name('');
+    Route::get('notifications_menu_horizontal_vente_commercial/{projet_id}', [NotificationController::class, 'get_notif_menu_horizontal_vente_comm'])->name('');
 
     /********************************DesistemenController*********** */
     Route::resource('desistement', DesistementController::class);
@@ -335,6 +339,7 @@ Route::middleware('auth:api')->group(function () {
     Route::put('validation_desistement/{id}', [DesistementController::class, 'validation_desitement'])->name('');
     Route::get('get_notif_dst_commercial/{projet_id}', [DesistementController::class, 'get_notif_dst_commercial'])->name('');
     Route::get('get_notif_dst_admin/{projet_id}', [DesistementController::class, 'get_notif_dst_admin'])->name('');
+    Route::get('get_notif_dst_att_validation_par_type/{projet_id}', [DesistementController::class, 'get_notif_dst_att_validation_par_type'])->name('');
     Route::get('get_desistements/{projet_id}/{type}/{etat}', [DesistementController::class, 'get_desistements'])->name('');
     Route::post('desistement/corriger_desistement', [DesistementController::class, 'store'])->name('');
     Route::get('get_dossiers_by_bien/{bien_id}', [DesistementController::class, 'get_dossiers_by_bien'])->name('');

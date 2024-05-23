@@ -62,7 +62,7 @@ class PiecesJointeController extends Controller
             $pJ->reservation_id = $request->reservation_id;
             $pJ->desistement_id = $request->desistement_id;
             $pJ->penalite_id = $request->penalite_id;
-
+            $pJ->active = $request->active;
             if($request->pj_scanner){
                 $pJ->pj_scanner = $request->pj_scanner;
             }
@@ -238,24 +238,24 @@ class PiecesJointeController extends Controller
         $societe = Societe::findOrfail($user_societes->societe_id);
         // Récupérer le chemin vers le dossier public
         $publicPath = public_path();
-    
+
         // Déterminer le sous-dossier en fonction de la variable $doss
         $subdirectory = $doss == 'rsv' ? 'reservations' : ($doss == 'avc' ? 'paiements' : ($doss == 'plt' ? 'penalites' : 'desistement'));
-    
+
         // Chemin complet vers le dossier
         $directory = $publicPath . '/Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/' . $subdirectory;
-    
+
         // Vérifier si le dossier existe
         if (!is_dir($directory)) {
             return response()->json(['error' => 'Le dossier spécifié n\'existe pas'], 404);
         }
-    
+
         // Obtenir la liste des fichiers dans le dossier
         $files = scandir($directory);
-    
+
         // Supprimer les entrées représentant les répertoires . et ..
         $files = array_diff($files, ['.', '..']);
-    
+
         // Retourner la liste des fichiers en tant que JSON
         return response()->json($files);
     }

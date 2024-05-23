@@ -10,7 +10,7 @@ class Remboursement extends Model
 {
     use HasFactory;
     use SoftDeletes;
-    protected $with=['reservation','desistement','aquereur'];
+    protected $with=['reservation','desistement','aquereur','banque'];
 
     protected $table='remboursements';
     protected $dates=['deleted_at'];

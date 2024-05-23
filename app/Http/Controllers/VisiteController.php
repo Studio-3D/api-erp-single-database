@@ -47,6 +47,8 @@ use App\Http\Helpers\Bien_Helper;
 use App\Events\NotificationEvent;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use App\Events\NotifMenuEvent;
+
 
 
 
@@ -833,6 +835,8 @@ class VisiteController extends Controller
  public static function traiter_relance_rdv_visite($id,UpdateDate_relance_Rdv $request)
     {
         if(RoleHelper::ACSup()) {
+           Config::set('broadcasting.default', 'pusher_3');
+           // Config::set('broadcasting.default', 'pusher_5');
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -881,6 +885,7 @@ class VisiteController extends Controller
                                 '/visites/show/'.$new_relance->visite->origin_id, $request->date,1,'RELANCE VISITE',Auth::guard('api')->user()->id,null,$visite_id,$prospect_id,$new_relance->visite->projet_id,null,null
                             );
                             broadcast(new NotificationEvent($new_relance->id));
+                           // broadcast(new NotifMenuEvent(10));
 
                             }
                             else{
@@ -889,6 +894,7 @@ class VisiteController extends Controller
                                 '/visites/show/'.$new_relance->visite->origin_id, $request->date,2,'RDV VISITE',Auth::guard('api')->user()->id,null,$visite_id,$prospect_id,$new_relance->visite->projet_id,null,null
                             );
                             broadcast(new NotificationEvent($new_relance->id));
+                          //  broadcast(new NotifMenuEvent(10));
 
                             }
                             return response()->json(['message' => $new_relance], 200);
@@ -909,6 +915,8 @@ class VisiteController extends Controller
                                     $nt->delete();
                                 }
                             }
+                           // broadcast(new NotificationEvent($relance->id));
+
                             return response()->json(['message' => 'Validé avec succès.'], 200);
                         }
 

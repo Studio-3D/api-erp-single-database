@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Config;
 
 class DatabaseHelper
 {
@@ -204,6 +205,8 @@ class DatabaseHelper
     }
     public static function liberer_bien_pre_reserve($databases)
     {
+         Config::set('broadcasting.default', 'pusher_3');
+
         foreach ($databases as $database) {
             $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
 

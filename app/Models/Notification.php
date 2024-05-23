@@ -26,5 +26,11 @@ class Notification extends Model
     public function projet(){
         return $this->belongsTo(Projet::class,'projet_id');
     }
+    public function reservation(){
+        return $this->belongsTo(Reservation::class,'reservation_id');
+    }
+    public function avance(){
+        return $this->belongsTo(Avance::class,'avance_id');
+    }
 
 }

@@ -19,6 +19,10 @@ class Desistement extends Model
     {
         return $this->belongsTo(User::class);
     }
+    public function responsable_validation()
+    {
+        return $this->belongsTo(User::class,'user_id_valider');
+    }
 
     public function reservation(){
         return $this->belongsTo(Reservation::class,'reservation_id_new');
@@ -66,5 +70,19 @@ class Desistement extends Model
     public function penalite_desistement()
     {
         return $this->hasOne(PenaliteDesistement::class,'desistement_id');
+    }
+    public function Piece_jointes()
+    {
+        return $this->hasMany(PiecesJointe::class,'desistement_id')->where('active',1);
+    }
+    
+    //piece jointe cree par commercial (desistement)
+    public function Piece_jointes_des_montant_a_ajouter()
+    {
+        return $this->hasMany(PiecesJointe::class,'desistement_id')->where('active',0);
+    }
+    public function Avance()
+    {
+        return $this->hasOne(Avance::class,'desistement_id')->withTrashed();
     }
 }

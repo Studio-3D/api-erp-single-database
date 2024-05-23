@@ -10,7 +10,7 @@ class PenaliteDesistement extends Model
 {
     use HasFactory;
     use SoftDeletes;
-    protected $with=['desistement'];
+    protected $with=['desistement','Piece_jointes'];
 
     protected $table='penalites_desistements';
     protected $dates=['deleted_at'];
@@ -20,11 +20,15 @@ class PenaliteDesistement extends Model
     }
     public function Piece_jointes()
     {
-        return $this->hasMany(PiecesJointe::class);
+        return $this->hasMany(PiecesJointe::class,'penalite_id')->where('active',1);
     }
     public function banque()
     {
         return $this->belongsTo(Banque::class,'banque_id');
+    }
+    public function responsable_validation()
+    {
+        return $this->belongsTo(User::class,'user_id_valider');
     }
     public function last_statut()
     {

@@ -38,7 +38,7 @@ class Avance extends Model
     }
     public function piece_jointe()
     {
-        return $this->hasMany(PiecesJointe::class, 'avance_id');
+        return $this->hasMany(PiecesJointe::class, 'avance_id')->where('active',1);
     }
     public function last_statut()
     {

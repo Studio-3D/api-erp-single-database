@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('fichier');
             $table->string('type')->nullable();
             $table->integer('pj_scanner')->nullable()->default(0);
+            $table->integer('active')->nullable()->default(1)->comment('active==>0 si commercial store piece jointe suite d\'un changement du bien on fait active 0 avant validation du désistement	');
             $table->softDeletes();
             $table->timestamps();
         });

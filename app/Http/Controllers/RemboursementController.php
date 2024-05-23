@@ -17,6 +17,7 @@ use App\Http\Helpers\NotificationHelper;
 use Carbon\Carbon;
 use App\Events\NotificationEvent;
 use App\Models\Encaissement;
+use App\Events\NotifMenuEvent;
 
 
 
@@ -33,7 +34,7 @@ class RemboursementController extends Controller
 
             if(RoleHelper::AdminSup()){
                 //demande de remboursement (apres vente)
-                if($action==0){
+               /* if($action==0){
                     $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
                     ->select('remboursements.*','desistements.id as des_id')
                     ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',0)->where('remboursements.etat',1)
@@ -45,11 +46,14 @@ class RemboursementController extends Controller
                         ->where('desistements.deleted_at',NULL)
                     ->paginate($perPage, ['*'], 'page', $page);
                     //3= attente accuses du chéque
-                }elseif($action==3){
+                }else*/if($action==3){
                     $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
                     ->select('remboursements.*','desistements.id as des_id')
-                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',1)->where('remboursements.etat',1)
-                    ->where('remboursements.remis_le',NULL)
+                    ->where(function ($query) use ($request) {
+                        $query->where('remboursements.statut', 1)
+                            ->orwhere('remboursements.statut',0)
+                    ;})
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.etat',1)
                     ->where('remboursements.cheque_client_signe',NULL)
                     ->where('remboursements.user_id_remis',NULL)
                     ->orderBy('remboursements.created_at','desc')
@@ -88,7 +92,7 @@ class RemboursementController extends Controller
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
               //demande de remboursement (apres vente)
-               if($action==0){
+              /* if($action==0){
                 $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
                 ->select('remboursements.*','desistements.id as des_id')
                 ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',0)->where('remboursements.etat',1)
@@ -101,12 +105,15 @@ class RemboursementController extends Controller
                 ->where('desistements.user_id', $userAuth->value('id'))
                 ->paginate($perPage, ['*'], 'page', $page);
                    //3==>att accusé chesque par user_id
-                }elseif($action==3){
+                }else*/if($action==3){
                     $remboursements=Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
                     ->select('remboursements.*','desistements.id as des_id')
-                    ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',1)->where('remboursements.etat',1)
+                    ->where('desistements.projet_id',$projet_id)->where('remboursements.etat',1)
                     ->where('desistements.user_id', $userAuth->value('id'))
-                    ->where('remboursements.remis_le',NULL)
+                    ->where(function ($query) use ($request) {
+                        $query->where('remboursements.statut', 1)
+                            ->orwhere('remboursements.statut',0)
+                    ;})
                     ->where('remboursements.cheque_client_signe',NULL)
                     ->where('remboursements.user_id_remis',NULL)
                     ->orderBy('remboursements.created_at','desc')
@@ -139,14 +146,19 @@ class RemboursementController extends Controller
 
         if(RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_3');
+           // Config::set('broadcasting.default', 'pusher_3');
+           Config::set('broadcasting.default', 'pusher_5');
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
             $societe = Societe::findOrfail($user_societes->societe_id);
 
             $remboursement = Remboursement::on('temp')->findOrFail($id);
-            $remboursement->statut=1;
+            //$remboursement->statut=1;
+            $remboursement->statut=2;
+            //added
+            $remboursement->user_id_remis=$userAuth->value('id');;
+
             $remboursement->user_id_valider=$userAuth->value('id');;
             $remboursement->date_rembourse=$request->date_remboursement;
             $remboursement->mode_rembourse_client=$request->mode_rembourse_client;
@@ -155,7 +167,7 @@ class RemboursementController extends Controller
 
             if ($request->hasFile('fichier_autorisation')) {
                 $remboursement->fichier_autorisation =$request->file('fichier_autorisation')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisation');
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisations');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_autorisation')->move($directory,$request->file('fichier_autorisation')->getClientOriginalName());
             }
@@ -166,6 +178,8 @@ class RemboursementController extends Controller
                 $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
             }
             $remboursement->save();
+            //4 demande pre rembourse
+            broadcast(new NotifMenuEvent(4));
                 /*if($remboursement->save()){
                     //store new notification validé
                     NotificationHelper::storeNotification(
@@ -198,10 +212,10 @@ class RemboursementController extends Controller
 
             $remboursement = Remboursement::on('temp')->findOrFail($id);
             $remboursement->statut=2;
-            $remboursement->remis_le=$request->remis_le;
+           // $remboursement->remis_le=$request->remis_le;
             $remboursement->user_id_remis=$userAuth->value('id');
             if ($request->hasFile('cheque_client_signe')) {
-                $remboursement->cheque =$request->file('cheque_client_signe')->getClientOriginalName();
+                $remboursement->cheque_client_signe=$request->file('cheque_client_signe')->getClientOriginalName();
                 $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('cheque_client_signe')->move($directory,$request->file('cheque_client_signe')->getClientOriginalName());
