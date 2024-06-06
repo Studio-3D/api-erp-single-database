@@ -47,10 +47,10 @@ class StoreImmeubleRequest extends FormRequest
                 
                 
                 })],
-            'tranche_id' => 'integer',
+            'tranche_id' => 'integer|nullable',
             'projet_id' => 'required|integer',
             'nbre_biens' => 'integer',
-            'bloc_id'=>'integer'
+            'bloc_id'=>'integer|nullable'
             
         ];
     }

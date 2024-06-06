@@ -1,18 +1,19 @@
 <?php
 
-use App\Http\Controllers\Api\V1\SocieteController as V1SocieteController;
-use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\BanqueController as V1BanqueController;
-use App\Http\Controllers\Api\V1\TypeProjetController as V1TypeProjetController;
-use App\Http\Controllers\Api\V1\TypeBienController as V1TypeBienController;
-use App\Http\Controllers\Api\V1\VueController as V1VueController;
-use App\Http\Controllers\Api\V1\TypologieController as V1TypologieController;
-use App\Http\Controllers\Api\V1\TypeFreinController as V1TypeFreinController;
-use App\Http\Controllers\Api\V1\SourceController as V1SourceController;
+use App\Http\Controllers\Api\V1\BlocController as V1BlocController;
 use App\Http\Controllers\Api\V1\PartenaireController as V1PartenaireController;
 use App\Http\Controllers\Api\V1\ProjetController as V1ProjetController;
+use App\Http\Controllers\Api\V1\SocieteController as V1SocieteController;
+use App\Http\Controllers\Api\V1\SourceController as V1SourceController;
 use App\Http\Controllers\Api\V1\TrancheController as V1TrancheController;
-use App\Http\Controllers\Api\V1\BlocController as V1BlocController;
+use App\Http\Controllers\Api\V1\TypeBienController as V1TypeBienController;
+use App\Http\Controllers\Api\V1\TypeFreinController as V1TypeFreinController;
+use App\Http\Controllers\Api\V1\TypeProjetController as V1TypeProjetController;
+use App\Http\Controllers\Api\V1\TypologieController as V1TypologieController;
+use App\Http\Controllers\Api\V1\UserController as V1UserController;
+use App\Http\Controllers\Api\V1\VueController as V1VueController;
+use App\Http\Controllers\Api\V1\ImmeubleController as V1ImmeubleController;
 use App\Http\Controllers\AquereurController;
 use App\Http\Controllers\AvanceController;
 use App\Http\Controllers\BanqueController;
@@ -79,7 +80,7 @@ Route::middleware('auth:api')->group(function () {
         // l'API typeProjets
         Route::resource('typeProjets', V1TypeProjetController::class);
         // l'API typeBiens
-        Route::resource('typeBiens',V1TypeBienController::class);
+        Route::resource('typeBiens', V1TypeBienController::class);
         //l'API banques
         Route::resource('banques', V1BanqueController::class);
         //l'API VUES
@@ -98,6 +99,12 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('tranches', V1TrancheController::class);
         //l'API blocs
         Route::resource('blocs', V1BlocController::class);
+        Route::get('getBlocsByTranchepaginate', [V1BlocController::class, 'getBlocsByTranchepaginate'])->name('getBlocsByTranchepaginate');
+
+        //l'API immeubles
+        Route::resource('immeubles', V1ImmeubleController::class);
+        Route::get('getImmeublesByTranchepaginate', [V1ImmeubleController::class, 'getImmeublesByTranchepaginate'])->name('getImmeublesByTranchepaginate');
+        Route::get('getImmeublesByBlocpaginate', [V1ImmeubleController::class, 'getImmeublesByBlocpaginate'])->name('getImmeublesByBlocpaginate');
 
     });
 
@@ -295,7 +302,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('getFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'getFileUsingReservationId'])->name('getFileUsingReservationId');
     Route::post('scanner_file', [PiecesJointeController::class, 'scanner_file'])->name('scanner_file');
     Route::get('files_docs/{docs}', [PiecesJointeController::class, 'files_docs'])->name('files_docs');
-
 
     /*************************************Reservation***************************** */
     Route::resource('reservation', ReservationController::class);

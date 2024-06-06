@@ -51,7 +51,7 @@ class BlocController extends Controller
             $blocs = $blocs->items();
 
             return response()->json([
-                'blocs' => $blocs,
+                'data' => $blocs,
                 'pagination' => $pagination,
             ], 200);
         }
@@ -206,23 +206,44 @@ class BlocController extends Controller
 
         }
     }
-    public function getBlocsByTranchepaginate(Request $request, $tranche_id)
+    public function getBlocsByTranchepaginate(Request $request)
     {
         if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
+            $tranche_id = $request->input('tranche_id');
+            DatabaseHelper::Config();
 
-            $blocs = Bloc::on('temp')
-                ->orderBy('created_at', 'desc')
-                ->where('tranche_id', $tranche_id)
-                ->paginate($perPage, ['*'], 'page', $page);
+            $query = Bloc::on('temp');
+            if ($tranche_id) {
+                $query->where('tranche_id', $tranche_id);
+            }
+            if ($request->filled('nom')) {
+                $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+            }
+            if ($request->filled('tranche')) {
+                $query->whereHas('tranche', function ($subQuery) use ($request) {
+                    $subQuery->where('nom', 'like', '%' . $request->input('tranche') . '%');
+                });
+            }
+            $blocs = $query->orderBy('created_at', 'desc')
+            ->paginate($size, ['*'], 'page', $page);
 
-            return response()->json(['blocs' => $blocs], 200);
+        $pagination = [
+            'currentPage' => $blocs->currentPage(),
+            'totalItems' => $blocs->total(),
+            'totalPages' => $blocs->lastPage(),
+        ];
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        $blocs = $blocs->items();
 
-        }
+        return response()->json([
+            'data' => $blocs,
+            'pagination' => $pagination,
+        ], 200);
     }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
+
 }
