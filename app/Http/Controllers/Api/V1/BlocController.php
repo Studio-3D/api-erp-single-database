@@ -35,7 +35,7 @@ class BlocController extends Controller
             }
             if ($request->filled('tranche')) {
                 $query->whereHas('tranche', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('tranche') . '%');
+                    $subQuery->where('nom', $request->input('tranche'));
                 });
             }
 
@@ -223,7 +223,7 @@ class BlocController extends Controller
             }
             if ($request->filled('tranche')) {
                 $query->whereHas('tranche', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('tranche') . '%');
+                    $subQuery->where('nom', $request->input('tranche'));
                 });
             }
             $blocs = $query->orderBy('created_at', 'desc')

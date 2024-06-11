@@ -39,12 +39,12 @@ class ImmeubleController extends Controller
             }
             if ($request->filled('tranche')) {
                 $query->whereHas('tranche', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('tranche') . '%');
+                    $subQuery->where('nom', $request->input('tranche'));
                 });
             }
             if ($request->filled('bloc')) {
                 $query->whereHas('bloc', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('bloc') . '%');
+                    $subQuery->where('nom', $request->input('bloc'));
                 });
             }
 
@@ -222,12 +222,12 @@ class ImmeubleController extends Controller
             }
             if ($request->filled('tranche')) {
                 $query->whereHas('tranche', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('tranche') . '%');
+                    $subQuery->where('nom', $request->input('tranche'));
                 });
             }
             if ($request->filled('bloc')) {
                 $query->whereHas('bloc', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('bloc') . '%');
+                    $subQuery->where('nom', $request->input('bloc'));
                 });
             }
 
@@ -281,12 +281,12 @@ class ImmeubleController extends Controller
             }
             if ($request->filled('tranche')) {
                 $query->whereHas('tranche', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('tranche') . '%');
+                    $subQuery->where('nom', $request->input('tranche'));
                 });
             }
             if ($request->filled('bloc')) {
                 $query->whereHas('bloc', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', 'like', '%' . $request->input('bloc') . '%');
+                    $subQuery->where('nom', $request->input('bloc'));
                 });
             }
 
