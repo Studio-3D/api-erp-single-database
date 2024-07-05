@@ -230,58 +230,7 @@ class BlocController extends Controller
     }
 
 
-    public function getBlocsByTranche($tranche_id)
-    {
-        if (RoleHelper::AdminSup()) {
-            DatabaseHelper::Config();
-            $blocs = Bloc::on('temp')->where('tranche_id', $tranche_id)->get();
-            return response()->json(['blocs' => $blocs], 200);
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-
-        }
-    }
-    public function getBlocsByTranchepaginate(Request $request)
-    {
-        if (RoleHelper::ACSup()) {
-            $size = $request->input('size', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
-            $tranche_id = $request->input('tranche_id');
-            DatabaseHelper::Config();
-
-            $query = Bloc::on('temp');
-            if ($tranche_id) {
-                $query->where('tranche_id', $tranche_id);
-            }
-            if ($request->filled('nom')) {
-                $query->where('nom', 'like', '%' . $request->input('nom') . '%');
-            }
-            if ($request->filled('tranche')) {
-                $query->whereHas('tranche', function ($subQuery) use ($request) {
-                    $subQuery->where('nom', $request->input('tranche'));
-                });
-            }
-            $blocs = $query->orderBy('created_at', 'desc')
-            ->paginate($size, ['*'], 'page', $page);
-
-        $pagination = [
-            'currentPage' => $blocs->currentPage(),
-            'totalItems' => $blocs->total(),
-            'totalPages' => $blocs->lastPage(),
-        ];
-
-        $blocs = $blocs->items();
-
-        return response()->json([
-            'data' => $blocs,
-            'pagination' => $pagination,
-        ], 200);
-    }
-
-    return response()->json(['error' => 'Unauthorized'], 401);
-}
-
+    
 
 
 }

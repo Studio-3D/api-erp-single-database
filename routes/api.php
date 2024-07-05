@@ -111,27 +111,18 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API blocs
         Route::resource('blocs', V1BlocController::class);
-        Route::get('getBlocsByTranchepaginate', [V1BlocController::class, 'getBlocsByTranchepaginate'])->name('getBlocsByTranchepaginate');
-        Route::get('getBlocsByTranche/{id}', [V1BlocController::class, 'getBlocsByTranche'])->name('getBlocsByTranche');
         Route::get('projets/{idprojet}/blocs', [V1BlocController::class, 'indexByProjet']);
 
         //l'API immeubles
         Route::resource('immeubles', V1ImmeubleController::class);
-        Route::get('getImmeublesByTranchepaginate', [V1ImmeubleController::class, 'getImmeublesByTranchepaginate'])->name('getImmeublesByTranchepaginate');
-        Route::get('getImmeublesByBlocpaginate', [V1ImmeubleController::class, 'getImmeublesByBlocpaginate'])->name('getImmeublesByBlocpaginate');
-        Route::get('getImmeublesByBloc/{id}', [V1ImmeubleController::class, 'getImmeublesByBloc'])->name('getImmeublesByBloc');
-        Route::get('getImmeublesByTranche/{id}', [V1ImmeubleController::class, 'getImmeublesByTranche'])->name('getImmeublesByTranche');
         Route::get('projets/{idprojet}/immeubles', [V1ImmeubleController::class, 'indexByProjet']);
 
         //l'API biens
         Route::resource('biens', V1BienController::class);
-        Route::get('getBiensByTranchepaginate', [V1BienController::class, 'getBiensByTranchepaginate'])->name('getBiensByTranchepaginate');
-        Route::get('getBiensByBlocpaginate', [V1BienController::class, 'getBiensByBlocpaginate'])->name('getBiensByBlocpaginate');
-        Route::get('getBiensByImmeublepaginate', [V1BienController::class, 'getBiensByBlocpaginate'])->name('getBiensByBlocpaginate');
         Route::get('projets/{idprojet}/biens', [V1BienController::class, 'indexByProjet']);
         //l'API compositionbiens
         Route::resource('compositionBiens', V1CompositionBienController::class);
-
+        
     });
 
     Route::post('upload-excel-data', [ExcelDataController::class, 'UploadDataExcel'])->name('upload-excel-data');

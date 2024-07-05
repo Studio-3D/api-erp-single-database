@@ -16,18 +16,6 @@ class TypeBienController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function get_typeBiens()
-    {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-
-            $typebiens = TypeBien::on('temp')->orderBy('created_at', 'desc')->get();
-            return response()->json(['typeBiens' => $typebiens]);
-        }
-
-        return response()->json(['error' => 'Unauthorized'], 401);
-
-    }
 
     public function index(Request $request)
     {
@@ -76,7 +64,7 @@ class TypeBienController extends Controller
             DatabaseHelper::Config();
 
             $query = TypeBien::on('temp')->where('projet_id', $projet_id);
-            
+
             if ($request->filled('type')) {
                 $query->where('type', 'like', '%' . $request->input('type') . '%');
             }

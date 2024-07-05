@@ -19,8 +19,9 @@ class SourceController extends Controller
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
-            $size = $request->input('size', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
@@ -29,40 +30,37 @@ class SourceController extends Controller
             if ($request->filled('source')) {
                 $query->where('source', 'like', '%' . $request->input('source') . '%');
             }
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
 
-            $sources = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
+                $sources = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
 
-            // Extraire les propriétés du paginateur
-            $pagination = [
-                'currentPage' => $sources->currentPage(),
-                'totalItems' => $sources->total(),
-                'totalPages' => $sources->lastPage(),
-            ];
+                // Extraire les propriétés du paginateur
+                $pagination = [
+                    'currentPage' => $sources->currentPage(),
+                    'totalItems' => $sources->total(),
+                    'totalPages' => $sources->lastPage(),
+                ];
 
-            // Extraire les éléments d'utilisateur du paginateur
-            $sources = $sources->items();
+                // Extraire les éléments d'utilisateur du paginateur
+                $sources = $sources->items();
 
-            // Retourner la réponse simplifiée
-            return response()->json([
-                'sources' => $sources,
-                'pagination' => $pagination,
-            ], 200);
+                // Retourner la réponse simplifiée
+                return response()->json([
+                    'sources' => $sources,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+                // Return all results if pagination parameters are not provided or invalid
+                $sources = $query->orderBy('created_at', 'desc')
+                    ->get();
+
+                return response()->json(['sources' => $sources], 200);
+            }
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-    public function get_sources()
-    {
-        if(RoleHelper::ACSup()){
-            DatabaseHelper::Config();
-            $sources = Source::on('temp')->orderBy('created_at', 'desc')
-                ->get();
-            return response()->json(['sources' => $sources],200);
-        }
-       else  return response()->json(['error'=>'Unauthorized'], 401);
-    }
-
     /**
      * Show the form for creating a new resource.
      */

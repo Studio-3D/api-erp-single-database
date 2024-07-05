@@ -16,24 +16,12 @@ class TypeProjetController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function get_typeProjets()
-    {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            $typeprojets = TypeProjet::on('temp')->orderBy('created_at', 'desc')
-                ->get();
-            return response()->json(['typeProjets' => $typeprojets]);
-        }
-
-        return response()->json(['error' => 'Unauthorized'], 401);
-
-    }
-
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
-            $size = $request->input('size', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
@@ -42,25 +30,35 @@ class TypeProjetController extends Controller
             if ($request->filled('type')) {
                 $query->where('type', 'like', '%' . $request->input('type') . '%');
             }
+            
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
 
-            $typeProjets = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
+                $typeProjets = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
 
-            // Extraire les propriétés du paginateur
-            $pagination = [
-                'currentPage' => $typeProjets->currentPage(),
-                'totalItems' => $typeProjets->total(),
-                'totalPages' => $typeProjets->lastPage(),
-            ];
+                // Extraire les propriétés du paginateur
+                $pagination = [
+                    'currentPage' => $typeProjets->currentPage(),
+                    'totalItems' => $typeProjets->total(),
+                    'totalPages' => $typeProjets->lastPage(),
+                ];
 
-            // Extraire les éléments d'utilisateur du paginateur
-            $typeProjets = $typeProjets->items();
+                // Extraire les éléments d'utilisateur du paginateur
+                $typeProjets = $typeProjets->items();
 
-            // Retourner la réponse simplifiée
-            return response()->json([
-                'typeProjets' => $typeProjets,
-                'pagination' => $pagination,
-            ], 200);
+                // Retourner la réponse simplifiée
+                return response()->json([
+                    'typeProjets' => $typeProjets,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+                // Return all results if pagination parameters are not provided or invalid
+                $typeProjets = $query->orderBy('created_at', 'desc')
+                    ->get();
+
+                return response()->json(['typeProjets' => $typeProjets], 200);
+            }
+            
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);

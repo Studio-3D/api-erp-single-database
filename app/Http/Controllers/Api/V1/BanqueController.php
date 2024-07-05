@@ -19,8 +19,8 @@ class BanqueController extends Controller
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
-            $size = $request->input('size', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
@@ -30,42 +30,36 @@ class BanqueController extends Controller
                 $query->where('nom', 'like', '%' . $request->input('nom') . '%');
             }
 
-            $banques = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+                $banques = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
 
-            // Extraire les propriétés du paginateur
-            $pagination = [
-                'currentPage' => $banques->currentPage(),
-                'totalItems' => $banques->total(),
-                'totalPages' => $banques->lastPage(),
-            ];
+                // Extraire les propriétés du paginateur
+                $pagination = [
+                    'currentPage' => $banques->currentPage(),
+                    'totalItems' => $banques->total(),
+                    'totalPages' => $banques->lastPage(),
+                ];
 
-            // Extraire les éléments d'utilisateur du paginateur
-            $banques = $banques->items();
+                // Extraire les éléments d'utilisateur du paginateur
+                $banques = $banques->items();
 
-            // Retourner la réponse simplifiée
-            return response()->json([
-                'banques' => $banques,
-                'pagination' => $pagination,
-            ], 200);
+                // Retourner la réponse simplifiée
+                return response()->json([
+                    'banques' => $banques,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+                // Return all results if pagination parameters are not provided or invalid
+                $banques = $query->orderBy('created_at', 'desc')
+                    ->get();
+
+                return response()->json(['banques' => $banques], 200);
+            }
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-    public function get_banques()
-    {
-        if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
-            $banques = Banque::all();
-            return response()->json(['banques' => $banques]);
-        } else {
-            DatabaseHelper::Config();
-            $banques = Banque::on('temp')->get();
-            return response()->json(['banques' => $banques], 200);
-        }
-
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
-
     /**
      * Show the form for creating a new resource.
      */

@@ -96,10 +96,10 @@ class PartenaireController extends Controller
                 ], 200);
             } else {
                 // Return all results if pagination parameters are not provided or invalid
-                $partenaire = $query->orderBy('created_at', 'desc')
+                $partenaires = $query->orderBy('created_at', 'desc')
                     ->get();
 
-                return response()->json(['partenaire' => $partenaire], 200);
+                return response()->json(['partenaires' => $partenaires], 200);
             }
         }
 

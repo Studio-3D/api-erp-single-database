@@ -18,23 +18,11 @@ class TypeFreinController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function get_typeFreins()
+        public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            $typefreins = TypeFrein::on('temp')->orderBy('created_at', 'desc')->get();
-            return response()->json(['typeFreins' => $typefreins]);
-        }
-
-        return response()->json(['error' => 'Unauthorized'], 401);
-
-    }
-
-    public function index(Request $request)
-    {
-        if (Auth::guard('api')->check()) {
-            $size = $request->input('size', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
@@ -43,25 +31,33 @@ class TypeFreinController extends Controller
             if ($request->filled('description')) {
                 $query->where('description', 'like', '%' . $request->input('description') . '%');
             }
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+                $typeFreins = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
 
-            $typeFreins = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
+                // Extraire les propriétés du paginateur
+                $pagination = [
+                    'currentPage' => $typeFreins->currentPage(),
+                    'totalItems' => $typeFreins->total(),
+                    'totalPages' => $typeFreins->lastPage(),
+                ];
 
-            // Extraire les propriétés du paginateur
-            $pagination = [
-                'currentPage' => $typeFreins->currentPage(),
-                'totalItems' => $typeFreins->total(),
-                'totalPages' => $typeFreins->lastPage(),
-            ];
+                // Extraire les éléments d'utilisateur du paginateur
+                $typeFreins = $typeFreins->items();
 
-            // Extraire les éléments d'utilisateur du paginateur
-            $typeFreins = $typeFreins->items();
+                // Retourner la réponse simplifiée
+                return response()->json([
+                    'typeFreins' => $typeFreins,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+                // Return all results if pagination parameters are not provided or invalid
+                $typeFreins = $query->orderBy('created_at', 'desc')
+                    ->get();
 
-            // Retourner la réponse simplifiée
-            return response()->json([
-                'typeFreins' => $typeFreins,
-                'pagination' => $pagination,
-            ], 200);
+                return response()->json(['typeFreins' => $typeFreins], 200);
+            }
+            
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
