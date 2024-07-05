@@ -1006,4 +1006,96 @@ class BienController extends Controller
         }
     }
 
+    public function indexByProjet(Request $request, $projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
+            DatabaseHelper::Config();
+
+            $query = Bien::on('temp')->where('projet_id', $projet_id);
+
+            // Appliquer les filtres si présents
+            if ($request->filled('propriete_dite_bien')) {
+                $query->where('propriete_dite_bien', 'like', '%' . $request->input('propriete_dite_bien') . '%');
+            }
+
+            if ($request->filled('niveau')) {
+                $query->where('niveau', 'like', '%' . $request->input('niveau') . '%');
+            }
+            if ($request->filled('orientation')) {
+                $query->where('orientation', 'like', '%' . $request->input('orientation') . '%');
+            }
+
+            if ($request->filled('etat')) {
+                $query->where('etat', 'like', '%' . $request->input('etat') . '%');
+            }
+            if ($request->filled('prix_min')) {
+                $query->where('prix', '>=', $request->input('prix_min'));
+            }
+
+            if ($request->filled('prix_max')) {
+                $query->where('prix', '<=', $request->input('prix_max'));
+            }
+
+            if ($request->filled('superficie_min')) {
+                $query->where('superficie_habitable', '>=', $request->input('superficie_min'));
+            }
+
+            if ($request->filled('superficie_max')) {
+                $query->where('superficie_habitable', '<=', $request->input('superficie_max'));
+            }
+            if ($request->filled('tranche')) {
+                $query->whereHas('tranche', function ($subQuery) use ($request) {
+                    $subQuery->where('nom', $request->input('tranche'));
+                });
+            }
+            if ($request->filled('bloc')) {
+                $query->whereHas('bloc', function ($subQuery) use ($request) {
+                    $subQuery->where('nom', $request->input('bloc'));
+                });
+            }
+            if ($request->filled('immeuble')) {
+                $query->whereHas('immeuble', function ($subQuery) use ($request) {
+                    $subQuery->where('nom', $request->input('immeuble'));
+                });
+            }
+            if ($request->filled('type')) {
+                $query->whereHas('typeBien', function ($subQuery) use ($request) {
+                    $subQuery->where('type', $request->input('type'));
+                });
+            }
+
+            if ($request->filled('vue')) {
+                $query->whereHas('vue', function ($subQuery) use ($request) {
+                    $subQuery->where('vue', $request->input('vue'));
+                });
+            }
+            if ($request->filled('typologie')) {
+                $query->whereHas('typologie', function ($subQuery) use ($request) {
+                    $subQuery->where('typologie', $request->input('typologie'));
+                });
+            }
+
+            $biens = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+
+
+            $pagination = [
+                'currentPage' => $biens->currentPage(),
+                'totalItems' => $biens->total(),
+                'totalPages' => $biens->lastPage(),
+            ];
+
+            $biens = $biens->items();
+
+            return response()->json([
+                'data' => $biens,
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
 }

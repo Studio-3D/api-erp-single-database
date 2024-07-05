@@ -175,4 +175,40 @@ class VueController extends Controller
         
        
     }
+
+    public function indexByProjet(Request $request, $projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
+            DatabaseHelper::Config();
+
+            $query = Vue::on('temp')->where('projet_id', $projet_id);
+
+            
+            if ($request->filled('vue')) {
+                $query->where('vue', 'like', '%' . $request->input('vue') . '%');
+            }
+
+            $vues = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+
+            $pagination = [
+                'currentPage' => $vues->currentPage(),
+                'totalItems' => $vues->total(),
+                'totalPages' => $vues->lastPage(),
+            ];
+
+            $vues = $vues->items();
+
+            return response()->json([
+                'vues' => $vues,
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+
 }

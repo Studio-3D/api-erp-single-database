@@ -246,4 +246,43 @@ class BlocController extends Controller
     return response()->json(['error' => 'Unauthorized'], 401);
 }
 
+public function indexByProjet(Request $request, $projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
+            DatabaseHelper::Config();
+
+            $query = Bloc::on('temp')->where('projet_id', $projet_id);
+
+
+            if ($request->filled('nom')) {
+                $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+            }
+            if ($request->filled('tranche')) {
+                $query->whereHas('tranche', function ($subQuery) use ($request) {
+                    $subQuery->where('nom', $request->input('tranche'));
+                });
+            }
+
+            $blocs = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+
+            $pagination = [
+                'currentPage' => $blocs->currentPage(),
+                'totalItems' => $blocs->total(),
+                'totalPages' => $blocs->lastPage(),
+            ];
+
+            $blocs = $blocs->items();
+
+            return response()->json([
+                'data' => $blocs,
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
 }

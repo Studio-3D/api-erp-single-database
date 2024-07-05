@@ -222,6 +222,43 @@ class TypeBienController extends Controller
 
     }
 
+    public function indexByProjet(Request $request, $projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
+            DatabaseHelper::Config();
+
+            $query = TypeBien::on('temp')->where('projet_id', $projet_id);
+
+            
+
+            if ($request->filled('type')) {
+                $query->where('type', 'like', '%' . $request->input('type') . '%');
+            }
+
+            $typeBiens = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+
+            $pagination = [
+                'currentPage' => $typeBiens->currentPage(),
+                'totalItems' => $typeBiens->total(),
+                'totalPages' => $typeBiens->lastPage(),
+            ];
+
+            $typeBiens = $typeBiens->items();
+
+            return response()->json([
+                'typeBiens' => $typeBiens,
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    
+
 
 
 }

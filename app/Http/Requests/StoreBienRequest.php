@@ -39,10 +39,10 @@ class StoreBienRequest extends FormRequest
             'etat' => 'required',
             'type_id' => 'required|integer',
             'projet_id' => 'required|integer',
-            'tranche_id' => 'integer',
-            'bloc_id' => 'integer',
+            'tranche_id' => 'integer|nullable',
+            'bloc_id' => 'integer|nullable',
             'avance_minimale' => 'required|numeric',
-            'immeuble_id' => 'integer',
+            'immeuble_id' => 'integer|nullable',
             'propriete_dite_bien' => ['required', Rule::unique('temp.'.$DatabaseName.'.biens','propriete_dite_bien')->where(function ($query) {
                         if ($this->immeuble_id==null){
                             if ($this->bloc_id==null){

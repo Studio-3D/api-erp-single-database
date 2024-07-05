@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\V1\BanqueController as V1BanqueController;
+use App\Http\Controllers\Api\V1\BienController as V1BienController;
 use App\Http\Controllers\Api\V1\BlocController as V1BlocController;
+use App\Http\Controllers\Api\V1\CompositionBienController as V1CompositionBienController;
+use App\Http\Controllers\Api\V1\ImmeubleController as V1ImmeubleController;
 use App\Http\Controllers\Api\V1\PartenaireController as V1PartenaireController;
 use App\Http\Controllers\Api\V1\ProjetController as V1ProjetController;
 use App\Http\Controllers\Api\V1\SocieteController as V1SocieteController;
@@ -13,9 +16,6 @@ use App\Http\Controllers\Api\V1\TypeProjetController as V1TypeProjetController;
 use App\Http\Controllers\Api\V1\TypologieController as V1TypologieController;
 use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\VueController as V1VueController;
-use App\Http\Controllers\Api\V1\BienController as V1BienController;
-use App\Http\Controllers\Api\V1\ImmeubleController as V1ImmeubleController;
-use App\Http\Controllers\Api\V1\CompositionBienController as V1CompositionBienController;
 use App\Http\Controllers\AquereurController;
 use App\Http\Controllers\AvanceController;
 use App\Http\Controllers\BanqueController;
@@ -85,15 +85,19 @@ Route::middleware('auth:api')->group(function () {
         // l'API typeBiens
         Route::resource('typeBiens', V1TypeBienController::class);
         Route::get('get_typeBiensByProjet/{id}', [V1TypeBienController::class, 'get_typeBiensByProjet'])->name('get_typeBiensByProjet');
+        Route::get('projets/{idprojet}/typeBiens', [V1TypeBienController::class, 'indexByProjet']);
 
         //l'API banques
         Route::resource('banques', V1BanqueController::class);
         //l'API VUES
         Route::resource('vues', V1VueController::class);
         Route::get('get_vuesByProjet/{id}', [V1VueController::class, 'get_vuesByProjet'])->name('get_vuesByProjet');
+        Route::get('projets/{idprojet}/vues', [V1VueController::class, 'indexByProjet']);
+
         //l'API Typologie
         Route::resource('typologies', V1TypologieController::class);
         Route::get('get_typologiesByProjet/{id}', [V1TypologieController::class, 'get_typologiesByProjet'])->name('get_typologiesByProjet');
+        Route::get('projets/{idprojet}/typologies', [V1TypologieController::class, 'indexByProjet']);
 
         //l'API Typefrins
         Route::resource('typefreins', V1TypeFreinController::class);
@@ -103,15 +107,19 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('partenaires', V1PartenaireController::class);
         //l'API partenare
         Route::resource('projets', V1ProjetController::class);
+        
         //l'API tranches
         Route::resource('tranches', V1TrancheController::class);
         Route::get('getTranchesByProjet/{id}', [V1TrancheController::class, 'getTranchesByProjet'])->name('getTranchesByProjet');
+        Route::get('projets/{idprojet}/tranches', [V1TrancheController::class, 'indexByProjet']);
+
         //l'API blocs
         Route::resource('blocs', V1BlocController::class);
         Route::get('getBlocsByTranchepaginate', [V1BlocController::class, 'getBlocsByTranchepaginate'])->name('getBlocsByTranchepaginate');
         Route::get('getBlocsByProjet/{id}', [V1BlocController::class, 'getBlocsByProjet'])->name('getBlocsByProjet');
         Route::get('getBlocsByTranche/{id}', [V1BlocController::class, 'getBlocsByTranche'])->name('getBlocsByTranche');
-        
+        Route::get('projets/{idprojet}/blocs', [V1BlocController::class, 'indexByProjet']);
+
         //l'API immeubles
         Route::resource('immeubles', V1ImmeubleController::class);
         Route::get('getImmeublesByTranchepaginate', [V1ImmeubleController::class, 'getImmeublesByTranchepaginate'])->name('getImmeublesByTranchepaginate');
@@ -119,15 +127,18 @@ Route::middleware('auth:api')->group(function () {
         Route::get('getImmeublesByBloc/{id}', [V1ImmeubleController::class, 'getImmeublesByBloc'])->name('getImmeublesByBloc');
         Route::get('getImmeublesByProjet/{id}', [V1ImmeubleController::class, 'getImmeublesByProjet'])->name('getImmeublesByProjet');
         Route::get('getImmeublesByTranche/{id}', [V1ImmeubleController::class, 'getImmeublesByTranche'])->name('getImmeublesByTranche');
+        Route::get('projets/{idprojet}/immeubles', [V1ImmeubleController::class, 'indexByProjet']);
+
         //l'API biens
         Route::resource('biens', V1BienController::class);
         Route::get('getBiensByTranchepaginate', [V1BienController::class, 'getBiensByTranchepaginate'])->name('getBiensByTranchepaginate');
         Route::get('getBiensByBlocpaginate', [V1BienController::class, 'getBiensByBlocpaginate'])->name('getBiensByBlocpaginate');
         Route::get('getBiensByImmeublepaginate', [V1BienController::class, 'getBiensByBlocpaginate'])->name('getBiensByBlocpaginate');
+        Route::get('projets/{idprojet}/biens', [V1BienController::class, 'indexByProjet']);
         //l'API compositionbiens
         Route::resource('compositionBiens', V1CompositionBienController::class);
-        
-});
+
+    });
 
     Route::post('upload-excel-data', [ExcelDataController::class, 'UploadDataExcel'])->name('upload-excel-data');
     Route::post('testfunction', [ExcelDataController::class, 'testfunction'])->name('upload-excel-data');

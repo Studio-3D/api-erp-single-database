@@ -204,4 +204,42 @@ class TrancheController extends Controller
         }
     }
 
+    public function indexByProjet(Request $request, $projet_id)
+     {
+         if (Auth::guard('api')->check()) {
+             $size = $request->input('size', config('app.default_item_number_perpage'));
+             $page = $request->input('page', 1);
+             DatabaseHelper::Config();
+ 
+             $query = Tranche::on('temp')->where('projet_id', $projet_id);
+ 
+             
+ 
+             if ($request->filled('nom')) {
+                 $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+             }
+             if ($request->filled('niveau_etages')) {
+                $query->where('niveau_etages', 'like', '%' . $request->input('niveau_etages') . '%');
+            }
+ 
+             $tranches = $query->orderBy('created_at', 'desc')
+                 ->paginate($size, ['*'], 'page', $page);
+ 
+             $pagination = [
+                 'currentPage' => $tranches->currentPage(),
+                 'totalItems' => $tranches->total(),
+                 'totalPages' => $tranches->lastPage(),
+             ];
+ 
+             $tranches = $tranches->items();
+ 
+             return response()->json([
+                 'data' => $tranches,
+                 'pagination' => $pagination,
+             ], 200);
+         }
+ 
+         return response()->json(['error' => 'Unauthorized'], 401);
+     }
+
 }

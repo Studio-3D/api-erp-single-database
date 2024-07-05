@@ -2,20 +2,26 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Events\NewProjectEvent;
-use App\Http\Controllers\Controller;
-use App\Http\Helpers\DatabaseHelper;
-use App\Http\Helpers\RoleHelper;
-use App\Http\Helpers\typeBienProjetHelper;
-use App\Http\Helpers\UserProjetHelper;
-use App\Http\Requests\StoreProjetRequest;
-use App\Http\Requests\UpdateProjetRequest;
-use App\Models\Projet;
 use App\Models\User;
+use App\Models\Projet;
 use App\Models\UserProjet;
 use Illuminate\Http\Request;
+use App\Events\NewProjectEvent;
+use App\Http\Helpers\RoleHelper;
+use App\Http\Controllers\Controller;
+use App\Http\Helpers\DatabaseHelper;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Helpers\UserProjetHelper;
 use Illuminate\Support\Facades\Config;
+use App\Http\Requests\StoreProjetRequest;
+use App\Http\Requests\UpdateProjetRequest;
+use App\Models\Bien;
+use App\Models\Immeuble;
+use App\Models\Tranche;
+use App\Models\Bloc;
+use App\Models\TypeBien;
+use App\Models\Vue;
+use App\Models\Typologie;
 
 class ProjetController extends Controller
 {
@@ -51,14 +57,12 @@ class ProjetController extends Controller
 
     public function index(Request $request)
     {
-            
-       
 
         if (RoleHelper::AdminSup()) {
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
             DatabaseHelper::Config();
-           // Démarrer la requête directement sur le modèle
+            // Démarrer la requête directement sur le modèle
             $query = Projet::on('temp');
 
             if ($request->filled('nom')) {
@@ -137,7 +141,7 @@ class ProjetController extends Controller
                 'projets' => $projets,
                 'pagination' => $pagination,
             ], 200);
-        } 
+        }
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -178,11 +182,11 @@ class ProjetController extends Controller
             $projet->max_etages = $request->max_etages;
             $projet->nbre_biens = $request->nbre_biens ?: 0;
             if ($projet->save()) {
-                $dataArray_donneesTypeBien = json_decode($request->input('donneesTypeBien', '[]'), true); 
-                $dataArray_donneesVue = json_decode($request->input('donneesVue', '[]'), true); 
-                $dataArray_donneesTypologie = json_decode($request->input('donneesTypologie', '[]'), true); 
-                $dataArray_partenaires = json_decode($request->input('partenaires', '[]'), true); 
-                $dataArray_users = json_decode($request->input('selectedUsers', '[]'), true); 
+                $dataArray_donneesTypeBien = json_decode($request->input('donneesTypeBien', '[]'), true);
+                $dataArray_donneesVue = json_decode($request->input('donneesVue', '[]'), true);
+                $dataArray_donneesTypologie = json_decode($request->input('donneesTypologie', '[]'), true);
+                $dataArray_partenaires = json_decode($request->input('partenaires', '[]'), true);
+                $dataArray_users = json_decode($request->input('selectedUsers', '[]'), true);
 
                 if ($dataArray_donneesTypeBien) {
                     foreach ($dataArray_donneesTypeBien as $typeBien) {
@@ -204,7 +208,7 @@ class ProjetController extends Controller
                         PartenaireController::AjouterPartenaire($Partenaire, $projet->id);
                     }
                 }
-                
+
                 $all = 0;
                 foreach ($dataArray_users as $valeur) {
                     if ($valeur['id'] == 'tous') {
@@ -366,5 +370,7 @@ class ProjetController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
+    
 
 }

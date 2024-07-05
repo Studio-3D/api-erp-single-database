@@ -170,4 +170,39 @@ class TypologieController extends Controller
         
        
     }
+
+    public function indexByProjet(Request $request, $projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
+            DatabaseHelper::Config();
+
+            $query = Typologie::on('temp')->where('projet_id', $projet_id);
+
+            
+
+            if ($request->filled('typologie')) {
+                $query->where('typologie', 'like', '%' . $request->input('typologie') . '%');
+            }
+
+            $typologies = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+
+            $pagination = [
+                'currentPage' => $typologies->currentPage(),
+                'totalItems' => $typologies->total(),
+                'totalPages' => $typologies->lastPage(),
+            ];
+
+            $typologies = $typologies->items();
+
+            return response()->json([
+                'typologies' => $typologies,
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
 }
