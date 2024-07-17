@@ -149,7 +149,7 @@ class UserController extends Controller
             $user = User::findOrfail($id);
         } elseif (RoleHelper::Admin()) {
             DatabaseHelper::Config();
-            $user = User::on('temp')->findOrfail($id);
+            $user = User::on('temp')->where('user_id_origin', $id)->first();
         }
         if (!$user) {
             return response()->json(['message' => 'Utilisateur non trouvé'], 200);

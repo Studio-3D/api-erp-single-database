@@ -49,29 +49,29 @@ class BienController extends Controller
             if ($request->filled('propriete_dite_bien')) {
                 $query->where('propriete_dite_bien', 'like', '%' . $request->input('propriete_dite_bien') . '%');
             }
-           
+
             if ($request->filled('niveau')) {
                 $query->where('niveau', 'like', '%' . $request->input('niveau') . '%');
             }
             if ($request->filled('orientation')) {
                 $query->where('orientation', 'like', '%' . $request->input('orientation') . '%');
             }
-           
+
             if ($request->filled('etat')) {
                 $query->where('etat', 'like', '%' . $request->input('etat') . '%');
             }
             if ($request->filled('prix_min')) {
                 $query->where('prix', '>=', $request->input('prix_min'));
             }
-            
+
             if ($request->filled('prix_max')) {
                 $query->where('prix', '<=', $request->input('prix_max'));
             }
-            
+
             if ($request->filled('superficie_min')) {
                 $query->where('superficie_habitable', '>=', $request->input('superficie_min'));
             }
-            
+
             if ($request->filled('superficie_max')) {
                 $query->where('superficie_habitable', '<=', $request->input('superficie_max'));
             }
@@ -95,7 +95,7 @@ class BienController extends Controller
                     $subQuery->where('type', $request->input('type'));
                 });
             }
-            
+
             if ($request->filled('vue')) {
                 $query->whereHas('vue', function ($subQuery) use ($request) {
                     $subQuery->where('vue', $request->input('vue'));
@@ -209,7 +209,6 @@ class BienController extends Controller
 
                 $biens = $query->orderBy('created_at', 'desc')
                     ->paginate($size, ['*'], 'page', $page);
-
 
                 $pagination = [
                     'currentPage' => $biens->currentPage(),
@@ -590,7 +589,6 @@ class BienController extends Controller
         }
     }
 
-    
     public function getBiensDispoByProjet($projet_id)
     {
         if (RoleHelper::AdminSup()) {
@@ -781,7 +779,5 @@ class BienController extends Controller
 
         }
     }
-
-    
 
 }
