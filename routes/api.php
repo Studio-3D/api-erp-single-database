@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\TypeProjetController as V1TypeProjetController;
 use App\Http\Controllers\Api\V1\TypologieController as V1TypologieController;
 use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\VueController as V1VueController;
+use App\Http\Controllers\Api\V1\VisiteController as V1VisiteController;
 use App\Http\Controllers\AquereurController;
 use App\Http\Controllers\AvanceController;
 use App\Http\Controllers\BanqueController;
@@ -77,6 +78,9 @@ Route::middleware('auth:api')->group(function () {
         // Routes de la version numero 1
         // l'API utilisateurs
         Route::resource('/utilisateurs', V1UserController::class);
+        Route::put('activateUser/{id}', [V1UserController::class, 'activateUser'])->name('activateUser');
+        Route::put('desactivateUser/{id}', [V1UserController::class, 'desactivateUser'])->name('desactivateUser');
+
         // l'API societes
         Route::resource('societes', V1SocieteController::class);
         // l'API typeProjets
@@ -104,7 +108,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/partenaires', [V1PartenaireController::class, 'indexByProjet']);
         //l'API partenare
         Route::resource('projets', V1ProjetController::class);
-        
+
         //l'API tranches
         Route::resource('tranches', V1TrancheController::class);
         Route::get('projets/{idprojet}/tranches', [V1TrancheController::class, 'indexByProjet']);
@@ -122,7 +126,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/biens', [V1BienController::class, 'indexByProjet']);
         //l'API compositionbiens
         Route::resource('compositionBiens', V1CompositionBienController::class);
-        
+        //l'API visite
+        Route::resource('visites', V1VisiteController::class);
+        Route::get('projets/{idprojet}/visites', [V1VisiteController::class, 'indexByProjet']);
+
+
     });
 
     Route::post('upload-excel-data', [ExcelDataController::class, 'UploadDataExcel'])->name('upload-excel-data');

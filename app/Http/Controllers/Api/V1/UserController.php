@@ -369,4 +369,38 @@ class UserController extends Controller
         }
         $user->save();
     }
+
+    public function activateUser($user_id)
+    {
+        if (RoleHelper::AdminSup()) {
+            $user = User::findOrFail($user_id);
+            $user->is_actif = 1;
+            if ($user->save()) {
+                DatabaseHelper::Config($user->societe_id);
+                $user_societes = User::on('temp')->where('user_id_origin', $user->id);
+                $user_societes->update(['is_actif' => 1]);
+                return response()->json(['message' => 'utilisateur activé avec succès'], 200);
+
+            }
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+    public function desactivateUser($user_id)
+    {
+        if (RoleHelper::AdminSup()) {
+            $user = User::findOrFail($user_id);
+            $user->is_actif = 0;
+            if ($user->save()) {
+                DatabaseHelper::Config($user->societe_id);
+                $user_societes = User::on('temp')->where('user_id_origin', $user->id);
+                $user_societes->update(['is_actif' => 0]);
+                return response()->json(['message' => 'utilisateur désactivé avec succès'], 200);
+
+            }
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+    }
 }
