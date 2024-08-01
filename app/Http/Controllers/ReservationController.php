@@ -387,7 +387,28 @@ class ReservationController extends Controller
                 $nb_pj=count($reservation->piece_jointe);
              }
              $nb_av=count($reservation->avances);
-             return response()->json(['code_res' => $code,'code_desistement' => $code_desistement,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_av'=>$nb_av,'nb_pj'=>$nb_pj,'etat'=>$etat,'transfert'=>$reservation->remboursement_dd_with_transfert,'statut'=>$statut,'user_id'=>$user_id,'nb_histo'=>$nb_histo,'compromis'=>$reservation->compromis_vente], 200);
+
+             $sum_avances=0;
+              //si dossier desiste
+              if($reservation->etat>1){
+                 foreach($reservation->avances_desist as $av){
+                     //avance validé
+                     if($av->statut==StatutReservationEnum::Validé->value){
+                         $sum_avances+=$av->montant;
+                     }
+                  }
+
+              }else{
+                 foreach($reservation->avances as $av){
+                     //avance validé
+                     if($av->statut==StatutReservationEnum::Validé->value){
+                         $sum_avances+=$av->montant;
+                     }
+                  }
+              }
+
+             return response()->json(['code_res' => $code,'code_desistement' => $code_desistement,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_av'=>$nb_av,'nb_pj'=>$nb_pj,'etat'=>$etat,'transfert'=>$reservation->remboursement_dd_with_transfert,'statut'=>$statut,'user_id'=>$user_id,'nb_histo'=>$nb_histo
+             ,'sum_avances'=>$sum_avances], 200);
          } else {
              return response()->json(['error' => 'Unauthorized'], 401);
          }

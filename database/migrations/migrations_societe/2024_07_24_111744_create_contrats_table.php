@@ -11,19 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('compromis_vente', function (Blueprint $table) {
+        Schema::create('contrats', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('reservation_id')->nullable()->constrained('reservations')->onDelete('cascade');
+            $table->foreignId('reservation_id')->constrained('reservations')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->date('date_sign_client');
             $table->date('date_sign_mo');
             $table->date('date_enreg');
-            $table->date('date_echeance')->nullable();
             $table->string('num_recu');
-            $table->string('duree_echeance')->nullable();
             $table->string('commentaire')->nullable();
-            $table->timestamps();
+            $table->string('piece_jointe')->nullable();
             $table->softDeletes();
+            $table->timestamps();
         });
     }
 
@@ -32,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('compromis');
+        Schema::dropIfExists('contacts');
     }
 };

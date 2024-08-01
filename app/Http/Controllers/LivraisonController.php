@@ -19,11 +19,13 @@ use App\Http\Helpers\PaginationHelper;
 use Illuminate\Support\Facades\Config;
 use App\Events\NotifMenuEvent;
 use App\Models\Compromis_vente;
+use App\Models\Contrat_vente;
 use App\Enum\StatutReservationEnum;
 
 
-
-
+use App\Models\Societe;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 
 class LivraisonController extends Controller
 {
@@ -405,8 +407,6 @@ class LivraisonController extends Controller
 
 
         if(RoleHelper::ACSup()){
-
-
             $user = Auth::user();
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -439,7 +439,7 @@ class LivraisonController extends Controller
                 $comp->delete();
                return response()->json($xx);
 
-            }else{                    
+            }else{
 
 
                 $comp->date_sign_client=$request->date_c;
@@ -500,7 +500,9 @@ class LivraisonController extends Controller
             }else{
                 $compromis_annule_count=0;
             }
-            return response()->json(['compromis' => $compromis,'compromis_annule_count' => $compromis_annule_count], 200);
+            $res=new ReservationController();
+            $reservation= $res->show($id);
+            return response()->json(['compromis' => $compromis,'compromis_annule_count' => $compromis_annule_count,'reservation'=>$reservation], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -518,6 +520,180 @@ class LivraisonController extends Controller
         }
     }
 
+    public function scanner_compromis(Request $request)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            if ($request->hasFile('fichier_scanner')) {
+
+                $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+                $societe = Societe::findOrfail($user_societes->societe_id);
+                $comp = Compromis_vente::on('temp')->findOrfail($request->input("comp_id"));
+                $comp->setConnection('temp');
+
+                // Récupérer le nom du fichier
+                $comp->compromis_signee = $request->file('fichier_scanner')->getClientOriginalName();
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/compromis_vente');
+                File::makeDirectory($directory, 0755, true, true);
+                $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
+
+
+                if (!$comp->save()) {
+                    return response()->json(['error' => 'Échec de scanner les fichiers'], 500);
+                }
+            }
+
+            return response()->json(['success' => 'Fichiers scannés avec succès'], 200);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+    /*************************************************Contrat de vente********************* */
+
+    public function get_contrat_by_reservation($id,Request $request)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $contrat = Contrat_vente::on('temp')->where('reservation_id',$id)->orderby('created_at','desc')->first();
+            $res=new ReservationController();
+            $reservation= $res->show($id);
+            return response()->json(['contrat' => $contrat,'reservation'=>$reservation], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+    public function store_contrat_vente($id,Request $request)
+    {
+
+        if(RoleHelper::ACSup()){
+
+            $user = Auth::user();
+            DatabaseHelper::Config();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $cont = new Contrat_vente();
+            $cont->setConnection('temp');
+            $last_num_recu = Contrat_vente::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")
+            ->get('num_recu')->first();
+             if ($last_num_recu != null) {
+                 $n_recu = $last_num_recu->num_recu + 1;
+                 $cont->num_recu = '00' . $n_recu . '';
+             } else {
+                 $cont->num_recu = '001';
+             }
+            $cont->reservation_id=$id;
+            $cont->date_sign_client=$request->date_sign_client;
+            $cont->date_sign_mo=$request->date_sign_mo;
+            $cont->date_enreg=$request->date_enreg;
+            $cont->user_id=$userAuth->value('id');
+            if($request->commentaire=="null"){
+             $cont->commentaire=null;
+            }else{
+             $cont->commentaire=$request->commentaire;
+            }
+            if($cont->save()){
+
+            return response()->json(['cont' =>$cont->id], 200);
+
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+     }
+
+    }
+    public function show_contrat($id)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $contrat = Contrat_vente::on('temp')->with('reservation')->findOrfail($id);
+            $bien=new VisiteController();
+            $propriete= $bien->get_propriete_bien_concat($contrat->reservation->bien_id);
+            $sum_avances_valides=0;
+            //si dossier desiste
+            if($contrat->reservation->etat>1){
+               foreach($reservation->avances_desist as $av){
+                   //avance validé
+                   if($av->statut==StatutReservationEnum::Validé->value){
+                       $sum_avances_valides+=$av->montant;
+                   }
+                }
+            }else{
+               foreach($contrat->reservation->avances as $av){
+                   //avance validé
+                   if($av->statut==StatutReservationEnum::Validé->value){
+                       $sum_avances_valides+=$av->montant;
+                   }
+                }
+            }
+            return response()->json(['contrat' => $contrat,'bien_propriete' => $propriete,'sum_avances_valides'=>$sum_avances_valides], 200);
+             } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function update_contrat($id,Request $request)
+    {
+
+
+        if(RoleHelper::ACSup()){
+            $user = Auth::user();
+            DatabaseHelper::Config();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $comp = Contrat_vente::on('temp')->withTrashed()->findOrFail($id);
+
+
+                $comp->date_sign_client=$request->date_sign_client;
+                $comp->date_sign_mo=$request->date_sign_mo;
+                $comp->date_enreg=$request->date_enreg;
+                if($request->commentaire=="null"){
+                    $comp->commentaire=null;
+                   }else{
+                    $comp->commentaire=$request->comment;
+                   }
+                $comp->user_id=$userAuth->value('id');
+                if($comp->save()){
+
+                return response()->json(['contrar_id' =>$comp->id], 200);
+
+            }
+
+        }else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+    }
+
+
+    public function scanner_contrat(Request $request)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            if ($request->hasFile('fichier_scanner')) {
+
+                $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+                $societe = Societe::findOrfail($user_societes->societe_id);
+                $comp = Contrat_vente::on('temp')->findOrfail($request->input("contrat_id"));
+                $comp->setConnection('temp');
+
+                // Récupérer le nom du fichier
+                $comp->piece_jointe = $request->file('fichier_scanner')->getClientOriginalName();
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/contrat_vente');
+                File::makeDirectory($directory, 0755, true, true);
+                $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
+
+
+                if (!$comp->save()) {
+                    return response()->json(['error' => 'Échec de scanner les fichiers'], 500);
+                }
+            }
+
+            return response()->json(['success' => 'Fichiers scannés avec succès'], 200);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
     /**
      * Show the form for editing the specified resource.
      */

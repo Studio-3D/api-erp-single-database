@@ -21,7 +21,7 @@ return new class extends Migration
             $table->date('date_echeance')->nullable();
             $table->string('num_recu');
             $table->string('duree_echeance')->nullable();
-            $table->string('date_annulation')->nullable();
+            $table->string('compromis_signee')->nullable();
             $table->string('commentaire')->nullable();
             $table->timestamps();
             $table->softDeletes();
