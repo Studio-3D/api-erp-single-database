@@ -59,51 +59,7 @@ class TrancheController extends Controller
          return response()->json(['error' => 'Unauthorized'], 401);
      }
 
-     public function indexByProjet(Request $request, $projet_id)
-     {
-          if (Auth::guard('api')->check()) {
-             $size = $request->input('size', null);
-             $page = $request->input('page', null);
-             DatabaseHelper::Config();
-  
-             $query = Tranche::on('temp')->where('projet_id', $projet_id);
-  
-              
-  
-             if ($request->filled('nom')) {
-                  $query->where('nom', 'like', '%' . $request->input('nom') . '%');
-             }
-             if ($request->filled('niveau_etages')) {
-                 $query->where('niveau_etages', 'like', '%' . $request->input('niveau_etages') . '%');
-             }
-             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
- 
-                 $tranches = $query->orderBy('created_at', 'desc')
-                     ->paginate($size, ['*'], 'page', $page);
-     
-                 $pagination = [
-                     'currentPage' => $tranches->currentPage(),
-                     'totalItems' => $tranches->total(),
-                     'totalPages' => $tranches->lastPage(),
-                 ];
-     
-                 $tranches = $tranches->items();
- 
-                 return response()->json([
-                     'data' => $tranches,
-                     'pagination' => $pagination,
-                 ], 200);
-             } else {
-                 // Return all results if pagination parameters are not provided or invalid
-                 $tranches = $query->orderBy('created_at', 'desc')
-                     ->get();
- 
-                 return response()->json(['tranches' => $tranches], 200);
-             }
-         }
- 
-         return response()->json(['error' => 'Unauthorized'], 401);
-     }
+     c
 
     /**
      * Show the form for creating a new resource.

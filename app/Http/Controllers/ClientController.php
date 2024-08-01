@@ -288,13 +288,7 @@ class ClientController extends Controller
                 ->select('visites.*')
                 ->where('prospect_id', $client->prospect_id)
                 ->get()->groupby('origin_id');
-            /* $visites = Visite::on('temp')->latest('created_at')->where('etat',1)
-            ->groupby('origin_id')
-            //->join('prospects', 'visites.prospect_id', '=', 'prospects.id')
-            // ->join('clients', 'prospects.client_id', '=', 'clients.id')
-            //->select('visites.*')
-            ->where('visites.prospect_id', $client->prospect_id)
-            ->get(); */
+            
             $visites = $visites->map(function ($visite) {
                 return [
                     'id' => $visite->first()->id,
