@@ -239,7 +239,11 @@ class NotificationController extends Controller
                     ->orwhere('user_id',Auth::guard('api')->user()->id)
                 ;})
                ->where('projet_id',$projet_id)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('id','desc')->get();
-               $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('role',RoleEnum::ADMIN->value)->where('deleted_at',null)->count();
+               $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)
+               ->where(function ($query) {
+                $query->where('role',RoleEnum::ADMIN->value)
+                    ->orwhere('user_id',Auth::guard('api')->user()->id)
+                ;})->where('deleted_at',null)->count();
 
             }else{
                 $all_notifications=Notification::on('temp')->with('prospect','user','reservation','avance','bien')->where('projet_id',$projet_id)->where('user_id',Auth::guard('api')->user()->id)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('date','desc')->get();

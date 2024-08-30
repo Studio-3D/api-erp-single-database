@@ -158,10 +158,8 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API prospect
         Route::resource('prospects', V1ProspectController::class);
-        Route::get('search_prospect_by_cin/{cin}', [V1ProspectController::class, 'search_prospect_by_cin']);
-        Route::get('search_prospect_by_email/{email}', [V1ProspectController::class, 'search_prospect_by_email']);
-        Route::get('search_prospect_by_phone/{phone}', [V1ProspectController::class, 'search_prospect_by_phone']);
-        //l'API client
+        Route::get('search_prospect_by_param/{param_1}/{value}', [V1ProspectController::class, 'search_prospect_by_param']);
+       //l'API client
         Route::resource('clients', V1ClientController::class);
         //l'API Aquerreur
         Route::resource('aquereurs', V1AquereurController::class);
@@ -183,10 +181,6 @@ Route::middleware('auth:api')->group(function () {
 
         //Enumeartion
         Route::get('InteretEnum_appel', [V1EnumController::class, 'InteretEnum__appel_get'])->name('');
-
-            //  prospect
-        Route::get('search_info_by_cin/{cin}', [V1ProspectController::class, 'search_info_by_cin']);
-        Route::get('search_info_by_phone/{phone}', [V1ProspectController::class, 'search_info_by_phone']);
 
 
 

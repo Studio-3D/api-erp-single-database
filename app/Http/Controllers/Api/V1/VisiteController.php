@@ -41,6 +41,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Session;
 use \NumberFormatter;
+use App\Models\TraitementAppel;
 
 class VisiteController extends Controller
 {
@@ -256,12 +257,13 @@ class VisiteController extends Controller
      */
 
     public function store(StoreVisiteRequest $request)
-    { /***liste des fonctions a ajouter
-    Chercher s'il y a appel du meme client==>le convertir en visite
-    convert
-    lead to visite
-     ****/
-
+    {
+        /***liste des fonctions a ajouter
+        Chercher s'il y a appel du meme client==>le convertir en visite
+        convert
+        lead to visite
+        ****/
+      
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -271,7 +273,7 @@ class VisiteController extends Controller
             $list_bien_transfere_vendu = json_decode($request->input('list_bien_transfere_vendu', '[]'), true);
 
             //store prospect si client n'existe pas
-            
+
             if ($request->prospect_id == null) {
                 $validatedData = $request->validated();
                 $validatedData['cin'] = $request->cin;
@@ -309,7 +311,7 @@ class VisiteController extends Controller
                 if ($request->source_txt == 'Partenaire') {
                     $prospect->partenaire_id = $request->partenaire_id;
                 }
-                
+
                 $prospect->notifie = $request->notifie;
                 $prospect->save();
             }
@@ -486,11 +488,22 @@ class VisiteController extends Controller
                                 }
                             }
                         }
+
+                        //store visite_id to ==>traitement_appel
+                        if($request->id_t_appel!="null"){
+                            $t_appel=TraitementAppel::on('temp')->findorfail($request->id_t_appel);
+                            $t_appel->visite_id=$visite->id;
+                            $t_appel->date_convert_visite=Carbon::now();
+                            $t_appel->user_id_convert_visite= $userAuth->value('id');
+                            $t_appel->save();
+                        }
+
                     }
 
                 }
 
             } else {
+
                 //store interesse
                 //list_interesse
                 $array_v_id = array();
@@ -672,6 +685,16 @@ class VisiteController extends Controller
 
                                 }
                             }
+                            //convert appel to visite
+                            //store visite_id to ==>traitement_appel
+                            if($request->id_t_appel!="null"){
+                                $t_appel=TraitementAppel::on('temp')->findorfail($request->id_t_appel);
+                                $t_appel->visite_id=$first_v_id;
+                                $t_appel->date_convert_visite=Carbon::now();
+                                $t_appel->user_id_convert_visite= $userAuth->value('id');
+                                $t_appel->save();
+                            }
+
                         }
 
                     }
@@ -844,6 +867,15 @@ class VisiteController extends Controller
                                 $old_visite_transfere = Visite::on('temp')->findorfail($list_biens['visite_id']);
                                 $old_visite_transfere->statut = StatutVisiteEnum::Pré_Réservation_Vendu->value;
                                 $old_visite_transfere->save();
+                            }
+                            //convert appel to visite
+                            //store visite_id to ==>traitement_appel
+                            if($request->id_t_appel!="null"){
+                                $t_appel=TraitementAppel::on('temp')->findorfail($request->id_t_appel);
+                                $t_appel->visite_id=$first_v_id;
+                                $t_appel->date_convert_visite=Carbon::now();
+                                $t_appel->user_id_convert_visite= $userAuth->value('id');
+                                $t_appel->save();
                             }
                         }
                     }

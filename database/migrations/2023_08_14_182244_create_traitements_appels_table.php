@@ -29,6 +29,7 @@ return new class extends Migration
             $table->string('etage')->nullable();
             $table->string('orientation')->nullable();
             $table->dateTime('date_convert_visite')->nullable();
+            $table->foreignId('user_id_convert_visite')->nullable()->constrained('users')->onDelete('cascade');
             $table->string('commentaire')->nullable();
             $table->timestamps();
             $table->softDeletes();

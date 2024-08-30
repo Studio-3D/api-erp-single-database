@@ -181,70 +181,32 @@ class ProspectController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    public function search_prospect_by_cin($cin)
+    public function search_prospect_by_param($param_1,$value)
     {
+        //cin ou email
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->with('visite_pre_reserves')->where('cin', $cin)
+            if($param_1=='cin'||$param_1=='email'){
+                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visites','appels')->where($param_1, $value)
                 ->get()->first();
-            return response()->json(['prospect' => $prospect]);
-        }
-    }
-    public function search_prospect_by_email($email)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->with('visite_pre_reserves')->where('email', $email)
-                ->get()->first();
-            return response()->json(['prospect' => $prospect]);
-        }
-    }
-    public function search_prospect_by_phone($phone)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->with('visite_pre_reserves')
-                ->where(function ($query) use ($phone) {
-                    $query->where('telephone', $phone)
-                        ->orwhere('telephone_num2', $phone)
+                $client=Client::on('temp')->with('prospect')->where($param_1,$value)->get()->first();
+
+            }else{
+                //telephone
+                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visites','appels')
+                ->where(function ($query) use ($value) {
+                    $query->where('telephone', $value)
+                        ->orwhere('telephone_num2', $value)
                     ;
                 })
                 ->get()->first();
-            return response()->json(['prospect' => $prospect]);
-        }
-    }
-
-    //Appels
-    public function search_info_by_cin($cin)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-
-            $prospect = Prospect::on('temp')->with('visites','appels')->where('cin', $cin)
-            ->get()->first();
-            $client=Client::on('temp')->where('cin',$cin)->get()->first();
-            //appel by prospect
-            //visites by prospect
-            return response()->json(['prospect' => $prospect,'client'=>$client]);
-        }
-    }
-     public function search_info_by_phone($phone)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->with('visites','appels')
-                ->where(function ($query) use ($phone) {
-                    $query->where('telephone', $phone)
-                        ->orwhere('telephone_num2', $phone)
+                $client = Client::on('temp')->with('prospect')
+                ->where(function ($query) use ($value) {
+                    $query->where('telephone_num1', $value)
+                        ->orwhere('telephone_num2', $value)
                     ;})
                 ->get()->first();
-            $client = Client::on('temp')->with('prospect')
-                ->where(function ($query) use ($phone) {
-                    $query->where('telephone_num1', $phone)
-                        ->orwhere('telephone_num2', $phone)
-                    ;})
-                ->get()->first();
-
+            }
             return response()->json(['prospect' => $prospect,'client'=>$client]);
         }
     }
