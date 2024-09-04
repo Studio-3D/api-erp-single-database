@@ -178,6 +178,12 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('destroy_t_appel/{id}', [V1AppelController::class, 'destroy_t_appel'])->name('');
         Route::put('traiter_relance_rdv_appel/{id}', [V1AppelController::class, 'traiter_relance_rdv_appel'])->name('');
         Route::get('get_info_cin_unique/{prospect_id}/{cin}', [V1AppelController::class, 'get_info_cin_unique']);
+            //RELANCES RDV APPELS
+        Route::get('projets/{idprojet}/relances_appels', [V1AppelController::class, 'get_relances_appels'])->name('');
+        Route::get('projets/{idprojet}/rdv_appels', [V1AppelController::class, 'get_rdv_appels'])->name('');
+        Route::get('get_nb_rdv_appels/{projet_id}', [V1AppelController::class, 'get_nb_rdv_appels'])->name('');
+        Route::get('get_nb_relances_appels/{projet_id}', [V1AppelController::class, 'get_nb_relances_appels'])->name('');
+
 
 
         //Enumeartion

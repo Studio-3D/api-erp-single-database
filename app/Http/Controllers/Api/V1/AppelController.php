@@ -29,6 +29,7 @@ use App\Http\Requests\UpdateFreinRequest;
 use App\Models\TypeBienAppel;
 use App\Http\Requests\UpdateAppelRequest;
 use App\Http\Requests\UpdateDate_relance_Rdv;
+use App\Events\NotifMenuEvent;
 
 
 
@@ -202,6 +203,8 @@ class AppelController extends Controller
                     $relance->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
                     $relance->traite_appel_id=$request->traite_appel_id;
                     $relance->save();
+                    Config::set('broadcasting.default', 'pusher_5');
+                    broadcast(new NotifMenuEvent('F'));
                 }
                 if ($request->rdv != null) {
                     $data_notif = [
@@ -228,6 +231,8 @@ class AppelController extends Controller
                     $rdv->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
                     $rdv->traite_appel_id=$request->traite_appel_id;
                     $rdv->save();
+                    Config::set('broadcasting.default', 'pusher_5');
+                    broadcast(new NotifMenuEvent('E'));
                 }
                 return response()->json('success');
 
@@ -510,6 +515,8 @@ class AppelController extends Controller
                                     $relance->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
                                     $relance->traite_appel_id=$id;
                                     $relance->save();
+                                    Config::set('broadcasting.default', 'pusher_5');
+                                    broadcast(new NotifMenuEvent('F'));
                                 }
                                 if ($request->rdv != null) {
                                     $data_notif = [
@@ -536,6 +543,8 @@ class AppelController extends Controller
                                     $rdv->type_traitement=0;//0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
                                     $rdv->traite_appel_id=$id;
                                     $rdv->save();
+                                    Config::set('broadcasting.default', 'pusher_5');
+                                    broadcast(new NotifMenuEvent('E'));
                                 }
 
                         }
@@ -631,6 +640,191 @@ class AppelController extends Controller
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
+    }
+
+
+    public function get_nb_relances_appels($projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            if(RoleHelper::AdminSup()){
+
+            $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereDate('date_relance', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 1)->count();
+            }
+            else{
+                $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereHas('traite_appel', function ($q) use ($userAuth) {
+                        $q->where('user_id', $userAuth->value('id'));
+                })
+                ->whereDate('date_relance', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 1)
+                ->count();
+            }
+
+            return response()->json(['nb_relances_appels' => $nb_relances_appels], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function get_nb_rdv_appels($projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            if(RoleHelper::AdminSup()){
+
+            $nb_rdv_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })->whereDate('rdv', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 2)->count();
+            }
+            else{
+            $nb_rdv_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })->whereDate('rdv', '<=', Carbon::now())->where('type_traitement', 0)
+                ->where('type', 2)
+                ->whereHas('traite_appel', function ($q) use ($userAuth) {
+                    $q->where('user_id', $userAuth->value('id'));
+                })
+                ->count();
+            }
+
+            return response()->json(['nb_rdv_appels' => $nb_rdv_appels], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+    public function get_relances_appels(Request $request, $projet_id)
+    {
+
+        if (Auth::guard('api')->check()) {
+            // Default values for pagination null si non pas envoyer avec la raquete
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
+            DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $query = Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereDate('date_relance', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 1)
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                });
+            if(!RoleHelper::AdminSup()){
+                $query->whereHas('traite_appel', function ($q) use ($userAuth) {
+                    $q->where('user_id', $userAuth->value('id'));
+                });
+            }
+            if ($request->filled('nom_prenom')){
+                    $query->whereHas('traite_appel.appel.prospect', function ($q) use ($request) {
+                    $q->where('nom', 'like', '%' . $request->input('nom_prenom') . '%')
+                    ->orWhere('prenom', 'like', '%' . $request->input('nom_prenom') . '%');});
+            }
+            if ($request->filled('mode_relance')) {
+                $query->where('mode_relance', $request->input('mode_relance'));
+            }
+
+            if ($request->filled('date_relance')) {
+                $start = Carbon::parse($request->input('date_relance'));
+                $query->whereDate('date_relance', $start);
+            }
+
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+
+                $relances = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+
+                $pagination = [
+                    'currentPage' => $relances->currentPage(),
+                    'totalItems' => $relances->total(),
+                    'totalPages' => $relances->lastPage(),
+                ];
+
+                $relances = $relances->items();
+
+                return response()->json([
+                    'data' => $relances,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+            $relances = $query->orderBy('created_at', 'desc')
+            ->get();
+            return response()->json(['relances' => $relances]);
+
+            }
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+    public function get_rdv_appels(Request $request, $projet_id)
+    {
+
+        if (Auth::guard('api')->check()) {
+            // Default values for pagination null si non pas envoyer avec la raquete
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
+            DatabaseHelper::Config();
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $query = Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereDate('rdv', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 2)
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                });
+            if(!RoleHelper::AdminSup()){
+                $query->whereHas('traite_appel', function ($q) use ($userAuth) {
+                    $q->where('user_id', $userAuth->value('id'));
+                });
+            }
+            if ($request->filled('nom_prenom')){
+                $query->whereHas('traite_appel.appel.prospect', function ($q) use ($request) {
+                $q->where('nom', 'like', '%' . $request->input('nom_prenom') . '%')
+                ->orWhere('prenom', 'like', '%' . $request->input('nom_prenom') . '%');});
+        }
+
+            if ($request->filled('rdv')) {
+                $start = Carbon::parse($request->input('rdv'));
+                $query->whereDate('rdv', $start);
+            }
+
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+
+                $rdvs = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+
+                $pagination = [
+                    'currentPage' => $rdvs->currentPage(),
+                    'totalItems' => $rdvs->total(),
+                    'totalPages' => $rdvs->lastPage(),
+                ];
+
+                $rdvs = $rdvs->items();
+
+                return response()->json([
+                    'data' => $rdvs,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+            $rdvs = $query->orderBy('created_at', 'desc')
+            ->get();
+            return response()->json(['rdv_appels' => $rdvs]);
+
+            }
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
 
 
@@ -799,8 +993,8 @@ class AppelController extends Controller
                             $notif_helper = new NotificationHelper();
                             $notif_helper->storeNotification($request->merge($data_notif));
                             broadcast(new NotificationEvent($new_relance->id));
-                           /* Config::set('broadcasting.default', 'pusher_5');
-                             broadcast(new NotifMenuEvent('A'));*/
+                           Config::set('broadcasting.default', 'pusher_5');
+                             broadcast(new NotifMenuEvent('F'));
                             }
                             else{
                                 //store new notification
@@ -820,9 +1014,9 @@ class AppelController extends Controller
                             $notif_helper = new NotificationHelper();
                             $notif_helper->storeNotification($request->merge($data_notif));
                             broadcast(new NotificationEvent($new_relance->id));
-                            /*Config::set('broadcasting.default', 'pusher_5');
-                            broadcast(new NotifMenuEvent('B'));
-                                */
+                            Config::set('broadcasting.default', 'pusher_5');
+                            broadcast(new NotifMenuEvent('E'));
+
                             }
                             return response()->json(['message' => $new_relance], 200);
                         }
@@ -848,15 +1042,15 @@ class AppelController extends Controller
                                     $nt->delete();
                                 }
                             }
-                           /*// broadcast(new NotificationEvent($relance->id));
+
                            Config::set('broadcasting.default', 'pusher_5');
                            if($relance->type==1){
                             //relance
-                           broadcast(new NotifMenuEvent('A'));
+                           broadcast(new NotifMenuEvent('F'));
                            }else{
                             //rdv
-                            broadcast(new NotifMenuEvent('B'));
-                           }*/
+                            broadcast(new NotifMenuEvent('E'));
+                           }
                             return response()->json(['message' => 'Validé avec succès.'], 200);
                         }
 

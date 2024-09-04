@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Relance_Rdv_visite;
+use App\Models\Relance_Rdv_Appel;
+
 use App\Models\Notification;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Helpers\RoleHelper;
@@ -173,6 +175,17 @@ class NotificationController extends Controller
                     }
 
                 }
+                //appels
+
+                $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereDate('date_relance', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 1)->count();
+                $nb_rdv_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                    ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                        $q->where('projet_id', $projet_id);
+                    })->whereDate('rdv', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 2)->count();
 
             }else{
 
@@ -187,8 +200,28 @@ class NotificationController extends Controller
                     }
 
                 }
-            }
-           return response()->json(['relance_visites' => $rel_visites,'rdv_visites' => $rdv_visites,'rel_client_freins' => $rel_client_freins]);
+                //appels
+
+                $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereHas('traite_appel', function ($q) use ($userAuth) {
+                        $q->where('user_id', $userAuth->value('id'));
+                })
+                ->whereDate('date_relance', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 1)
+                ->count();
+                $nb_rdv_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                    ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                        $q->where('projet_id', $projet_id);
+                    })->whereDate('rdv', '<=', Carbon::now())->where('type_traitement', 0)
+                    ->where('type', 2)
+                    ->whereHas('traite_appel', function ($q) use ($userAuth) {
+                        $q->where('user_id', $userAuth->value('id'));
+                    })
+                    ->count();
+                }
+           return response()->json(['nb_relances_appels' => $nb_relances_appels,'nb_rdv_appels' => $nb_rdv_appels,'relance_visites' => $rel_visites,'rdv_visites' => $rdv_visites,'rel_client_freins' => $rel_client_freins]);
         }
          else{
             return response()->json(['error' => 'Unauthorized'], 401);

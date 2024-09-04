@@ -161,6 +161,13 @@ class NotificationController extends Controller
                 ->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.date_relance', '<=', Carbon::now())
                 ->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 1)->where('visites.etat',1)
                 ->orderby('relances_rdv_visites.date_relance', 'asc')->count();
+
+                $rel_appels=Relance_Rdv_visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.date_relance', '<=', Carbon::now())
+                ->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 1)->where('visites.etat',1)
+                ->orderby('relances_rdv_visites.date_relance', 'asc')->count();
+
+
                 $rdv_visites=Relance_Rdv_visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')->where('visites.etat',1)->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.rdv', '<=',Carbon::now())->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 2)->orderby('relances_rdv_visites.rdv', 'asc')
                 ->count();
                 $rel_client_freins=0;
