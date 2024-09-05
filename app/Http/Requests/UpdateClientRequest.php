@@ -30,28 +30,18 @@ class UpdateClientRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            "type_client"=>"string",
-            "nom"=>"required|string ",
-            "prenom"=>"required|string",
-            "telephone_num1"=>"required|string",
-            "telephone_num2"=>"string",
-            "notifie"=>"boolean",
-            "email"=>"string",
-            "civilite"=>"string",
-            "adresse"=>"string",
-            "ville"=>"string",
-            "pays"=>"string",
-            "profession"=>"string",
+            "type_client" => "required|string",
+            "prenom" => "required|string",
+            "telephone_num1" => "required|min:10|max:14",
+            "telephone_num2" => "nullable|min:10|max:14",
+            "notifie" => "integer",
+            "date_naissance" => "date|nullable",
+            "age" => "integer|nullable",
+            "date_mariage" => "date|nullable",
+            "situation_familliale" => "required|string",
+            "civilite" => "required|string",
             'cin' => ['required', Rule::unique('temp.'.$DatabaseName.'.clients','cin')->ignore($this->client)],
-            "lieu_naissance"=>"string",
-            "nationalite"=>"string",
-            "date_naissance"=>"date",
-            "age"=>"integer",
-            "nom_responsable"=>"string",
-            "relation_familliale"=>"string",
-            "situation_familliale"=>"string",
-            "nom_pere"=>"string",
-            "nom_mere"=>"string",
+            
         ];
     }
     public function messages(): array

@@ -22,30 +22,17 @@ class StoreClientRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "type_client" => "string",
+            "type_client" => "required|string",
             "prenom" => "required|string",
-            "telephone_num1" => "required|string",
-            "telephone_num2" => "string",
+            "telephone_num1" => "required|min:10|max:14",
+            "telephone_num2" => "nullable|min:10|max:14",
             "notifie" => "integer",
-            "email" => "string",
-            "civilite" => "string",
-            "adresse" => "string",
-            "ville" => "string",
-            "pays" => "string",
-            "profession" => "string",
-            "cin" => "required|string",
-            "lieu_naissance" => "string",
-            "nationalite" => "string",
+            "cin" => "required",
             "date_naissance" => "date|nullable",
             "age" => "integer|nullable",
-            "nom_responsable" => "string",
-            "relation_familliale" => "string",
-            "situation_familliale" => "required|string",
-            "nom_pere" => "string",
-            "nom_mere" => "string",
-            "nom_mari" => "string",
-            "lieu_mariage" => "string",
             "date_mariage" => "date|nullable",
+            "situation_familliale" => "required|string",
+            "civilite" => "required|string",
 
         ];
     }

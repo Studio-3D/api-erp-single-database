@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('telephone_num2')->nullable();
             $table->boolean('notifie')->default(false);
             $table->string('email')->nullable();
-            $table->enum('civilite',[Civilite::Mr->name,Civilite::Mme->name,Civilite::Mlle->name]);
+            $table->enum('civilite',[Civilite::Mr->value,Civilite::Mme->value,Civilite::Mlle->value]);
             $table->string('adresse')->nullable();
             $table->string('ville')->nullable();
             $table->string('pays')->nullable();
@@ -38,7 +38,7 @@ return new class extends Migration
             $table->date('date_mariage')->nullable();
             $table->string('nom_responsable')->nullable();
             $table->string('relation_familliale')->nullable();
-            $table->enum('situation_familliale',[SituationFamilliale::Célibataire->name,SituationFamilliale::Marié->name,SituationFamilliale::Divorcé->name,SituationFamilliale::Veuf->name]);
+            $table->enum('situation_familliale',[SituationFamilliale::Célibataire->value,SituationFamilliale::Marié->value,SituationFamilliale::Divorcé->value,SituationFamilliale::Veuf->value]);
             $table->string('nom_pere')->nullable();
             $table->string('nom_mere')->nullable();
             $table->foreignId('partenaire_id')->nullable()->constrained('partenaires')->onDelete('cascade');
