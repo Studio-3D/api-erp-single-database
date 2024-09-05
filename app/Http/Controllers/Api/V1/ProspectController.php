@@ -8,9 +8,9 @@ use App\Http\Helpers\PaginationHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreProspectRequest;
 use App\Http\Requests\UpdateProspectRequest;
+use App\Models\Client;
 use App\Models\Prospect;
 use App\Models\Visite;
-use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -23,27 +23,66 @@ class ProspectController extends Controller
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
             DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', 5);
-            $page = $request->input('page', 1);
-            $prospects = Prospect::on('temp')->orderBy('created_at', 'desc')->paginate($perPage, ['*'], 'page', $page);
-            return response()->json(['prospects' => $prospects]);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+
+            // Démarrer la requête directement sur le modèle
+            $query = prospect::on('temp');
+            $query->where(function ($q) use ($request) {
+                if ($request->filled('telephone')) {
+                    $q->where(function ($subQuery) use ($request) {
+                        $subQuery->where('telephone', 'like', '%' . $request->input('telephone') . '%')
+                                 ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                    });
+                }
+            });
+            if ($request->filled('cin')) {
+                $query->where('cin', 'like', '%' . $request->input('cin') . '%');
+            }
+            if ($request->filled('nom')) {
+                $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+            }
+            if ($request->filled('prenom')) {
+                $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+            }
+            
+            
+
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+
+                $prospects = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+
+                // Extraire les propriétés du paginateur
+                $pagination = [
+                    'currentPage' => $prospects->currentPage(),
+                    'totalItems' => $prospects->total(),
+                    'totalPages' => $prospects->lastPage(),
+                ];
+
+                // Extraire les éléments d'utilisateur du paginateur
+                $prospects = $prospects->items();
+
+                // Retourner la réponse simplifiée
+                return response()->json([
+                    'prospects' => $prospects,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+                // Return all results if pagination parameters are not provided or invalid
+                $prospects = $query->orderBy('created_at', 'desc')
+                    ->get();
+
+                return response()->json(['prospects' => $prospects], 200);
+            }
+
         }
 
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
-    public function get_prospects()
-    {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            $prospects = Prospect::on('temp')->orderBy('created_at', 'desc')->get();
-            return response()->json(['prospects' => $prospects]);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-    }
+    
 
     /**
      * Show the form for creating a new resource.
@@ -74,7 +113,7 @@ class ProspectController extends Controller
             $prospect->source = $request->source;
             $prospect->partenaire_id = $request->partenaire_id;
             $prospect->message = $request->message;
-            $prospect->ville=$request->ville;
+            $prospect->ville = $request->ville;
             $prospect->save();
             return $prospect;
 
@@ -181,33 +220,34 @@ class ProspectController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    public function search_prospect_by_param($param_1,$value)
+    public function search_prospect_by_param($param_1, $value)
     {
         //cin ou email
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            if($param_1=='cin'||$param_1=='email'){
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visites','appels')->where($param_1, $value)
-                ->get()->first();
-                $client=Client::on('temp')->with('prospect')->where($param_1,$value)->get()->first();
+            if ($param_1 == 'cin' || $param_1 == 'email') {
+                $prospect = Prospect::on('temp')->with('visite_pre_reserves', 'visites', 'appels')->where($param_1, $value)
+                    ->get()->first();
+                $client = Client::on('temp')->with('prospect')->where($param_1, $value)->get()->first();
 
-            }else{
+            } else {
                 //telephone
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visites','appels')
-                ->where(function ($query) use ($value) {
-                    $query->where('telephone', $value)
-                        ->orwhere('telephone_num2', $value)
-                    ;
-                })
-                ->get()->first();
+                $prospect = Prospect::on('temp')->with('visite_pre_reserves', 'visites', 'appels')
+                    ->where(function ($query) use ($value) {
+                        $query->where('telephone', $value)
+                            ->orwhere('telephone_num2', $value)
+                        ;
+                    })
+                    ->get()->first();
                 $client = Client::on('temp')->with('prospect')
-                ->where(function ($query) use ($value) {
-                    $query->where('telephone_num1', $value)
-                        ->orwhere('telephone_num2', $value)
-                    ;})
-                ->get()->first();
+                    ->where(function ($query) use ($value) {
+                        $query->where('telephone_num1', $value)
+                            ->orwhere('telephone_num2', $value)
+                        ;
+                    })
+                    ->get()->first();
             }
-            return response()->json(['prospect' => $prospect,'client'=>$client]);
+            return response()->json(['prospect' => $prospect, 'client' => $client]);
         }
     }
     public function VisitesByprospect(Request $request, $prospect_id)

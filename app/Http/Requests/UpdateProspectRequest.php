@@ -30,13 +30,11 @@ class UpdateProspectRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'nom' => 'required|string',
-            'prenom' => 'required|string',
-            'telephone' => 'required|string',
-            'telephone_num2' => 'string',
-            'source'=>'string',
-           'cin' => [Rule::unique('temp.'.$DatabaseName.'.prospects','cin')->ignore($this->prospect)],
-           'email' => [Rule::unique('temp.'.$DatabaseName.'.prospects','email')->ignore($this->prospect)],
+            'prenom' => 'required',
+            'telephone' => 'required|min:10|max:14',
+            'telephone_num2' => 'nullable|min:10|max:14',
+            'cin' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->ignore($this->prospect)],
+            'email' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->ignore($this->prospect)],
         ];
     }
 
