@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Http\Helpers\NotificationHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Config;
+use App\Events\NotificationEvent;
 
 class FreinBienHelper
 {
@@ -40,7 +41,7 @@ class FreinBienHelper
                 $notif_helper = new NotificationHelper();
                 $request = new \Illuminate\Http\Request();
                 $notif_helper->storeNotification($request->merge($data_notif));
-                broadcast(new NotificationEvent(frein_id));
+                broadcast(new NotificationEvent($frein_id));
                     Config::set('broadcasting.default', 'pusher_5');
                          //1 traitement reservation
                 broadcast(new NotifMenuEvent('C'));

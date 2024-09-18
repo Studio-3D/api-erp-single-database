@@ -69,7 +69,22 @@ class Bien extends Model
    {
        return $this->hasMany(CompositionBien::class);
    }
-
+   public function Bien_tva()
+   {
+       return $this->hasone(Bien_tva::class,'bien_id')->latest();
+   }
+   public function tva_collectes()
+   {
+       return $this->hasMany(TvaCollecte::class,'bien_id')->where('etat',1);
+   }
+   public function tva_collectes_ancien_reservation()
+   {
+       return $this->hasMany(TvaCollecte::class,'bien_id')->where('etat',4);
+   }
+   public function tva_collectes_archive()
+   {
+       return $this->hasMany(TvaCollecte::class,'bien_id')->onlyTrashed();
+   }
 
 
 }

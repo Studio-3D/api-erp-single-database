@@ -49,17 +49,13 @@ class ReservationController extends Controller
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
 
-            $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
-                ->groupby('reservation_id');
+           /* $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
+                ->groupby('reservation_id');*/
 
-            $reservations = Reservation::on('temp')->with('desistement_att_validation_rejete','last_statut','first_avance')
-                ->joinSub($avances, 'avances_req', function ($join) {
-                    $join->on('avances_req.reservation_id', '=', 'reservations.id');
-                })
-                ->select('reservations.*', 'avances_req.sum_avances')
-                ->orderBy('reservations.created_at', 'desc')
-                ->where('reservations.projet_id', $projet_id)
-                ->where('reservations.etat', 1)
+            $reservations = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance')
+                ->orderBy('created_at', 'desc')
+                ->where('projet_id', $projet_id)
+                ->where('etat', 1)
                 ->paginate($perPage, ['*'], 'page', $page);
 
             return response()->json(['reservations' => $reservations], 200);

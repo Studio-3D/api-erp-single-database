@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use App\Models\User;
+use App\Models\Bien;
 use App\Models\Societe;
 use Illuminate\Support\Facades\File;
 use App\Enum\RoleEnum;
@@ -201,8 +202,6 @@ class RemboursementController extends Controller
 
     public function traiter_accuse($id,Request $request)
     {
-
-
        if(RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             Config::set('broadcasting.default', 'pusher_3');
@@ -224,7 +223,6 @@ class RemboursementController extends Controller
             if($remboursement->save()){
                 if(RoleHelper::Com()){
                     //si commercial ==> envoi notif au admin que client a pris le cheque de remboursement
-
                     $data_notif = [
                         'lien' =>  '/remboursements/att_decaissement',
                         'date' => Carbon::now(),
@@ -237,9 +235,6 @@ class RemboursementController extends Controller
                     ];
                     $notif_helper = new NotificationHelper();
                     $notif_helper->storeNotification($request->merge($data_notif));
-
-
-
                         broadcast(new NotificationEvent($id));
                 }
             }
@@ -263,6 +258,7 @@ class RemboursementController extends Controller
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $remboursement = Remboursement::on('temp')->findOrFail($id);
+            $bien= Bien::on('temp')->withSum('tva_collectes','tva_a_payer')->findorfail($remboursement->reservation->bien_id);
             $remboursement->statut=3;
             $remboursement->date_accuse=Carbon::now();
             $remboursement->date_decaissement=$request->date_decaissement;
@@ -278,7 +274,26 @@ class RemboursementController extends Controller
                 $encaiss->date_reglement = Carbon::now();
                 $encaiss->date_encaissement =$request->date_decaissement;
                 $encaiss->user_id_valider = $userAuth->value('id');
-                $encaiss->save();
+                if($encaiss->save()){
+                    if($bien->Bien_tva!=null){
+                        $data=[
+                            'montant'=>$remboursement->montant_a_rembourser,
+                            'prix'=>$bien->prix,
+                            'qp_terrain_valeur'=>$bien->Bien_tva->qp_terrain_valeur,
+                            'ancien_tva_collectes'=>$bien->tva_collectes,
+                            'tva_collectes_sum_tva_a_payer'=>$bien->tva_collectes_sum_tva_a_payer,
+                            'tva_bien'=>$bien->Bien_tva->tva,
+                            'reservation_id'=>$remboursement->reservation_id,
+                            'bien_id'=>$bien->id,
+                            'type'=>'remboursements',
+                            'encaissement_id'=>$encaiss->id
+                        ];
+                        $tva_c=new AvanceController();
+                        $tva_c->store_tva_collecte($request->merge($data));
+
+                    }
+                }
+
             }
 
             return response()->json(['message' => 'le Chèque du Remboursement est distribué au client.'], 200);

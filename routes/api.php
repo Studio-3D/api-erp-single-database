@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\AquereurController as V1AvanceController;
 use App\Http\Controllers\Api\V1\AppelController as V1AppelController;
 use App\Http\Controllers\Api\V1\EnumController as V1EnumController;
 use App\Http\Controllers\Api\V1\EncaissementController as V1EncaissementController;
+use App\Http\Controllers\Api\V1\ComptabiliteController as V1ComptabiliteController;
 use App\Http\Controllers\AquereurController;
 use App\Http\Controllers\AvanceController;
 use App\Http\Controllers\BanqueController;
@@ -147,6 +148,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('getBiensByProjet_Concat/{id}', [V1BienController::class, 'getBiensByProjet_Concat'])->name('getBiensByProjet_Concat');
         Route::delete('libererBien/{id}', [V1BienController::class, 'libererBien_function'])->name('libererBien');
         Route::put('setPropostionBien/{id}/{old_id}', [V1BienController::class, 'setPropostionBien'])->name('');
+        Route::get('projets/{idprojet}/getBiensByTranche_tva', [V1BienController::class, 'getBiensByTranche_tva'])->name('');
+
         //l'API compositionbiens
         Route::resource('compositionBiens', V1CompositionBienController::class);
 
@@ -162,12 +165,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('search_prospect_by_param/{param_1}/{value}', [V1ProspectController::class, 'search_prospect_by_param']);
         Route::get('search_prospect_by_cin/{cin}', [V1ProspectController::class, 'search_prospect_by_cin']);
         Route::get('search_prospect_by_phone/{phone}', [V1ProspectController::class, 'search_prospect_by_phone']);
-    
+
        //l'API client
         Route::resource('clients', V1ClientController::class);
         Route::get('search_client_by_cin/{cin}', [V1ClientController::class, 'search_client_by_cin']);
         Route::get('search_client_by_phone/{phone}', [V1ClientController::class, 'search_client_by_phone']);
-    
+
         //l'API Aquerreur
         Route::resource('aquereurs', V1AquereurController::class);
         //l'API Avance
@@ -198,6 +201,14 @@ Route::middleware('auth:api')->group(function () {
         //Encaissements
         Route::resource('encaissements', V1EncaissementController::class);
         Route::get('projets/{idprojet}/encaissements', [V1EncaissementController::class, 'indexByProjet']);
+
+        //Tva
+        Route::put('calculer_tva/{id}', [V1ComptabiliteController::class, 'calculer_tva'])->name('');
+        Route::get('get_totaux/{tranche_id}', [V1ComptabiliteController::class, 'get_totaux'])->name('');
+        Route::get('projets/{idprojet}/get_tva_collecte_par_bien', [V1ComptabiliteController::class, 'get_tva_collecte_par_bien'])->name('');
+        Route::get('projets/{idprojet}/get_tva_collecte_mensuelle', [V1ComptabiliteController::class, 'get_tva_collecte_mensuelle'])->name('');
+        Route::put('ajouter_modifier_coeff/{id}', [V1ComptabiliteController::class, 'ajouter_modifier_coeff'])->name('');
+
 
     });
 

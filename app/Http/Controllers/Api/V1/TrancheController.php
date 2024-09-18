@@ -25,37 +25,38 @@ class TrancheController extends Controller
              $page = $request->input('page', 1);
              $projet_id = $request->input('projet_id');
              DatabaseHelper::Config();
- 
+
              $query = Tranche::on('temp');
- 
+
              if ($projet_id) {
                  $query->where('projet_id', $projet_id);
              }
- 
+
              if ($request->filled('nom')) {
                  $query->where('nom', 'like', '%' . $request->input('nom') . '%');
              }
              if ($request->filled('niveau_etages')) {
                 $query->where('niveau_etages', 'like', '%' . $request->input('niveau_etages') . '%');
-            }
- 
+             }
+
+
              $tranches = $query->orderBy('created_at', 'desc')
                  ->paginate($size, ['*'], 'page', $page);
- 
+
              $pagination = [
                  'currentPage' => $tranches->currentPage(),
                  'totalItems' => $tranches->total(),
                  'totalPages' => $tranches->lastPage(),
              ];
- 
+
              $tranches = $tranches->items();
- 
+
              return response()->json([
                  'data' => $tranches,
                  'pagination' => $pagination,
              ], 200);
          }
- 
+
          return response()->json(['error' => 'Unauthorized'], 401);
      }
 
@@ -65,30 +66,37 @@ class TrancheController extends Controller
              $size = $request->input('size', null);
              $page = $request->input('page', null);
              DatabaseHelper::Config();
-  
-             $query = Tranche::on('temp')->where('projet_id', $projet_id);
-  
-              
-  
+
+             $query = Tranche::on('temp')->withSum('bien', 'superficie_total')->with('Coefficient_tranche')->where('projet_id', $projet_id);
+
              if ($request->filled('nom')) {
                   $query->where('nom', 'like', '%' . $request->input('nom') . '%');
              }
              if ($request->filled('niveau_etages')) {
                  $query->where('niveau_etages', 'like', '%' . $request->input('niveau_etages') . '%');
              }
+             if ($request->filled('qp_bati')) {
+                $query->where('qp_bati', 'like', '%' . $request->input('qp_bati') . '%');
+            }
+
+            if ($request->filled('coefficient')) {
+                $query->whereHas('Coefficient_tranche', function ($q) use ($request) {
+                    $q->where('coefficient', $request->input('coefficient'));
+                });
+            }
              if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
- 
+
                  $tranches = $query->orderBy('created_at', 'desc')
                      ->paginate($size, ['*'], 'page', $page);
-     
+
                  $pagination = [
                      'currentPage' => $tranches->currentPage(),
                      'totalItems' => $tranches->total(),
                      'totalPages' => $tranches->lastPage(),
                  ];
-     
+
                  $tranches = $tranches->items();
- 
+
                  return response()->json([
                      'data' => $tranches,
                      'pagination' => $pagination,
@@ -97,11 +105,11 @@ class TrancheController extends Controller
                  // Return all results if pagination parameters are not provided or invalid
                  $tranches = $query->orderBy('created_at', 'desc')
                      ->get();
- 
+
                  return response()->json(['tranches' => $tranches], 200);
              }
          }
- 
+
          return response()->json(['error' => 'Unauthorized'], 401);
      }
 
@@ -236,6 +244,6 @@ class TrancheController extends Controller
         }
     }
 
-    
+
 
 }

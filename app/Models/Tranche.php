@@ -38,13 +38,15 @@ class Tranche extends Model
     {
         return $this->hasMany(Bloc::class);
     }
-    
-
-
     public function  frein(){
         return $this->belongsToMany(Frein::class,'frein_tranches');
     }
-
+    public function  Coefficient_tranche(){
+        return $this->hasOne(Coefficient_tranche::class,'tranche_id')->latest();
+    }
+    public function  biens_tva(){
+        return $this->hasMany(Bien_Tva::class);
+    }
 
 }
 

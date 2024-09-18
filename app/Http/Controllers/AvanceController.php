@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use App\Models\User;
+use App\Models\TvaCollecte;
 use \NumberFormatter;
 use App\Enum\RoleEnum;
 use App\Models\Avance;
@@ -166,6 +167,7 @@ class AvanceController extends Controller
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $avance = Avance::on('temp')->findOrFail($id);
+            $bien= Bien::on('temp')->withSum('tva_collectes','tva_a_payer')->findorfail($avance->reservation->bien_id);
             $avance->statut=$request->etat;
                 if($avance->save()){
                                  //store statut_avances_penalites table=>si validé
@@ -221,7 +223,48 @@ class AvanceController extends Controller
                 $encaiss->date_reglement = $avance->created_at;
                 $encaiss->date_encaissement = $request->date_encaiss;
                 $encaiss->user_id_valider = $userAuth->value('id');
-                $encaiss->save();
+                    //calcul du tva collecte
+                    if($encaiss->save()){
+                            //get tva du bien
+                        if($bien->Bien_tva!=null){
+                            $data=[
+                                'montant'=>$avance->montant,
+                                'prix'=>$bien->prix,
+                                'qp_terrain_valeur'=>$bien->Bien_tva->qp_terrain_valeur,
+                                'ancien_tva_collectes'=>$bien->tva_collectes,
+                                'tva_collectes_sum_tva_a_payer'=>$bien->tva_collectes_sum_tva_a_payer,
+                                'tva_bien'=>$bien->Bien_tva->tva,
+                                'reservation_id'=>$avance->reservation_id,
+                                'bien_id'=>$bien->id,
+                                'type'=>'avances',
+                                'encaissement_id'=>$encaiss->id
+                            ];
+                            $this->store_tva_collecte($request->merge($data));
+
+                        }
+                    }
+                     //on vide la column desistement_id car il est vendu et si le bien a des ancien tva on archive pour affichier tva collecte de l'ancien Reservation
+                     if($bien->desistement_id!=null){
+                        $bien->setConnection('temp');
+                        $bien->desistement_id=NULL;
+                        if($bien->save()){
+                             //set tva collecte ancien to archive 4==>5
+                             if(count($bien->tva_collectes_ancien_reservation)>0){
+                                foreach($bien->tva_collectes_ancien_reservation as $t_c_a){
+                                    $t_c_a->delete();
+                                }
+                            }
+                            //set tva collecte to 4
+                            if(count($bien->tva_collectes)>0){
+                                foreach($bien->tva_collectes as $t_c){
+                                    $t_c->etat=4;
+                                    $t_c->save();
+                                }
+                            }
+
+
+                        }
+                    }
 
                 }else{
                     //2 traitement avance
@@ -280,6 +323,7 @@ class AvanceController extends Controller
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $reservation = Reservation::on('temp')->findOrFail($request->reservation_id);
+            $bien=Bien::on('temp')->withSum('tva_collectes','tva_a_payer')->findOrFail( $reservation->bien_id);
             $avance = new Avance();
             $avance->setConnection('temp');
             $last_num_recu = Avance::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")
@@ -528,7 +572,6 @@ class AvanceController extends Controller
                         }
 
                     }
-
                 }
 
                 if (RoleHelper::AdminSup()) {
@@ -543,7 +586,48 @@ class AvanceController extends Controller
                         $encaiss->date_reglement = $avance->created_at;
                         $encaiss->date_encaissement = $request->date_encaissement;
                         $encaiss->user_id_valider = $userAuth->value('id');
-                        $encaiss->save();
+                         //calcul du tva collecte
+                            if($encaiss->save()){
+                                //get tva du bien
+                                if($bien->Bien_tva!=null){
+                                    $data=[
+                                        'montant'=>$avance->montant,
+                                        'prix'=>$bien->prix,
+                                        'qp_terrain_valeur'=>$bien->Bien_tva->qp_terrain_valeur,
+                                        'ancien_tva_collectes'=>$bien->tva_collectes,
+                                        'tva_collectes_sum_tva_a_payer'=>$bien->tva_collectes_sum_tva_a_payer,
+                                        'tva_bien'=>$bien->Bien_tva->tva,
+                                        'reservation_id'=>$avance->reservation_id,
+                                        'bien_id'=>$bien->id,
+                                        'type'=>'avances',
+                                        'encaissement_id'=>$encaiss->id
+                                    ];
+                                    $this->store_tva_collecte($request->merge($data));
+
+                                }
+                        }
+                    }
+                    //on vide la column desistement_id car il est vendu et si le bien a des ancien tva on archive pour affichier tva collecte de l'ancien Reservation
+                    if($reservation->bien->desistement_id!=null){
+                        $bien->setConnection('temp');
+                        $bien->desistement_id=NULL;
+                        if($bien->save()){
+                              //set tva collecte ancien to archive 4==>5
+                              if(count($bien->tva_collectes_ancien_reservation)>0){
+                                foreach($bien->tva_collectes_ancien_reservation as $t_c_a){
+                                    $t_c_a->delete();
+                                }
+                            }
+                            //set tva collecte to 4
+                            if(count($bien->tva_collectes)>0){
+                                foreach($bien->tva_collectes as $t_c){
+                                    $t_c->etat=4;
+                                    $t_c->save();
+                                }
+                            }
+
+
+                        }
                     }
 
                     //store commission a voir
@@ -569,6 +653,62 @@ class AvanceController extends Controller
         return response()->json(['error', 'Unauthorized'], 401);
     }
 
+    public function store_tva_collecte(Request $request){
+         DatabaseHelper::Config();
+         $user = Auth::user();
+         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+       //20% % tva appliqué sur les avances tva/ttc  ou tva/prix HT [0.15 ... 0.20]
+       $percent_tva=0.2;
+       $avance_terrain=number_format(($request->montant/$request->prix)*$request->qp_terrain_valeur, 2, '.', '');
+       $avance_bien_ttc=number_format($request->montant-$avance_terrain, 2, '.', '');
+       $avance_bien_ht=number_format($avance_bien_ttc/(1+$percent_tva), 2, '.', '');
+       $tva_col_a_ajouter=number_format($percent_tva*$avance_bien_ht, 2, '.', '');
+       //exist tva collecte du bien
+       if (count($request->ancien_tva_collectes)>0){
+             //somme du ancien tva collect
+           $tva_collect_sum=$request->tva_collectes_sum_tva_a_payer;
+             //difference avec le tva d'apprtement
+           $diff=$request->tva_bien-$tva_collect_sum;
+           //si diff>tva_coll_a_ajouter_new
+               if($diff>=$tva_col_a_ajouter){
+                   $tva_c=new TvaCollecte();
+                   $tva_c->setConnection('temp');
+                   $tva_c->reservation_id=$request->reservation_id;
+                   $tva_c->bien_id=$request->bien_id;
+                   $tva_c->encaissement_id=$request->encaissement_id;
+                   if($request->type=='remboursements'){
+                    $tva_c->tva_a_payer=-$tva_col_a_ajouter;  //+ pour avances
+                   }else{
+                    $tva_c->tva_a_payer=$tva_col_a_ajouter;  //+ pour avances
+                   }
+                   //added
+                   $tva_c->avance_terrain=$avance_terrain;
+                   $tva_c->avance_bien_ttc=$avance_bien_ttc;
+                   $tva_c->avance_bien_ht=$avance_bien_ht;
+                   $tva_c->user_id= $userAuth->value('id');
+                   $tva_c->save();
+               }
+               //else rien a ajouter tva_collecter_new>tva du bien on peut pas ajouter des tva collecte
+       }else{
+           //a jouter first tva collecte
+                   $tva_c=new TvaCollecte();
+                   $tva_c->setConnection('temp');
+                   $tva_c->reservation_id=$request->reservation_id;
+                   $tva_c->bien_id=$request->bien_id;
+                   $tva_c->encaissement_id=$request->encaissement_id;
+                   if($request->type=='remboursements'){
+                    $tva_c->tva_a_payer=-$tva_col_a_ajouter;  //+ pour avances
+                   }else{
+                    $tva_c->tva_a_payer=$tva_col_a_ajouter;  //+ pour avances
+                   }
+                   //added
+                   $tva_c->avance_terrain=$avance_terrain;
+                   $tva_c->avance_bien_ttc=$avance_bien_ttc;
+                   $tva_c->avance_bien_ht=$avance_bien_ht;
+                   $tva_c->user_id= $userAuth->value('id');
+                   $tva_c->save();
+       }
+    }
     /**
      * Show the form for editing the specified resource.
      */

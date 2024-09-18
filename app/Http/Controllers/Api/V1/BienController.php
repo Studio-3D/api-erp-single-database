@@ -278,6 +278,64 @@ class BienController extends Controller
 
         }
     }
+
+
+    public function getBiensByTranche_tva(Request $request, $projet_id)
+    {
+
+        if (Auth::guard('api')->check()) {
+            // Default values for pagination null si non pas envoyer avec la raquete
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
+            DatabaseHelper::Config();
+            $query = Bien::on('temp')->with('reservation','Bien_tva','tva_collectes','tva_collectes_ancien_reservation')->where('projet_id', $projet_id);
+            if ($request->filled('tranche_id')) {
+                $query->where('tranche_id', $request->input('tranche_id'));
+            }
+            if ($request->filled('nom')) {
+                $query->where('propriete_dite_bien', $request->input('nom'));
+            }
+            if ($request->filled('code_reservation')) {
+                $query->whereHas('reservation', function ($q) use ($request) {
+                    $q->where('code_reservation', $request->input('code_reservation'));
+                });
+            }
+            if ($request->filled('superficie')) {
+                $query->where('superficie_total', 'like', '%' . $request->input('superficie') . '%');
+            }
+            if ($request->filled('prix_ttc')) {
+                $query->whereHas('bien_tva', function ($q) use ($request) {
+                    $q->where('prix_ttc', 'like', '%' . $request->input('prix_ttc') . '%');
+                });
+            }
+            if ($request->filled('tva')) {
+                $query->whereHas('bien_tva', function ($q) use ($request) {
+                    $q->where('tva','like','%' . $request->input('tva') . '%');
+                });
+            }
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+
+                $biens = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+
+                $pagination = [
+                    'currentPage' => $biens->currentPage(),
+                    'totalItems' => $biens->total(),
+                    'totalPages' => $biens->lastPage(),
+                ];
+
+                $biens = $biens->items();
+
+                return response()->json([
+                    'data' => $biens,
+                    'pagination' => $pagination,
+                ], 200);
+            }
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
     /**
      * Show the form for creating a new resource.
      */
@@ -368,7 +426,7 @@ class BienController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $bien = bien::on('temp')->with('reservation')->findOrfail($id);
+            $bien = bien::on('temp')->with('reservation','Bien_tva')->withSum('tva_collectes','tva_a_payer')->findOrfail($id);
             return response()->json(['bien' => $bien], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

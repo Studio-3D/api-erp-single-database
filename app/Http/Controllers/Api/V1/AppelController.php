@@ -396,12 +396,6 @@ class AppelController extends Controller
                 $user = Auth::user();
                 DatabaseHelper::Config();
                 $traite_appel=TraitementAppel::on('temp')->findorfail($id);
-                //cin unique
-                /*$prospect_cin=Prospect::on('temp')->where('cin',$request->cin)->where('id','!=',$traite_appel->appel->prospect_id)->count();
-                if($prospect_cin>0){
-                    return response()->json(['errors_cin' => 'Le Cin que vous avez saisi ' . $request->cin . ' apprtient à un autre utilisateur'], 423);
-                }*/
-
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
 
                 //update info proqspect

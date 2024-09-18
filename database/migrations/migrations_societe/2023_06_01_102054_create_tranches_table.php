@@ -21,6 +21,10 @@ return new class extends Migration
             $table->integer('nbre_blocs')->default(0);
             $table->integer('nbre_immeubles')->default(0);
             $table->integer('nbre_biens')->default(0);
+            $table->double('qp_bati')->default(0);
+            $table->double('valeur_terrain_reevalue')->default(0);
+            $table->double('qp_terrain_tranche_percent')->default(0);
+            $table->double('qp_terrain_tranche_valeur')->default(0);
             $table->timestamps();
             $table->softDeletes();
         });
