@@ -30,6 +30,7 @@ use App\Models\Immeuble;
 use App\Models\Notification;
 use App\Models\Prospect;
 use App\Models\Relance_Rdv_visite;
+use App\Models\TraitementAppel;
 use App\Models\Tranche;
 use App\Models\Typologie;
 use App\Models\User;
@@ -41,7 +42,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Session;
 use \NumberFormatter;
-use App\Models\TraitementAppel;
 
 class VisiteController extends Controller
 {
@@ -425,11 +425,11 @@ class VisiteController extends Controller
                             $freinRequest['sup_max'] = $request->sup_max;
                             $freinRequest['etat'] = 1;
                             $freinRequest['avance'] = $request->avance;
-                            $freinRequest['selectedTranches'] = $request->tranches_id;
+                            $freinRequest['selectedTranches'] = $request->tranches;
                             $freinRequest['selectedEtages'] = $request->etages;
                             $freinRequest['selectedOrientations'] = $request->orientations;
-                            $freinRequest['selectedTypologies'] = $request->typologies_id;
-                            $freinRequest['selectedVues'] = $request->vues_id;
+                            $freinRequest['selectedTypologies'] = $request->typologies;
+                            $freinRequest['selectedVues'] = $request->vues;
 
                             $freinController = new FreinController();
                             $freinController->store(new StoreFreinRequest($freinRequest));
@@ -492,13 +492,13 @@ class VisiteController extends Controller
                         }
 
                         //store visite_id to ==>traitement_appel
-                    if($request->id_t_appel!="null"){
-                        $t_appel=TraitementAppel::on('temp')->findorfail($request->id_t_appel);
-                        $t_appel->visite_id=$visite->id;
-                        $t_appel->date_convert_visite=Carbon::now();
-                        $t_appel->user_id_convert_visite= $userAuth->value('id');
-                        $t_appel->save();
-                    }
+                        if ($request->id_t_appel != "null") {
+                            $t_appel = TraitementAppel::on('temp')->findorfail($request->id_t_appel);
+                            $t_appel->visite_id = $visite->id;
+                            $t_appel->date_convert_visite = Carbon::now();
+                            $t_appel->user_id_convert_visite = $userAuth->value('id');
+                            $t_appel->save();
+                        }
 
                     }
 
@@ -689,13 +689,13 @@ class VisiteController extends Controller
                             }
                             //convert appel to visite
                             //store visite_id to ==>traitement_appel
-                        if($request->id_t_appel!="null"){
-                            $t_appel=TraitementAppel::on('temp')->findorfail($request->id_t_appel);
-                            $t_appel->visite_id=$first_v_id;
-                            $t_appel->date_convert_visite=Carbon::now();
-                            $t_appel->user_id_convert_visite= $userAuth->value('id');
-                            $t_appel->save();
-                        }
+                            if ($request->id_t_appel != "null") {
+                                $t_appel = TraitementAppel::on('temp')->findorfail($request->id_t_appel);
+                                $t_appel->visite_id = $first_v_id;
+                                $t_appel->date_convert_visite = Carbon::now();
+                                $t_appel->user_id_convert_visite = $userAuth->value('id');
+                                $t_appel->save();
+                            }
 
                         }
 
@@ -872,13 +872,13 @@ class VisiteController extends Controller
                             }
                             //convert appel to visite
                             //store visite_id to ==>traitement_appel
-                        if($request->id_t_appel!="null"){
-                            $t_appel=TraitementAppel::on('temp')->findorfail($request->id_t_appel);
-                            $t_appel->visite_id=$first_v_id;
-                            $t_appel->date_convert_visite=Carbon::now();
-                            $t_appel->user_id_convert_visite= $userAuth->value('id');
-                            $t_appel->save();
-                        }
+                            if ($request->id_t_appel != "null") {
+                                $t_appel = TraitementAppel::on('temp')->findorfail($request->id_t_appel);
+                                $t_appel->visite_id = $first_v_id;
+                                $t_appel->date_convert_visite = Carbon::now();
+                                $t_appel->user_id_convert_visite = $userAuth->value('id');
+                                $t_appel->save();
+                            }
                         }
                     }
                 }
@@ -1404,7 +1404,6 @@ class VisiteController extends Controller
 
             if ($visite->interet == InteretEnum::Perdu->value) {
 
-
                 $frein_id = Frein::on('temp')->where('visite_id', $visite->id)->get();
                 $freinRequest['prix_min'] = $request->prix_min;
                 $freinRequest['freins'] = $request->freins;
@@ -1674,11 +1673,11 @@ class VisiteController extends Controller
                             $freinRequest['sup_max'] = $request->sup_max;
                             $freinRequest['etat'] = 1;
                             $freinRequest['avance'] = $request->avance;
-                            $freinRequest['selectedTranches'] = $request->tranches_id;
+                            $freinRequest['selectedTranches'] = $request->tranches;
                             $freinRequest['selectedEtages'] = $request->etages;
                             $freinRequest['selectedOrientations'] = $request->orientations;
-                            $freinRequest['selectedTypologies'] = $request->typologies_id;
-                            $freinRequest['selectedVues'] = $request->vues_id;
+                            $freinRequest['selectedTypologies'] = $request->typologies;
+                            $freinRequest['selectedVues'] = $request->vues;
                             $freinController = new FreinController();
                             $freinController->store(new StoreFreinRequest($freinRequest));
                         }

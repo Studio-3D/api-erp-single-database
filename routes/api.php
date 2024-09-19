@@ -173,6 +173,7 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('avances', V1AvanceController::class);
         //lapi reservaton
         Route::resource('reservations', V1ReservationController::class);
+        Route::get('projets/{idprojet}/reservations', [V1ReservationController::class, 'indexByProjet']);
         Route::get('search_reservation_by_code/{code_res}', [V1ReservationController::class, 'search_reservation_by_code']);
 
         //l'Api relationClients

@@ -68,6 +68,55 @@ class ReservationController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    public function indexByProjet(Request $request, $projet_id)
+     {
+          if (Auth::guard('api')->check()) {
+             $size = $request->input('size', null);
+             $page = $request->input('page', null);
+             DatabaseHelper::Config();
+
+             $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
+                ->groupby('reservation_id');
+  
+             $query = Reservation::on('temp')->with('desistement_att_validation_rejete','last_statut','first_avance')
+             ->joinSub($avances, 'avances_req', function ($join) {
+                 $join->on('avances_req.reservation_id', '=', 'reservations.id');
+             })
+             ->select('reservations.*', 'avances_req.sum_avances')
+             ->orderBy('reservations.created_at', 'desc')
+             ->where('reservations.projet_id', $projet_id)
+             ->where('reservations.etat', 1);
+              
+             
+  
+             if ($request->filled('nom')) {
+                  $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+             }
+             if ($request->filled('niveau_etages')) {
+                 $query->where('niveau_etages', 'like', '%' . $request->input('niveau_etages') . '%');
+             }
+             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+ 
+                $reservations = $query->paginate($size, ['*'], 'page', $page);
+
+                 $pagination = [
+                     'currentPage' => $reservations->currentPage(),
+                     'totalItems' => $reservations->total(),
+                     'totalPages' => $reservations->lastPage(),
+                 ];
+     
+                 $reservations = $reservations->items();
+ 
+                 return response()->json([
+                     'data' => $reservations,
+                     'pagination' => $pagination,
+                 ], 200);
+             }
+         }
+ 
+         return response()->json(['error' => 'Unauthorized'], 401);
+     }
+
     public function get_dossiers(Request $request, $projet_id, $dos_id)
     {
         if (Auth::guard('api')->check()) {
