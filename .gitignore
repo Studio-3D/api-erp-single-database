@@ -21,4 +21,3 @@ yarn-error.log
 /.idea
 /.vscode
 **uploads
-app/Http/Controllers/Api/V1/ReservationController.php

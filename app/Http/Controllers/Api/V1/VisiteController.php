@@ -264,7 +264,6 @@ class VisiteController extends Controller
         lead to visite
          ****/
 
-
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -493,9 +492,9 @@ class VisiteController extends Controller
                         }
 
                         //store visite_id to ==>traitement_appel
-                        if ($request->id_t_appel != "null") {
+                        if ($request->id_t_appel != null) {
                             $t_appel = TraitementAppel::on('temp')->findorfail($request->id_t_appel);
-                            $t_appel->visite_id = $visite->id;
+                            $t_appel->visite_id = $visite->origin_id;
                             $t_appel->date_convert_visite = Carbon::now();
                             $t_appel->user_id_convert_visite = $userAuth->value('id');
                             $t_appel->save();

@@ -36,7 +36,7 @@ class UpdateReservationRequest extends FormRequest
             'mode_financement' => 'required',
             'date_reservation'=>'date',
             'date_limite_reservation'=>'date',
-            //'code_reservation' => ['string', Rule::unique('temp.'.$DatabaseName.'.reservations','code_reservation')->ignore($this->reservation)],
+            'code_reservation' => ['string', Rule::unique('temp.'.$DatabaseName.'.reservations','code_reservation')->ignore($this->reservation)],
             'bien_id' => 'integer',
 
         ];
