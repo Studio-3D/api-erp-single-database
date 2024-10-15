@@ -21,7 +21,7 @@ use App\Http\Controllers\Api\V1\ProspectController as V1ProspectController;
 use App\Http\Controllers\Api\V1\ClientController as V1ClientController;
 use App\Http\Controllers\Api\V1\AquereurController as V1AquereurController;
 use App\Http\Controllers\Api\V1\ReservationController as V1ReservationController;
-use App\Http\Controllers\Api\V1\AquereurController as V1AvanceController;
+use App\Http\Controllers\Api\V1\AvanceController as V1AvanceController;
 use App\Http\Controllers\Api\V1\AppelController as V1AppelController;
 use App\Http\Controllers\Api\V1\EnumController as V1EnumController;
 use App\Http\Controllers\Api\V1\EncaissementController as V1EncaissementController;
@@ -184,6 +184,10 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('aquereurs', V1AquereurController::class);
         //l'API Avance
         Route::resource('avances', V1AvanceController::class);
+        Route::get('getAvancesByReservation/{reservation_id}', [V1AvanceController::class, 'getAvancesByReservation'])->name('getAvancesByReservation');
+        Route::get('getAvanceHistory/{id}', [V1AvanceController::class, 'getAvanceHistory'])->name('getAvanceHistory');
+        //Route::get('historiques_avance/{date}/{id}', [AvanceController::class, 'historiques_avance'])->name('');
+
         //lapi reservaton
         Route::resource('reservations', V1ReservationController::class);
         Route::get('projets/{idprojet}/reservations', [V1ReservationController::class, 'indexByProjet']);
