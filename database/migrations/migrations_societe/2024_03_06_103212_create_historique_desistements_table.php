@@ -20,7 +20,6 @@ return new class extends Migration
             $table->dateTime('date');
             $table->timestamps();
             $table->softDeletes(); // si on veut de garder historique de la visite.
-           // $table->index(['code_desistement','bien_id','reservation_id']);
         });
     }
 

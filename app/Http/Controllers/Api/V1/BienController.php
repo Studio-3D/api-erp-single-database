@@ -747,88 +747,110 @@ class BienController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
 
-            $biens_pr = Bien::on('temp')->with('is_proposed')
+            $biens_pr = Bien::on('temp')->with('is_proposed','tranche','bloc','immeuble')
                 ->select('propriete_dite_bien AS propriete_dite_bien', 'id', 'etat', 'tranche_id', 'bloc_id', 'immeuble_id', 'prix', 'avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')
                 ->where(function ($query) {
                     $query->where('etat', 'DISPONIBLE')->orwhere('etat', 'ENCOURS_DE_PROPOSITION');
                 })
                 ->where('projet_id', $projet_id)->get();
-            $biens = [];
+            $biens=array();
             foreach ($biens_pr as $b_pr) {
                 //tranches bloc w immeuble
                 if ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
-                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches', 'biens.tranche_id', '=', 'tranches.id')
-                        ->join('blocs', 'blocs.id', '=', 'biens.bloc_id')
-                        ->join('immeubles', 'immeubles.id', '=', 'biens.immeuble_id')
-                        ->where(function ($query) {
-                            $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-                        })
-                        ->where('biens.projet_id', $projet_id)
-                        ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"), 'biens.id', 'biens.etat', 'biens.prix', 'biens.avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')->get();
+                    array_push($biens,array('id' => $b_pr->id,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->bloc->nom.'-'.$b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien,'etat'=>$b_pr->etat,'prix'=>$b_pr->prix,'avance_minimale'=>$b_pr->avance_minimale,'prix_unitaire'=>$b_pr->prix_unitaire,'superficie_terrasse_calculer'=>$b_pr->superficie_terrasse_calculer,'superficie_jardin_calculer'=>$b_pr->superficie_jardin_calculer,'superficie_balcon_calculer'=>$b_pr->superficie_balcon_calculer,'superficie_habitable'=>$b_pr->superficie_habitable,'prix_box'=>$b_pr->prix_box,'prix_parking'=>$b_pr->prix_parking,'is_proposed'=>$b_pr->is_proposed));
                 }
+
                 //tranche bloc
                 elseif ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
-                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches', 'biens.tranche_id', '=', 'tranches.id')
-                        ->join('blocs', 'blocs.id', '=', 'biens.bloc_id')
-                        ->where(function ($query) {
-                            $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-                        })
-                        ->where('biens.projet_id', $projet_id)
-                        ->select(DB::raw("CONCAT(tranches.nom,'-',blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"), 'biens.id', 'biens.etat', 'biens.prix', 'biens.avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')->get();
-                }
+
+                    array_push($biens,array('id' => $b_pr->id,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->bloc->nom.'-'.$b_pr->propriete_dite_bien,'etat'=>$b_pr->etat,'prix'=>$b_pr->prix,'avance_minimale'=>$b_pr->avance_minimale,'prix_unitaire'=>$b_pr->prix_unitaire,'superficie_terrasse_calculer'=>$b_pr->superficie_terrasse_calculer,'superficie_jardin_calculer'=>$b_pr->superficie_jardin_calculer,'superficie_balcon_calculer'=>$b_pr->superficie_balcon_calculer,'superficie_habitable'=>$b_pr->superficie_habitable,'prix_box'=>$b_pr->prix_box,'prix_parking'=>$b_pr->prix_parking,'is_proposed'=>$b_pr->is_proposed));}
+
+
                 //tranche immeuble
                 elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
-                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches', 'biens.tranche_id', '=', 'tranches.id')
-                        ->join('immeubles', 'immeubles.id', '=', 'biens.immeuble_id')
-                        ->where(function ($query) {
-                            $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-                        })
-                        ->where('biens.projet_id', $projet_id)
-                        ->select(DB::raw("CONCAT(tranches.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"), 'biens.id', 'biens.etat', 'biens.prix', 'biens.avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')->get();
+
+                    array_push($biens,array('id' => $b_pr->id,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien,'etat'=>$b_pr->etat,'prix'=>$b_pr->prix,'avance_minimale'=>$b_pr->avance_minimale,'prix_unitaire'=>$b_pr->prix_unitaire,'superficie_terrasse_calculer'=>$b_pr->superficie_terrasse_calculer,'superficie_jardin_calculer'=>$b_pr->superficie_jardin_calculer,'superficie_balcon_calculer'=>$b_pr->superficie_balcon_calculer,'superficie_habitable'=>$b_pr->superficie_habitable,'prix_box'=>$b_pr->prix_box,'prix_parking'=>$b_pr->prix_parking,'is_proposed'=>$b_pr->is_proposed));
                 }
                 //bloc immeuble
                 elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
-                    $biens = Bien::on('temp')->with('is_proposed')
-                        ->join('blocs', 'blocs.id', '=', 'biens.bloc_id')
-                        ->join('immeubles', 'immeubles.id', '=', 'biens.immeuble_id')
-                        ->where(function ($query) {
-                            $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-                        })
-                        ->where('biens.projet_id', $projet_id)
-                        ->select(DB::raw("CONCAT(blocs.nom,'-',immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"), 'biens.id', 'biens.etat', 'biens.prix', 'biens.avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')->get();
-                }
+                  array_push($biens,array('id' => $b_pr->id,'propriete_dite_bien' => $b_pr->bloc->nom.'-'.$b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien,'etat'=>$b_pr->etat,'prix'=>$b_pr->prix,'avance_minimale'=>$b_pr->avance_minimale,'prix_unitaire'=>$b_pr->prix_unitaire,'superficie_terrasse_calculer'=>$b_pr->superficie_terrasse_calculer,'superficie_jardin_calculer'=>$b_pr->superficie_jardin_calculer,'superficie_balcon_calculer'=>$b_pr->superficie_balcon_calculer,'superficie_habitable'=>$b_pr->superficie_habitable,'prix_box'=>$b_pr->prix_box,'prix_parking'=>$b_pr->prix_parking,'is_proposed'=>$b_pr->is_proposed));
+                    }
                 //bloc
                 elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
-                    $biens = Bien::on('temp')->with('is_proposed')
-                        ->join('blocs', 'blocs.id', '=', 'biens.bloc_id')
-                        ->where(function ($query) {
-                            $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-                        })
-                        ->where('biens.projet_id', $projet_id)
-                        ->select(DB::raw("CONCAT(blocs.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"), 'biens.id', 'biens.etat', 'biens.prix', 'biens.avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')->get();
+                    array_push($biens,array('id' => $b_pr->id,'propriete_dite_bien' => $b_pr->bloc->nom.'-'.$b_pr->propriete_dite_bien,'etat'=>$b_pr->etat,'prix'=>$b_pr->prix,'avance_minimale'=>$b_pr->avance_minimale,'prix_unitaire'=>$b_pr->prix_unitaire,'superficie_terrasse_calculer'=>$b_pr->superficie_terrasse_calculer,'superficie_jardin_calculer'=>$b_pr->superficie_jardin_calculer,'superficie_balcon_calculer'=>$b_pr->superficie_balcon_calculer,'superficie_habitable'=>$b_pr->superficie_habitable,'prix_box'=>$b_pr->prix_box,'prix_parking'=>$b_pr->prix_parking,'is_proposed'=>$b_pr->is_proposed));
                 }
                 //immeuble
                 elseif ($b_pr->tranche_id == null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
-                    $biens = Bien::on('temp')->with('is_proposed')->join('immeubles', 'immeubles.id', '=', 'biens.immeuble_id')
-                        ->where(function ($query) {
-                            $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-                        })
-                        ->where('biens.projet_id', $projet_id)
-                        ->select(DB::raw("CONCAT(immeubles.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"), 'biens.id', 'biens.etat', 'biens.prix', 'biens.avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')->get();
+                    array_push($biens,array('id' => $b_pr->id,'propriete_dite_bien' => $b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien,'etat'=>$b_pr->etat,'prix'=>$b_pr->prix,'avance_minimale'=>$b_pr->avance_minimale,'prix_unitaire'=>$b_pr->prix_unitaire,'superficie_terrasse_calculer'=>$b_pr->superficie_terrasse_calculer,'superficie_jardin_calculer'=>$b_pr->superficie_jardin_calculer,'superficie_balcon_calculer'=>$b_pr->superficie_balcon_calculer,'superficie_habitable'=>$b_pr->superficie_habitable,'prix_box'=>$b_pr->prix_box,'prix_parking'=>$b_pr->prix_parking,'is_proposed'=>$b_pr->is_proposed));
                 }
                 //tranche
                 elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id == null) {
-                    $biens = Bien::on('temp')->with('is_proposed')->join('tranches', 'biens.tranche_id', '=', 'tranches.id')
-                        ->where(function ($query) {
-                            $query->where('biens.etat', 'DISPONIBLE')->orwhere('biens.etat', 'ENCOURS_DE_PROPOSITION');
-                        })
-                        ->where('biens.projet_id', $projet_id)
-                        ->select(DB::raw("CONCAT(tranches.nom,'-',biens.propriete_dite_bien) AS propriete_dite_bien"), 'biens.id', 'biens.etat', 'biens.prix', 'biens.avance_minimale', 'prix_unitaire', 'superficie_terrasse_calculer', 'superficie_jardin_calculer', 'superficie_balcon_calculer', 'superficie_habitable', 'prix_box', 'prix_parking')->get();
+                    array_push($biens,array('id' => $b_pr->id,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->propriete_dite_bien,'etat'=>$b_pr->etat,'prix'=>$b_pr->prix,'avance_minimale'=>$b_pr->avance_minimale,'prix_unitaire'=>$b_pr->prix_unitaire,'superficie_terrasse_calculer'=>$b_pr->superficie_terrasse_calculer,'superficie_jardin_calculer'=>$b_pr->superficie_jardin_calculer,'superficie_balcon_calculer'=>$b_pr->superficie_balcon_calculer,'superficie_habitable'=>$b_pr->superficie_habitable,'prix_box'=>$b_pr->prix_box,'prix_parking'=>$b_pr->prix_parking,'is_proposed'=>$b_pr->is_proposed));
                 }
 
             }
-            if (count($biens) == 0) {
-                $biens = $biens_pr;
+
+            return response()->json(['biens' => $biens], 200);
+
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+    }
+
+
+    public function getBiens_Vendu_ByProjet_Concat($projet_id,$text)
+    {
+
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            if($text=='BiensNonRemise'){
+                //biens vendu sans Remise
+                $biens_pr = Bien::on('temp')->with('tranche','bloc','immeuble','reservation')->withSum('encaissements','montant')
+                ->where('etat','RESERVATION')
+                ->doesntHave('remiseCle')
+                ->where('projet_id', $projet_id)->get();
+            }else{
+                //biens vendu
+                $biens_pr = Bien::on('temp')->with('tranche','bloc','immeuble','reservation')->withSum('encaissements','montant')
+                ->where('etat','RESERVATION')
+                ->where('projet_id', $projet_id)->get();
+            }
+
+            $biens=array();
+            foreach ($biens_pr as $b_pr) {
+                if($b_pr->prix<=$b_pr->encaissements_sum_montant){
+                     //tranches bloc w immeuble
+                    if ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
+                        array_push($biens,array('id' => $b_pr->id,'clients' => $b_pr->reservation->aquereurs,'prix' => $b_pr->prix,'encaissement' => $b_pr->encaissements_sum_montant,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->bloc->nom.'-'.$b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien));
+                    }
+                    //tranche bloc
+                    elseif ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
+                        array_push($biens,array('id' => $b_pr->id,'prix' => $b_pr->prix,'clients' => $b_pr->reservation->aquereurs,'encaissement' => $b_pr->encaissements_sum_montant,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->bloc->nom.'-'.$b_pr->propriete_dite_bien));}
+
+                    //tranche immeuble
+                    elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
+                        array_push($biens,array('id' => $b_pr->id,'prix' => $b_pr->prix,'clients' => $b_pr->reservation->aquereurs,'encaissement' => $b_pr->encaissements_sum_montant,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien));
+                    }
+                    //bloc immeuble
+                    elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
+                    array_push($biens,array('id' => $b_pr->id,'prix' => $b_pr->prix,'clients' => $b_pr->reservation->aquereurs,'encaissement' => $b_pr->encaissements_sum_montant,'propriete_dite_bien' => $b_pr->bloc->nom.'-'.$b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien));
+                        }
+                    //bloc
+                    elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
+                        array_push($biens,array('id' => $b_pr->id,'prix' => $b_pr->prix,'clients' => $b_pr->reservation->aquereurs,'encaissement' => $b_pr->encaissements_sum_montant,'propriete_dite_bien' => $b_pr->bloc->nom.'-'.$b_pr->propriete_dite_bien));
+                    }
+                    //immeuble
+                    elseif ($b_pr->tranche_id == null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
+                        array_push($biens,array('id' => $b_pr->id,'prix' => $b_pr->prix,'clients' => $b_pr->reservation->aquereurs,'encaissement' => $b_pr->encaissements_sum_montant,'propriete_dite_bien' => $b_pr->immeuble->nom.'-'.$b_pr->propriete_dite_bien));
+                    }
+                    //tranche
+                    elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id == null) {
+                        array_push($biens,array('id' => $b_pr->id,'prix' => $b_pr->prix,'clients' => $b_pr->reservation->aquereurs,'encaissement' => $b_pr->encaissements_sum_montant,'propriete_dite_bien' => $b_pr->tranche->nom.'-'.$b_pr->propriete_dite_bien));
+                    }
+
+                }
+
             }
             return response()->json(['biens' => $biens], 200);
 
@@ -837,5 +859,6 @@ class BienController extends Controller
 
         }
     }
+
 
 }

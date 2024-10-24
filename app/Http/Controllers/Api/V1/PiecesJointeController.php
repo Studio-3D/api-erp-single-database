@@ -64,6 +64,7 @@ class PiecesJointeController extends Controller
             $pJ->reservation_id = $request->reservation_id;
             $pJ->desistement_id = $request->desistement_id;
             $pJ->penalite_id = $request->penalite_id;
+            $pJ->reclamation_id = $request->reclamation_id;
             $pJ->active = $request->active;
             if($request->pj_scanner){
                 $pJ->pj_scanner = $request->pj_scanner;
@@ -115,6 +116,7 @@ class PiecesJointeController extends Controller
                 $pJ->type = $request->file('fichier')->getClientOriginalExtension();
                 $pJ->avance_id = $request->input("avance_id");
                 $pJ->reservation_id = $request->input("reservation_id");
+                $pJ->reclamation_id = $request->input("reclamation_id");
             }
 
             if ($pJ->save()) {
@@ -192,6 +194,23 @@ class PiecesJointeController extends Controller
 
                 if (File::exists(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements'.'/'.$p->fichier))) {
                     File::delete(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements'.'/'.$p->fichier));
+                }
+                $p->delete();
+            }
+            return response()->json(['message' => 'PJ deleted successfully'], 200);
+
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+    public function destoryFileUsingReclamationId($rec_id,$societe)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $pj = PiecesJointe::on('temp')->where('reclamation_id', $rec_id)->get();
+            foreach ($pj as $p) {
+
+                if (File::exists(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations'.'/'.$p->fichier))) {
+                    File::delete(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations'.'/'.$p->fichier));
                 }
                 $p->delete();
             }

@@ -241,7 +241,15 @@ class PiecesJointeController extends Controller
         $publicPath = public_path();
 
         // Déterminer le sous-dossier en fonction de la variable $doss
-        $subdirectory = $doss == 'rsv' ? 'reservations' : ($doss == 'avc' ? 'paiements' : ($doss == 'plt' ? 'penalites' : 'desistement'));
+        switch($doss){
+            case 'rsv': $subdirectory='reservations';
+            break;
+            case 'avc': $subdirectory='paiements';break;
+            case 'plt': $subdirectory='penalites';break;;
+            case 'reclamations': $subdirectory='reclamations';break;;
+            case 'dst': $subdirectory='desistement';break;;
+            default:'nothing';break;;
+        }
 
         // Chemin complet vers le dossier
         $directory = $publicPath . '/Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/' . $subdirectory;

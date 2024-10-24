@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Enum\Civilite;
 
 return new class extends Migration
 {
@@ -11,16 +12,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('nouvel_aquereurs_desistements', function (Blueprint $table) {
+        Schema::create('prestataires', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('desistement_id')->constrained('desistements')->onDelete('cascade');
-            $table->string('cin');
+            $table->string('cin')->nullable();
             $table->string('nom');
             $table->string('prenom');
             $table->string('telephone');
-            $table->integer('pourcentage');
-            $table->softDeletes();
+            $table->string('email')->nullable();
+            $table->enum('civilite',[Civilite::Mr->name,Civilite::Mme->name,Civilite::Mlle->name]);
+            $table->string('adresse')->nullable();
+            $table->foreignId('service_id')->constrained('services_prestataires')->onDelete('cascade');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -29,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('nouvel_aquereurs_desistements');
+        Schema::dropIfExists('prestataires');
     }
 };

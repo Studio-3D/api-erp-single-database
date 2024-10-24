@@ -2708,6 +2708,7 @@ class DesistementController extends Controller
                  $encaiss = new Encaissement();
                  $encaiss->setConnection('temp');
                  $encaiss->reservation_id = $penalite->desistement->reservation_id;
+                 $encaiss->bien_id=$penalite->desistement->bien_id_ancien;
                  $encaiss->type_encaissement = 6; //Penalités
                  $encaiss->montant = $penalite->montant;
                  $encaiss->penalite_id = $penalite->id;

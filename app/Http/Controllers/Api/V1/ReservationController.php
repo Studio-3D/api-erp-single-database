@@ -74,19 +74,11 @@ class ReservationController extends Controller
 
             DatabaseHelper::Config();
 
-            $avances = Avance::on('temp')
-                ->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
-                ->groupBy('reservation_id');
 
-            $query = Reservation::on('temp')
-                ->with('desistement_att_validation_rejete', 'last_statut', 'first_avance')
-                ->joinSub($avances, 'avances_req', function ($join) {
-                    $join->on('avances_req.reservation_id', '=', 'reservations.id');
-                })
-                ->select('reservations.*', 'avances_req.sum_avances')
-                ->where('reservations.projet_id', $projet_id)
-                ->where('reservations.etat', 1);
-
+            $query = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance')
+            ->orderBy('created_at', 'desc')
+                ->where('projet_id', $projet_id)
+                ->where('etat', 1);
             // Optional filters (Add more if needed)
             if ($request->filled('code_reservation')) {
                 $query->where('code_reservation', 'like', '%' . $request->input('code_reservation') . '%');

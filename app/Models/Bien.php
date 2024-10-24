@@ -85,6 +85,13 @@ class Bien extends Model
    {
        return $this->hasMany(TvaCollecte::class,'bien_id')->onlyTrashed();
    }
-
+   public function encaissements()
+   {
+       return $this->hasMany(Encaissement::class,'bien_id');
+   }
+   public function remiseCle()
+   {
+       return $this->hasone(RemiseCle::class,'bien_id')->orderby('created_at','desc')->latest();
+   }
 
 }

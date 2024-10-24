@@ -1083,7 +1083,6 @@ class AppelController extends Controller
      public function get_info_cin_unique($id,$cin)
     {
             if(RoleHelper::ACSup()){
-                $user = Auth::user();
                 DatabaseHelper::Config();
                 //cin unique
                 $prospect_count=Prospect::on('temp')->where('cin',$cin)->where('id','!=',$id)->count();

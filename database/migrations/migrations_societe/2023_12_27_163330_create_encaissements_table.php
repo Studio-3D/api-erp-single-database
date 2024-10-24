@@ -26,6 +26,7 @@ return new class extends Migration
             $table->integer('restitution_id')->nullable()->comment('Table Restitution');
             $table->integer('remboursement_id')->nullable()->comment('Table Remboursement');
             $table->integer('decharge_id')->nullable()->comment('Table Decharge');
+            $table->foreignId('bien_id')->nullable()->constrained('biens')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
 

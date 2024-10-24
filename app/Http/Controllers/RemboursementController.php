@@ -268,6 +268,7 @@ class RemboursementController extends Controller
                 $encaiss = new Encaissement();
                 $encaiss->setConnection('temp');
                 $encaiss->remboursement_id = $id;
+                $encaiss->bien_id=$remboursement->reservation->bien_id;
                 $encaiss->reservation_id = $remboursement->reservation_id;
                 $encaiss->type_encaissement = 3; //Remboursements
                 $encaiss->montant = $remboursement->montant_a_rembourser;

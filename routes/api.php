@@ -34,6 +34,12 @@ use App\Http\Controllers\Api\V1\CreditsController as V1CreditsController;
 use App\Http\Controllers\Api\V1\StatistiquesController as V1StatistiquesController;
 use App\Http\Controllers\Api\V1\HomeController as V1HomeController;
 use App\Http\Controllers\Api\V1\ObjectifController as V1ObjectifsController;
+use App\Http\Controllers\Api\V1\ServicesPrestatairesController as V1ServicesPrestatairesController;
+use App\Http\Controllers\Api\V1\PrestatairesController as V1PrestatairesController;
+use App\Http\Controllers\Api\V1\ReclamationController as V1ReclamationsController;
+use App\Http\Controllers\Api\V1\RemiseCleController as V1RemiseCleController;
+
+
 
 
 
@@ -259,6 +265,27 @@ Route::middleware('auth:api')->group(function () {
         //objectifs
         Route::resource('objectifs', V1ObjectifsController::class);
         Route::get('projets/{idprojet}/objectifs', [V1ObjectifsController::class, 'indexByProjet']);
+        //sav
+        Route::resource('ServicesPrestataires', V1ServicesPrestatairesController::class);
+        Route::get('services', [V1ServicesPrestatairesController::class, 'get_services']);
+        Route::get('projets/{idprojet}/ServicesPrestataires', [V1ServicesPrestatairesController::class, 'index']);
+
+        Route::resource('/Prestataires', V1PrestatairesController::class);
+        Route::get('projets/{idprojet}/Prestataires', [V1PrestatairesController::class, 'index']);
+        Route::get('search_prestataire_by_param/{param_1}/{value}', [V1PrestatairesController::class, 'search_prestataire_by_param']);
+        Route::get('get_info_cin_prestataire_unique/{prospect_id}/{cin}', [V1PrestatairesController::class, 'get_info_cin_prestataire_unique']);
+
+        //reclamations
+        Route::resource('/Reclamations', V1ReclamationsController::class);
+        Route::get('projets/{idprojet}/Reclamations', [V1ReclamationsController::class, 'indexByProjet']);
+        Route::get('getBiens_Vendu_ByProjet_Concat/{id}/{text}', [V1BienController::class, 'getBiens_Vendu_ByProjet_Concat'])->name('');
+        Route::put('traiter_reclamation/{id}', [V1ReclamationsController::class, 'traiter_reclamation'])->name('');
+
+        //Remise Cles
+        Route::resource('/RemiseCles', V1RemiseCleController::class);
+        Route::get('projets/{idprojet}/RemiseCles', [V1RemiseCleController::class, 'indexByProjet']);
+
+
 
     });
 

@@ -37,7 +37,7 @@ return new class extends Migration
        ])->nullable();
         $table->enum('lien_parente',[LienParente::Parents->value,LienParente::Fils->value,LienParente::Fréres->value,LienParente::Soeurs->value,LienParente::Autre->value])->nullable();
         $table->foreignId('bien_id_ancien')->nullable()->constrained('biens')->onDelete('cascade');
-        $table->foreignId('bien_id_new')->nullable()->constrained('biens')->onDelete('cascade');
+        $table->integer('bien_id_new')->nullable();
         $table->double('montant_a_ajouter')->nullable();
         $table->string('montant_a_ajouter_par_lettre')->nullable();
 
@@ -52,7 +52,9 @@ return new class extends Migration
         $table->String('commentaire')->nullable();
         $table->String('commentaire_rejete')->nullable();
         $table->date('date_validation')->nullable();
+        $table->foreignId('user_id_valider')->nullable()->constrained('users')->onDelete('cascade');
         $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
+        $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
         $table->timestamps();
         $table->softDeletes();
     });

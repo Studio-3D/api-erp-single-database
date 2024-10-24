@@ -291,6 +291,7 @@ class AvanceController extends Controller
                 $encaiss = new Encaissement();
                 $encaiss->setConnection('temp');
                 $encaiss->reservation_id = $avance->reservation_id;
+                $encaiss->bien_id=$avance->reservation->bien_id;
                 $encaiss->type_encaissement = 1; //Avances
                 $encaiss->montant = $avance->montant;
                 $encaiss->avance_id = $avance->id;
@@ -606,6 +607,7 @@ class AvanceController extends Controller
                             $encaiss = new Encaissement();
                             $encaiss->setConnection('temp');
                             $encaiss->reservation_id = $request->reservation_id;
+                            $encaiss->bien_id=$avance->reservation->bien_id;
                             $encaiss->type_encaissement = 1; //Avances
                             $encaiss->montant = $avance->montant;
                             $encaiss->avance_id = $avance->id;
@@ -844,6 +846,7 @@ class AvanceController extends Controller
                                 $encaiss = new Encaissement();
                                 $encaiss->setConnection('temp');
                                 $encaiss->reservation_id = $avance->reservation_id;
+                                $encaiss->bien_id=$avance->reservation->bien_id;
                                 $encaiss->type_encaissement = 1; //Avances
                                 $encaiss->montant = $avance->montant;
                                 $encaiss->avance_id = $avance->id;

@@ -16,12 +16,11 @@ return new class extends Migration
             $table->foreignId('desistement_id')->constrained('desistements')->onDelete('cascade');
             $table->foreignId('reservation_id')->constrained('reservations')->onDelete('cascade');
             $table->foreignId('aquereur_id')->nullable()->constrained('aquereurs')->onDelete('cascade');
-            $table->integer('statut')->default(0)
-            ->comment(
-            '0 =>att de pre remboursement
-            1=>att accusé du cheque
-            2 =>att decaissement
-            3 ==>list des accusé');
+            $table->integer('statut')->default(0)->comment(
+                '0 =>att de pre remboursement
+                1=>att accusé du cheque
+                2 =>att decaissement
+                3 ==>list des accusé');
             $table->integer('etat')->nullable()->comment('0=>rem apres vente /1=> rem direct ou transfert ou transfer_remb_direct/ 2=> transfer_rem_apres_vente');
             $table->string('cheque')->nullable();
             $table->string('mode_rembourse')->nullable()->comment('direct /transfert_rem_direct/transfer_rem_apres_vente/apres_vente/tranfert');
