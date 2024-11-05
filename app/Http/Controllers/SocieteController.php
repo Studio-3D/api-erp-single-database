@@ -82,6 +82,9 @@ class SocieteController extends Controller
             $societe->prenom_contact = $request->prenom_contact;
             $societe->tel = $request->tel;
             $societe->email = $request->email;
+            $societe->id_fiscal = $request->id_fiscal;
+            $societe->registre_commerce = $request->registre_commerce;
+            $societe->capital = $request->capital;
             if ($request->hasFile('logo')) {
                 $logo = time() . '.' . $raison_sociale_concatene . '.' . $request->logo->extension();
                 

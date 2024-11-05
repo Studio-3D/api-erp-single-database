@@ -19,6 +19,9 @@ class Societe extends Model
         'raison_sociale_concatene',
         'tel',
         'societe_id',
+        'capital',
+        'id_fiscal',
+        'registre_commerce',
     ];
 
     protected $dates = ['deleted_at'];

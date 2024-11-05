@@ -19,7 +19,6 @@ return new class extends Migration
             $table->double('prix_ttc', 20, 2)->default(0);
             $table->double('qp_terrain_percent', 20, 2)->default(0);
             $table->double('qp_terrain_valeur', 20, 2)->default(0);
-            $table->double('qp_terrain_valeur', 20, 2)->default(0);
             $table->double('prix_vente_ht_hors_terrain', 20, 2)->default(0);
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
