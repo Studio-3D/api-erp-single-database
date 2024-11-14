@@ -295,9 +295,12 @@ class ProjetController extends Controller
             $projet->nbre_biens = $request->nbre_biens ?: 0;
             $projet->max_etages = $request->max_etages;
             if ($projet->save()) {
+
                 $user_projets = UserProjet::on('temp')->where('projet_id', $id)->delete();
                 $all = 0;
-                foreach ($request->selectedUsers as $valeur) {
+                if (!empty($request->selectedUsers )) {
+                    $array_user = explode(',', $request->selectedUsers); // $tranches_array sera ['5', '2']
+                foreach ($array_user as $valeur) {
                     if ($valeur == 'tous') {
                         $all = 1;
                         break;
@@ -311,13 +314,13 @@ class ProjetController extends Controller
                     }
                     return response()->json(['projet' => $projet], 200);
                 } else {
-                    foreach ($request->selectedUsers as $valeur) {
-                        UserProjetHelper::createUserProjet($projet->id, $valeur['id']);
+                    foreach ($array_user as $valeur) {
+                        UserProjetHelper::createUserProjet($projet->id, $valeur);
                     }
                     broadcast(new NewProjectEvent($id));
 
                     return response()->json(['projet' => $projet], 200);
-                }
+                }}
             }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

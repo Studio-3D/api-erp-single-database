@@ -15,7 +15,6 @@ use App\Http\Controllers\Api\V1\CreditsController as V1CreditsController;
 use App\Http\Controllers\Api\V1\DecompteController as V1DecompteController;
 use App\Http\Controllers\Api\V1\DesistementController as V1DesistementController;
 use App\Http\Controllers\Api\V1\EncaissementController as V1EncaissementController;
-use App\Http\Controllers\Api\V1\EnumController as V1EnumController;
 use App\Http\Controllers\Api\V1\FactureController as V1FactureController;
 use App\Http\Controllers\Api\V1\FournisseurController as V1FournisseurController;
 use App\Http\Controllers\Api\V1\HomeController as V1HomeController;
@@ -37,29 +36,13 @@ use App\Http\Controllers\Api\V1\PiecesJointeController as V1PiecesJointeControll
 use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\VisiteController as V1VisiteController;
 use App\Http\Controllers\Api\V1\VueController as V1VueController;
-use App\Http\Controllers\Api\V1\ProspectController as V1ProspectController;
-use App\Http\Controllers\Api\V1\ClientController as V1ClientController;
-use App\Http\Controllers\Api\V1\AquereurController as V1AquereurController;
-use App\Http\Controllers\Api\V1\ReservationController as V1ReservationController;
-use App\Http\Controllers\Api\V1\AvanceController as V1AvanceController;
-use App\Http\Controllers\Api\V1\AppelController as V1AppelController;
 use App\Http\Controllers\Api\V1\EnumController as V1EnumController;
-use App\Http\Controllers\Api\V1\EncaissementController as V1EncaissementController;
-use App\Http\Controllers\Api\V1\ComptabiliteController as V1ComptabiliteController;
-use App\Http\Controllers\Api\V1\FournisseurController as V1FournisseurController;
-use App\Http\Controllers\Api\V1\DecompteController as V1DecompteController;
-use App\Http\Controllers\Api\V1\FactureController as V1FactureController;
-use App\Http\Controllers\Api\V1\CpsController as V1CpsController;
-use App\Http\Controllers\Api\V1\CreditsController as V1CreditsController;
-use App\Http\Controllers\Api\V1\StatistiquesController as V1StatistiquesController;
-use App\Http\Controllers\Api\V1\HomeController as V1HomeController;
-use App\Http\Controllers\Api\V1\ObjectifController as V1ObjectifsController;
+
 use App\Http\Controllers\Api\V1\ServicesPrestatairesController as V1ServicesPrestatairesController;
 use App\Http\Controllers\Api\V1\PrestatairesController as V1PrestatairesController;
 use App\Http\Controllers\Api\V1\ReclamationController as V1ReclamationsController;
 use App\Http\Controllers\Api\V1\RemiseCleController as V1RemiseCleController;
 
-use App\Http\Controllers\Api\V1\DesistementController as V1DesistementController;
 
 
 use App\Http\Controllers\AquereurController;

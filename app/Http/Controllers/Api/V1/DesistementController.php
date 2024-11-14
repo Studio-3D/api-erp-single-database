@@ -891,7 +891,7 @@ class DesistementController extends Controller
                                                     'telephone_num1' => $info->telephone,
                                                     'telephone_num2' => $prospect_exist->telephone_num2,
                                                     'notifie' => $prospect_exist->notifie,
-                                                    'civilite' => 'Mr',
+                                                    'civilite' => '1',
                                                     'situation_familliale' => 'Célibataire',
                                                     'type_client' => 1,
                                                 ];
@@ -2376,6 +2376,38 @@ class DesistementController extends Controller
                 $request->input('a_date'),
             ]);
         }
+        if ($request->filled('de_date_respo') && $request->filled('a_date_respo')) {
+            $query->whereBetween('desistements.date_validation', [
+                $request->input('de_date_respo'),
+                $request->input('a_date_respo'),
+            ]);
+        }
+        if ($request->filled('responsable')) {
+            $query->whereHas('responsable_validation', function ($q) use ($request) {
+                $q->where(function ($q) use ($request) {
+                    $q->where('name', 'like', '%' . $request->input('responsable') . '%')
+                    ->orWhere('prenom', 'like', '%' . $request->input('responsable') . '%');
+                });
+            });
+        }
+        if ($request->filled('desisteur')) {
+            $desisteur = $request->input('desisteur');
+            $query->whereHas('aquereurs_desisteurs.client', function ($q) use ($desisteur) {
+                $q->where('nom', 'like', '%' . $desisteur . '%')
+                  ->orWhere('prenom', 'like', '%' . $desisteur . '%');
+            });
+        }
+        if ($request->filled('ancien_aq')) {
+            $ancienAq = $request->input('ancien_aq');
+            $query->whereHas('reservation_ancien.aquereurs_ancien.client', function ($q) use ($ancienAq) {
+                $q->where('nom', 'like', '%' . $ancienAq . '%')
+                  ->orWhere('prenom', 'like', '%' . $ancienAq . '%');
+            });
+        }
+        if ($request->filled('lien_prt')) {
+            $query->where('lien_parente', $request->input('lien_prt'));
+        }
+        
 
         // Gérer les rôles et la pagination
         if (RoleHelper::AdminSup()) {
