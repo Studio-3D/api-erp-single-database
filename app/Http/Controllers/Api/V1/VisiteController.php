@@ -287,7 +287,7 @@ class VisiteController extends Controller
                 $validatedData['telephone'] = $request->telephone;
                 $validatedData['nom'] = $request->nom;
                 $validatedData['prenom'] = $request->prenom;
-                $validatedData['telephone_num2'] = $request->telephone_num2;
+                $validatedData['telephone_num2'] = $request->input('telephone_num2');
                 $validatedData['ville'] = $request->input('ville');
                 $validatedData['origin'] = 'visite';
                 $validatedData['notifie'] = $request->notifie;

@@ -1,22 +1,42 @@
 <?php
 
+use App\Http\Controllers\ActualiteController;
+use App\Http\Controllers\Api\V1\AppelController as V1AppelController;
+use App\Http\Controllers\Api\V1\AquereurController as V1AquereurController;
+use App\Http\Controllers\Api\V1\AvanceController as V1AvanceController;
 use App\Http\Controllers\Api\V1\BanqueController as V1BanqueController;
 use App\Http\Controllers\Api\V1\BienController as V1BienController;
 use App\Http\Controllers\Api\V1\BlocController as V1BlocController;
+use App\Http\Controllers\Api\V1\ClientController as V1ClientController;
 use App\Http\Controllers\Api\V1\CompositionBienController as V1CompositionBienController;
+use App\Http\Controllers\Api\V1\ComptabiliteController as V1ComptabiliteController;
+use App\Http\Controllers\Api\V1\CpsController as V1CpsController;
+use App\Http\Controllers\Api\V1\CreditsController as V1CreditsController;
+use App\Http\Controllers\Api\V1\DecompteController as V1DecompteController;
+use App\Http\Controllers\Api\V1\DesistementController as V1DesistementController;
+use App\Http\Controllers\Api\V1\EncaissementController as V1EncaissementController;
+use App\Http\Controllers\Api\V1\EnumController as V1EnumController;
+use App\Http\Controllers\Api\V1\FactureController as V1FactureController;
+use App\Http\Controllers\Api\V1\FournisseurController as V1FournisseurController;
+use App\Http\Controllers\Api\V1\HomeController as V1HomeController;
 use App\Http\Controllers\Api\V1\ImmeubleController as V1ImmeubleController;
+use App\Http\Controllers\Api\V1\ObjectifController as V1ObjectifsController;
 use App\Http\Controllers\Api\V1\PartenaireController as V1PartenaireController;
 use App\Http\Controllers\Api\V1\ProjetController as V1ProjetController;
+use App\Http\Controllers\Api\V1\ProspectController as V1ProspectController;
+use App\Http\Controllers\Api\V1\ReservationController as V1ReservationController;
 use App\Http\Controllers\Api\V1\SocieteController as V1SocieteController;
 use App\Http\Controllers\Api\V1\SourceController as V1SourceController;
+use App\Http\Controllers\Api\V1\StatistiquesController as V1StatistiquesController;
 use App\Http\Controllers\Api\V1\TrancheController as V1TrancheController;
 use App\Http\Controllers\Api\V1\TypeBienController as V1TypeBienController;
 use App\Http\Controllers\Api\V1\TypeFreinController as V1TypeFreinController;
 use App\Http\Controllers\Api\V1\TypeProjetController as V1TypeProjetController;
 use App\Http\Controllers\Api\V1\TypologieController as V1TypologieController;
+use App\Http\Controllers\Api\V1\PiecesJointeController as V1PiecesJointeController;
 use App\Http\Controllers\Api\V1\UserController as V1UserController;
-use App\Http\Controllers\Api\V1\VueController as V1VueController;
 use App\Http\Controllers\Api\V1\VisiteController as V1VisiteController;
+use App\Http\Controllers\Api\V1\VueController as V1VueController;
 use App\Http\Controllers\Api\V1\ProspectController as V1ProspectController;
 use App\Http\Controllers\Api\V1\ClientController as V1ClientController;
 use App\Http\Controllers\Api\V1\AquereurController as V1AquereurController;
@@ -56,6 +76,7 @@ use App\Http\Controllers\Facebook\FacebookController;
 use App\Http\Controllers\FreinController;
 use App\Http\Controllers\ImmeubleController;
 use App\Http\Controllers\Landing_page\Landing_pageController;
+use App\Http\Controllers\LivraisonController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PartenaireController;
 use App\Http\Controllers\PiecesJointeController;
@@ -73,11 +94,8 @@ use App\Http\Controllers\TypologieController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisiteController;
 use App\Http\Controllers\VueController;
-use App\Http\Controllers\ActualiteController;
 use App\Http\Controllers\WhatsApp\WhatsAppController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\LivraisonController;
-
 
 /*
 |--------------------------------------------------------------------------
@@ -184,7 +202,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('search_prospect_by_cin/{cin}', [V1ProspectController::class, 'search_prospect_by_cin']);
         Route::get('search_prospect_by_phone/{phone}', [V1ProspectController::class, 'search_prospect_by_phone']);
 
-       //l'API client
+        //l'API client
         Route::resource('clients', V1ClientController::class);
         Route::get('search_client_by_cin/{cin}', [V1ClientController::class, 'search_client_by_cin']);
         Route::get('search_client_by_phone/{phone}', [V1ClientController::class, 'search_client_by_phone']);
@@ -215,13 +233,11 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('destroy_t_appel/{id}', [V1AppelController::class, 'destroy_t_appel'])->name('');
         Route::put('traiter_relance_rdv_appel/{id}', [V1AppelController::class, 'traiter_relance_rdv_appel'])->name('');
         Route::get('get_info_cin_unique/{prospect_id}/{cin}', [V1AppelController::class, 'get_info_cin_unique']);
-            //RELANCES RDV APPELS
+        //RELANCES RDV APPELS
         Route::get('projets/{idprojet}/relances_appels', [V1AppelController::class, 'get_relances_appels'])->name('');
         Route::get('projets/{idprojet}/rdv_appels', [V1AppelController::class, 'get_rdv_appels'])->name('');
         Route::get('get_nb_rdv_appels/{projet_id}', [V1AppelController::class, 'get_nb_rdv_appels'])->name('');
         Route::get('get_nb_relances_appels/{projet_id}', [V1AppelController::class, 'get_nb_relances_appels'])->name('');
-
-
 
         //Enumeartion
         Route::get('InteretEnum_appel', [V1EnumController::class, 'InteretEnum__appel_get'])->name('');
@@ -247,21 +263,21 @@ Route::middleware('auth:api')->group(function () {
         Route::get('decomptes_in_facture/{projet_id}', [V1DecompteController::class, 'decomptes_in_facture']);
         Route::get('get_info_numero_decompte_unique/{id}/{num}', [V1DecompteController::class, 'get_info_numero_decompte_unique']);
 
-         //factures
+        //factures
         Route::resource('factures', V1FactureController::class);
         Route::get('projets/{idprojet}/factures', [V1FactureController::class, 'indexByProjet']);
         Route::get('get_info_numero_facture_unique/{id}/{num}', [V1FactureController::class, 'get_info_numero_facture_unique']);
 
-          //cps
+        //cps
         Route::resource('cps', V1CpsController::class);
         Route::get('projets/{idprojet}/cps', [V1CpsController::class, 'indexByProjet']);
-          //credits
+        //credits
         Route::resource('credits', V1CreditsController::class);
         Route::get('projets/{idprojet}/credits', [V1CreditsController::class, 'indexByProjet']);
         Route::put('update_credit/{id}', [V1CreditsController::class, 'update']);
         Route::get('get_info_numero_credit_unique/{id}/{num}', [V1CreditsController::class, 'get_info_numero_credit_unique']);
 
-          //Statistiques
+        //Statistiques
         Route::get('statistiques_admin/{projet_id}/{de}/{a}', [V1StatistiquesController::class, 'index_admin'])->name('');
 
         //fullcalendar home
@@ -269,6 +285,8 @@ Route::middleware('auth:api')->group(function () {
         //objectifs
         Route::resource('objectifs', V1ObjectifsController::class);
         Route::get('projets/{idprojet}/objectifs', [V1ObjectifsController::class, 'indexByProjet']);
+        //piecejointe
+        Route::get('files_docs/{docs}', [V1PiecesJointeController::class, 'files_docs'])->name('files_docs');
         //sav
         Route::resource('ServicesPrestataires', V1ServicesPrestatairesController::class);
         Route::get('services', [V1ServicesPrestatairesController::class, 'get_services']);
@@ -524,7 +542,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('Enums_desistements', [EnumController::class, 'get_enums_desistements'])->name('');
     Route::get('StatutRdv_Enum', [EnumController::class, 'StatutRdvEnum_get'])->name('');
 
-
     /************************NotificationController********************* */
     Route::get('get_relances_visites/{projet_id}', [NotificationController::class, 'get_relances_visites'])->name('');
     Route::get('get_nb_relances_visites/{projet_id}', [NotificationController::class, 'get_nb_relances_visites'])->name('');
@@ -571,20 +588,20 @@ Route::middleware('auth:api')->group(function () {
     Route::post('traiter_decaissement/{id}', [RemboursementController::class, 'traiter_decaissement'])->name('');
     Route::get('get_remboursements_dos_transfert/{projet_id}', [RemboursementController::class, 'get_remboursements_dos_transfert'])->name('');
 
-     /*************************************Actualites***************************** */
-     Route::get('historiques/{date}/{id}/{type}', [ActualiteController::class, 'get_historique'])->name('');
-     Route::get('actualites/{projet_id}/{user_id}/{de_date}/{a_date}', [ActualiteController::class, 'index'])->name('');
-     /***********************************Livraison*******************/
-                /*******rdv notaire*** */
+    /*************************************Actualites***************************** */
+    Route::get('historiques/{date}/{id}/{type}', [ActualiteController::class, 'get_historique'])->name('');
+    Route::get('actualites/{projet_id}/{user_id}/{de_date}/{a_date}', [ActualiteController::class, 'index'])->name('');
+    /***********************************Livraison*******************/
+    /*******rdv notaire*** */
 
-     Route::get('get_rdvs_reservation/{res_id}', [LivraisonController::class, 'get_rdvs_reservation'])->name('');
-     Route::put('update_rdv_reservation/{rdv_id}', [LivraisonController::class, 'update_rdv_reservation'])->name('');
-     Route::post('store_rdv_reservation/{rdv_id}', [LivraisonController::class, 'store_rdv_reservation'])->name('');
-     Route::put('traiter_rdv_reservation/{rdv_id}', [LivraisonController::class, 'traiter_rdv_reservation'])->name('');
-     Route::delete('destroy_rdv_reservation/{id}', [LivraisonController::class, 'destroy_rdv_reservation'])->name('');
-     Route::get('get_rdv_notaire_menu/{projet_id}', [LivraisonController::class, 'get_rdv_notaire_menu'])->name('');
+    Route::get('get_rdvs_reservation/{res_id}', [LivraisonController::class, 'get_rdvs_reservation'])->name('');
+    Route::put('update_rdv_reservation/{rdv_id}', [LivraisonController::class, 'update_rdv_reservation'])->name('');
+    Route::post('store_rdv_reservation/{rdv_id}', [LivraisonController::class, 'store_rdv_reservation'])->name('');
+    Route::put('traiter_rdv_reservation/{rdv_id}', [LivraisonController::class, 'traiter_rdv_reservation'])->name('');
+    Route::delete('destroy_rdv_reservation/{id}', [LivraisonController::class, 'destroy_rdv_reservation'])->name('');
+    Route::get('get_rdv_notaire_menu/{projet_id}', [LivraisonController::class, 'get_rdv_notaire_menu'])->name('');
 
-            /************compromis vente******/
+    /************compromis vente******/
 
     Route::post('store_compromis_vente/{rdv_id}', [LivraisonController::class, 'store_compromis_vente'])->name('');
     Route::get('show_compromis/{id}', [LivraisonController::class, 'show_compromis'])->name('');
@@ -594,7 +611,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('get_compromis_annules_by_reservation/{id}', [LivraisonController::class, 'get_compromis_annules_by_reservation'])->name('');
     Route::post('scanner_compromis', [LivraisonController::class, 'scanner_compromis'])->name('scanner_compromis');
 
-          /****************************Contrat de vente*****************/
+    /****************************Contrat de vente*****************/
 
     Route::get('get_contrat_by_reservation/{id}', [LivraisonController::class, 'get_contrat_by_reservation'])->name('');
     Route::post('store_contrat_vente/{rdv_id}', [LivraisonController::class, 'store_contrat_vente'])->name('');
@@ -602,5 +619,5 @@ Route::middleware('auth:api')->group(function () {
     Route::put('update_contrat/{cont_id}', [LivraisonController::class, 'update_contrat'])->name('');
     Route::post('scanner_contrat', [LivraisonController::class, 'scanner_contrat'])->name('');
 
-    });
+});
 Route::get('sendResetPasswordEmail', [UserController::class, 'sendResetPasswordEmail']);

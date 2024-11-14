@@ -16,6 +16,9 @@ return new class extends Migration
             $table->string('raison_sociale');
             $table->string('raison_sociale_concatene');
             $table->string('adresse')->nullable();
+            $table->integer(column: 'capital')->nullable();
+            $table->integer(column: 'id_fiscal')->nullable();
+            $table->integer(column: 'registre_commerce')->nullable();
             $table->string('nom_contact');
             $table->string('prenom_contact');
             $table->string('tel')->nullable();
