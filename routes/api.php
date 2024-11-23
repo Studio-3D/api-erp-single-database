@@ -194,6 +194,8 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API Aquerreur
         Route::resource('aquereurs', V1AquereurController::class);
+        Route::get('getAquereurByReservation/{reservation_id}', [V1AquereurController::class, 'getAquereurByReservation'])->name('getAquereurByReservation');
+
         //l'API Avance
         Route::resource('avances', V1AvanceController::class);
         Route::get('getAvancesByReservation/{reservation_id}', [V1AvanceController::class, 'getAvancesByReservation'])->name('getAvancesByReservation');
@@ -225,7 +227,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_nb_relances_appels/{projet_id}', [V1AppelController::class, 'get_nb_relances_appels'])->name('');
 
         //Enumeartion
-        Route::get('InteretEnum_appel', [V1EnumController::class, 'InteretEnum__appel_get'])->name('');
+        //Route::get('InteretEnum_appel', [V1EnumController::class, 'InteretEnum__appel_get'])->name('');
 
         //Encaissements
         Route::resource('encaissements', V1EncaissementController::class);

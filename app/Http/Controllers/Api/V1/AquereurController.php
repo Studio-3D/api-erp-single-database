@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreAquereurRequest;
@@ -13,6 +12,7 @@ use App\Models\NouvelAquereurDesistement;
 use App\Models\Reservation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\Controller;
 
 class AquereurController extends Controller
 {
@@ -38,35 +38,76 @@ class AquereurController extends Controller
         return response()->json(['error' => 'Unauthorized'],401);
     }
 
-    public function getAquereur_by_Reservation(Request $request, $reservation_id)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
-             // Get the number of items per page
-            $page = $request->input('page', 1);
-            $reservation=Reservation::on('temp')->findorfail($reservation_id);
-            //si dossier desiste
-            if($reservation->etat>1){
-                $aquereurs = Aquereur::on('temp')
-                ->orderBy('created_at', 'desc')
-                ->onlyTrashed()
-                ->where('reservation_id', $reservation_id)
-                ->paginate($perPage, ['*'], 'page', $page);
-            }else{
-                $aquereurs = Aquereur::on('temp')
-                ->orderBy('created_at', 'desc')
-                ->where('reservation_id', $reservation_id)
-                ->paginate($perPage, ['*'], 'page', $page);
-            }
+    public function getAquereurByReservation(Request $request, $reservation_id)
+{
+    if (RoleHelper::ACSup()) {
+        DatabaseHelper::Config();
+        $size = $request->input('size', config('app.default_item_number_perpage'));
+        $page = $request->input('page', 1);
 
-            return response()->json(['aquereurs' => $aquereurs,'etat_res'=>$reservation->etat], 200);
+        $reservation = Reservation::on('temp')->findOrFail($reservation_id);
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        // Préparation de la requête principale
+        $query = Aquereur::on('temp')
+            ->orderBy('created_at', 'desc')
+            ->where('reservation_id', $reservation_id);
 
+        // Vérifier si le dossier est désisté
+        if ($reservation->etat > 1) {
+            $query->onlyTrashed();
         }
+
+        // Application des filtres dynamiques
+        if ($request->filled('nom')) {
+            $query->whereHas('client', function ($q) use ($request) {
+                $q->where('nom', 'like', '%' . $request->input('nom') . '%');
+            });
+        }
+        
+        if ($request->filled('cin')) {
+            $query->whereHas('client', function ($q) use ($request) {
+                $q->where('cin', 'like', '%' . $request->input('cin') . '%');
+            });
+        }
+        
+        if ($request->filled('prenom')) {
+            $query->whereHas('client', function ($q) use ($request) {
+                $q->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+            });
+        }
+        
+        if ($request->filled('telephone')) {
+            $query->whereHas('client', function ($q) use ($request) {
+                $q->where('telephone_num1', 'like', '%' . $request->input('telephone') . '%')
+                  ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+            });
+        }
+        
+        if ($request->filled('pourcentage')) {
+            $query->where('pourcentage', 'like', '%' . $request->input('pourcentage') . '%');
+        }
+
+        // Récupération des résultats paginés
+        $aquereurs = $query->paginate($size, ['*'], 'page', $page);
+
+        // Construction de la pagination
+        $pagination = [
+            'currentPage' => $aquereurs->currentPage(),
+            'totalItems' => $aquereurs->total(),
+            'totalPages' => $aquereurs->lastPage(),
+        ];
+
+        // Envoi de la réponse
+        return response()->json([
+            'data' => $aquereurs->items(),
+            'pagination' => $pagination,
+            'etat_res' => $reservation->etat,
+        ], 200);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
+
 
 
 
