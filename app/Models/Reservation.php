@@ -49,6 +49,10 @@ class Reservation extends Model
     {
         return $this->hasMany(Avance::class,'reservation_id');
     }
+    public function avances_valides()
+    {
+        return $this->hasMany(Avance::class,'reservation_id')->where('statut',1);
+    }
     public function rdv()
     {
         return $this->hasMany(Rendez_vous::class,'reservation_id');

@@ -493,7 +493,7 @@ class ReservationController extends Controller
                 $propriete = $bien->get_propriete_bien_concat($reservation->bien_id);
             }
             $sum_avances_valides = 0;
-            $sum_avances = 0;
+           // $sum_avances = 0;
             //si dossier desiste
             if ($reservation->etat > 1) {
                 foreach ($reservation->avances_desist as $av) {
@@ -506,24 +506,22 @@ class ReservationController extends Controller
                 $sum_avances+=$av->montant;
                 }*/
                 }
-                $count_avances = Avance::on('temp')->where('reservation_id', $id)->onlyTrashed()->count('id');
+               // $count_avances = Avance::on('temp')->where('reservation_id', $id)->onlyTrashed()->count('id');
 
             } else {
-                foreach ($reservation->avances as $av) {
-                    //avance validé
-                    if ($av->statut == StatutReservationEnum::Validé->value) {
+                foreach ($reservation->avances_valides as $av) {
                         $sum_avances_valides += $av->montant;
-                    }
+
                     /*//tous les avances !=refuse
                 if($av->statut!=StatutReservationEnum::REFUSER->value){
                 $sum_avances+=$av->montant;
                 }*/
                 }
-                $count_avances = Avance::on('temp')->where('reservation_id', $id)->count('id');
+               // $count_avances = Avance::on('temp')->where('reservation_id', $id)->count('id');
 
             }
 
-            return response()->json(['reservation' => $reservation, 'propriete_dite_bien' => $propriete, 'sum_avances_valides' => $sum_avances_valides, 'count_avances' => $count_avances], 200);
+            return response()->json(['reservation' => $reservation, 'propriete_dite_bien' => $propriete, 'sum_avances_valides' => $sum_avances_valides], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

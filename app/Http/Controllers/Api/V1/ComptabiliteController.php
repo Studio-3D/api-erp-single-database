@@ -206,7 +206,7 @@ class ComptabiliteController extends Controller
             $page = $request->input('page', null);
             DatabaseHelper::Config();
 
-            $query = TvaCollecte::on('temp')->with('encaissement','reservation','bien');
+            $query = TvaCollecte::on('temp')->with('encaissement','reservation','bien','encaissement.remboursement');
             $query->where('etat', 1);
 
             if ($request->filled('de')) {

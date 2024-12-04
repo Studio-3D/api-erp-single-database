@@ -626,7 +626,7 @@ class DesistementController extends Controller
                 if (RoleHelper::AdminSup()) {
 
                     if ($type == TypeDesistement::Désistement_Définitif->value) {
-                        return response()->json('ana hnaa agaaian');
+
                         $reservation = Reservation::on('temp')->findOrFail($request->reservation_id);
                         //update etat de reservation
                         $reservation->setConnection('temp');
@@ -634,7 +634,7 @@ class DesistementController extends Controller
                         $reservation->code_desistement = $code_desist_reservation;
 
                         if ($reservation->save()) {
-                            return response()->json('yep');
+
                             //soft_delete_avances
                             $avanceController = new AvanceController();
                             $avanceController->soft_destroy_avances_by_reservationId($request->reservation_id);
@@ -1239,7 +1239,7 @@ class DesistementController extends Controller
                     }
 
                 } else {
-                    return response()->json('lhih');
+
                     //notif to admin pour valider desistement
 
                     $data_notif = [
@@ -1527,7 +1527,8 @@ class DesistementController extends Controller
                 $bien = new VisiteController();
                 $propriete = $bien->get_propriete_bien_concat($desistement->bien_id_new);
             }
-            return response()->json(['desistement' => $desistement, 'sum_avances_valides_ancien' => $sum_avances_valides_ancien, 'propriete_dite_bien' => $propriete], 200);
+            $penalite=PenaliteDesistement::on('temp')->with('banque')->where('desistement_id',$id)->first();
+            return response()->json(['desistement' => $desistement, 'sum_avances_valides_ancien' => $sum_avances_valides_ancien, 'propriete_dite_bien' => $propriete,'penalite'=>$penalite], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -2788,19 +2789,32 @@ class DesistementController extends Controller
                 }
 
             } else {
-                foreach ($reservation_ancien->avances as $av) {
+                foreach ($reservation_ancien->avances_valides as $av) {
                     //avance validé
-                    if ($av->statut == StatutReservationEnum::Validé->value) {
                         $sum_avances_valides += $av->montant;
-                    }
                 }
             }
-            return response()->json(['penalite' => $penalite, 'sum_avances_valides' => $sum_avances_valides], 200);
+            $histo = PenaliteDesistement::on('temp')->with('banque')
+                ->where('desistement_id', $penalite->desistement_id)->count();
+            return response()->json(['penalite' => $penalite, 'sum_avances_valides' => $sum_avances_valides,'histo'=>$histo], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
 
+
+    public function update_sr_penalite($id,Request $request)
+    {
+        if(RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $penalite = PenaliteDesistement::on('temp')->findOrFail($id);
+            $penalite->sr=$request->sr_pen==true?0:1;
+            $penalite->save();
+            return response()->json($penalite->sr, 200);
+       } else {
+           return response()->json(['error' => 'Unauthorized'], 401);
+       }
+    }
    public function traiter_penalite($id,Request $request)
     {
         if(RoleHelper::ACSup()) {
