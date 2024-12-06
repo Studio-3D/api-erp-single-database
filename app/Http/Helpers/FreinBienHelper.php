@@ -9,7 +9,7 @@ use App\Http\Helpers\NotificationHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Config;
 use App\Events\NotificationEvent;
-
+use App\Events\NotifMenuEvent;
 class FreinBienHelper
 {
     public static function createFreinBien($bien_id,$frein_id){

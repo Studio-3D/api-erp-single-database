@@ -219,9 +219,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_notif_reservation_att_validation/{projet_id}', [V1ReservationController::class, 'get_notif_reservation_att_validation'])->name('');
         Route::put('traiter_reservation/{id}', [V1ReservationController::class, 'traiter_reservation'])->name('');
         Route::get('relancer_reservation/{id}', [V1ReservationController::class, 'relancer_reservation'])->name('');
+        Route::get('get_pj_res/{id}', [V1ReservationController::class, 'get_pj_res'])->name('');
+
 
         //l'api desistement
-        Route::resource('desistement', V1DesistementController::class);
+        Route::resource('desistements', V1DesistementController::class);
         Route::get('projets/{idprojet}/desistements', [V1DesistementController::class, 'indexByProjet']);
         Route::get('penalites/{projet_id}/{etat}', [V1DesistementController::class, 'get_all_penalites'])->name('');
         Route::put('traiter_penalite/{id}', [V1DesistementController::class, 'traiter_penalite'])->name('');
@@ -231,6 +233,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_historiques_penalites/{desistement_id}', [V1DesistementController::class, 'get_historiques_penalites_by_desId'])->name('');
         Route::post('penalites/corriger_penalite', [V1DesistementController::class, 'corriger_penalite'])->name('');
         Route::put('update_sr_penalite/{id}', [V1DesistementController::class, 'update_sr_penalite'])->name('');
+        Route::post('desistement/corriger_desistement', [V1DesistementController::class, 'store'])->name('');
+        Route::put('validation_desistement/{id}', [V1DesistementController::class, 'validation_desitement'])->name('');
+        Route::get('get_notif_dst_att_validation_par_type/{projet_id}', [V1DesistementController::class, 'get_notif_dst_att_validation_par_type'])->name('');
+        Route::get('get_notif_dst_att_validation_menu/{projet_id}', [V1DesistementController::class, 'get_notif_dst_att_validation_menu'])->name('');
+        Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [V1DesistementController::class, 'get_historiques_desistement_by_reservation'])->name('');
+        Route::get('get_dossiers_by_bien/{bien_id}', [V1DesistementController::class, 'get_dossiers_by_bien'])->name('');
         //l'Api relationClients
         Route::resource('appels', V1AppelController::class);
         Route::get('projets/{idprojet}/appels', [V1AppelController::class, 'indexByProjet']);
@@ -541,8 +549,8 @@ Route::middleware('auth:api')->group(function () {
 
     /*************************************Reservation***************************** */
     Route::resource('reservation', ReservationController::class);
-    Route::get('reservations/{projet_id}', [ReservationController::class, 'index'])->name('reservations');
-    Route::get('getAllInformationsReservation/{id}', [ReservationController::class, 'getAllInformationsReservation'])->name('getAllInformationsReservation');
+  //  Route::get('reservations/{projet_id}', [ReservationController::class, 'index'])->name('reservations');
+  //  Route::get('getAllInformationsReservation/{id}', [ReservationController::class, 'getAllInformationsReservation'])->name('getAllInformationsReservation');
     Route::get('getReservationssByProjet/{id}', [ReservationController::class, 'getReservationssByProjet'])->name('getReservationssByProjet');
     Route::get('getDossiers/{projet_id}/{dos_id}', [ReservationController::class, 'get_dossiers'])->name('');
    // Route::get('search_reservation_by_code/{code_res}', [ReservationController::class, 'search_reservation_by_code']);
@@ -587,14 +595,14 @@ Route::middleware('auth:api')->group(function () {
 
     /********************************DesistemenController*********** */
     //Route::resource('desistement', DesistementController::class);
-    Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [DesistementController::class, 'get_historiques_desistement_by_reservation'])->name('');
-    Route::put('validation_desistement/{id}', [DesistementController::class, 'validation_desitement'])->name('');
-    Route::get('get_notif_dst_commercial/{projet_id}', [DesistementController::class, 'get_notif_dst_commercial'])->name('');
-    Route::get('get_notif_dst_admin/{projet_id}', [DesistementController::class, 'get_notif_dst_admin'])->name('');
-    Route::get('get_notif_dst_att_validation_par_type/{projet_id}', [DesistementController::class, 'get_notif_dst_att_validation_par_type'])->name('');
-    Route::get('get_desistements/{projet_id}/{type}/{etat}', [DesistementController::class, 'get_desistements'])->name('');
-    Route::post('desistement/corriger_desistement', [DesistementController::class, 'store'])->name('');
-    Route::get('get_dossiers_by_bien/{bien_id}', [DesistementController::class, 'get_dossiers_by_bien'])->name('');
+   // Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [DesistementController::class, 'get_historiques_desistement_by_reservation'])->name('');
+   // Route::put('validation_desistement/{id}', [DesistementController::class, 'validation_desitement'])->name('');
+   // Route::get('get_notif_dst_commercial/{projet_id}', [DesistementController::class, 'get_notif_dst_commercial'])->name('');
+   // Route::get('get_notif_dst_admin/{projet_id}', [DesistementController::class, 'get_notif_dst_admin'])->name('');
+   // Route::get('get_notif_dst_att_validation_par_type/{projet_id}', [DesistementController::class, 'get_notif_dst_att_validation_par_type'])->name('');
+   // Route::get('get_desistements/{projet_id}/{type}/{etat}', [DesistementController::class, 'get_desistements'])->name('');
+  //  Route::post('desistement/corriger_desistement', [DesistementController::class, 'store'])->name('');
+    //Route::get('get_dossiers_by_bien/{bien_id}', [DesistementController::class, 'get_dossiers_by_bien'])->name('');
 
     //penalites
    // Route::get('penalites/{projet_id}/{etat}', [DesistementController::class, 'get_all_penalites'])->name('');

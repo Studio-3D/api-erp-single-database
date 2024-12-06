@@ -64,7 +64,7 @@ class Desistement extends Model
 
     public function remboursement()
     {
-        return $this->hasMany(Remboursement::class,'desistement_id');
+        return $this->hasMany(Remboursement::class,'desistement_id')->where('archive',0);
     }
     public function nouvel_aquereurs_desistements()
     {

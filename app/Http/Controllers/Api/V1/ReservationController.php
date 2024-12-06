@@ -27,6 +27,7 @@ use App\Models\Reservation;
 use App\Models\Societe;
 use App\Models\StatutReservation;
 use App\Models\User;
+use App\Models\Remboursement;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,7 +36,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use \NumberFormatter;
-
+use App\Models\Desistement;
 class ReservationController extends Controller
 {
     /**
@@ -276,6 +277,8 @@ class ReservationController extends Controller
             }
 
             if ($reservation->save()) {
+                $bienController = new BienController();
+                $bienController->reserverBien($reservation->bien_id, null, $reservation->id);
                 //si statut=1 ==>store it to table statutReservation
                 if ($reservation->statut == StatutReservationEnum::Validé->value) {
                     $statut_R = new StatutReservation();
@@ -307,9 +310,6 @@ class ReservationController extends Controller
                     //1 traitement reservation
                     broadcast(new NotifMenuEvent(1));
                 }
-                $bienController = new BienController();
-                $bienController->reserverBien($reservation->bien_id, null, $reservation->id);
-
                 $clientController = new ClientController();
                 $clientRequest = new StoreClientRequest();
                 $aquereurController = new AquereurController();
@@ -527,6 +527,23 @@ class ReservationController extends Controller
         }
     }
 
+
+    public function get_pj_res($id, Request $request)
+    {
+        if (Auth::guard('api')->check()) {
+
+            DatabaseHelper::Config();
+            $pj = PiecesJointe::on('temp')->where('reservation_id', $id)->get();
+            return response()->json([
+                'data' =>  $pj,
+
+
+            ], 200);
+
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
     public function getReservationssByProjet($projet_id)
     {
         if (RoleHelper::ACSup()) {
@@ -631,9 +648,7 @@ class ReservationController extends Controller
                             $notif_helper = new NotificationHelper();
                             $notif_helper->storeNotification($request->merge($data_notif));
                             broadcast(new NotificationEvent($id));
-                            //4 traitement rembour
-                            Config::set('broadcasting.default', 'pusher_5');
-                            broadcast(new NotifMenuEvent(4));
+
                         }
 
                     }
@@ -782,6 +797,19 @@ class ReservationController extends Controller
             $pjController->destoryFileUsingReservationId($id, $user_societes, $societe);
             $notif = new NotificationController();
             $notif->destory_force_by_column_id('reservation', $id);
+            $desistements=Desistement::on('temp')->where('reservation_id',$id)->get();
+            foreach($desistements as $des){
+                if($des->penalite_desistement!=null){
+                    $des->penalite_desistement->delete();
+                }
+                if(count($des->remboursement)>0){
+                    foreach($des->remboursement as $remb){
+                        $remb->delete();
+                    }
+                }
+                $des->delete();
+            }
+
             if ($reservation->delete()) {
                 return response()->json(['message' => 'reservation supprimée avec succès.'], 200);
             } else {
@@ -791,25 +819,7 @@ class ReservationController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function getAllInformationsReservation($id)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $reservation = Reservation::on('temp')->findOrFail($id);
-            $avances = Avance::on('temp')->where('reservation_id', $id)->get();
-            $aquereurs = Aquereur::on('temp')->where('reservation_id', $id)->get();
-            $pj = PiecesJointe::on('temp')->where('reservation_id', $id)->get();
-            $data = [
-                'reservation' => $reservation,
-                'avances' => $avances,
-                'aquereurs' => $aquereurs,
-                'piecesjointes' => $pj,
-            ];
 
-            return response()->json(['data' => $data], 200);
-        }
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
 
     public function get_Historiques_by_reservation($id, Request $request)
     {

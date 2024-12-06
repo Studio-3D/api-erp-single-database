@@ -386,7 +386,6 @@ class AvanceController extends Controller
                 //2 traitement avance
                 Config::set('broadcasting.default', 'pusher_5');
                 broadcast(new NotifMenuEvent(2));
-                return response()->json($request->etat);
                 if ($avance->reservation->user->role == RoleEnum::COMMERCIAL->value) {
                     Config::set('broadcasting.default', 'pusher_3');
 
@@ -406,7 +405,6 @@ class AvanceController extends Controller
                     $notif_helper->storeNotification($request->merge($data_notif));
                     broadcast(new NotificationEvent($id));
                 }
-
                 //store new notification validé
                 $encaiss = new Encaissement();
                 $encaiss->setConnection('temp');
@@ -486,12 +484,13 @@ class AvanceController extends Controller
      */
     public function store(StoreAvanceRequest $request)
     {
+
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $reservation = Reservation::on('temp')->findOrFail($request->reservation_id);
-            $bien=Bien::on('temp')->withSum('tva_collectes','tva_a_payer')->findOrFail( $reservation->bien_id);
+            $bien=Bien::on('temp')->withSum('tva_collectes','tva_a_payer')->findOrFail($reservation->bien_id);
             $avance = new Avance();
             $avance->setConnection('temp');
             $last_num_recu = Avance::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")
@@ -558,6 +557,7 @@ class AvanceController extends Controller
             }
 
             if ($avance->save()) {
+
 
 
                 //store statut_avances table=>si validé
@@ -687,62 +687,7 @@ class AvanceController extends Controller
                 }
                 $fiche->save();
 
-                $action=0;
-                //si bien est desisté on fait remboursement etat=1 en on envoie notification du bien desisté est vendu
-                if ($reservation->bien->desistement_id!=null) {
-                    $remboursements = Remboursement::on('temp')->where('desistement_id',$reservation->bien->desistement_id)
-                    ->where('etat',0)->where('statut',0)
-                    ->where(function ($query) {
-                        $query->where('mode_rembourse', 'apres_vente')
-                            ->orwhere('mode_rembourse', 'transfert_rem_apres_vente')
-                        ;})
-                    ->get();
 
-                    foreach($remboursements as $remb){
-                        $remb->etat=1;
-                        $remb->save();
-                        $action=1;
-                    }
-                    if($action==1){
-                        //to admin et commerciaux
-                        Config::set('broadcasting.default', 'pusher_3');
-                        $data_notif = [
-                            'lien' => '/remboursements/demande',
-                            'date' => Carbon::now(),
-                            'type' => 19,
-                            'description' => 'bien desisté est vendu',
-                            'role'=>RoleEnum::ADMIN->value,
-                            'projet_id'=>$avance->reservation->projet_id,
-                            'bien_id'=>$reservation->bien_id,
-                            'reservation_id'=>$reservation->id
-
-                        ];
-                        $notif_helper = new NotificationHelper();
-                        $notif_helper->storeNotification($request->merge($data_notif));
-                        broadcast(new NotificationEvent(0));
-
-                        if( $reservation->bien->desistement->user->role==3){
-
-                            $data_notif = [
-                                'lien' => '/remboursements/demande',
-                                'date' => Carbon::now(),
-                                'type' => 19,
-                                'description' => 'bien desisté est vendu',
-                                'role'=>RoleEnum::COMMERCIAL->value,
-                                'user_id'=>$reservation->bien->desistement->user->user_id_origin,
-                                'projet_id'=>$avance->reservation->projet_id,
-                                'bien_id'=>$reservation->bien_id,
-                                'reservation_id'=>$reservation->id
-
-                            ];
-                            $notif_helper = new NotificationHelper();
-                            $notif_helper->storeNotification($request->merge($data_notif));
-                            broadcast(new NotificationEvent(0));
-
-                        }
-
-                    }
-                }
 
                 if (RoleHelper::AdminSup()) {
                     //store encaissement
@@ -777,28 +722,6 @@ class AvanceController extends Controller
 
                                 }
                             }
-                    }
-                    //on vide la column desistement_id car il est vendu et si le bien a des ancien tva on archive pour affichier tva collecte de l'ancien Reservation
-                    if($reservation->bien->desistement_id!=null){
-                        $bien->setConnection('temp');
-                        $bien->desistement_id=NULL;
-                        if($bien->save()){
-                              //set tva collecte ancien to archive 4==>5
-                              if(count($bien->tva_collectes_ancien_reservation)>0){
-                                foreach($bien->tva_collectes_ancien_reservation as $t_c_a){
-                                    $t_c_a->delete();
-                                }
-                            }
-                            //set tva collecte to 4
-                            if(count($bien->tva_collectes)>0){
-                                foreach($bien->tva_collectes as $t_c){
-                                    $t_c->etat=4;
-                                    $t_c->save();
-                                }
-                            }
-
-
-                        }
                     }
 
                     //store commission a voir
@@ -1488,7 +1411,7 @@ class AvanceController extends Controller
 
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-          
+
 
             if (RoleHelper::AdminSup()) {
                 //ADMIN

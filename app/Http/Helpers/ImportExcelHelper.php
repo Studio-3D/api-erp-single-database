@@ -14,7 +14,7 @@ use App\Models\TypeBien;
 use App\Models\Immeuble;
 use App\Http\Helpers\Bien_Helper;
 use Illuminate\Support\Facades\Log;
-
+use Carbon\Carbon;
 
 class ImportExcelHelper {
 
@@ -144,6 +144,9 @@ class ImportExcelHelper {
                     $tranche->setConnection('temp');
                     $tranche->nom=$row['tranche'];
                     $tranche->projet_id=$projet_id;
+                    $tranche->date_lancement=Carbon::now();
+                    $tranche->date_livraison=Carbon::now();
+                    $tranche->niveau_etages=0;
                     $tranche->save();
                 }
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, $tranche->id, null, null, $row);
@@ -169,6 +172,9 @@ class ImportExcelHelper {
                     $tranche->setConnection('temp');
                     $tranche->nom=$row['tranche'];
                     $tranche->projet_id=$projet_id;
+                    $tranche->date_lancement=Carbon::now();
+                    $tranche->date_livraison=Carbon::now();
+                    $tranche->niveau_etages=0;
                     $tranche->save();
                 }
                 $immeuble = Immeuble::on('temp')
@@ -210,6 +216,9 @@ class ImportExcelHelper {
                     $tranche->setConnection('temp');
                     $tranche->nom=$row['tranche'];
                     $tranche->projet_id=$projet_id;
+                    $tranche->date_lancement=Carbon::now();
+                    $tranche->date_livraison=Carbon::now();
+                    $tranche->niveau_etages=0;
                     $tranche->save();
                 }
                 $bloc = Bloc::on('temp')
@@ -225,6 +234,7 @@ class ImportExcelHelper {
                     $bloc->tranche_id=$tranche->id;
                     $bloc->save();
                 }
+
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, $tranche->id, $bloc->id, null, $row);
             }
         }else{
@@ -248,6 +258,9 @@ class ImportExcelHelper {
                     $tranche->setConnection('temp');
                     $tranche->nom=$row['tranche'];
                     $tranche->projet_id=$projet_id;
+                    $tranche->date_lancement=Carbon::now();
+                    $tranche->date_livraison=Carbon::now();
+                    $tranche->niveau_etages=0;
                     $tranche->save();
                 }
                 $bloc = Bloc::on('temp')

@@ -194,6 +194,10 @@ class HomeController extends Controller
                 ->where('type','!=',6)
                 ->where('type','!=',7)
                 ->where('type','!=',22)
+                ->where('type','!=',11)
+                ->where('type','!=',12)->where('type','!=',16)->where('type','!=',18)
+                ->where('type','!=',13)->where('type','!=',14)
+                ->where('type','!=',15)
                 ->where('user_id',Auth::guard('api')->user()->id)->orderBy('date','desc')->withTrashed();
                 if ($projet_id!=0) {
                     $query_notif->where('projet_id',  $projet_id );

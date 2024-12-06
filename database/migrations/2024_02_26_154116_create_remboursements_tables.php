@@ -40,7 +40,7 @@ return new class extends Migration
             $table->dateTime('date_accuse')->nullable();
             $table->dateTime('date_decaissement')->nullable();
             $table->foreignId('banque_id')->nullable()->constrained('banques')->onDelete('cascade');
-
+            $table->boolean('archive')->default(0)->comment('si desistement rejete apres re create desistement on fait archive=1');
             $table->foreignId('dossier_id_transfert')->nullable()->constrained('reservations')->onDelete('cascade');
             $table->foreignId('user_id_valider')->nullable()->constrained('users')->onDelete('cascade');;
             //a voir les autres attributs

@@ -36,7 +36,7 @@ class RemboursementController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le
-            $query = Remboursement::on('temp')->with('desistement_not_trashed','aquereur','banque')->where('etat',1);
+            $query = Remboursement::on('temp')->with('desistement_not_trashed','aquereur','banque')->where('etat',1)->where('archive',0)->where('mode_rembourse','!=','transfert');
             $query->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
                 $q->where('projet_id', $projet_id);
             });
@@ -355,7 +355,7 @@ class RemboursementController extends Controller
 
              DatabaseHelper::Config();
 
-             $query =  Remboursement::on('temp')->with('dossier_transfert') ->where('reservation_id', $reservation_id);
+             $query =  Remboursement::on('temp')->with('dossier_transfert') ->where('reservation_id', $reservation_id)->where('archive',0);
              // Optional filters (Add more if needed)
 
              if ($request->filled('date')) {
@@ -405,7 +405,7 @@ class RemboursementController extends Controller
             ->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
                 $q->where('projet_id', $projet_id);
             })
-            ->where('statut',0)->where('etat',1)
+            ->where('statut',0)->where('etat',1)->where('archive',0)
             ->where(function ($query) {
                 $query->where('mode_rembourse', 'apres_vente')
                     ->orwhere('mode_rembourse', 'transfert_rem_apres_vente')
@@ -415,10 +415,10 @@ class RemboursementController extends Controller
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $nb_demande = Remboursement::on('temp')->with('desistement_not_trashed')
-            ->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
+            ->whereHas('desistement_not_trashed', function ($q) use ($projet_id,$userAuth) {
                 $q->where('projet_id', $projet_id)->where('user_id', $userAuth->value('id'));
             })
-            ->where('statut',0)->where('etat',1)
+            ->where('statut',0)->where('etat',1)->where('archive',0)
 
             ->where(function ($query) {
                 $query->where('mode_rembourse', 'apres_vente')
@@ -439,7 +439,7 @@ class RemboursementController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le
-            $query = Remboursement::on('temp')->with('desistement_not_trashed','dossier_transfert','desistement_not_trashed.user')->where('etat',1);
+            $query = Remboursement::on('temp')->with('desistement_not_trashed','dossier_transfert','desistement_not_trashed.user')->where('etat',1)->where('archive',0);
             $query->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
                 $q->where('projet_id', $projet_id);
             });
