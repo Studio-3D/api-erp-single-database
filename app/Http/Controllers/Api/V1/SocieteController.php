@@ -42,9 +42,16 @@ class SocieteController extends Controller
         if (!RoleHelper::Superadmin()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-        $response = $this->societeService->createSociete($request->all());
-        return response()->json(['message' => $response->getOriginalContent()['message']], $response->getStatusCode());
+
+        // Passe directement l'objet $request
+        $response = $this->societeService->createSociete($request);
+
+        return response()->json(
+            ['message' => $response->getOriginalContent()['message']],
+            $response->getStatusCode()
+        );
     }
+
     public function show($id)
     {
         if (!RoleHelper::Superadmin()) {

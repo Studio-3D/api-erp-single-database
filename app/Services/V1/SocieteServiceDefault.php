@@ -7,6 +7,7 @@ use App\Http\Helpers\DatabaseHelper;
 use App\Repositories\V1\Contracts\SocieteRepository;
 use Illuminate\Support\Facades\Config;
 use App\Utils\FileManager;
+use App\Http\Helpers\FichierHelper;
 
 class SocieteServiceDefault implements SocieteService
 {
@@ -18,28 +19,38 @@ class SocieteServiceDefault implements SocieteService
         $this->databaseHelper = new DatabaseHelper(); // This is bad, unnecessary coupling
         //TODO: Define static methods in DatabaseHelper class instead
     }
-    public function createSociete(array $data)
+    public function createSociete($request)
     {
-        $raison_sociale_concatene = str_replace(' ', '', $data['raison_sociale']);
+        // Assure-toi que $request est bien un objet Request
+        $raison_sociale_concatene = str_replace(' ', '', $request->input('raison_sociale'));
+        $data = $request->all(); // Convertit les données en tableau pour les traitements
         $data['raison_sociale_concatene'] = $raison_sociale_concatene;
 
+        // Création de la société
         $societe = $this->societeRepository->create($data);
 
-        $file = $data['logo'];
-        if (isset($file)) {
-            $societeName = $raison_sociale_concatene . '_' . $societe->id;
-            $fileName = FileManager::saveFile($file, "$societeName/logos");
-            $societe->logo = $fileName;
-            $societe = $this->societeRepository->update($societe->id, ['logo' => $societe->logo]);
+        // Gestion du fichier logo
+        if ($request->hasFile('logo')) {
+            $file = $request->file('logo');
+            $logo = time() . '.' . $raison_sociale_concatene . '.' . $file->extension();
+
+            // Ajouter le fichier
+            FichierHelper::ajouter_fichier($file, $raison_sociale_concatene, $societe->id, 'logos', $logo);
+
+            // Mettre à jour le logo dans la base
+            $this->societeRepository->update($societe->id, ['logo' => $logo]);
         }
 
+        // Création de la base de données client
         $response = $this->databaseHelper->createNewClientDatabase($raison_sociale_concatene, $societe->id);
 
+        // Émettre un événement
         Config::set('broadcasting.default', 'pusher_1');
-        broadcast(new NewSocieteEvent($societe->id));
+        broadcast(event: new NewSocieteEvent($societe->id));
 
-        return $response;
+        return response()->json(['message' => 'Société créée avec succès'], 200);
     }
+
 
     public function getSocieteById(int $id)
     {

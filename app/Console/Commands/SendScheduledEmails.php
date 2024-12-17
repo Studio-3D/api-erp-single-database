@@ -2,15 +2,10 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\User; // Modifiez pour correspondre à votre modèle utilisateur
+use App\Http\Helpers\DatabaseHelper; // Modifiez pour correspondre à votre modèle utilisateur
 use App\Mail\ScheduledEmail; // Mail à envoyer
-use Illuminate\Support\Facades\Mail;
-use App\Http\Helpers\DatabaseHelper;
-use App\Http\Helpers\ChroneJobHelpers;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class SendScheduledEmails extends Command
 {
@@ -19,12 +14,11 @@ class SendScheduledEmails extends Command
      *
      * @var string
      */
-    
 
     /**
      * Execute the console command.
      */
-    
+
     protected $signature = 'emails:send-scheduled';
     protected $description = 'Envoyer des e-mails programmés à une date précise';
 
@@ -36,8 +30,7 @@ class SendScheduledEmails extends Command
     public function handle()
     {
         $databases = DB::table('societes')->whereNull('deleted_at')->where('id', '>=', 233)->get();
-        DatabaseHelper::envoyer_email_rdv($databases);
+        DatabaseHelper::envoyer_email_rdv_rlc($databases);
     }
-        
-    
+
 }

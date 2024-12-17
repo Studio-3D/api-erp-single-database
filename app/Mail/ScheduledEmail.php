@@ -34,7 +34,7 @@ class ScheduledEmail extends Mailable
                     ->subject($this->getSubjectByType($this->type)) // Sujet dynamique
                     ->with([
                         'name' => $this->user->name,
-                        'scheduledDate' => $this->user->created_at,
+                        'date' => $this->user->created_at,
                     ])
                     ->from('immo.immobilier02@gmail.com', 'Immobilier');
     }
@@ -47,11 +47,11 @@ class ScheduledEmail extends Mailable
         // Associer les types aux vues
         switch ($type) {
             case 1:
-                return 'emails.scheduled';
+                return 'emails.relanceEmail';
             case 2:
-                return 'emails.reglEmail';
+                return 'emails.rdvEmail';
             case 3:
-                return 'emails.EcheanceEmail';
+                return 'emails.echeanceEmail';
             default:
                 return 'emails.default'; // Vue par défaut si le type est inconnu
         }

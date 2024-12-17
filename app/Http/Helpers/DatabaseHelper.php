@@ -5,22 +5,21 @@ namespace App\Http\Helpers;
 use App\Http\Helpers\Bien_Helper;
 use App\Http\Helpers\NotificationHelper;
 use App\Mail\ScheduledEmail;
+use App\Models\Avance;
 use App\Models\Bien;
 use App\Models\Notification;
 use App\Models\Proposition;
 use App\Models\Relance_Rdv_visite;
-use App\Models\Avance;
 use App\Models\Societe;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB; // Mail à envoyer
+use Illuminate\Support\Facades\Config; // Mail à envoyer
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Console\Command;
 
 class DatabaseHelper
 {
@@ -205,46 +204,68 @@ class DatabaseHelper
         }
     }
 
-    public static function envoyer_email_rdv($databases)
-    {
-        foreach ($databases as $database) {
-            $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+    public static function envoyer_email_rdv_rlc($databases)
+{
+    foreach ($databases as $database) {
+        $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
 
-            // Switch to the temporary database
-            $connection = DatabaseHelper::Connection_database($databaseName);
-            config(['database.connections.temp' => $connection]);
-            DB::connection('temp')->setDatabaseName($connection['database']);
-            DB::reconnect('temp');
+        // Switch to the temporary database
+        $connection = DatabaseHelper::Connection_database($databaseName);
+        config(['database.connections.temp' => $connection]);
+        DB::connection('temp')->setDatabaseName($connection['database']);
+        DB::reconnect('temp');
 
-            //
-            if (Schema::connection('temp')->hasTable('relances_rdv_visites')) {
-                $today = Carbon::now()->toDateString();
-                $userIds = Relance_Rdv_visite::on('temp')->whereDate('date_relance', $today)->pluck('user_id');
+        if (Schema::connection('temp')->hasTable('relances_rdv_visites')) {
+            $today = Carbon::now()->toDateString();
 
-                if ($userIds->isEmpty()) {
-                    Log::info(message: 'Aucun utilisateur à relancer aujourd\'hui pour la base de données ' . $databaseName);
-                    continue;
-                }
+            // Récupération des utilisateurs avec leur type (1: relance, 2: rdv)
+            $relances = Relance_Rdv_visite::on('temp')
+                ->where('type', 'relance')
+                ->whereDate('date_relance', $today)
+                ->pluck('user_id');
 
-                // Récupérer les utilisateurs dans la table Users
-                $users = User::on('temp')->whereIn('id', $userIds)->get();
+            $rdvs = Relance_Rdv_visite::on('temp')
+                ->where('type', 'rdv')
+                ->whereDate('rdv', $today)
+                ->pluck('user_id');
 
-                foreach ($users as $user) {
-                    try {
-                        // Envoi de l'email
-                        Mail::to($user->email)->send(new ScheduledEmail(1,$user));
-                        Log::info("Email envoyé à {$user->email} dans la base de données {$databaseName}");
-                    } catch (\Exception $e) {
-                        // Log en cas d'échec
-                        Log::error(message: "Échec de l'envoi de l'email à {$user->email}: " . $e->getMessage());
-                    }
-                }
+            $userIds = $relances->merge($rdvs)->unique();
 
-                Log::info('Processus de relance terminé pour la base de données ' . $databaseName);
+            if ($userIds->isEmpty()) {
+                Log::info('Aucun utilisateur à relancer ou notifier aujourd\'hui pour la base de données ' . $databaseName);
+                continue;
             }
+
+            // Récupérer les utilisateurs concernés
+            $users = User::on('temp')->whereIn('id', $userIds)->get();
+
+            foreach ($users as $user) {
+                try {
+                    // Vérification du type et envoi de l'email
+                    $relanceExists = $relances->contains($user->id);
+                    $rdvExists = $rdvs->contains($user->id);
+
+                    if ($relanceExists) {
+                        Mail::to($user->email)->send(new ScheduledEmail(1, $user));
+                        Log::info("Email de relance envoyé à {$user->email} dans la base de données {$databaseName}");
+                    }
+
+                    if ($rdvExists) {
+                        Mail::to($user->email)->send(new ScheduledEmail(2, $user));
+                        Log::info("Email de rdv envoyé à {$user->email} dans la base de données {$databaseName}");
+                    }
+
+                } catch (\Exception $e) {
+                    // Log en cas d'échec
+                    Log::error("Échec de l'envoi de l'email à {$user->email}: " . $e->getMessage());
+                }
+            }
+
+            Log::info('Processus de relance et notification terminé pour la base de données ' . $databaseName);
         }
-            
     }
+}
+
 
     public static function envoyer_email_echeance($databases)
     {
@@ -273,7 +294,7 @@ class DatabaseHelper
                 foreach ($users as $user) {
                     try {
                         // Envoi de l'email
-                        Mail::to($user->email)->send(new ScheduledEmail(2,$user));
+                        Mail::to($user->email)->send(new ScheduledEmail(3, $user));
                         Log::info("Email envoyé à {$user->email} dans la base de données {$databaseName}");
                     } catch (\Exception $e) {
                         // Log en cas d'échec
@@ -284,49 +305,9 @@ class DatabaseHelper
                 Log::info('Processus de relance terminé pour la base de données ' . $databaseName);
             }
         }
-            
+
     }
 
-    public static function envoyer_email_reglement($databases)
-    {
-        foreach ($databases as $database) {
-            $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
-
-            // Switch to the temporary database
-            $connection = DatabaseHelper::Connection_database($databaseName);
-            config(['database.connections.temp' => $connection]);
-            DB::connection('temp')->setDatabaseName($connection['database']);
-            DB::reconnect('temp');
-
-            //
-            if (Schema::connection('temp')->hasTable('relances_rdv_visites')) {
-                $today = Carbon::now()->toDateString();
-                $userIds = Avance::on('temp')->whereDate('date_reglement', $today)->pluck('user_id');
-
-                if ($userIds->isEmpty()) {
-                    Log::info(message: 'Aucun date de relance aujourd\'hui pour la base de données ' . $databaseName);
-                    continue;
-                }
-
-                // Récupérer les utilisateurs dans la table Users
-                $users = User::on('temp')->whereIn('id', $userIds)->get();
-
-                foreach ($users as $user) {
-                    try {
-                        // Envoi de l'email
-                        Mail::to($user->email)->send(new ScheduledEmail(3,$user));
-                        Log::info("Email envoyé à {$user->email} dans la base de données {$databaseName}");
-                    } catch (\Exception $e) {
-                        // Log en cas d'échec
-                        Log::error(message: "Échec de l'envoi de l'email à {$user->email}: " . $e->getMessage());
-                    }
-                }
-
-                Log::info('Processus de relance terminé pour la base de données ' . $databaseName);
-            }
-        }
-            
-    }
     public static function liberer_bien_pre_reserve($databases)
     {
         Config::set('broadcasting.default', 'pusher_3');
