@@ -5,7 +5,7 @@
 </head>
 <body>
     <h1>Bonjour {{ $name }},</h1>
-    <p>Nous vous envoyons cet e-mail comme prévu pour la date rdv?{{ $scheduledDate }}.</p>
+    <p>RDV!!?{{ $date }}.</p>
     <p>Merci de nous faire confiance !</p>
 </body>
 </html>

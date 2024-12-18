@@ -220,12 +220,12 @@ class DatabaseHelper
 
             // Récupération des utilisateurs avec leur type (1: relance, 2: rdv)
             $relances = Relance_Rdv_visite::on('temp')
-                ->where('type', 'relance')
+                ->where('type', 1)
                 ->whereDate('date_relance', $today)
                 ->pluck('user_id');
 
             $rdvs = Relance_Rdv_visite::on('temp')
-                ->where('type', 'rdv')
+                ->where('type', 2)
                 ->whereDate('rdv', $today)
                 ->pluck('user_id');
 
