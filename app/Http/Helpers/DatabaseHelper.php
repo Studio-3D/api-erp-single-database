@@ -296,8 +296,6 @@ class DatabaseHelper
     }
 
 
-
-
     public static function envoyer_email_echeance($databases)
     {
         foreach ($databases as $database) {
