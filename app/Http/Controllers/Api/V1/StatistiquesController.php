@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use App\Enum\StatutVisiteEnum;
 use App\Enum\InteretEnum;
 
+
 class StatistiquesController extends Controller
 {
     /**
@@ -53,6 +54,11 @@ class StatistiquesController extends Controller
                         //  ->where('reservations.etat',1)
                             ->where('reservations.projet_id', $request->projet_id)
                             ->where('reservations.deleted_at',null)
+                            ->where('reservations.etat',1)
+                            /*->where(function($query) {
+                                $query  ->where('type_encaissement',1)
+                                ->orwhere('type_encaissement',6);
+                            })*/
                             ->sum('encaissements.montant');
 
                 $nb_biens_vendu_by_type_date=Bien::on('temp')
@@ -110,10 +116,15 @@ class StatistiquesController extends Controller
                         ->sum('remboursements.montant_a_rembourser');
                 /**********Encaissemens****/
                 $encaissements=Encaissement::on('temp')
-                        ->select(DB::Raw("DATE(encaissements.created_at) as day,sum(encaissements.montant) as montant"))
+                        ->select(DB::Raw("DATE(encaissements.date_reglement) as day,sum(encaissements.montant) as montant"))
                         ->Join('reservations','reservations.id','encaissements.reservation_id')
                         ->where('encaissements.deleted_at',null)
+                        ->where('reservations.etat',1)
                         ->where('reservations.projet_id', $request->projet_id)
+                       /* ->where(function($query) {
+                            $query  ->where('type_encaissement',1)
+                            ->orwhere('type_encaissement',6);
+                        })*/
                         ->groupBy(DB::raw("day"))
                         ->get();
                 $array_encaissements=[];
@@ -242,6 +253,11 @@ class StatistiquesController extends Controller
                         //  ->where('reservations.etat',1)
                             ->where('reservations.projet_id', $request->projet_id)
                             ->where('reservations.deleted_at',null)
+                            ->where('reservations.etat',1)
+                           /* ->where(function($query) {
+                                $query  ->where('type_encaissement',1)
+                                ->orwhere('type_encaissement',6);
+                            })*/
                             ->whereBetween('encaissements.created_at', [$dt, $a_dt])
                             ->sum('encaissements.montant');
 
@@ -303,11 +319,16 @@ class StatistiquesController extends Controller
                 ->sum('remboursements.montant_a_rembourser');
 
                 $encaissements=Encaissement::on('temp')
-                ->select(DB::Raw("DATE(encaissements.created_at) as day,sum(encaissements.montant) as montant"))
+                ->select(DB::Raw("DATE(encaissements.date_reglement) as day,sum(encaissements.montant) as montant"))
                 ->Join('reservations','reservations.id','encaissements.reservation_id')
                 ->where('encaissements.deleted_at',null)
+                ->where('reservations.etat', 1)
                 ->where('reservations.projet_id', $request->projet_id)
-                ->whereBetween('encaissements.created_at', [$dt, $a_dt])
+                ->whereBetween('encaissements.date_reglement', [$dt, $a_dt])
+                /*->where(function($query) {
+                    $query  ->where('type_encaissement',1)
+                    ->orwhere('type_encaissement',6);
+                })*/
                 ->groupBy(DB::raw("day"))
                 ->get();
                 $array_encaissements=[];

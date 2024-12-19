@@ -153,6 +153,9 @@ class BienController extends Controller
             if ($request->filled('etat')) {
                 $query->where('etat', 'like', '%' . $request->input('etat') . '%');
             }
+            if ($request->filled('etat_bien') && $request->input('etat_bien')!="null" ) {
+                $query->where('etat',  $request->input('etat_bien') );
+            }
             if ($request->filled('prix_min')) {
                 $query->where('prix', '>=', $request->input('prix_min'));
             }

@@ -148,7 +148,7 @@ class ReclamationController extends Controller
               Mail::send('Client.mail', $data, function($message) use($to_email){
                 $message->to($to_email)
                     ->subject ('Avis Réclamation');
-                $message->from('immo.immobilier02@gmail.com','Immobilier Immo ');
+                $message->from('hhhh.test022@gmail.com','Immobilier Immo ');
 
             });
 

@@ -348,6 +348,9 @@ Route::middleware('auth:api')->group(function () {
 
         //IMPORT Bien by Excel
         Route::post('upload_excel_bien', [V1UploadBienController::class, 'upload'])->name('');
+           //Dashboad
+        Route::get('dashboard/{projet_id}/{de}/{a}', [V1HomeController::class, 'dashboard'])->name('');
+
 
     });
 

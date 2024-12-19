@@ -2466,17 +2466,19 @@ class DesistementController extends Controller
                 $q->where('montant', 'like', '%' . $request->input('penalite') . '%');
             });
         }
-        if ($request->filled('de_date') && $request->filled('a_date')) {
-            $query->whereBetween('created_at', [
-                $request->input('de_date'),
-                $request->input('a_date'),
-            ]);
+        if ($request->filled('de_date_des') && $request->filled('a_date_des')) {
+
+                $dt = Carbon ::parse($request->input('de_date_des'))->format('Y-m-d');
+                $a_dt = Carbon::parse($request->input('a_date_des'))->format('Y-m-d');
+            $query->whereDate('created_at','>=',$dt);
+            $query->whereDate('created_at','<=',$a_dt);
+
         }
-        if ($request->filled('de_date_respo') && $request->filled('a_date_respo')) {
-            $query->whereBetween('created_at', [
-                $request->input('de_date'),
-                $request->input('a_date'),
-            ]);
+        if ($request->filled('de_date_respo_req') && $request->filled('a_date_respo_req')) {
+            $dt = Carbon ::parse($request->input('de_date_respo_req'))->format('Y-m-d');
+            $a_dt = Carbon::parse($request->input('a_date_respo_req'))->format('Y-m-d');
+            $query->whereDate('date_validation','>=',$dt);
+            $query->whereDate('date_validation','<=',$a_dt);
         }
         if ($request->filled('responsable')) {
             $query->whereHas('responsable_validation', function ($q) use ($request) {

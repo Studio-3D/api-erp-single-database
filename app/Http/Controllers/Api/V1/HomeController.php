@@ -16,7 +16,17 @@ use Carbon\Carbon;
 use App\Enum\RoleEnum;
 use App\Models\User;
 use App\Models\Objectif;
-
+use App\Models\Encaissement;
+use App\Models\PenaliteDesistement;
+use App\Models\Remboursement;
+use App\Models\Client;
+use App\Models\Prospect;
+use App\Models\Avance;
+use DB;
+use App\Enum\StatutReservationEnum;
+use App\Models\Bien;
+use App\Models\Reclamation;
+use App\Models\RemiseCle;
 
 class HomeController extends Controller
 {
@@ -141,6 +151,7 @@ class HomeController extends Controller
                     /********************************Mois****************/
                     $query_v_mois=Visite::on('temp')
                     ->whereMonth('created_at', Carbon::now()->month)
+                    ->whereYear('created_at', Carbon::now()->year)
                     ->where('user_id',$us_id);
                     if ($projet_id!=0) {
                         $query_v_mois->where('projet_id',  $projet_id );
@@ -148,7 +159,7 @@ class HomeController extends Controller
                     $nb_visites_mois = $query_v_mois->count();
 
 
-                    $query_appel_mois=TraitementAppel::on('temp')->with('appel')->whereMonth('date', Carbon::now()->month)->where('user_id',$us_id);
+                    $query_appel_mois=TraitementAppel::on('temp')->with('appel')->whereMonth('date', Carbon::now()->month)->whereYear('date', Carbon::now()->year)->where('user_id',$us_id);
                     if ($projet_id!=0) {
                         $query_appel_now->whereHas('appel', function ($q) use ($projet_id) {
                             $q->where('projet_id',$projet_id)
@@ -160,6 +171,7 @@ class HomeController extends Controller
 
                     $query_res_mois=Reservation::on('temp')
                     ->whereMonth('created_at', Carbon::now()->month)
+                    ->whereYear('created_at', Carbon::now()->year)
                     ->where('etat',1)->where('user_id',$us_id);
                     if ($projet_id!=0) {
                         $query_res_mois->where('projet_id',  $projet_id );
@@ -304,9 +316,371 @@ class HomeController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function dashboard(Request $request,$projet_id,$de_date,$a_date)
     {
-        //
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        $obj_mois_appels=0;
+        $obj_mois_visites=0;
+        $obj_mois_reservations=0;
+        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+            $us_id=$userAuth->value('id');
+            $us_id_origin=$userAuth->value('user_id_origin');
+            $us_role=$userAuth->value('role');
+
+            $dt=null;
+            $a_dt=null;
+            if($de_date!="null" && $a_date!="null" ){
+                $dt =  Carbon::parse($de_date)->format('Y-m-d');
+                $a_dt = Carbon::parse($a_date)->format('Y-m-d');
+            }
+
+
+
+            if($projet_id=="null"){
+                $projet_id=null;
+            }
+            /*********************Encaissement***************************/
+
+                $query_en=Encaissement::on('temp')->with('reservations','avance','remboursement')
+                ->whereHas('reservations', function ($q)  {
+                    $q->where('etat', 1);
+                })
+                ->where(function($query) {
+                    $query->where('type_encaissement',1)
+                    ->orwhere('type_encaissement',6);
+                });
+                if($dt==null && $a_dt==null){
+                    $query_en ->whereYear('date_reglement', Carbon::now()->year)->whereMonth('date_reglement', Carbon::now()->month);
+                }else{
+                    $query_en->whereBetween('date_reglement',[$dt,$a_dt]);
+                }
+
+                if($projet_id!=null){
+                    $query_en->whereHas('reservations', function ($q) use ($projet_id) {
+                        $q->where('projet_id', $projet_id);
+                    });
+                }
+                if($us_role!=2){
+                    $query_en->where(function($query_n) use($us_id) {
+                        $query_n->whereHas('avance', function ($q_com) use ($us_id) {
+                            $q_com->where('user_id', $us_id);
+                        });
+                        $query_n->orwhereHas('remboursement.desistement', function ($q_remb) use ($us_id) {
+                            $q_remb->where('user_id', $us_id);
+                        });
+                    });
+                }
+                $sum_encaissements=$query_en->sum('montant');
+
+            /*****************************penalites*************************/
+
+            $query_penalite= PenaliteDesistement::on('temp')->with('desistement');
+            if($dt==null && $a_dt==null){
+                $query_penalite ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+            }else{
+                $query_penalite->whereBetween('created_at',[$dt,$a_dt]);
+            }
+
+            if($projet_id!=null){
+                $query_penalite->whereHas('desistement', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                });
+            }
+            if($us_role!=2){
+                $query_penalite->whereHas('desistement', function ($q_com) use ($us_id) {
+                    $q_com->where('user_id', $us_id);
+                });
+            }
+
+            $sum_penalites=$query_penalite->sum('montant');
+            /******************************remboursments*****************************/
+
+            $query_remb=Remboursement::on('temp')->with('desistement');
+            if($dt==null && $a_dt==null){
+                $query_remb ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+            }else{
+                $query_remb->whereBetween('created_at',[$dt,$a_dt]);
+            }
+
+            if($projet_id!=null){
+                $query_remb->whereHas('desistement', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                });
+            }
+            if($us_role!=2){
+                $query_remb->whereHas('desistement', function ($q) use ($us_id) {
+                    $q->where('user_id', $us_id);
+                });
+            }
+            $sum_remboursements=$query_remb->where('etat',1)->where('statut',1)->sum('montant_a_rembourser');
+
+            /**************************** Visites ************************/
+
+
+            $query_nb_visites=Visite::on('temp');
+            if($dt==null && $a_dt==null){
+                $query_nb_visites ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+            }else{
+                $query_nb_visites->whereBetween('created_at',[$dt,$a_dt]);
+            }
+
+            if ($projet_id!=0) {
+                $query_nb_visites->where('projet_id',  $projet_id );
+            }
+            if($us_role!=2){
+                $query_nb_visites->where('user_id', $us_id);
+            }
+            $nb_visites = $query_nb_visites->count();
+            /*************************Appels********************* */
+            $query_nb_appel=TraitementAppel::on('temp')->with('appel');
+                if($dt==null && $a_dt==null){
+                    $query_nb_appel ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+                }else{
+                    $query_nb_appel->whereBetween('created_at',[$dt,$a_dt]);
+                }
+                if ($projet_id!=0) {
+                    $query_nb_appel->whereHas('appel', function ($q) use ($projet_id) {
+                        $q->where('projet_id',$projet_id)
+                            ;
+                });
+                }
+                if($us_role!=2){
+                    $query_nb_appel->where('user_id', $us_id);
+                }
+            $nb_appels = $query_nb_appel->count();
+            /***************************Prospects **********************/
+            $query_prospect=Prospect::on('temp');
+            if($dt==null && $a_dt==null){
+                $query_prospect ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+            }else{
+                $query_prospect->whereBetween('created_at',[$dt,$a_dt]);
+            }
+            $nb_prospects=$query_prospect->count();
+
+            /***************************Clients*****************/
+            $query_client=Client::on('temp');
+            if($dt==null && $a_dt==null){
+                $query_client ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+            }else{
+                $query_client->whereBetween('created_at',[$dt,$a_dt]);
+            }
+           $nb_clients=$query_client->count();
+
+            /**********************Reclamations*************** statut ==>0 *********/
+            $query_reclamations = DB::connection('mysql_client')->table('reclamations')
+           // ->Leftjoin('erp_societe_principal_10.users as users_traite','users_traite.id','=','reclamations.user_id_traite')
+            ->Leftjoin('erp_societe_principal_10.reservations','reservations.id','=','reclamations.dossier_id');
+            if($us_role!=2){
+                $query_reclamations->where('reclamations.user_id_traite',$us_id);
+            }
+            if($projet_id!=null){
+                $query_reclamations->Leftjoin('erp_societe_principal_10.projets', function($join) use($projet_id) {
+                    $join->on('reservations.projet_id', '=', 'projets.id')->where('reservations.projet_id',  $projet_id);
+                    });
+                }
+            $query_reclamations ->join('users','users.id','=','reclamations.user_id')
+            ->join('erp_societe_principal_10.clients as clients','clients.id','=','users.client_id')
+            ;
+            if($dt==null && $a_dt==null){
+                $query_reclamations ->whereYear('reclamations.created_at', Carbon::now()->year)->whereMonth('reclamations.created_at', Carbon::now()->month);
+            }else{
+                $query_reclamations->whereBetween('reclamations.created_at',[$dt,$a_dt]);
+            }
+
+            $rec = $query_reclamations
+           // ->where('reclamations.statut',0)
+            ->select('reclamations.*','clients.id as client_id'
+                    ,'clients.nom as client_nom','clients.prenom as client_prenom'
+                   ,'reservations.code_reservation','reclamations.service'
+                    )
+                    ->orderBy('reclamations.etat', 'asc')
+                        ->get();
+            $count_reclamation=count($rec);
+            $reclamations=$rec->take(5);
+            /***********************echeances******************/
+            $query_echeances =Avance::on('temp')->with('last_statut','reservation')
+                    ->where('mode_paiement','!=',7)->where('montant','>',0)
+                    ->where('statut', StatutReservationEnum::Validé->value);
+                    if($dt==null && $a_dt==null){
+                        $query_echeances ->whereYear('echeance', Carbon::now()->year)->whereMonth('echeance', Carbon::now()->month);
+                    }else{
+                        $query_echeances->whereBetween('echeance',[$dt,$a_dt]);
+                    }
+
+                    if($projet_id!=null){
+                        $query_echeances->whereHas('reservation', function ($q) use ($projet_id) {
+                           $q->where('projet_id', $projet_id)
+                                ->where('etat', 1)
+                                ->where('statut',StatutReservationEnum::Validé->value);
+                            });
+                    }
+                    if($us_role!=2){
+                        $query_echeances->where('user_id', $us_id);
+                    }
+            $nb_echeance = count($query_echeances->get());
+            $echeances=$query_echeances->get()->take(5);
+            /****************************Biens by Statut************************* */
+            $Array_biens_etat=[];
+
+            array_push($Array_biens_etat,$this->get_nb_biens($request->merge(['etat' =>  'DISPONIBLE','projet_id'=>$projet_id]))->original['nb_bien']);
+            array_push($Array_biens_etat,$this->get_nb_biens($request->merge(['etat' =>  'PRE_RESERVATION','projet_id'=>$projet_id]))->original['nb_bien']);
+            array_push($Array_biens_etat,$this->get_nb_biens($request->merge(['etat' =>  'RESERVATION','projet_id'=>$projet_id]))->original['nb_bien']);
+            array_push($Array_biens_etat,$this->get_nb_biens($request->merge(['etat' =>  'BLOQUE','projet_id'=>$projet_id]))->original['nb_bien']);
+            array_push($Array_biens_etat,$this->get_nb_biens($request->merge(['etat' =>  'ENCOURS_DE_PROPOSITION','projet_id'=>$projet_id]))->original['nb_bien']);
+
+            /****************************Desistement by Statut************************* */
+            $Array_dst=[];
+            array_push($Array_dst,$this->get_nb_dst($request->merge(['type' =>  1,'type_dp' =>null,'projet_id'=>$projet_id,'dt'=>$dt,'a_dt'=>$dt,'us_role'=>$us_role,'us_id'=>$us_id]))->original['nb_dst']);
+            array_push($Array_dst,$this->get_nb_dst($request->merge(['type' =>  2,'type_dp' =>1,'projet_id'=>$projet_id,'dt'=>$dt,'a_dt'=>$dt,'us_role'=>$us_role,'us_id'=>$us_id]))->original['nb_dst']);
+            array_push($Array_dst,$this->get_nb_dst($request->merge(['type' =>  2,'type_dp' =>2,'projet_id'=>$projet_id,'dt'=>$dt,'a_dt'=>$dt,'us_role'=>$us_role,'us_id'=>$us_id]))->original['nb_dst']);
+            array_push($Array_dst,$this->get_nb_dst($request->merge(['type' =>  2,'type_dp' =>3,'projet_id'=>$projet_id,'dt'=>$dt,'a_dt'=>$dt,'us_role'=>$us_role,'us_id'=>$us_id]))->original['nb_dst']);
+            array_push($Array_dst,$this->get_nb_dst($request->merge(['type' =>3,'type_dp' =>null,'projet_id'=>$projet_id,'dt'=>$dt,'a_dt'=>$dt,'us_role'=>$us_role,'us_id'=>$us_id]))->original['nb_dst']);
+            /***********************Reservation**** nb  */
+            $query_rsv=Reservation::on('temp')->where('etat',1)
+            ->where('statut',StatutReservationEnum::Validé->value);
+            if($dt==null && $a_dt==null){
+                $query_rsv ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+            }else{
+                $query_rsv->whereBetween('created_at',[$dt,$a_dt]);
+            }
+            if($projet_id!=null){
+                $query_rsv->where('projet_id', $projet_id);
+            }
+            if($us_role!=2){
+                $query_rsv->where('user_id', $us_id);
+            }
+            $nb_rsv = count($query_rsv->get());
+            /*****************Sav*********************/
+            $query_sav = Reclamation::on('temp')->with('piece_jointe','bien','prestataire')->LeftJoin('reservations','reservations.bien_id','reclamations.bien_id')
+            ->select('reclamations.*')
+           // ->where('reclamations.statut',1)
+            ->where('reservations.etat',1)
+            ->where('reservations.deleted_at',null)
+            ->orderBy('reclamations.created_at', 'desc');
+            if($dt==null && $a_dt==null){
+                $query_sav ->whereYear('reclamations.created_at', Carbon::now()->year)->whereMonth('reclamations.created_at', Carbon::now()->month);
+            }else{
+                $query_sav->whereBetween('reclamations.created_at',[$dt,$a_dt]);
+            }
+            if($projet_id!=null){
+                $query_sav->where('reclamations.projet_id', $projet_id);
+            }
+
+            $nb_sav = count($query_sav->get());
+            $sav=$query_sav->get()->take(5);
+            /*************************Remise de cles****************** */
+            $query_remis_recement = RemiseCle::on('temp');
+            if($dt==null && $a_dt==null){
+                $query_remis_recement ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+            }else{
+                $query_remis_recement->whereBetween('created_at',[$dt,$a_dt]);
+            }
+            if($projet_id!=null){
+                $query_remis_recement->where('projet_id', $projet_id);
+            }
+            if($us_role!=2){
+                $query_remis_recement->where('user_id', $us_id);
+            }
+            $nb_remise_recement=$query_remis_recement->count();
+
+            //remise a venir
+            $query_nb_bien_remise = Bien::on('temp')
+                    ->where('etat', 'RESERVATION')
+                    ->doesntHave('remiseCle');
+                    if($projet_id!=null){
+                        $query_nb_bien_remise->where('projet_id', $projet_id);
+                    }
+            $nb_remise_a_venir=$query_nb_bien_remise->count();
+                    /********************objectifss */
+             $query_obj=Objectif::on('temp')->where('user_id',$us_id);
+                    if ($projet_id!=null) {
+                        $query_obj->where('projet_id',  $projet_id );
+                    }
+                    if($dt==null && $a_dt==null){
+                        $query_obj ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+                    }else{
+                        $query_obj->whereBetween('created_at',[$dt,$a_dt]);
+                    }
+                $obj=$query_obj->first();
+                if($obj!=null){
+                    if($obj->appels!=null){
+                        $obj_mois_appels=$obj->appels['mois'];
+                     }
+                 if($obj->visites!=null){
+                         $obj_mois_visites=$obj->visites['mois'];
+                      }
+                 if($obj->reservations!=null){
+                         $obj_mois_reservations=$obj->reservations['mois'];
+                      }
+                }
+
+
+
+           return response()->json([
+            'projet_id'=>$projet_id,
+            'sum_encaissements' => $sum_encaissements,
+            'sum_penalites' => $sum_penalites,
+            'sum_remboursements' => $sum_remboursements,
+            'nb_visites'=>$nb_visites,
+            'nb_appels'=>$nb_appels,
+            'nb_prospects'=>$nb_prospects,
+            'nb_clients'=>$nb_clients,
+            'reclamations_clients'=>$reclamations,
+            'count_reclamation'=>$count_reclamation,
+            'echeances'=>$echeances,
+            'nb_echeances'=>$nb_echeance,
+            'biens'=>$Array_biens_etat,
+            'count_biens'=>array_sum($Array_biens_etat),
+            'desistements'=>$Array_dst,
+            'count_dst'=>array_sum($Array_dst),
+            'nb_rsv'=> $nb_rsv,
+            'nb_sav'=>$nb_sav,
+            'sav'=>$sav,
+            'nb_remise_a_venir'=>$nb_remise_a_venir,
+            'nb_remise_recement'=>$nb_remise_recement,
+            'obj_mois_appels'=>$obj_mois_appels
+            ,'obj_mois_visites'=>$obj_mois_visites
+            ,'obj_mois_reservations'=>$obj_mois_reservations,
+
+
+         ]);
+        }else{
+
+        }
+    }
+    public function get_nb_biens(Request $request){
+
+        DatabaseHelper::Config();
+        $query=Bien::on('temp')->where('etat',$request->etat);
+        if($request->projet_id!=null ){
+            $query->where('projet_id',$request->projet_id);
+        }
+        $nb=$query->count();
+
+        return response()->json(['nb_bien' => $nb], 200);
+    }
+
+
+    public function get_nb_dst(Request $request){
+
+        DatabaseHelper::Config();
+        $query=Desistement::on('temp')->where('statut',1)->where('type',$request->type)->where('type_dp',$request->type_dp);
+        if($request->dt==null && $request->a_dt==null){
+            $query ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
+        }else{
+            $query->whereBetween('created_at',[$request->dt,$request->a_dt]);
+        }
+        if($request->projet_id!=null ){
+            $query->where('projet_id',$request->projet_id);
+        }
+        if($request->us_role!=2){
+            $query->where('user_id', $request->us_id);
+        }
+        $nb=$query->count();
+
+        return response()->json(['nb_dst' => $nb], 200);
     }
 
     /**
