@@ -454,7 +454,7 @@ class ReservationController extends Controller
             return response()->json(['reservation' => $reservation]);
         }
     }
-    public function info_reservation($id)
+    /*public function info_reservation($id)
     {
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -475,6 +475,52 @@ class ReservationController extends Controller
             }
             $nb_av = count($reservation->avances);
             return response()->json(['code_res' => $code, 'code_desistement' => $code_desistement, 'prix' => $prix, 'nb_aquer' => $nb_aq, 'nb_av' => $nb_av, 'nb_pj' => $nb_pj, 'etat' => $etat, 'transfert' => $reservation->remboursement_dd_with_transfert, 'statut' => $statut, 'user_id' => $user_id, 'nb_histo' => $nb_histo], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }*/
+    public function info_reservation($id)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $reservation = Reservation::on('temp')->with('remboursement_dd_with_transfert','compromis_vente')->findOrFail($id);
+            $statut=$reservation->statut;
+            $nb_histo=count($reservation->historiques);
+            $etat=$reservation->etat;
+            $code=$reservation->code_reservation;
+            $code_desistement=$reservation->code_desistement;
+            $prix=$reservation->prix;
+            $user_id=$reservation->user_id;
+            if($reservation->etat>1){
+               $nb_aq=count($reservation->aquereurs_ancien);
+               $nb_pj=count($reservation->piece_jointe_desiste);
+            }else{
+               $nb_aq=count($reservation->aquereurs);
+               $nb_pj=count($reservation->piece_jointe);
+            }
+            $nb_av=count($reservation->avances);
+
+            $sum_avances=0;
+             //si dossier desiste
+             if($reservation->etat>1){
+                foreach($reservation->avances_desist as $av){
+                    //avance validé
+                    if($av->statut==StatutReservationEnum::Validé->value){
+                        $sum_avances+=$av->montant;
+                    }
+                 }
+
+             }else{
+                foreach($reservation->avances as $av){
+                    //avance validé
+                    if($av->statut==StatutReservationEnum::Validé->value){
+                        $sum_avances+=$av->montant;
+                    }
+                 }
+             }
+
+            return response()->json(['code_res' => $code,'code_desistement' => $code_desistement,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_av'=>$nb_av,'nb_pj'=>$nb_pj,'etat'=>$etat,'transfert'=>$reservation->remboursement_dd_with_transfert,'statut'=>$statut,'user_id'=>$user_id,'nb_histo'=>$nb_histo
+            ,'sum_avances'=>$sum_avances], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

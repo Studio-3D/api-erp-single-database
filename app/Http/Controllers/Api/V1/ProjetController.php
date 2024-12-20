@@ -55,6 +55,25 @@ class ProjetController extends Controller
         }
     }
 
+    public function get_projets_user($societe_id,$user_id)
+    {
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config($societe_id);
+            $projets_user=null;
+            $projets = Projet::on('temp')->orderBy('created_at', 'asc')->get();
+            if($user_id!=0){
+                $user=User::on('temp')->where('user_id_origin',$user_id)->first();
+                $projets_user=UserProjet::on('temp')->with('projet')->where('user_id',$user->id)->get();
+            }
+            return response()->json(['projets' => $projets,'projets_user'=>$projets_user]);
+        }
+
+        else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+
     public function index(Request $request)
     {
 
@@ -299,7 +318,9 @@ class ProjetController extends Controller
                 $user_projets = UserProjet::on('temp')->where('projet_id', $id)->delete();
                 $all = 0;
                 if (!empty($request->selectedUsers )) {
+
                     $array_user = explode(',', $request->selectedUsers); // $tranches_array sera ['5', '2']
+
                 foreach ($array_user as $valeur) {
                     if ($valeur == 'tous') {
                         $all = 1;

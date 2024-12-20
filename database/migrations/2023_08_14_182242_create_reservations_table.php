@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('code_reservation')->nullable();
             $table->double('prix');
             $table->enum('mode_financement',[ModeFinancement::Comptant->value,ModeFinancement::Crédit->value,ModeFinancement::Indécis->value]);
-            $table->enum('statut',[StatutReservationEnum::Validé->value,StatutReservationEnum::Refusé->value,StatutReservationEnum::En_Attente->value,StatutReservationEnum::Annulé->value]);
+            $table->enum('statut',[StatutReservationEnum::Validé->value,StatutReservationEnum::Refusé->value,StatutReservationEnum::En_Attente->value]);
             $table->date('date_reservation');
             $table->string('commentaire')->nullable();
             $table->integer('etat')->default(1)

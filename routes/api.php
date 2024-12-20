@@ -113,7 +113,10 @@ Route::middleware('auth:api')->group(function () {
         Route::put('desactivateUser/{id}', [V1UserController::class, 'desactivateUser'])->name('desactivateUser');
         Route::get('commerciaux_objectif/{projet_id}', [V1UserController::class, 'list_commerciaux_objectif'])->name('');
         Route::get('commerciaux/{projet_id}', [V1UserController::class, 'list_commerciaux'])->name('');
+        Route::post('sendEmail', [V1UserController::class, 'sendEmail']);
+        Route::post('resendEmail', [V1UserController::class, 'resendEmail']);
 
+        Route::post('/resetPassword/{token}', [V1UserController::class, 'resetPassword']);
         // l'API societes
         Route::resource('societes', V1SocieteController::class);
         // l'API typeProjets
@@ -150,6 +153,8 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API partenare
         Route::resource('projets', V1ProjetController::class);
+        Route::get('get_projets_users/{societe_id}/{user_id}', [V1ProjetController::class, 'get_projets_user'])->name('');
+
 
         //l'API tranches
         Route::resource('tranches', V1TrancheController::class);

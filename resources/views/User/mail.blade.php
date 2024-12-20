@@ -1,6 +1,3 @@
-
-
-
 <!doctype html>
 <html lang="en">
   <head>
@@ -313,12 +310,11 @@
               <!-- START MAIN CONTENT AREA -->
               <tr>
                 <td class="wrapper">
-                  <b>Votre Réclamation de :</b>
-                    <p>
-                        Objet:{{$objet_rec}}<br/>
-                        @if($etat==1) Est Résolu @elseif($etat==2) Non Résolu @else En cours de Traitement @endif <br/>
-                        Commentaire:{{$comment}}
-                    </p>
+                  <b>Bonjour @if($sexe=='Homme') Mr @else Mme @endif {{' '.$nom.' '.$prenom}}</b>
+                  <p>Pour accéder au CRM IMMO GESTION, veuillez utiliser le code d'accès suivant :<br/>
+                    <b>Email</b>: {{$email}}<br/>
+                    <b>Mot de Passe</b>:{{$password}}
+                    .</p>
                   <table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary">
                     <tbody>
                       <tr>
@@ -326,7 +322,7 @@
                           <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                             <tbody>
                               <tr>
-                                <td> <a href="http://localhost:8080/login" target="_blank">Login</a> </td>
+                                <td> <a href="http://localhost:3000/login" target="_blank">Login</a> </td>
                               </tr>
                             </tbody>
                           </table>

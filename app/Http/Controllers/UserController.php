@@ -80,7 +80,8 @@ class UserController extends Controller
                 $users = User::all();
                 return response()->json(['users' => $users]);
             } else {
-                $users = User::where('societe_id', Auth::guard('api')->user()->societe_id)->get();
+                DatabaseHelper::Config();
+                $users = User::on('temp')->get();
                 return response()->json(['users' => $users]);
             }
 
@@ -248,6 +249,14 @@ class UserController extends Controller
         if ($request->has('cin')) {
             $request->validate([
                 'cin' => [
+                    'string',
+                    Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+                ],
+            ]);
+        }
+        if ($request->has('email')) {
+            $request->validate([
+                'email' => [
                     'string',
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],

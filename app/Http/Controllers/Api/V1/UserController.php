@@ -11,11 +11,20 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Models\Societe;
 use App\Models\UserProjet;
 use App\Models\Objectif;
-
+use App\Http\Helpers\UserProjetHelper;
 use App\Models\V1\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Mail;
+use Illuminate\Support\Facades\DB;
+
+
+use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
+use App\Mail\ResetPasswordMail;
+use Illuminate\Support\Facades\Hash;
+
 
 class UserController extends Controller
 {
@@ -82,6 +91,7 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
+
         // Vérifier si l'utilisateur est authentifié
         if (!Auth::guard('api')->check()) {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -191,7 +201,21 @@ class UserController extends Controller
                     FichierHelper::ajouter_fichier($request->photo, $societe->raison_sociale_concatene, $user->societe_id, 'users', $photo);
 
                 }
-                $this->createSubUser($request, $user->id, $user->photo);
+
+                $dataArray_projets = json_decode($request->input('selectedProjets', '[]'), true);
+
+                $this->createSubUser($request, $user->id, $user->photo,$dataArray_projets);
+
+                //send accces par email to user
+
+                    $to_email=$user->email;
+                    $data=array('password'=>$request->password,'sexe'=>$request->gender,'nom'=>$request->name,'prenom'=>$request->prenom,'email'=>$request->email);
+                    Mail::send('User.mail', $data, function($message) use($to_email){
+                        $message->to($to_email)
+                            ->subject ('Codes Accés au Immo Gestion');
+                        $message->from('hhhh.test022@gmail.com','Immo Gestion');
+
+                    });
             }
             return response()->json(['message' => $user], 200);
         } else {
@@ -203,13 +227,13 @@ class UserController extends Controller
         $user = null;
         if (RoleHelper::Superadmin()) {
             $user = User::findOrfail($id);
-        } elseif (RoleHelper::Admin()) {
+        } else{
             DatabaseHelper::Config();
             $user = User::on('temp')->where('user_id_origin', $id)->first();
         }
-        if (!$user) {
+       /* if (!$user) {
             return response()->json(['message' => 'Utilisateur non trouvé'], 200);
-        }
+        }*/
         return response()->json(['user' => $user], 200);
     }
     public function update(UpdateUserRequest $request, $id)
@@ -219,6 +243,13 @@ class UserController extends Controller
         if ($request->has('cin')) {
             $request->validate([
                 'cin' => [
+                    Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+                ],
+            ]);
+        }
+        if ($request->has('email')) {
+            $request->validate([
+                'email' => [
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],
             ]);
@@ -268,12 +299,13 @@ class UserController extends Controller
                     }
                 }
 
+
                 return response()->json(['message' => 'profil modifié avec succès'], 200);
 
             }
         } else if (RoleHelper::AdminSup()) {
             $user = User::findOrFail($id);
-
+            $old_email=$user->email;
             $user->name = $request->input('name');
             $user->prenom = $request->input('prenom');
             $user->email = $request->input('email');
@@ -314,6 +346,26 @@ class UserController extends Controller
                         $user_societes->save();
                     }
                 }
+                //modifier user projet
+                $user_projets = UserProjet::on('temp')->where('user_id', $user_societes->id)->delete();
+                if (!empty($request->selectedProjets )) {
+
+                    $dataArray_projets = json_decode($request->input('selectedProjets', '[]'), true);
+                    foreach ($dataArray_projets as $valeur) {
+                        UserProjetHelper::createUserProjet($valeur['id'],$user_societes->id);
+                    }
+                }
+
+                if($old_email!=$request->email){
+                    $to_email=$user->email;
+                    $data=array('password'=>'Votre Ancien Password','sexe'=>$request->gender,'nom'=>$request->name,'prenom'=>$request->prenom,'email'=>$request->email);
+                    Mail::send('User.mail', $data, function($message) use($to_email){
+                        $message->to($to_email)
+                            ->subject ('Codes Accés au Immo Gestion');
+                        $message->from('hhhh.test022@gmail.com','Immo Gestion');
+
+                    });
+                }
             }
 
             return response()->json(['message' => 'Utilisateur modifié avec succès par super admin'], 200);
@@ -351,7 +403,7 @@ class UserController extends Controller
     }
 
     // Methodes utilitaires (partie invisible a l'exterieur de la classe)
-    private function createSubUser($request, $user_id, $user_photo)
+    private function createSubUser($request, $user_id, $user_photo,$dataArray_projets)
     {
 
         DatabaseHelper::Config($request->societe_id);
@@ -378,7 +430,12 @@ class UserController extends Controller
         if ($request->hasFile('photo')) {
             $user->photo = $user_photo;
         }
-        $user->save();
+
+        if($user->save()){
+            foreach ($dataArray_projets as $valeur) {
+                UserProjetHelper::createUserProjet($valeur['id'],$user->id);
+            }
+        }
     }
 
     public function activateUser($user_id)
@@ -413,5 +470,100 @@ class UserController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
+    }
+
+
+    public function sendEmail()
+    {
+      //  if (RoleHelper::SuperAdmin()) {
+
+            $user = Auth::guard('api')->user()->email;
+
+            if (!$user) {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+            DB::table('password_reset_tokens')
+                ->where('email', $user)
+                ->delete();
+
+            $token = Str::random(60);
+            $confirmationCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            $expirationTime = now()->addMinutes(3);
+            DB::table('password_reset_tokens')->insert([
+                'email' => $user,
+                'token' => $token,
+                'expires_at' => $expirationTime,
+                'created_at' => now(),
+            ]);
+
+            // Construct the reset URL you can chenbge the url
+            $resetUrl = 'http://localhost:3000/reset-password/' . $token;
+
+            // Send an email to the user with the reset URL
+            Mail::to($user)->send(new ResetPasswordMail($resetUrl, $confirmationCode));
+
+            return response()->json(['message' => 'Password reset email sent']);
+       // }
+    }
+    public function resendEmail()
+    {
+        //if (RoleHelper::SuperAdmin()) {
+            // Validate the request and check for user existence
+            $user = Auth::guard('api')->user()->email;
+
+            if (!$user) {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+            DB::table('password_reset_tokens')
+                ->where('email', $user)
+                ->delete();
+
+            $token = Str::random(60);
+            $confirmationCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            $expirationTime = now()->addMinutes(3); // Expires in 1 minute
+            // Store the token in the 'password_resets' table
+            DB::table('password_reset_tokens')->insert([
+                'email' => $user,
+                'token' => $token,
+                'expires_at' => $expirationTime,
+                'created_at' => now(),
+            ]);
+
+            // Construct the reset URL
+            $resetUrl = env('HOST_NAME_FRONT') . '/reset-password/' . $token;
+            // Send an email to the user with the reset URL
+            Mail::to($user)->send(new ResetPasswordMail($resetUrl, $confirmationCode));
+
+            return response()->json(['message' => 'Password reset email sent']);
+       // }
+    }
+
+    public function resetPassword(Request $request, $token)
+    {
+
+        if (RoleHelper::ACSup()) {
+            $passwordReset = DB::table('password_reset_tokens')
+                ->where('token', $token)
+                ->first();
+
+            if (!$passwordReset) {
+                return response()->json(['message' => 'Token not found'], 404);
+            }
+
+            if (now() > $passwordReset->expires_at) {
+                return response()->json(['message' => 'Token has expired'], 401);
+            }
+
+            $user = User::where('email', $passwordReset->email)->first();
+            $user->update([
+                'password' => Hash::make($request->password),
+            ]);
+
+            DB::table('password_reset_tokens')
+                ->where('token', $token)
+                ->delete();
+
+            return response()->json(['message' => 'Password reset successful']);
+        }
     }
 }

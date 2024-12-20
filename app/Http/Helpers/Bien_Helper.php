@@ -293,13 +293,15 @@ class Bien_Helper
     }
 
     public static function libererBien($id,$text,$dst_id){
-        $user = Auth::user();
-        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        if($text!='console'){
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        }
         $bien = Bien::on('temp')->findOrfail($id);
         $bien->etat = EtatBien::DISPONIBLE->value;
       //  $bien->desistement_id=$dst_id;
         if($bien->save()){
-            Bien_Helper::store_bien_frein($bien->id);
+            Bien_Helper::store_bien_frein($bien->id,$text);
             //UPDATE DERNIER VISITE pre reserve=>pre reserve_perdu // vendu==>reservation_perdu
             $visite=Visite::on('temp')->where('bien_id',$id)->where('interet',InteretEnum::Intéressé->value)->orderBy('created_at', 'DESC')->first();
             if($visite!=null){
@@ -337,11 +339,11 @@ class Bien_Helper
                                     $old->user_id_traite=$visite->user_id;
                                 }
                                 else{
-                                    $old->user_id_traite=$userAuth->value('id');
+                                    $old->user_id_traite=$text!='console'?$userAuth->value('id'):null;
                                 }
                             }
                             else{
-                                $old->user_id_traite=$userAuth->value('id');
+                                $old->user_id_traite=$text!='console'?$userAuth->value('id'):null;
                             }
                             $old->save();
                         }
@@ -357,9 +359,11 @@ class Bien_Helper
 
         }
     }
-    public static function store_bien_frein($id)
+    public static function store_bien_frein($id,$text)
     {
-        DatabaseHelper::Config();
+        if($text!='console'){
+            DatabaseHelper::Config();
+        }
         $bien=Bien::on('temp')->findorfail($id);
         $array_fr_id=array();
         $freins= Frein::on('temp')
