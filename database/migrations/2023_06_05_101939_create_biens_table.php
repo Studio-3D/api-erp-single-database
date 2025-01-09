@@ -30,7 +30,7 @@ return new class extends Migration
             $table->float('superficie_terrasse')->nullable();
             $table->double('superficie_jardin',12,2)->nullable();
             $table->string('titre_foncier')->nullable();
-            $table->enum('etat',[EtatBien::DISPONIBLE->name,EtatBien::PRE_RESERVATION->name,EtatBien::RESERVATION->name,EtatBien::BLOQUE->name,EtatBien::VENDU->name,EtatBien::ENCOURS_DE_PROPOSITION->name]); //1=disponible, 2=pré-réservé, 3=réservé, 4=bloqué
+            $table->enum('etat',allowed: [EtatBien::DISPONIBLE->name,EtatBien::PRE_RESERVATION->name,EtatBien::RESERVATION->name,EtatBien::BLOQUE->name,EtatBien::VENDU->name,EtatBien::ENCOURS_DE_PROPOSITION->name]); //1=disponible, 2=pré-réservé, 3=réservé, 4=bloqué
             $table->timestamps();
             $table->softDeletes();
             $table->foreignId('type_id')->constrained('type_biens');

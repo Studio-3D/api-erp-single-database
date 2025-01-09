@@ -177,8 +177,10 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('libererBien/{id}', [V1BienController::class, 'libererBien_function'])->name('libererBien');
         Route::put('setPropostionBien/{id}/{old_id}', [V1BienController::class, 'setPropostionBien'])->name('');
         Route::get('projets/{idprojet}/getBiensByTranche_tva', [V1BienController::class, 'getBiensByTranche_tva'])->name('');
-        Route::get('projets/{idprojet}/pre_reservations', [V1BienController::class, 'pre_reservations_index']);
 
+        Route::get('projets/{idprojet}/pre_reservations', [V1BienController::class, 'pre_reservations_index']);
+        Route::get('projets/{idprojet}/getEtatByType_projet/{type_id}', [V1BienController::class, 'getEtatByType_projet'])->name('getEtatByType_projet');
+        
         //l'API compositionbiens
         Route::resource('compositionBiens', V1CompositionBienController::class);
 

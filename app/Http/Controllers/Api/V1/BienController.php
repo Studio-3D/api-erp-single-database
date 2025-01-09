@@ -30,6 +30,8 @@ use App\Http\Helpers\NotificationHelper;
 use App\Events\NotificationEvent;
 use Carbon\Carbon;
 use App\Enum\RoleEnum;
+use Illuminate\Support\Facades\DB;
+
 class BienController extends Controller
 {
     /**
@@ -223,10 +225,21 @@ class BienController extends Controller
                 ];
 
                 $biens = $biens->items();
+                
+                $counts = DB::connection('temp')
+                ->table('biens')->selectRaw("
+                    etat,
+                    COUNT(*) as total
+                ")
+                ->where('projet_id', 1)
+                ->groupBy('etat')
+                ->get()
+                ->keyBy('etat');
 
                 return response()->json([
                     'data' => $biens,
                     'pagination' => $pagination,
+                    'counts' => $counts,
                 ], 200);
             } else {
                 // Return all results if pagination parameters are not provided or invalid
@@ -1003,5 +1016,27 @@ class BienController extends Controller
 
         }
     }
+
+    public function getEtatByType_projet($projet_id, $type_id)
+    {
+        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+            DatabaseHelper::Config(); // Assurez-vous que la connexion est bien configurée
+
+            // Exécuter la requête SQL avec le constructeur de requêtes
+            $counts = DB::connection('temp')
+                ->table('biens')
+                ->selectRaw("etat, COUNT(*) as total")
+                ->where('projet_id', $projet_id)
+                ->where('type_id', $type_id)
+                ->groupBy('etat')
+                ->get();
+
+            // Retourner les données au format JSON
+            return response()->json(['data' => $counts], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
 
 }

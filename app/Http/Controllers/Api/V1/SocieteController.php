@@ -129,12 +129,12 @@ class SocieteController extends Controller
         if (RoleHelper::Superadmin()) {
             $user = Auth::guard('api')->user();
             $societe = Societe::findOrFail($id);
-            $users = User::where('societe_id', $societe->id)->get();
-            foreach ($users as $user) {
-                UserController::destroy($user->id);
-            }
+            
             if ($societe->delete()) {
-
+                $users = User::where('societe_id', $societe->id)->get();
+                foreach ($users as $user) {
+                    UserController::destroy($user->id);
+                }
                 Config::set('broadcasting.default', 'pusher_1');
                 $societes = Societe::all();
 

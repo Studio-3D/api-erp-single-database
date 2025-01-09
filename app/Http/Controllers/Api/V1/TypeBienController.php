@@ -88,7 +88,7 @@ class TypeBienController extends Controller
                 ], 200);
             } else {
                 // Return all results if pagination parameters are not provided or invalid
-                $typeBiens = $query->orderBy('created_at', 'desc')
+                $typeBiens = $query->orderBy('created_at')
                     ->get();
 
                 return response()->json(['typeBiens' => $typeBiens], 200);
