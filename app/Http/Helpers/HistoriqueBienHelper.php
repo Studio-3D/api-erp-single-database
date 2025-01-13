@@ -8,7 +8,7 @@ use App\Models\HistoriqueBien;
 
 class HistoriqueBienHelper
 {
-    public static function createHistoriqueBien($action, $description, $bienId, $user_id,$visite_id,$reservation_id)
+    public static function createHistoriqueBien($action, $description, $bienId, $user_id,$visite_id,$reservation_id,$desistement_id,$t_appel_id)
     {
         $HistoriqueBien = new HistoriqueBien();
         $HistoriqueBien->setConnection('temp');
@@ -18,6 +18,8 @@ class HistoriqueBienHelper
         $HistoriqueBien->bien_id= $bienId;
         $HistoriqueBien->visite_id= $visite_id;
         $HistoriqueBien->reservation_id= $reservation_id;
+        $HistoriqueBien->desistement_id= $desistement_id;
+        $HistoriqueBien->t_appel_id= $t_appel_id;
         $HistoriqueBien->save();
 
         //$HistoriqueBien = HistoriqueBien::on('temp')->create($historiqueBienData);

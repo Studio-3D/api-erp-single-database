@@ -297,7 +297,7 @@ class BienController extends Controller
             if ($bien->save()) {
                 $this->libere_bien_frein($bien->id);
             }
-            HistoriqueBienHelper::createHistoriqueBien(4, "bloquer", $bien_id, Auth::guard('api')->user()->id, null, null);
+            HistoriqueBienHelper::createHistoriqueBien(4, "bloquer", $bien_id, Auth::guard('api')->user()->id, null, null,null,null);
 
             return response()->json(['message' => $bien], 200);
 
@@ -315,7 +315,7 @@ class BienController extends Controller
             if ($bien->save()) {
                 $this->libere_bien_frein($bien->id);
             }
-            HistoriqueBienHelper::createHistoriqueBien(3, "reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, $reservation_id);
+            HistoriqueBienHelper::createHistoriqueBien(3, "reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, $reservation_id,null,null);
             return response()->json(['message' => $bien], 200);
 
         } else {
@@ -323,9 +323,10 @@ class BienController extends Controller
         }
     }
 
-    public function prereserverBien($bien_id, $visite_id, $appel_id)
+    public function prereserverBien($bien_id, $visite_id, $t_appel_id,$desistement_id)
     {
         if (RoleHelper::ACSup()) {
+            //$appel_id=>traitement_appel_id
             DatabaseHelper::Config();
             $bien = Bien::on('temp')->findOrFail($bien_id);
             $bien->etat = EtatBien::PRE_RESERVATION->name;
@@ -342,22 +343,28 @@ class BienController extends Controller
                 $bien_visite_pre_reserve->setConnection('temp');
                 $bien_visite_pre_reserve->bien_id = $bien_id;
                 $bien_visite_pre_reserve->visite_id = $visite_id;
-                $bien_visite_pre_reserve->appel_id = $appel_id;
+                $bien_visite_pre_reserve->appel_id = $t_appel_id;
+                $bien_visite_pre_reserve->desistement_id = $desistement_id;
                 $bien_visite_pre_reserve->code_pre_reserve = $code;
                 $bien_visite_pre_reserve->save();
                 //liber bien fron frein_bien
                 $this->libere_bien_frein($bien->id);
 
             }
-
-            HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, null);
+            if($visite_id!=null){
+                HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, null,null,null);
+            }elseif($t_appel_id!=null){
+                //$appel_id=>traitement_appel_id
+                HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id,null, null,null,$t_appel_id);
+            }elseif($desistement_id!=null){
+                HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, null,$desistement_id,null);
+            }
             return response()->json(['message' => $bien], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-
 
     public function libere_bien_frein($id)
     {

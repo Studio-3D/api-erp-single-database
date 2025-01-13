@@ -1081,7 +1081,7 @@ class DesistementController extends Controller
                         elseif($request->type==TypeDesistement::Changement_De_Bien->value){
                             //set bien Pré-Réservé
                             $bien_c=new BienController();
-                            $bien_c->prereserverBien($request->bien_id_new,null,null);
+                            $bien_c->prereserverBien($request->bien_id_new,null,null,$desistement->id);
                             //replicate reservation
                             $resv_ancien = Reservation::on('temp')->findOrFail($request->reservation_id);
                             //coppier ancien reservation meme code _reservation
@@ -2007,7 +2007,7 @@ class DesistementController extends Controller
                     elseif($desistement->type==TypeDesistement::Changement_De_Bien->value){
                         //set bien Pré-Réservé
                         $bien_c=new BienController();
-                        $bien_c->prereserverBien($desistement->bien_id_new,null,null);
+                        $bien_c->prereserverBien($desistement->bien_id_new,null,null,$desistement_id);
                         //replicate reservation
                         $resv_ancien = Reservation::on('temp')->findOrFail($desistement->reservation_id);
                         //coppier ancien reservation meme code _reservation

@@ -22,4 +22,12 @@ class PreReservation extends Model
     {
         return $this->belongsTo(Visite::class,  'visite_id');
     }
+    public function t_appel()
+    {
+        return $this->belongsTo(Appel::class,  'appel_id');
+    }
+    public function desistement()
+    {
+        return $this->belongsTo(Desistement::class,  'desistement_id');
+    }
 }

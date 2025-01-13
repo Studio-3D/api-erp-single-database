@@ -18,8 +18,8 @@ return new class extends Migration
             $table->foreignId('bien_id')->constrained('biens')->onDelete('cascade');
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->bigInteger('appel_id')->nullable();
-           // $table->foreignId('appel_id')->nullable()->constrained('visites')->onDelete('cascade');
-           $table->string('commentaire')->nullable();
+            $table->foreignId('desistement_id')->nullable();
+            $table->string('commentaire')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

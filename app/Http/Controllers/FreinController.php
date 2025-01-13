@@ -521,7 +521,7 @@ class FreinController extends Controller
         return response()->json(['error'=>'Unauthorized'],401);
     }
 
-    public function traiter_bien_frein(Traite_Bien_freinRequest $request,$bien_id,$frein_id){
+    /*public function traiter_bien_frein(Traite_Bien_freinRequest $request,$bien_id,$frein_id){
 
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -548,7 +548,7 @@ class FreinController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-    }
+    }*/
 
 
 }

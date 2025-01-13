@@ -556,9 +556,9 @@ class VisiteController extends Controller
                                 //STORE HISTORIQUE DU BIEN
                                 if ($list_biens['bien_id'] != null) {
                                     if ($visite->statut == StatutVisiteEnum::Vendu->value) {
-                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null);
+                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
                                     } else if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null);
+                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
                                     }
                                 }
                                 //store relances et rdv et notifications
@@ -622,7 +622,7 @@ class VisiteController extends Controller
                                 //store code pre reserve to table ==>PreReservation
                                 if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
                                     $bien_c = new BienController();
-                                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null);
+                                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
 
                                 } elseif ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
                                     //set visite pre reserve
@@ -735,9 +735,9 @@ class VisiteController extends Controller
                                 //STORE HISTORIQUE DU BIEN
                                 if ($list_biens['bien_id'] != null) {
                                     if ($visite->statut == StatutVisiteEnum::Vendu->value) {
-                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null);
+                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
                                     } else if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null);
+                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
                                     }
                                 }
                                 //store relances et rdv et notifications
@@ -800,7 +800,7 @@ class VisiteController extends Controller
                                 //store code pre reserve to table ==>PreReservation
                                 if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
                                     $bien_c = new BienController();
-                                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null);
+                                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
 
                                 } elseif ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
                                     //set visite pre reserve
@@ -1255,9 +1255,9 @@ class VisiteController extends Controller
             //STORE HISTORIQUE DU BIEN
             if ($visite->bien_id != null) {
                 if ($visite->statut == StatutVisiteEnum::Vendu->value) {
-                    HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null);
+                    HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
                 } else if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                    HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null);
+                    HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
                 }
             }
             /**si ancien Perdu avec notif des bien dispo on supprime la notif** pas encours */
@@ -1336,7 +1336,7 @@ class VisiteController extends Controller
             if ($old_visite->statut != StatutVisiteEnum::Pré_Réservation->value) {
                 if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
                     $bien_c = new BienController();
-                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null);
+                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
                 }
             }
 
@@ -1705,9 +1705,9 @@ class VisiteController extends Controller
                                 //STORE HISTORIQUE DU BIEN
                                 if ($list_biens['bien_id'] != null) {
                                     if ($newVisit->statut == StatutVisiteEnum::Vendu->value) {
-                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $newVisit->bien_id, Auth::guard('api')->user()->id, $newVisit->id, null);
+                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $newVisit->bien_id, Auth::guard('api')->user()->id, $newVisit->id, null,null,null);
                                     } else if ($newVisit->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $newVisit->bien_id, Auth::guard('api')->user()->id, $newVisit->id, null);
+                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $newVisit->bien_id, Auth::guard('api')->user()->id, $newVisit->id, null,null,null);
                                     }
                                 }
                                 //store relances et rdv et notifications
@@ -1771,7 +1771,7 @@ class VisiteController extends Controller
                                 //store code pre reserve to table ==>PreReservation
                                 if ($newVisit->interet == InteretEnum::Intéressé->value && $newVisit->statut == StatutVisiteEnum::Pré_Réservation->value) {
                                     $bien_c = new BienController();
-                                    $bien_c->prereserverBien($newVisit->bien_id, $newVisit->id, null);
+                                    $bien_c->prereserverBien($newVisit->bien_id, $newVisit->id, null,null);
 
                                 } elseif ($newVisit->interet == InteretEnum::Intéressé->value && $newVisit->statut == StatutVisiteEnum::Vendu->value) {
                                     //store visite vendu
@@ -1864,7 +1864,7 @@ class VisiteController extends Controller
                                 //STORE HISTORIQUE DU BIEN
                                 if ($list_biens['bien_id'] != null) {
                                     if ($newVisit->statut == StatutVisiteEnum::Vendu->value) {
-                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $newVisit->bien_id, Auth::guard('api')->user()->id, $newVisit->id, null);
+                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $newVisit->bien_id, Auth::guard('api')->user()->id, $newVisit->id, null,null,null);
                                     }
                                 }
 

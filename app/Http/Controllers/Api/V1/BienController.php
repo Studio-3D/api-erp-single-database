@@ -225,13 +225,14 @@ class BienController extends Controller
                 ];
 
                 $biens = $biens->items();
-                
+
                 $counts = DB::connection('temp')
                 ->table('biens')->selectRaw("
                     etat,
                     COUNT(*) as total
                 ")
-                ->where('projet_id', 1)
+                ->where('projet_id', $projet_id)
+                ->whereNull('deleted_at')
                 ->groupBy('etat')
                 ->get()
                 ->keyBy('etat');
@@ -555,7 +556,7 @@ class BienController extends Controller
             if ($bien->save()) {
                 $this->libere_bien_frein($bien->id);
             }
-            HistoriqueBienHelper::createHistoriqueBien(4, "bloquer", $bien_id, Auth::guard('api')->user()->id, null, null);
+            HistoriqueBienHelper::createHistoriqueBien(4, "bloquer", $bien_id, Auth::guard('api')->user()->id, null, null,null,null);
 
             return response()->json(['message' => $bien], 200);
 
@@ -658,7 +659,7 @@ class BienController extends Controller
                 }
 
                 $this->libere_bien_frein($bien->id);
-                HistoriqueBienHelper::createHistoriqueBien(3, "reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, $reservation_id);
+                HistoriqueBienHelper::createHistoriqueBien(3, "reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, $reservation_id,null,null);
             }
 
             return response()->json(['message' => $bien], 200);
@@ -668,9 +669,10 @@ class BienController extends Controller
         }
     }
 
-    public function prereserverBien($bien_id, $visite_id, $appel_id)
+    public function prereserverBien($bien_id, $visite_id, $t_appel_id,$desistement_id)
     {
         if (RoleHelper::ACSup()) {
+            //$appel_id=>traitement_appel_id
             DatabaseHelper::Config();
             $bien = Bien::on('temp')->findOrFail($bien_id);
             $bien->etat = EtatBien::PRE_RESERVATION->name;
@@ -687,15 +689,22 @@ class BienController extends Controller
                 $bien_visite_pre_reserve->setConnection('temp');
                 $bien_visite_pre_reserve->bien_id = $bien_id;
                 $bien_visite_pre_reserve->visite_id = $visite_id;
-                $bien_visite_pre_reserve->appel_id = $appel_id;
+                $bien_visite_pre_reserve->appel_id = $t_appel_id;
+                $bien_visite_pre_reserve->desistement_id = $desistement_id;
                 $bien_visite_pre_reserve->code_pre_reserve = $code;
                 $bien_visite_pre_reserve->save();
                 //liber bien fron frein_bien
                 $this->libere_bien_frein($bien->id);
 
             }
-
-            HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, null);
+            if($visite_id!=null){
+                HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, null,null,null);
+            }elseif($t_appel_id!=null){
+                //$appel_id=>traitement_appel_id
+                HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id,null, null,null,$t_appel_id);
+            }elseif($desistement_id!=null){
+                HistoriqueBienHelper::createHistoriqueBien(2, "pre_reserver", $bien_id, Auth::guard('api')->user()->id, $visite_id, null,$desistement_id,null);
+            }
             return response()->json(['message' => $bien], 200);
 
         } else {
@@ -711,23 +720,57 @@ class BienController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
-            $query = PreReservation::on('temp')->with('bien','visite','visite.rdv_relation');
+            $query = PreReservation::on('temp')->with('desistement','bien','visite','visite.rdv_relation','t_appel','t_appel.rdv');
             $query->whereHas('bien', function ($subQuery) use ($projet_id) {
                 $subQuery->where('projet_id', $projet_id);
             });
             $query->whereHas('visite', function ($subQuery)  {
-                $subQuery->where('statut',1);
+                $subQuery->where('statut',1)->where('etat',1);
             });
-            if ($request->filled('nature_travaux')) {
-                $query->where('nature_travaux', 'like', '%' . $request->input('nature_travaux') . '%');
+            //appels
+            //desistement (pas la peine)
+            if ($request->filled('bien')) {
+                $query->whereHas('bien', function ($request)  {
+                    $subQuery->where('propriete_dite_bien', 'like', '%' . $request->input('bien') . '%');
+                });
             }
 
-            if ($request->filled('cout')) {
-                $query->where('cout',  $request->input('cout') );
+            if ($request->filled('prospect')) {
+                $query->whereHas('visite.prospect', function ($q) use ($request) {
+                    $q->where('nom', 'like', '%' . $request->input('prospect') . '%')
+                    ->orWhere('prenom', 'like', '%' . $request->input('prospect') . '%');});
+                $query->orwhereHas('t_appel.appel.prospect', function ($q) use ($request) {
+                        $q->where('nom', 'like', '%' . $request->input('prospect') . '%')
+                        ->orWhere('prenom', 'like', '%' . $request->input('prospect') . '%');});
             }
-            if ($request->filled('date_validation')) {
-                $start = Carbon::parse($request->input('date_validation'));
-                $query->whereDate('date_validation', $start);
+
+            if ($request->filled('respo')) {
+                $query->whereHas('visite.user', function ($q) use ($request) {
+                    $q->where(function ($q) use ($request) {
+                        $q->where('name', 'like', '%' . $request->input('respo') . '%')
+                            ->orWhere('prenom', 'like', '%' . $request->input('respo') . '%');
+                    });
+                });
+                $query->orwhereHas('t_appel.user', function ($q) use ($request) {
+                    $q->where(function ($q) use ($request) {
+                        $q->where('name', 'like', '%' . $request->input('respo') . '%')
+                            ->orWhere('prenom', 'like', '%' . $request->input('respo') . '%');
+                    });
+                });
+                $query->orwhereHas('desistement.user', function ($q) use ($request) {
+                    $q->where(function ($q) use ($request) {
+                        $q->where('name', 'like', '%' . $request->input('respo') . '%')
+                            ->orWhere('prenom', 'like', '%' . $request->input('respo') . '%');
+                    });
+                });
+            }
+
+            /*if ($request->filled('date')) {
+                $start = Carbon::parse($request->input('date'));
+                $query->whereDate('date_pre_reserve', $start);
+            }*/
+            if ($request->filled('code_pre')) {
+                $query->where('code_pre_reserve', 'like', '%' . $request->input('code_pre') . '%');
             }
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
@@ -1028,6 +1071,7 @@ class BienController extends Controller
                 ->selectRaw("etat, COUNT(*) as total")
                 ->where('projet_id', $projet_id)
                 ->where('type_id', $type_id)
+                ->whereNull('deleted_at')
                 ->groupBy('etat')
                 ->get();
 

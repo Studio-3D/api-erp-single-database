@@ -824,7 +824,7 @@ class FreinController extends Controller
 
                             }
                             $bien = new BienController();
-                            $bien->prereserverBien($request->bien_id, $frein->visite_id, null);
+                            $bien->prereserverBien($request->bien_id, $frein->visite_id, null,null);
                             $frein->etat = 3;
                             if ($frein->save()) {
                                 //destroy frein bien
