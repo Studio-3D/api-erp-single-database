@@ -2,26 +2,22 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\NewSocieteEvent;
+use App\Http\Controllers\Controller;
+use App\Http\Helpers\DatabaseHelper;
+use App\Http\Helpers\FichierHelper;
+use App\Http\Helpers\RoleHelper;
+use App\Http\Requests\StoreSocieteRequest;
+use App\Http\Requests\UpdateSocieteRequest;
+use App\Models\User;
+use App\Models\V1\Societe;
+use App\Services\V1\Contracts\SocieteService;
 use App\Utils\FilterUtils;
 use App\Utils\PaginationUtils;
 use Illuminate\Http\Request;
-use App\Events\NewSocieteEvent;
-use App\Http\Helpers\RoleHelper;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreSocieteRequest;
-use App\Http\Requests\UpdateSocieteRequest;
-use App\Models\V1\Societe;
-use App\Services\V1\Contracts\SocieteService;
-use App\Http\Helpers\FichierHelper;
-use App\Http\Helpers\DatabaseHelper;
-use App\Models\User;
-use Pusher\Pusher;
-use App\Models\Projet;
 use Illuminate\Support\Facades\Auth;
-use \Illuminate\Support\Facades\Storage;
-use App\Events\Societes;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\File;
 
 class SocieteController extends Controller
 {
@@ -46,10 +42,10 @@ class SocieteController extends Controller
         // Passe directement l'objet $request
         $response = $this->societeService->createSociete($request);
 
-        return response()->json(
-            ['message' => $response->getOriginalContent()['message']],
-            $response->getStatusCode()
-        );
+        return response()->json([
+            'societe' => $response->original['societe'], // Récupère la société créée
+            'message' => 'Société ajoutée avec succès',
+        ], 200);
     }
 
     public function show($id)
@@ -68,7 +64,7 @@ class SocieteController extends Controller
             $data = $this->societeService->getSocietes($filters, $paginationParams['size'], $paginationParams['page']);
             return response()->json([
                 'societes' => $data['items'],
-                'pagination' => $data['pagination']
+                'pagination' => $data['pagination'],
             ], 200);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -129,18 +125,17 @@ class SocieteController extends Controller
         if (RoleHelper::Superadmin()) {
             $user = Auth::guard('api')->user();
             $societe = Societe::findOrFail($id);
-            
+            $users = User::where('societe_id', $societe->id)->get();
+            foreach ($users as $user) {
+                UserController::destroy($user->id);
+            }
             if ($societe->delete()) {
-                $users = User::where('societe_id', $societe->id)->get();
-                foreach ($users as $user) {
-                    UserController::destroy($user->id);
-                }
+
                 Config::set('broadcasting.default', 'pusher_1');
                 $societes = Societe::all();
 
                 broadcast(new NewSocieteEvent($societe->id));
                 return response()->json(['message' => 'societe supprimé avec succes'], 200);
-
 
             } else {
                 return response()->json(['message' => 'Societe non supprimée'], 404);

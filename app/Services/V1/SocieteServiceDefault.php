@@ -1,13 +1,12 @@
 <?php
 namespace App\Services\V1;
 
-use App\Services\V1\Contracts\SocieteService;
 use App\Events\NewSocieteEvent;
 use App\Http\Helpers\DatabaseHelper;
-use App\Repositories\V1\Contracts\SocieteRepository;
-use Illuminate\Support\Facades\Config;
-use App\Utils\FileManager;
 use App\Http\Helpers\FichierHelper;
+use App\Repositories\V1\Contracts\SocieteRepository;
+use App\Services\V1\Contracts\SocieteService;
+use Illuminate\Support\Facades\Config;
 
 class SocieteServiceDefault implements SocieteService
 {
@@ -48,9 +47,8 @@ class SocieteServiceDefault implements SocieteService
         Config::set('broadcasting.default', 'pusher_1');
         broadcast(event: new NewSocieteEvent($societe->id));
 
-        return response()->json(['message' => 'Société créée avec succès'], 200);
+        return response()->json(['societe' => $societe], 200);
     }
-
 
     public function getSocieteById(int $id)
     {

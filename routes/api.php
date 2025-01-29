@@ -205,6 +205,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('search_client_by_cin/{cin}', [V1ClientController::class, 'search_client_by_cin']);
         Route::get('search_client_by_phone/{phone}', [V1ClientController::class, 'search_client_by_phone']);
         Route::get('search_client_by_email/{email}', [V1ClientController::class, 'search_client_by_email']);
+        Route::get('projets/{idprojet}/clients', [V1ClientController::class, 'indexByProjet']);
 
         //l'API Aquerreur
         Route::resource('aquereurs', V1AquereurController::class);

@@ -94,6 +94,75 @@ class ClientController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    public function indexByProjet(Request $request, $projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
+            DatabaseHelper::Config();
+
+            // Démarrer la requête directement sur le modèle
+            $query = client::on('temp')->where('projet_id', $projet_id);
+            $query->where(function ($q) use ($request) {
+                if ($request->filled('telephone')) {
+                    $q->where(function ($subQuery) use ($request) {
+                        $subQuery->where('telephone_num1', 'like', '%' . $request->input('telephone') . '%')
+                                 ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                    });
+                }
+            });
+            if ($request->filled('cin')) {
+                $query->where('cin', 'like', '%' . $request->input('cin') . '%');
+            }
+            if ($request->filled('nom')) {
+                $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+            }
+            if ($request->filled('prenom')) {
+                $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+            }
+            /* if ($$request->filled('type_client')) {
+                $query->where('type_client', $request->input('type_client'));
+            } */
+
+
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+
+                $clients = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+
+                // Extraire les propriétés du paginateur
+                $pagination = [
+                    'currentPage' => $clients->currentPage(),
+                    'totalItems' => $clients->total(),
+                    'totalPages' => $clients->lastPage(),
+                ];
+
+                // Extraire les éléments d'utilisateur du paginateur
+                $clients = $clients->items();
+
+                // Retourner la réponse simplifiée
+                return response()->json([
+                    'data' => $clients,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+                if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
+                    $clients = Client::all();
+                }
+                else if (RoleHelper::AC()) {
+                    $clients = $query->orderBy('nom', 'asc')
+                    ->get();
+                }
+
+                return response()->json(['clients' => $clients], 200);
+            }
+
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
 
 
     /**
@@ -118,6 +187,7 @@ class ClientController extends Controller
                 $client->partenaire_id = $request->partenaire_id;
             }
             $client->nom = $request->nom;
+            $client->projet_id = $request->projet_id;
             $client->prenom = $request->prenom;
             $client->telephone_num1 = $request->telephone_num1;
             $client->telephone_num2 = $request->telephone_num2;
