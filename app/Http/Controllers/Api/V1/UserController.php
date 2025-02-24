@@ -32,12 +32,17 @@ class UserController extends Controller
      * PUT    /{id}   update
      * DELETE /{id}   destroy
      */
-    public function get_commerciaux()
+    public function get_commerciaux($projet_id)
     {
         if (RoleHelper::Admin()) {
             DatabaseHelper::Config();
             //->where('role',3)
-            $users = User::on('temp')->get();
+            $users = UserProjet::on('temp')->with('user')
+            ->where('projet_id', $projet_id)
+            ->whereHas('user', function ($q) {
+                $q->where('role', 3);
+
+            })->distinct()->get();
             return response()->json(['users' => $users], 200);
         }
 

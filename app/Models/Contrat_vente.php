@@ -11,6 +11,7 @@ class   Contrat_vente extends Model
     use HasFactory;
     use SoftDeletes;
 
+    
     protected $table='contrat_ventes';
     protected $dates=['deleted_at'];
     protected $with=['user','reservation'];
