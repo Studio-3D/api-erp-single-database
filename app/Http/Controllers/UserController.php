@@ -242,22 +242,30 @@ class UserController extends Controller
      */
     public function show($id)
     {
-        if (RoleHelper::Superadmin()) {
-            $user = User::findOrfail($id);
+        $userAuth = Auth::guard('api')->user();
 
-            if ($user) {
-                return response()->json(['user' => $user], 200);
-            } else {
-                return response()->json(['message' => 'Utilisateur non trouvé'], 200);
-            }
-        } else if (RoleHelper::Admin()) {
+        if (RoleHelper::Superadmin() && $userAuth->societe_id == 1) {
+            // Récupérer l'utilisateur et compter ses relations
+            $user = User::find($id);
+        } else if (RoleHelper::Admin() || (RoleHelper::Superadmin() && $userAuth->societe_id != 1)) {
             DatabaseHelper::Config();
-            $user = User::on('temp')->findOrfail($id);
-            return response()->json(['user' => $user], 200);
+            $user = User::on('temp')
+                ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+                ->where('user_id_origin', $id)
+                ->first();
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
+
+        if (!$user) {
+            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+        }
+
+        return response()->json([
+            'user' => $user,
+        ], 200);
     }
+
     public function update(UpdateUserRequest $request, $id)
     {
         $user = User::findOrFail($id);
@@ -576,14 +584,13 @@ class UserController extends Controller
     }
     public function resendEmail(Request $request)
     {
-            // Validate the request and check for user existence
-           $request->validate([
+        // Validate the request and check for user existence
+        $request->validate([
             'email' => 'required|email',
         ]);
 
         // Rechercher l'utilisateur par email
         $user = User::where('email', $request->email)->first();
-
 
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
@@ -615,26 +622,26 @@ class UserController extends Controller
     public function resetPassword(Request $request, $token)
     {
 
-            $passwordReset = DB::table('password_reset_tokens')
-                ->where('token', $token)
-                ->first();
+        $passwordReset = DB::table('password_reset_tokens')
+            ->where('token', $token)
+            ->first();
 
-            if (!$passwordReset) {
-                return response()->json(['message' => 'Token not found'], 404);
-            }
+        if (!$passwordReset) {
+            return response()->json(['message' => 'Token not found'], 404);
+        }
 
-            if (now() > $passwordReset->expires_at) {
-                return response()->json(['message' => 'Token has expired'], 401);
-            }
+        if (now() > $passwordReset->expires_at) {
+            return response()->json(['message' => 'Token has expired'], 401);
+        }
 
-            $user = User::where('email', $passwordReset->email)->first();
-            $user->update(['password' => Hash::make($request->password)]);
+        $user = User::where('email', $passwordReset->email)->first();
+        $user->update(['password' => Hash::make($request->password)]);
 
-            DB::table('password_reset_tokens')
-                ->where('token', $token)
-                ->delete();
+        DB::table('password_reset_tokens')
+            ->where('token', $token)
+            ->delete();
 
-            return response()->json(['message' => 'Password reset successful']);
+        return response()->json(['message' => 'Password reset successful']);
 
     }
 

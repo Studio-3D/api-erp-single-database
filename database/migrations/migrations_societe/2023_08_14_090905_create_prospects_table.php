@@ -26,6 +26,7 @@ return new class extends Migration
             $table->text('message')->nullable();
             $table->string('origin');
             $table->string('ville')->nullable();
+            $table->foreignId(column: 'projet_id')->constrained('projets')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });

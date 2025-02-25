@@ -87,6 +87,67 @@ class ProspectController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    public function indexByProjet(Request $request,$projet_id)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
+            DatabaseHelper::Config();
+
+            // Démarrer la requête directement sur le modèle
+            $query = prospect::on('temp')->where('projet_id', $projet_id);
+            $query->where(function ($q) use ($request) {
+                if ($request->filled('telephone')) {
+                    $q->where(function ($subQuery) use ($request) {
+                        $subQuery->where('telephone', 'like', '%' . $request->input('telephone') . '%')
+                            ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                    });
+                }
+            });
+            if ($request->filled('cin')) {
+                $query->where('cin', 'like', '%' . $request->input('cin') . '%');
+            }
+            if ($request->filled('nom')) {
+                $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+            }
+            if ($request->filled('prenom')) {
+                $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+            }
+
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+
+                $prospects = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+
+                // Extraire les propriétés du paginateur
+                $pagination = [
+                    'currentPage' => $prospects->currentPage(),
+                    'totalItems' => $prospects->total(),
+                    'totalPages' => $prospects->lastPage(),
+                ];
+
+                // Extraire les éléments d'utilisateur du paginateur
+                $prospects = $prospects->items();
+
+                // Retourner la réponse simplifiée
+                return response()->json([
+                    'prospects' => $prospects,
+                    'pagination' => $pagination,
+                ], 200);
+            } else {
+                // Return all results if pagination parameters are not provided or invalid
+                $prospects = $query->orderBy('created_at', 'desc')
+                    ->get();
+
+                return response()->json(['prospects' => $prospects], 200);
+            }
+
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
     /**
      * Show the form for creating a new resource.
      */
