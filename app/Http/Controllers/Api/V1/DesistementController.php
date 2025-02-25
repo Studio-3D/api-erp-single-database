@@ -507,7 +507,7 @@ class DesistementController extends Controller
                         if ($request->penalite_par == 'prix') {
                             if ($pen->echeance != null) {
                                 $data_notif = [
-                                    'lien' => '/desistements/penalite/show/' . $pen->id,
+                                    'lien' => '/desistements/penalites/show/' . $pen->id,
                                     'date' => $pen->echeance,
                                     'type' => 5,
                                     'description' => 'ECHEANCE Pénalité',
@@ -581,7 +581,7 @@ class DesistementController extends Controller
                             //if (RoleHelper::Com()) {
                             //notifiction to admin de valider penalite
                             $data_notif = [
-                                'lien' => '/desistements/penalite/show/' . $pen->id,
+                                'lien' => '/desistements/penalites/show/' . $pen->id,
                                 'date' => Carbon::now(),
                                 'type' => 22,
                                 'description' => 'DEMANDE VALIDATION Pénalité',
@@ -2769,7 +2769,7 @@ class DesistementController extends Controller
                     if ($pen->echeance != null) {
 
                         $data_notif = [
-                            'lien' => '/desistements/penalite/show/' . $pen->id,
+                            'lien' => '/desistements/penalites/show/' . $pen->id,
                             'date' => $pen->echeance,
                             'type' => 5,
                             'user_id' => Auth::guard('api')->user()->id,
@@ -2818,7 +2818,7 @@ class DesistementController extends Controller
                     // if (RoleHelper::Com()) {
                     //notifiction to admin de valider penalite
                     $data_notif = [
-                        'lien' => '/desistements/penalite/show/' . $pen->id,
+                        'lien' => '/desistements/penalites/show/' . $pen->id,
                         'date' => Carbon::now(),
                         'type' => 22,
                         'role' => Auth::guard('api')->user()->id,
@@ -3050,7 +3050,7 @@ class DesistementController extends Controller
                  if($penalite->desistement->user->role==RoleEnum::COMMERCIAL->value){
                     Config::set('broadcasting.default', 'pusher_3');
                     $data_notif = [
-                       'lien' => '/desistements/penalite/show/'.$penalite->id,
+                       'lien' => '/desistements/penalites/show/'.$penalite->id,
                        'date' => Carbon::now(),
                        'type' =>13,
                        'user_id'=>$penalite->desistement->user->user_id_origin,
@@ -3087,7 +3087,7 @@ class DesistementController extends Controller
                         broadcast(new NotifMenuEvent(3));
                         if($penalite->desistement->user->role==RoleEnum::COMMERCIAL->value){
                             $data_notif = [
-                                'lien' => '/desistements/penalite/show/'.$penalite->id,
+                                'lien' => '/desistements/penalites/show/'.$penalite->id,
                                 'date' => Carbon::now(),
                                 'type' =>14,
                                 'user_id'=>$penalite->desistement->user->user_id_origin,

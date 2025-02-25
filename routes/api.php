@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\VisiteController as V1VisiteController;
 use App\Http\Controllers\Api\V1\VueController as V1VueController;
 use App\Http\Controllers\Api\V1\EtapeProjetController as V1EtapeProjetController;
+use App\Http\Controllers\Api\V1\CommissionController as V1CommissionController;
 
 
 
@@ -96,7 +97,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('desactivateUser/{id}', [V1UserController::class, 'desactivateUser'])->name('desactivateUser');
         Route::get('commerciaux_objectif/{projet_id}', [V1UserController::class, 'list_commerciaux_objectif'])->name('');
         Route::get('commerciaux/{projet_id}', [V1UserController::class, 'list_commerciaux'])->name('');
-        Route::get('get_commerciaux', [V1UserController::class, 'get_commerciaux'])->name('get_users');
+        Route::get('get_commerciaux/{projet_id}', [V1UserController::class, 'get_commerciaux'])->name('get_users');
 
         // l'API societes
         Route::resource('societes', V1SocieteController::class);
@@ -366,6 +367,18 @@ Route::middleware('auth:api')->group(function () {
         Route::get('historiques/{date}/{id}/{type}', [v1ActualiteController::class, 'get_historique'])->name('');
         Route::get('actualites/{projet_id}/{user_id}/{de_date}/{a_date}', [V1ActualiteController::class, 'index'])->name('');
 
+        //Commission
+            //Configurations
+        Route::resource('commissionsConfigurations', V1CommissionController::class);
+        Route::get('configurations_commissions/{idprojet}', [V1CommissionController::class, 'configurations_commissions']);
+            // Montant Fixe
+        Route::get('commission_montant/{idprojet}', [V1CommissionController::class, 'commission_montant']);
+            //Mensuelle
+        Route::get('projets/{idprojet}/commissions_mensuelle_en_attente', [V1CommissionController::class, 'commissions_mensuelle_en_attente']);
+        Route::get('cummulles_commissions/{user_id}', [V1CommissionController::class, 'cummulles_commissions']);
+        Route::post('traiter_commission/{comm_id}', [V1CommissionController::class, 'traiter_commission'])->name('');
+        Route::get('projets/{idprojet}/commissions_traites', [V1CommissionController::class, 'commissions_traites']);
+        Route::get('projets/{idprojet}/commissions_cumuls_by_projet', [V1CommissionController::class, 'commissions_cumuls_by_projet']);
 
     });
 

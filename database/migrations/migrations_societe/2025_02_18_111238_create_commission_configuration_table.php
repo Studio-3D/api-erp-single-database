@@ -11,16 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('contrat_ventes', function (Blueprint $table) {
+        Schema::create('commission_configuration', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('reservation_id')->constrained('reservations')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->date('date_sign_client');
-            $table->date('date_sign_mo');
-            $table->date('date_enreg');
-            $table->string('num_recu');
-            $table->string('commentaire')->nullable();
-            $table->string('piece_jointe')->nullable();
+            $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
+            $table->integer('de');
+            $table->integer('a');
+            $table->string('pourcentage');
             $table->softDeletes();
             $table->timestamps();
         });
@@ -31,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('contacts');
+        Schema::dropIfExists('commission_configuration');
     }
 };
