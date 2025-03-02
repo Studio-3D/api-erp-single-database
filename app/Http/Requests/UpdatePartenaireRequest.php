@@ -20,7 +20,7 @@ class UpdatePartenaireRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'description' => [Rule::unique('temp.' . $DatabaseName . '.partenaires', 'description')->where(function ($query) {
+            'description' => [Rule::unique('temp.' . $DatabaseName . '.partenaires', 'description')->whereNull('deleted_at')->where(function ($query) {
                 $query->where('description', $this->description)
                     ->where('projet_id', $this->projet_id);})->ignore($this->partenaire)],
             'remise'=>'integer',

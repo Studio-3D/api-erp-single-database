@@ -12,6 +12,8 @@ use App\Models\Client;
 use App\Models\Prospect;
 use App\Models\Source;
 use App\Models\Visite;
+use App\Models\Notification;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -33,7 +35,7 @@ class ProspectController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
-            $query = prospect::on('temp');
+            $query = prospect::on('temp')->with('client','visites','appels');
             $query->where(function ($q) use ($request) {
                 if ($request->filled('telephone')) {
                     $q->where(function ($subQuery) use ($request) {
@@ -273,11 +275,22 @@ class ProspectController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $prospect = Prospect::on('temp')->findOrFail($id);
-            if ($prospect->forceDelete()) {
-                return response()->json(['message' => 'Prospect supprimé avec succès.'], 200);
-            } else {
-                return response()->json(['error' => "Le prospect n'a pas été supprimé."], 404);
+            if(count($prospect->visites)>0||$prospect->appel!=null || $prospect->client!=null){
+                return response()->json(['error' => 'Il est impossible de supprimer ce Prospect car il possède plusieurs dossiers liés à des visites, des appels ou client.'], 422);
+            }else{
+                $notifications=Notification::on('temp')->where('prospect_id',$id)->get();
+                if(count($notifications)){
+                    foreach($notifications as $nt){
+                        $nt->forceDelete();
+                    }
+                }
+                if ($prospect->delete()) {
+                    return response()->json(['message' => 'Prospect supprimé avec succès.'], 200);
+                } else {
+                    return response()->json(['error' => "Le prospect n'a pas été supprimé."], 404);
+                }
             }
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

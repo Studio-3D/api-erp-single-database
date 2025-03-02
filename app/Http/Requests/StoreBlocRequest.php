@@ -33,7 +33,7 @@ class StoreBlocRequest extends FormRequest
             'tranche_id' => 'integer|nullable',
             'nbre_immeubles' => 'integer',
             'nbre_biens' => 'integer',
-            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.blocs','nom')->where(function ($query) {
+            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.blocs','nom')->whereNull('deleted_at')->where(function ($query) {
                 if ($this->tranche_id==null){
                     $query->where('nom', $this->nom)
                     ->where('projet_id', $this->projet_id);
@@ -43,8 +43,8 @@ class StoreBlocRequest extends FormRequest
                     ->where('tranche_id', $this->tranche_id);
                 }
 
-                
-                
+
+
             })],
         ];
     }
@@ -52,14 +52,14 @@ class StoreBlocRequest extends FormRequest
     public function messages(): array
     {   if ($this->tranche_id==null){
             return [
-            
+
             'nom.unique' =>  'ce nom de bloc existe déjà dans ce projet',
             ];
         }
 
         else {
             return [
-                
+
                 'nom.unique' =>  'ce nom de bloc existe déjà dans ce tranche',
             ];
         }

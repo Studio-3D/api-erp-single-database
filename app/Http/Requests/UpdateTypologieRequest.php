@@ -30,7 +30,7 @@ class UpdateTypologieRequest extends FormRequest
         $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
         return [
-            'typologie' => ['required', Rule::unique('temp.' . $DatabaseName . '.typologies', 'typologie')
+            'typologie' => ['required', Rule::unique('temp.' . $DatabaseName . '.typologies', 'typologie')->whereNull('deleted_at')
                     ->where(function ($query) {
                         $query->where('typologie', $this->typologie)
                             ->where('projet_id', $this->projet_id);}),

@@ -64,9 +64,9 @@ class Bien extends Model
     public function reservation()
     {
         return $this->hasOne(Reservation::class, 'bien_id')->orderby('created_at','desc')
-            ->where('etat', 1) 
-            ->latest();    
-               
+            ->where('etat', 1)
+            ->latest();
+
     }
     public function compositionBien()
    {
@@ -97,4 +97,60 @@ class Bien extends Model
        return $this->hasone(RemiseCle::class,'bien_id')->orderby('created_at','desc')->latest();
    }
 
+   public function visites()
+   {
+       return $this->hasone(Visite::class,'bien_id')->where('etat',1)->orderby('created_at','desc')->latest();
+   }
+
+   public function all_visites()
+   {
+       return $this->hasMany(Visite::class,'bien_id');
+   }
+   public function all_pre_reservations()
+   {
+       return $this->hasMany(PreReservation::class,'bien_id');
+   }
+   public function all_reservations()
+   {
+       return $this->hasMany(Reservation::class,'bien_id');
+   }
+
+   public function all_propositions()
+   {
+       return $this->hasMany(Proposition::class,'bien_id');
+   }
+   public function reclamations()
+   {
+    return $this->hasMany(Reclamation::class,'bien_id');
+    }
+    public function traitement_freins()
+    {
+    return $this->hasMany(TraitementFrein::class,'bien_id');
+    }
+    public function historiques_biens()
+    {
+    return $this->hasMany(HistoriqueBien::class,'bien_id');
+    }
+    public function freins_biens()
+    {
+    return $this->hasMany(Frein_Bien::class,'bien_id');
+    }
+
+    public function histo_reservations()
+    {
+    return $this->hasMany(HistoReservation::class,'bien_id');
+    }
+    public function histo_desistements()
+    {
+    return $this->hasMany(HistoriqueDesistement::class,'bien_id');
+    }
+
 }
+
+
+
+
+
+
+
+            //traitement_frein

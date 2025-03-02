@@ -43,6 +43,10 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Session;
 use \NumberFormatter;
 use App\Models\TraitementFrein;
+use App\Models\HistoriqueBien;
+use App\Models\PreReservation;
+
+
 
 class VisiteController extends Controller
 {
@@ -275,7 +279,6 @@ class VisiteController extends Controller
         convert
         lead to visite
          ****/
-
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
@@ -417,6 +420,9 @@ class VisiteController extends Controller
                             $freinRequest['selectedOrientations'] = $request->orientations;
                             $freinRequest['selectedTypologies'] = $request->typologies;
                             $freinRequest['selectedVues'] = $request->vues;
+                            $freinRequest['description_autre'] = $request->description_autre;
+                            $freinRequest['freins'] = $request->frein;
+
 
                             $freinController = new FreinController();
                             $freinController->store(new StoreFreinRequest($freinRequest));
@@ -1402,7 +1408,7 @@ class VisiteController extends Controller
 
                 $frein_id = Frein::on('temp')->where('visite_id', $visite->id)->get();
                 $freinRequest['prix_min'] = $request->prix_min;
-                $freinRequest['freins'] = $request->freins;
+                $freinRequest['freins'] = $request->frein;
                 $freinRequest['prix_max'] = $request->prix_max;
                 $freinRequest['sup_min'] = $request->sup_min;
                 $freinRequest['sup_max'] = $request->sup_max;
@@ -1413,11 +1419,12 @@ class VisiteController extends Controller
                 $freinRequest['selectedOrientations'] = $request->orientations;
                 $freinRequest['selectedTypologies'] = $request->typologies;
                 $freinRequest['selectedVues'] = $request->vues;
+                $freinRequest['description_autre'] = $request->description_autre;
+
                 $freinController = new FreinController();
                 if (!$frein_id->isEmpty()) {
                     $freinController->update(new UpdateFreinRequest($freinRequest), $frein_id->value('id'));
                 } else {
-
                     $freinRequest['visite_id'] = $visite->id;
                     $freinController->store(new StoreFreinRequest($freinRequest));
                 }
@@ -1441,6 +1448,30 @@ class VisiteController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $visite = Visite::on('temp')->findOrFail($id);
+
+            //appels
+            $t_appel=new AppelController();
+            $traitement_appels=TraitementAppel::on('temp')->where('visite_id',$id)->get();
+            if(count($traitement_appels)>0){
+                foreach($traitement_appels as $tr){
+                    $t_appel->destroy_t_appel($tr->id,1);
+                }
+            }
+            //historique bien
+            $histo_b=HistoriqueBien::on('temp')->where('visite_id',$id)->get();
+            if(count($histo_b)>0){
+                foreach($histo_b as $h){
+                    $h->delete();
+                }
+            }
+            $pre=PreReservation::on('temp')->where('visite_id',$id)->get();
+            if(count($pre)>0){
+                foreach($pre as $p){
+                    $p->delete();
+                }
+            }
+
+
             if ($visite->interet == InteretEnum::Intéressé->value) {
                 if ($visite->bien_id) {
                     Bien_Helper::libererBien($visite->bien_id, null, null);
@@ -1646,6 +1677,9 @@ class VisiteController extends Controller
                             $freinRequest['selectedOrientations'] = $request->orientations;
                             $freinRequest['selectedTypologies'] = $request->typologies;
                             $freinRequest['selectedVues'] = $request->vues;
+                            $freinRequest['description_autre'] = $request->description_autre;
+                            $freinRequest['freins'] = $request->frein;
+
                             $freinController = new FreinController();
                             $freinController->store(new StoreFreinRequest($freinRequest));
                         }

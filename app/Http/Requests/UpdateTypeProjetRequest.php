@@ -29,7 +29,7 @@ class UpdateTypeProjetRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_projets','type')->ignore($this->type_projet)],
+            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_projets','type')->whereNull('deleted_at')->ignore($this->type_projet)],
 
         ];
     }

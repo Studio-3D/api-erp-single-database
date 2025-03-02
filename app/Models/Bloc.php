@@ -35,7 +35,7 @@ class Bloc extends Model
 
     public function immeuble()
     {
-        return $this->hasMany(Bien::class);
+        return $this->hasMany(Immeuble::class);
     }
-    
+
 }

@@ -8,6 +8,8 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreBlocRequest;
 use App\Http\Requests\UpdateBlocRequest;
 use App\Models\Bloc;
+use App\Models\TraitementAppel;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -198,10 +200,27 @@ class BlocController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $bloc = Bloc::on('temp')->findOrfail($id);
+            if (count($bloc->immeuble)>0){
+                $imme=new ImmeubleController();
+                foreach($bloc->immeuble as $imm){
+                    $imme->destroy($imm->id);
+                                    }
+            }
+            //traitement_appel
+            $traitement_appels=TraitementAppel::on('temp')->where('bloc_id',$id)->get();
+            if(count($traitement_appels)>0){
+                foreach($traitement_appels as $tr){
+                    $appel=new AppelController();
+                    $appel->destroy_t_appel($tr->id,1);
+                }
+
+            }
+
+
             if ($bloc->delete()) {
-                return response()->json(['message' => 'bloc deleted succesfully'], 200);
+                return response()->json(['message' => 'bloc supprimé avec Succés'], 200);
             } else {
-                return response()->json(['message' => 'bloc not deleted'], 404);
+                return response()->json(['message' => 'bloc non supprimé'], 404);
             }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

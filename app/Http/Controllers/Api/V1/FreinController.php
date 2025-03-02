@@ -70,6 +70,11 @@ class FreinController extends Controller
             DatabaseHelper::Config();
             $frein = new Frein();
             $frein->setConnection('temp');
+            if (str_contains($request->freins, 'AUTRE')==true) {
+                $frein->description_autre = $request->description_autre;
+            }else{
+                $frein->description_autre = null;
+            }
             $frein->prix_min = $request->prix_min;
             $frein->prix_max = $request->prix_max;
             $frein->superficie_min = $request->sup_min;
@@ -175,6 +180,11 @@ class FreinController extends Controller
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
             $frein=Frein::on('temp')->findOrFail($id);
+            if (str_contains($request->freins, 'AUTRE')==true) {
+                $frein->description_autre = $request->description_autre;
+            }else{
+                $frein->description_autre = null;
+            }
             if (str_contains($request->freins, 'SUPERFICIE')==true) {
                 $frein->superficie_min=$request->sup_min;
                 $frein->superficie_max=$request->sup_max;
@@ -296,6 +306,11 @@ class FreinController extends Controller
             //notification des biens disponible pour ce frein
             NotificationHelper::destroy_notif_bien_dispo_frein($frein->visite_id);
 
+            $freinTraitement = TraitementFrein::on('temp')->where('frein_id', $id)->get();
+            foreach ($freinTraitement as $freinTrai) {
+                $freinTrai->delete();
+            }
+            //traitement frein
             if ($frein->delete()) {
                 return response()->json(['message' => 'Frein supprimé avec succès.'], 200);
             } else {

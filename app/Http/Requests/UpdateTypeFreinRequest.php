@@ -29,7 +29,7 @@ class UpdateTypeFreinRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'description' => ['required','min:3',Rule::unique('temp.'.$DatabaseName.'.type_freins','description')->ignore($this->description)],
+            'description' => ['required','min:3',Rule::unique('temp.'.$DatabaseName.'.type_freins','description')->whereNull('deleted_at')->ignore($this->description)],
 
         ];
     }

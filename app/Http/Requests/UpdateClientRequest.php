@@ -40,8 +40,8 @@ class UpdateClientRequest extends FormRequest
             "date_mariage" => "date|nullable",
             "situation_familliale" => "required|string",
             "civilite" => "required|string",
-            'cin' => ['required', Rule::unique('temp.'.$DatabaseName.'.clients','cin')->ignore($this->client)],
-            
+            'cin' => ['required', Rule::unique('temp.'.$DatabaseName.'.clients','cin')->whereNull('deleted_at')->ignore($this->client)],
+
         ];
     }
     public function messages(): array

@@ -73,7 +73,7 @@ class NotificationController extends Controller
          }
 
     }
-   
+
     public function get_nb_rdv_visites(Request $request,$projet_id)
     {
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
@@ -226,6 +226,15 @@ class NotificationController extends Controller
             }
             elseif($text=='reservation'){
                 $notifications=Notification::on('temp')->where('reservation_id',$id)->get();
+            }
+            elseif($text=='bien'){
+                $notifications=Notification::on('temp')->where('bien_id',$id)->get();
+            }
+            elseif($text=='avance'){
+                $notifications=Notification::on('temp')->where('avance_id',$id)->get();
+            }
+            elseif($text=='t_appel'){
+                $notifications=Notification::on('temp')->where('traite_appel_id',$id)->get();
             }
             foreach($notifications as $notif){
                 $notif->forceDelete();

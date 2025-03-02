@@ -29,7 +29,7 @@ class UpdateImmeubleRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'nom' => [ Rule::unique('temp.'.$DatabaseName.'.immeubles','nom')->where(function ($query) {
+            'nom' => [ Rule::unique('temp.'.$DatabaseName.'.immeubles','nom')->whereNull('deleted_at')->where(function ($query) {
                 if ($this->bloc_id==null){
                     if ($this->tranche_id==null)
                     {$query->where('nom', $this->nom)
@@ -44,7 +44,7 @@ class UpdateImmeubleRequest extends FormRequest
 
                 })->ignore($this->immeuble)],
 
-           
+
             'tranche_id' => 'integer|nullable',
             'projet_id' => 'integer|nullable',
             'nbre_biens' => 'integer',

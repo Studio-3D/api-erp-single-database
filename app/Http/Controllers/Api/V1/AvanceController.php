@@ -1175,6 +1175,11 @@ class AvanceController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::config();
             $avance = Avance::on('temp')->findOrFail($id);
+            if(count($avance->all_piece_jointe)>0){
+                foreach($avance->all_piece_jointe as $all_p){
+                    $all_p->delete();
+                }
+            }
             $st = StatutAvancePenalite::on('temp')->where('avance_id', $id)->get();
             foreach ($st as $s) {
                 $s->forceDelete();
@@ -1201,6 +1206,8 @@ class AvanceController extends Controller
                 }
                 $en->forceDelete();
             }
+            $notif = new NotificationController();
+            $notif->destory_force_by_column_id('avance', $id);
 
             if ($avance->forceDelete()) {
                 return response()->json(['message' => 'avance deleted succesfully'], 200);

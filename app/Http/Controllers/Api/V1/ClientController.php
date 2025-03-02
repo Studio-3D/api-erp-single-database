@@ -275,16 +275,38 @@ class ClientController extends Controller
     {
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $client = Client::on('temp')->findOrFail($id);
-            $aquereurs = Aquereur::on('temp')->where('client_id', $id)->get();
+            $client = Client::on('temp')->with('prospect','aquereur_desistement','reclamation','aquereur')->findOrFail($id);
 
-            if (count($aquereurs) > 0) {
-                return response()->json(['error' => 'Impossible de suprimer ce client car,il possède un dossier de reservation'], 422);
+           /*
+            if($client->prospect!=null){
+                $client->prospect->delete();
+            }
+            if(count($client->aquereur_desistement)>0){
+                foreach($client->aquereur_desistement as $aq){
+                    $aq->delete();
+                }
+            }
+            if(count($client->aquereurs)>0){
+                foreach($client->aquereurs as $aq_cl){
+                    $aq_cl->delete();
+                }
+            }
+            if(count($client->reclamation)>0){
+                foreach($client->reclamation as $rec){
+                    $red->delete();
+                }
+            }*/
+
+            if (count($client->aquereur) > 0||count($client->reclamation) > 0||count($client->aquereur_desistement) > 0) {
+                return response()->json(['error' => 'Il est impossible de supprimer ce client car il possède plusieurs dossiers liés à des réservations, des désistements et des réclamations.'], 422);
             } else {
+                if($client->prospect!=null){
+                    $client->prospect->delete();
+                }
                 if ($client->delete()) {
-                    return response()->json(['message' => 'Client deleted successfully'], 200);
+                    return response()->json(['message' => 'Client Supprimé avec Succès '], 200);
                 } else {
-                    return response()->json(['message' => 'Client non deleted'], 400);
+                    return response()->json(['message' => 'Client non Supprimé'], 400);
                 }
             }
         }

@@ -47,27 +47,17 @@ use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\VisiteController as V1VisiteController;
 use App\Http\Controllers\Api\V1\VueController as V1VueController;
 use App\Http\Controllers\Api\V1\EtapeProjetController as V1EtapeProjetController;
+use App\Http\Controllers\Api\V1\CommissionController as V1CommissionController;
 
 
-use App\Http\Controllers\BienController;
-use App\Http\Controllers\BlocController;
-use App\Http\Controllers\CompositionBienController;
+
 use App\Http\Controllers\EnumController;
 use App\Http\Controllers\Facebook\FacebookController;
-use App\Http\Controllers\FreinController;
-use App\Http\Controllers\ImmeubleController;
 use App\Http\Controllers\Landing_page\Landing_pageController;
 use App\Http\Controllers\LivraisonController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PartenaireController;
-use App\Http\Controllers\PiecesJointeController;
-use App\Http\Controllers\ProjetController;
-use App\Http\Controllers\ProspectController;
-use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\SocieteController;
-use App\Http\Controllers\TrancheController;
-use App\Http\Controllers\TypeFreinController;
-use App\Http\Controllers\TypologieController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsApp\WhatsAppController;
 use Illuminate\Support\Facades\Route;
@@ -107,7 +97,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('desactivateUser/{id}', [V1UserController::class, 'desactivateUser'])->name('desactivateUser');
         Route::get('commerciaux_objectif/{projet_id}', [V1UserController::class, 'list_commerciaux_objectif'])->name('');
         Route::get('commerciaux/{projet_id}', [V1UserController::class, 'list_commerciaux'])->name('');
-        Route::get('get_commerciaux', [V1UserController::class, 'get_commerciaux'])->name('get_users');
+        Route::get('get_commerciaux/{projet_id}', [V1UserController::class, 'get_commerciaux'])->name('get_users');
 
         // l'API societes
         Route::resource('societes', V1SocieteController::class);
@@ -264,7 +254,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/appels', [V1AppelController::class, 'indexByProjet']);
         Route::get('show_t_appel/{id}', [V1AppelController::class, 'show_t_appel']);
         Route::get('index_traitement_appel/{id}', [V1AppelController::class, 'index_traitement_appel']);
-        Route::delete('destroy_t_appel/{id}', [V1AppelController::class, 'destroy_t_appel'])->name('');
+        Route::delete('destroy_t_appel/{id}/{number}', [V1AppelController::class, 'destroy_t_appel'])->name('');
         Route::put('traiter_relance_rdv_appel/{id}', [V1AppelController::class, 'traiter_relance_rdv_appel'])->name('');
         Route::get('get_info_cin_unique/{prospect_id}/{cin}', [V1AppelController::class, 'get_info_cin_unique']);
         //RELANCES RDV APPELS
@@ -377,12 +367,20 @@ Route::middleware('auth:api')->group(function () {
         Route::get('historiques/{date}/{id}/{type}', [v1ActualiteController::class, 'get_historique'])->name('');
         Route::get('actualites/{projet_id}/{user_id}/{de_date}/{a_date}', [V1ActualiteController::class, 'index'])->name('');
 
+        //Commission
+            //Configurations
+        Route::resource('commissionsConfigurations', V1CommissionController::class);
+        Route::get('configurations_commissions/{idprojet}', [V1CommissionController::class, 'configurations_commissions']);
+            // Montant Fixe
+        Route::get('commission_montant/{idprojet}', [V1CommissionController::class, 'commission_montant']);
+            //Mensuelle
+        Route::get('projets/{idprojet}/commissions_mensuelle_en_attente', [V1CommissionController::class, 'commissions_mensuelle_en_attente']);
+        Route::get('cummulles_commissions/{user_id}', [V1CommissionController::class, 'cummulles_commissions']);
+        Route::post('traiter_commission/{comm_id}', [V1CommissionController::class, 'traiter_commission'])->name('');
+        Route::get('projets/{idprojet}/commissions_traites', [V1CommissionController::class, 'commissions_traites']);
+        Route::get('projets/{idprojet}/commissions_cumuls_by_projet', [V1CommissionController::class, 'commissions_cumuls_by_projet']);
 
     });
-
-    /*Route::post('upload_excel_data', [ExcelDataController::class, 'UploadDataExcel'])->name('upload-excel-data');
-    Route::post('testfunction', [ExcelDataController::class, 'UploadDataExcel'])->name('upload-excel-data');*/
-    Route::get('biens_by_frein/{id}', [FreinController::class, 'biens_by_frein'])->name('');
 
     /*************************************Société***************************** */
     Route::resource('societe', SocieteController::class);
@@ -410,119 +408,6 @@ Route::middleware('auth:api')->group(function () {
      */
 
     Route::post('/reset', [UserController::class, 'reset']);
-
-    /*************************************Projet***************************** *
-    Route::resource('projet', ProjetController::class);
-    Route::post('restoreProjet/{id}', [ProjetController::class, 'restoreProjet'])->name('restoreProjet');
-    Route::get('getTrashedProjets', [ProjetController::class, 'getTrashedProjets'])->name('getTrashedProjets');
-    Route::get('get_projets', [ProjetController::class, 'get_projets'])->name('get_projets');*/
-    /*************************************Tranche***************************** */
-    Route::resource('tranche', TrancheController::class);
-    Route::get('tranches/{projet_id}', [TrancheController::class, 'index'])->name('tranches');
-    Route::post('restoreTranche/{id}', [TrancheController::class, 'restoreTranche'])->name('restoreTranche');
-    Route::get('getTrashedTranches', [TrancheController::class, 'getTrashedTranches'])->name('getTrashedTranches');
-    Route::get('getTranchesByProjet/{id}', [TrancheController::class, 'getTranchesByProjet'])->name('getTranchesByProjet');
-
-    /*************************************Bloc***************************** */
-    Route::resource('bloc', BlocController::class);
-    Route::get('blocs/{projet_id}', [BlocController::class, 'index'])->name('blocs');
-    Route::post('restoreBloc/{id}', [BlocController::class, 'restoreBloc'])->name('restoreBloc');
-    Route::get('getTrashedBlocs', [BlocController::class, 'getTrashedBlocs'])->name('getTrashedBlocs');
-    Route::get('getBlocsByProjet/{id}', [BlocController::class, 'getBlocsByProjet'])->name('getBlocsByProjet');
-    Route::get('getBlocsByTranche/{id}', [BlocController::class, 'getBlocsByTranche'])->name('getBlocsByTranche');
-    Route::get('getBlocsByTranchepaginate/{id}', [BlocController::class, 'getBlocsByTranchepaginate'])->name('getBlocsByTranchepaginate');
-
-    /*************************************Immeuble***************************** */
-    Route::resource('immeuble', ImmeubleController::class);
-    Route::get('immeubles/{projet_id}', [ImmeubleController::class, 'index'])->name('immeubles');
-    Route::post('restoreImmeuble/{id}', [ImmeubleController::class, 'restoreImmeuble'])->name('restoreImmeuble');
-    Route::get('getTrashedImmeubles', [ImmeubleController::class, 'getTrashedImmeubles'])->name('getTrashedImmeubles');
-    Route::get('getImmeublesByBloc/{id}', [ImmeubleController::class, 'getImmeublesByBloc'])->name('getImmeublesByBloc');
-    Route::get('getImmeublesByProjet/{id}', [ImmeubleController::class, 'getImmeublesByProjet'])->name('getImmeublesByProjet');
-    Route::get('getImmeublesByTranchepaginate/{id}', [ImmeubleController::class, 'getImmeublesByTranchepaginate'])->name('getImmeublesByTranchepaginate');
-    Route::get('getImmeublesByTranche/{id}', [ImmeubleController::class, 'getImmeublesByTranche'])->name('getImmeublesByTranche');
-    Route::get('getImmeublesByBlocpaginate/{id}', [ImmeubleController::class, 'getImmeublesByBlocpaginate'])->name('getImmeublesByBlocpaginate');
-
-    /*************************************Bien***************************** */
-    Route::resource('bien', BienController::class);
-    Route::get('biens/{projet_id}', [BienController::class, 'index'])->name('biens');
-    Route::get('biensProposition/{projet_id}', [BienController::class, 'biens_proposition'])->name('');
-    Route::post('restoreBien/{id}', [BienController::class, 'restoreBien'])->name('restoreBien');
-    Route::get('getTrashedBiens', [BienController::class, 'getTrashedBiens'])->name('getTrashedBiens');
-    Route::put('bloquerBien/{id}', [BienController::class, 'bloquerBien'])->name('bloquerBien');
-    //Route::put('reserverBien/{id}', [BienController::class, 'reserverBien'])->name('reserverBienff');
-    Route::put('prereserverBien/{id}/{visite_id}/{appel_id}', [BienController::class, 'prereserverBien'])->name('prereserverBien');
-    Route::delete('libererBien/{id}', [BienController::class, 'libererBien_function'])->name('libererBien');
-    Route::get('getHistoriqueBien/{id}', [BienController::class, 'getHistoriqueBien'])->name('getHistoriqueBien');
-    Route::resource('compositionBien', CompositionBienController::class);
-    Route::get('compositionBiens/{bien_id}', [CompositionBienController::class, 'index'])->name('compositionBiens');
-    Route::post('restoreCompositionBien/{id}', [CompositionBienController::class, 'restoreCompositionBien'])->name('restoreCompositionBien');
-    Route::get('getTrashedCompositionBiens', [CompositionBienController::class, 'getTrashedCompositionBiens'])->name('getTrashedCompositionBiens');
-    Route::get('getCompositionBybien/{id}', [CompositionBienController::class, 'getComposition'])->name('getComposition');
-    Route::get('getBiensByProjet/{id}', [BienController::class, 'getBiensByProjet'])->name('getBiensByProjet');
-    Route::get('getBiensByProjet_Concat/{id}', [BienController::class, 'getBiensByProjet_Concat'])->name('getBiensByProjet_Concat');
-    Route::get('getBiensByTranche/{id}', [BienController::class, 'getBiensByTranche'])->name('getBiensByTranche');
-    Route::get('getBiensByBloc/{id}', [BienController::class, 'getBiensByBloc'])->name('getBiensByBloc');
-    Route::get('getBiensByImmeuble/{id}', [BienController::class, 'getBiensByImmeuble'])->name('getBiensByImmeuble');
-    Route::get('getBiensDispoByImmeuble/{id}', [BienController::class, 'getBiensDispoByImmeuble'])->name('getBiensDispoByImmeuble');
-    Route::get('getBiensDispoByBloc/{id}', [BienController::class, 'getBiensDispoByBloc'])->name('getBiensDispoByBloc');
-    Route::get('getBiensDispoByTranche/{id}', [BienController::class, 'getBiensDispoByTranche'])->name('getBiensDispoByTranche');
-    Route::get('getBiensDispoByProjet/{id}', [BienController::class, 'getBiensDispoByProjet'])->name('getBiensByDispoProjet');
-    Route::put('setPropostionBien/{id}/{old_id}', [BienController::class, 'setPropostionBien'])->name('');
-    Route::get('getEtatBien/{id}', [BienController::class, 'getEtatBien'])->name('getEtatBien');
-    Route::get('getBiensByTranchepaginate/{id}', [BienController::class, 'getBiensByTranchepaginate'])->name('getBiensByTranchepaginate');
-    Route::get('getBiensByBlocpaginate/{id}', [BienController::class, 'getBiensByBlocpaginate'])->name('getBiensByBlocpaginate');
-    Route::get('getBiensByImmeublepaginate/{id}', [BienController::class, 'getBiensByImmeublepaginate'])->name('getBiensByImmeublepaginate');
-    /***********************************Type biens******************************** */
-
-
-    /*************************************type_Freins***************************** */
-
-    /*************************************Prospect***************************** */
-
-    /*************************************Prospect***************************** */
-    Route::resource('prospect', ProspectController::class);
-    Route::get('search_prospect_by_email/{email}', [ProspectController::class, 'search_prospect_by_email']);
-    Route::get('search_prospect_by_cin/{cin}', [ProspectController::class, 'search_prospect_by_cin']);
-    Route::get('search_prospect_by_phone/{phone}', [ProspectController::class, 'search_prospect_by_phone']);
-    Route::get('get_prospects', [ProspectController::class, 'get_prospects']);
-    // Route::post('Store_WhatsApp', [ProspectController::class, 'Store_WhatsApp']);
-    Route::get('VisitesByprospect/{prospect_id}', [ProspectController::class, 'VisitesByprospect']);
-
-    /*************************************Source***************************** */
-
-    /*************************************Vue***************************** */
-
-    /*************************************Partenaires***************************** */
-
-    /*************************************Typologie***************************** */
-  /*************************************Banque***************************** */
-
-    /*************************************Client***************************** */
-   // Route::resource('client', ClientController::class);
-   // Route::get('get_clients', [ClientController::class, 'get_clients'])->name('get_clients');
-   // Route::get('getClient_by_projet/{projet_id}', [ClientController::class, 'getClient_by_projet'])->name('getClient_by_projet');
-
-
-    /*************************************Aquereurs*****************************
-
-
-    /*************************************Avances*****************************
-
-
-    /*************************************PiecesJointe***************************** */
-    Route::resource('piecesjointe', PiecesJointeController::class);
-    Route::get('piecesjointes/{projet_id}', [PiecesJointeController::class, 'index'])->name('piecesjointes');
-    Route::delete('destoryFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'destoryFileUsingReservationId'])->name('destoryFileUsingReservationId');
-    Route::get('getFileUsingReservationId/{reservation_id}', [PiecesJointeController::class, 'getFileUsingReservationId'])->name('getFileUsingReservationId');
-    Route::post('scanner_file', [PiecesJointeController::class, 'scanner_file'])->name('scanner_file');
-    Route::get('files_docs/{docs}', [PiecesJointeController::class, 'files_docs'])->name('files_docs');
-
-    /*************************************Reservation***************************** */
-
-    /******************************Typologie **********************/
-    Route::get('get_typologiesByProjet/{id}', [TypologieController::class, 'get_typologiesByProjet'])->name('get_typologiesByProjet');
-    Route::get('typologies/{projet_id}', [TypologieController::class, 'index'])->name('typologies');
 
     /*************************************EnumController***************************** */
     Route::get('Enums', [EnumController::class, 'get_enums'])->name('');
@@ -554,36 +439,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('notifications_menu_horizontal_vente_commercial/{projet_id}', [NotificationController::class, 'get_notif_menu_horizontal_vente_comm'])->name('');
 
     /********************************DesistemenController*********** */
-    //Route::resource('desistement', DesistementController::class);
-    // Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [DesistementController::class, 'get_historiques_desistement_by_reservation'])->name('');
-    // Route::put('validation_desistement/{id}', [DesistementController::class, 'validation_desitement'])->name('');
-    // Route::get('get_notif_dst_commercial/{projet_id}', [DesistementController::class, 'get_notif_dst_commercial'])->name('');
-    // Route::get('get_notif_dst_admin/{projet_id}', [DesistementController::class, 'get_notif_dst_admin'])->name('');
-    // Route::get('get_notif_dst_att_validation_par_type/{projet_id}', [DesistementController::class, 'get_notif_dst_att_validation_par_type'])->name('');
-    // Route::get('get_desistements/{projet_id}/{type}/{etat}', [DesistementController::class, 'get_desistements'])->name('');
-    //  Route::post('desistement/corriger_desistement', [DesistementController::class, 'store'])->name('');
-    //Route::get('get_dossiers_by_bien/{bien_id}', [DesistementController::class, 'get_dossiers_by_bien'])->name('');
-
-    //penalites
-    // Route::get('penalites/{projet_id}/{etat}', [DesistementController::class, 'get_all_penalites'])->name('');
-    // Route::put('traiter_penalite/{id}', [DesistementController::class, 'traiter_penalite'])->name('');
-    //  Route::get('show_penalite/{id}', [DesistementController::class, 'show_penalite'])->name('');
-    // Route::post('penalites/corriger_penalite', [DesistementController::class, 'corriger_penalite'])->name('');
-    //  Route::get('get_notif_penalite_admin/{projet_id}', [DesistementController::class, 'get_notif_pen_admin'])->name('');
-    // Route::get('get_notif_penalite_commercial/{projet_id}', [DesistementController::class, 'get_notif_pen_commercial'])->name('');
-    //  Route::get('get_historiques_penalites/{desistement_id}', [DesistementController::class, 'get_historiques_penalites_by_desId'])->name('');
-
-    /******************************************* */
-
-    //Route::resource('remboursement', RemboursementController::class);
-    // Route::get('get_remboursements/{projet_id}/{etat}', [RemboursementController::class, 'index'])->name('');
-    //  Route::get('get_detail_transfert/{reservation_id}', [RemboursementController::class, 'get_detail_transfert'])->name('');
-    //  Route::post('traiter_demande_pre_rembourse/{id}', [RemboursementController::class, 'traiter_demande_pre_rembourse'])->name('');
-    //   Route::get('get_notif_demande_pre_remboursement/{projet_id}', [RemboursementController::class, 'get_notif_demande_pre_remboursement'])->name('');
-    //  Route::post('traiter_accuse/{id}', [RemboursementController::class, 'traiter_accuse'])->name('');
-    //  Route::post('traiter_decaissement/{id}', [RemboursementController::class, 'traiter_decaissement'])->name('');
-    // Route::get('get_remboursements_dos_transfert/{projet_id}', [RemboursementController::class, 'get_remboursements_dos_transfert'])->name('');
-
 
     /***********************************Livraison*******************/
     /*******rdv notaire*** */

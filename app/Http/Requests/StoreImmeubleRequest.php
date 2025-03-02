@@ -28,52 +28,52 @@ class StoreImmeubleRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.immeubles','nom')->where(function ($query) {
+            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.immeubles','nom')->whereNull('deleted_at')->where(function ($query) {
                 if ($this->bloc_id==null){
                     if ($this->tranche_id==null)
                     {$query->where('nom', $this->nom)
                     ->where('projet_id', $this->projet_id);
                     }
                     else {$query->where('nom', $this->nom)
-                        ->where('tranche_id', $this->tranche_id);   
+                        ->where('tranche_id', $this->tranche_id);
                     }
                 }
-                
+
                 else{
                     $query->where('nom', $this->nom)
                     ->where('bloc_id', $this->bloc_id);
                 }
-                  
-                
-                
+
+
+
                 })],
             'tranche_id' => 'integer|nullable',
             'projet_id' => 'required|integer',
             'nbre_biens' => 'integer',
             'bloc_id'=>'integer|nullable'
-            
+
         ];
     }
 
-    
+
         public function messages(): array
 
         {   if ($this->tranche_id==null && $this->bloc_id==null){
             return [
-            
+
                 'nom.unique' =>  'Cet immeuble est deja exist dans ce projet',
             ];}
 
         elseif ($this->bloc_id==null) {
             return [
-                
+
                 'nom.unique' =>  'Cet immeuble est deja exist dans cette tranche',
             ];}
         else {
             return [
-                
+
                 'nom.unique' =>  'Cet immeuble est deja exist dans ce bloc',
             ];}
         }
-    
+
 }

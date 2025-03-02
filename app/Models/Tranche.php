@@ -51,6 +51,14 @@ class Tranche extends Model
     public function  EcheancesTranches(){
         return $this->hasMany(EcheancesTranche::class);
     }
+
+    public function  all_coefficients(){
+        return $this->hasMany(Coefficient_tranche::class);
+    }
+    public function bien_tva()
+    {
+        return $this->hasMany(bien_tva::class);
+    }
 }
 
 

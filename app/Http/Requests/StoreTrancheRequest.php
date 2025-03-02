@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class StoreTrancheRequest extends FormRequest
-{ 
+{
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -30,7 +30,7 @@ class StoreTrancheRequest extends FormRequest
         DatabaseHelper::Config();
         return [
 
-            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.tranches','nom')->where(function ($query) {
+            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.tranches','nom')->whereNull('deleted_at')->where(function ($query) {
                 $query->where('nom', $this->nom)
                     ->where('projet_id', $this->projet_id);})],
             'date_lancement' => 'date|nullable',

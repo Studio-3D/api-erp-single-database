@@ -31,8 +31,8 @@ class StoreProspectRequest extends FormRequest
         DatabaseHelper::Config();
         return [
             'telephone' => 'required|min:10|max:14',
-            'cin' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')],
-            'email' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')],
+            'cin' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->whereNull('deleted_at')],
+            'email' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->whereNull('deleted_at')],
 
         ];
     }

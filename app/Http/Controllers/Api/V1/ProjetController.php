@@ -22,6 +22,12 @@ use App\Models\Bloc;
 use App\Models\TypeBien;
 use App\Models\Vue;
 use App\Models\Typologie;
+use App\Models\Desistement;
+use App\Models\HistoriqueDesistement;
+use App\Models\HistoriqueBien;
+use App\Models\Avance;
+use App\Models\PreReservation;
+
 
 class ProjetController extends Controller
 {
@@ -373,6 +379,256 @@ class ProjetController extends Controller
             Config::set('broadcasting.default', 'pusher_2');
 
             $projet = Projet::on('temp')->findOrfail($id);
+            //tranche
+            if(count($projet->tranche)){
+                $tr_d=neW TrancheController();
+                foreach($projet->tranche as $tr){
+                    $tr_d->destroy($tr->id);
+
+                }
+            }
+
+            //bloc
+            if(count($projet->bloc)){
+                $bcl=neW BlocController();
+                foreach($projet->bloc as $b){
+                    $bcl->destroy($b->id);
+                }
+            }
+
+            //immeuble
+            if(count($projet->immeuble)){
+                $imm=neW ImmeubleController();
+                foreach($projet->immeuble as $i){
+                    $imm->destroy($i->id);
+                }
+            }
+            //biens
+            if(count($projet->bien)){
+                $bcl=neW BienController();
+                foreach($projet->bien as $bi){
+                    $bcl->destroy($bi->id);
+                }
+            }
+            //typesBien
+            if(count($projet->typesBien)>0){
+                foreach($projet->typesBien as $tp_b){
+                    $tp_b->destroy($tp_b->id);
+                }
+            }
+            //typologies
+            if(count($projet->typologies)>0){
+                foreach($projet->typologies as $tp_l){
+                    $tp_l->destroy($tp_l->id);
+                }
+            }
+            //prospects
+
+            if(count($projet->prospects)>0){
+                foreach($projet->prospects as $pr){
+                    $pr->destroy($pr->id);
+                }
+            }
+            //userProjet
+
+            $user_projets=UserProjet::on('temp')->where('projet_id',$id)->get();
+            if(count($user_projets)>0){
+                foreach($user_projets as $us){
+                    $us->delete();
+                }
+            }
+            //partenaires
+            if(count($projet->partenaires)>0){
+                foreach($projet->partenaires as $pr){
+                    $pr->destroy($pr->id);
+                }
+            }
+            //visites
+            if(count($projet->visites)>0){
+                $vis=new VisiteController();
+                foreach($projet->visites as $v){
+                    $vis->destroy($v->id);
+                }
+            }
+            //reservations
+            if(count($projet->reservations)>0){
+                $res=new ReservationController();
+                foreach($projet->reservations as $r){
+                    $res->destroy($r->id);
+                }
+            }
+            //appels
+            if(count($projet->appels)>0){
+                $app=new AppelController();
+                foreach($projet->appels as $ap){
+                    $app->destroy($ap->id);
+                }
+            }
+            //clients
+            if(count($projet->clients)>0){
+                $cl=new ClientController();
+                foreach($projet->clients as $ap){
+                    $cl->destroy($ap->id);
+                }
+            }
+            //notifi
+
+             if(count($projet->notifications)>0){
+                foreach($projet->notifications as $ap){
+                    $ap->delete();
+                }
+            }
+             //desistements
+             $desistements=Desistement::on('temp')->where(function ($query)use ($id){
+                $query->where('bien_id_ancien',$id)
+                    ->orwhere('bien_id_new',$id);})
+                ->get();
+                if(count($desistements)>0){
+
+                    //biens desistements_id
+                    foreach($desistements as $des){
+                         $biens=Bien::on('temp')->where('desistement_id',$des->id)->get();
+                         if(count($biens)>0){
+                            foreach($biens as $bi){
+                                $bi->setConnection('temp');
+                                $bi->desistement_id=null;
+                                $bi->save();
+                            }
+                         }
+
+                        if($des->penalite_desistement!=null){
+                            $des->penalite_desistement->delete();
+                        }
+                        if(count($des->remboursement)>0){
+                            foreach($des->remboursement as $remb){
+                                $remb->delete();
+                            }
+                        }
+                        if(count($des->aquereurs_desisteurs)>0){
+                            foreach($des->aquereurs_desisteurs as $aq){
+                                $aq->delete();
+                            }
+                        }
+                        if(count($des->aquereurs_non_desisteurs)>0){
+                            foreach($des->aquereurs_non_desisteurs as $aqn){
+                                $aqn->delete();
+                            }
+                        }
+                        if(count($des->aquereurs_profits)>0){
+                            foreach($des->aquereurs_profits as $aqpr){
+                                $aqpr->delete();
+                            }
+                        }
+                        if(count($des->aquereurs_partiel)>0){
+                            foreach($des->aquereurs_partiel as $aqp){
+                                $aqp->delete();
+                            }
+                        }
+                        if(count($des->nouvel_aquereurs_desistements)>0){
+                            foreach($des->nouvel_aquereurs_desistements as $n_aq){
+                                $naq->delete();
+                            }
+                        }
+                        if(count($des->Piece_jointes)>0){
+                            foreach($des->Piece_jointes as $pj_d){
+                                $pj_d->delete();
+                            }
+                        }
+                        $hdes=HistoriqueDesistement::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($hdes)>0){
+                           foreach($hdes as $hbi){
+                               $hbi->delete();
+                           }
+                        }
+
+
+                        $hbiens=HistoriqueBien::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($hbiens)>0){
+                           foreach($hbiens as $hbi){
+                               $hbi->delete();
+                           }
+                        }
+
+                        $avances=Avance::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($avances)>0){
+                           foreach($avances as $av){
+                               $av->setConnection('temp');
+                               $av->desistement_id=null;
+                               $av->save();
+                           }
+                        }
+                        $pre=PreReservation::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($pre)>0){
+                           foreach($pre as $hbi){
+                               $hbi->delete();
+                           }
+                        }
+
+                        $des->delete();
+                    }
+
+                }
+
+            //fournisseur
+            if(count($projet->fournisseurs)>0){
+                foreach($projet->fournisseurs as $f){
+                    $f->delete();
+                }
+            }
+            //decomptes
+            if(count($projet->decomptes)>0){
+                foreach($projet->decomptes as $d){
+                    $d->delete();
+                }
+            }
+            //factures
+            if(count($projet->factures)>0){
+                foreach($projet->factures as $fc){
+                    $fc->delete();
+                }
+            }
+            //cps
+            if(count($projet->cps)>0){
+                foreach($projet->cps as $c){
+                    $c->delete();
+                }
+            }
+            //credits
+            if(count($projet->credits)>0){
+                foreach($projet->credits as $c){
+                    $c->delete();
+                }
+            }
+            //objectifs
+            if(count($projet->objectifs)>0){
+                foreach($projet->objectifs as $o){
+                    $o->delete();
+                }
+            }
+            //reclamations
+            if(count($projet->reclamations)>0){
+                foreach($projet->reclamations as $r){
+                    $r->delete();
+                }
+            }
+            //remise cles
+            if(count($projet->remise_cles)>0){
+                foreach($projet->remise_cles as $r){
+                    $r->delete();
+                }
+            }
+            //import
+            if(count($projet->import)>0){
+                foreach($projet->import as $i){
+                    $i->delete();
+                }
+            }
+            //echeance
+            if(count($projet->echeance_projet)>0){
+                foreach($projet->echeance_projet as $e){
+                    $e->delete();
+                }
+            }
             if ($projet->delete()) {
                 $projets = Projet::on('temp')->orderBy('created_at', 'desc')->get();
                 broadcast(new NewProjectEvent($id));

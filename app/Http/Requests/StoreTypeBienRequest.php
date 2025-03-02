@@ -30,6 +30,7 @@ class StoreTypeBienRequest extends FormRequest
         DatabaseHelper::Config();
         return [
             'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_biens','type')
+            ->whereNull('deleted_at')
             ->where(function ($query) {
                 $query->where('type', $this->type)
                     ->where('projet_id', $this->projet_id);})

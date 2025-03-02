@@ -25,6 +25,7 @@ return new class extends Migration
             $table->boolean('vue')->default(false);
             $table->boolean('typologie')->default(false);
             $table->string('commentaire')->nullable();
+            $table->string('description_autre')->nullable();
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->foreignId('traite_appel_id')->nullable()->constrained('traitements_appels')->onDelete('cascade');
             $table->timestamps();

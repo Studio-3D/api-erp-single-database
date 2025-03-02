@@ -29,7 +29,7 @@ class StoreBanqueRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.banques','nom')],
+            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.banques','nom')->whereNull('deleted_at')],
         ];
     }
     public function messages(): array

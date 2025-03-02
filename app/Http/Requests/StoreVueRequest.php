@@ -30,7 +30,7 @@ class StoreVueRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'vue' => ['required', Rule::unique('temp.'.$DatabaseName.'.vues','vue')
+            'vue' => ['required', Rule::unique('temp.'.$DatabaseName.'.vues','vue')->whereNull('deleted_at')
             ->where(function ($query) {
                 $query->where('vue', $this->vue)
                     ->where('projet_id', $this->projet_id);})

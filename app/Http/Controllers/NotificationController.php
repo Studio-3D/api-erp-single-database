@@ -23,6 +23,8 @@ use App\Models\PenaliteDesistement;
 use App\Models\Remboursement;
 use App\Models\Rendez_vous;
 use App\Enum\RoleEnum;
+use App\Models\Frein;
+
 
 class NotificationController extends Controller
 {
@@ -151,6 +153,122 @@ class NotificationController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
          }
     }
+
+    public function get_clients_freins($projet_id,Request $request)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            if(RoleHelper::AdminSup()){
+                $freins= Frein::on('temp')
+                ->where('freins.visite_id','!=',null)
+                ->join('visites', 'visites.id', '=', 'freins.visite_id')
+                ->join('prospects', 'prospects.id', '=', 'visites.prospect_id')
+                ->select('freins.tranche','freins.etage','freins.orientation','freins.typologie','freins.vue','freins.prix_min','freins.prix_max','freins.superficie_min','freins.superficie_max','freins.avance','freins.id','freins.created_at','visites.origin_id as id_origin','prospects.cin','prospects.nom', 'prospects.prenom', 'prospects.telephone','prospects.telephone_num2','visites.origin_id')
+                ->where('visites.projet_id', $projet_id)
+                ->where('freins.etat', 2)
+                ->where('visites.etat', 1)
+                ->get();
+                }
+                else{
+                    $freins= Frein::on('temp')
+                    ->where('freins.visite_id','!=',null)
+                    ->join('visites', 'visites.id', '=', 'freins.visite_id')
+                    ->join('prospects', 'prospects.id', '=', 'visites.prospect_id')
+                    ->select('freins.tranche','freins.etage','freins.orientation','freins.typologie','freins.vue','freins.prix_min','freins.prix_max','freins.superficie_min','freins.superficie_max','freins.avance','freins.id','freins.created_at','visites.origin_id as id_origin','prospects.cin','prospects.nom', 'prospects.prenom', 'prospects.telephone','prospects.telephone_num2','visites.origin_id')
+                    ->where('visites.projet_id', $projet_id)
+                    ->where('visites.user_id', Auth::guard('api')->user()->id)
+                    ->where('freins.etat', 2)
+                    ->where('visites.etat', 1)
+                    ->get();
+                }
+
+
+            $clients=array();
+
+            if(($freins->count())>0) {
+                foreach ($freins as $fr) {
+                    $fr_type=null;
+
+                    //TRANCHE
+                    if ($fr->tranche==1) {
+
+                        if($fr_type==null){
+                            $fr_type.='TRANCHE';
+                           }else{
+                            $fr_type.=',TRANCHE';
+                        }
+                    }
+
+                    //ETAGES
+                    if ($fr->etage==1) {
+                        if($fr_type==null){
+                            $fr_type.='ETAGE';
+                           }else{
+                            $fr_type.=',ETAGE';
+                           }
+                    }
+                    //orientation
+                    if ($fr->orientation==1) {
+                        if($fr_type==null){
+                            $fr_type.='ORIENTATION';
+                           }else{
+                            $fr_type.=',ORIENTATION';
+                           }
+                    }
+                    //TYPOLOGIE
+                    if ($fr->typologie==1) {
+                        if($fr_type==null){
+                            $fr_type.='TYPOLOGIE';
+                           }else{
+                            $fr_type.=',TYPOLOGIE';
+                           }
+                    }
+                    //VUE
+                    if ($fr->vue==1) {
+                        if($fr_type==null){
+                            $fr_type.='VUE';
+                           }else{
+                            $fr_type.=',VUE';
+                           }
+                    }
+                    //avance
+                    if ($fr->avance!=null) {
+                        if($fr_type==null){
+                            $fr_type.='AVANCE';
+                           }else{
+                            $fr_type.=',AVANCE';
+                        }
+                    }
+                    //PRIX
+                    if ($fr->prix_min!=null ||  $fr->prix_max!=null) {
+                        if($fr_type==null){
+                            $fr_type.='PRIX';
+                           }else{
+                            $fr_type.=',PRIX';
+                           }
+                    }
+
+                    //SUPERFICIE
+                    if ($fr->superficie_min!=null && $fr->superficie_max!=null) {
+                        if($fr_type==null){
+                            $fr_type.='SUPERFICIE';
+                           }else{
+                            $fr_type.=',SUPERFICIE';
+                           }
+                    }
+
+
+                    array_push($clients,array('id' => $fr->id));
+                 }
+            }
+                    return response()->json(['count_clients'=>count($clients)]);
+
+              }
+        else{
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
     public function get_notifications_menu_horizontal_crm(Request $request,$projet_id)
     {
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
@@ -167,8 +285,8 @@ class NotificationController extends Controller
                 $rdv_visites=Relance_Rdv_visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')->where('visites.etat',1)->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.rdv', '<=',Carbon::now())->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 2)->orderby('relances_rdv_visites.rdv', 'asc')
                 ->count();
                 $rel_client_freins=0;
-                $frein=new FreinController();
-                $data_get=$frein->get_clients_freins($projet_id,$request);
+
+                $data_get=$this->get_clients_freins($projet_id,$request);
                 foreach($data_get->original as $key => $v){
                     if($key=='count_clients'){
                         $rel_client_freins = $v;

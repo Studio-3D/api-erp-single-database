@@ -24,13 +24,13 @@ class StoreTypologieRequest extends FormRequest
      */
     public function rules(): array
     {
-    
+
         $societe_id = Auth::guard('api')->user()->societe_id;
         $societe=Societe::findOrfail( $societe_id);
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'typologie' => ['required', Rule::unique('temp.'.$DatabaseName.'.typologies','typologie')
+            'typologie' => ['required', Rule::unique('temp.'.$DatabaseName.'.typologies','typologie')->whereNull('deleted_at')
             ->where(function ($query) {
                 $query->where('typologie', $this->typologie)
                     ->where('projet_id', $this->projet_id);})

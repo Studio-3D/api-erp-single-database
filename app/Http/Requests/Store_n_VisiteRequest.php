@@ -32,7 +32,7 @@ use Illuminate\Http\Request;
          if ($request->interet == 1){
             //$rules['bien_id']='required';
             //$rules['statut']='required';
-            $rules['cin'] = 'required';
+           // $rules['cin'] = 'required';
         }
         //perdu
         elseif ($request->interet == 3){

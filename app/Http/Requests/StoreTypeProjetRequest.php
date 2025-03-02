@@ -31,7 +31,7 @@ class StoreTypeProjetRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_projets','type')],
+            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_projets','type')->whereNull('deleted_at')],
 
 
         ];

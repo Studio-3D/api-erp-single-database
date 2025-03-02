@@ -45,7 +45,7 @@ class UpdateBienRequest extends FormRequest
             'tranche_id' => 'integer|nullable',
             'bloc_id' => 'integer|nullable',
             'immeuble_id' => 'integer|nullable',
-            'propriete_dite_bien' => ['string',Rule::unique('temp.' . $DatabaseName . '.biens', 'propriete_dite_bien')->where(function ($query) {
+            'propriete_dite_bien' => ['string',Rule::unique('temp.' . $DatabaseName . '.biens', 'propriete_dite_bien')->whereNull('deleted_at')->where(function ($query) {
                 if ($this->immeuble_id == null) {
                     if ($this->bloc_id == null) {
                         if ($this->tranche_id == null) {

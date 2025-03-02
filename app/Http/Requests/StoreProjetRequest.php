@@ -30,7 +30,7 @@ class StoreProjetRequest extends FormRequest
         $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
         return [
-            'nom' => ['required', Rule::unique('temp.' . $DatabaseName . '.projets', 'nom')],
+            'nom' => ['required', Rule::unique('temp.' . $DatabaseName . '.projets', 'nom')->whereNull('deleted_at')],
             'code' => 'required|string',
             'adresse' => 'required|string',
             'date_autorisation_construction' => 'required|date',

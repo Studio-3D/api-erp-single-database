@@ -27,7 +27,6 @@ class TypeFreinController extends Controller
 
             // Démarrer la requête directement sur le modèle
             $query = TypeFrein::on('temp');
-
             if ($request->filled('description')) {
                 $query->where('description', 'like', '%' . $request->input('description') . '%');
             }

@@ -21,20 +21,13 @@ use App\Models\Aquereur;
 use App\Models\Avance;
 use App\Models\Bien;
 use App\Models\Client;
-use App\Models\Compromis_vente;
-use App\Models\Contrat_vente;
-use App\Models\Desistement;
 use App\Models\HistoReservation;
-use App\Models\HistoriqueBien;
-use App\Models\HistoriqueDesistement;
-use App\Models\PreReservation;
-use App\Models\Remboursement;
-use App\Models\Rendez_vous;
+use App\Models\PiecesJointe;
 use App\Models\Reservation;
 use App\Models\Societe;
 use App\Models\StatutReservation;
-use App\Models\TraitementAppel;
 use App\Models\User;
+use App\Models\Remboursement;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -42,8 +35,17 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use \NumberFormatter;
+use App\Models\Desistement;
+use Illuminate\Validation\Rule;
+use App\Models\TraitementAppel;
+use App\Models\HistoriqueBien;
+use App\Models\PreReservation;
+use App\Models\HistoriqueDesistement;
+use App\Models\Rendez_vous;
+
+use App\Models\Compromis_vente;
+use App\Models\Contrat_vente;
 
 class ReservationController extends Controller
 {
@@ -83,8 +85,9 @@ class ReservationController extends Controller
 
             DatabaseHelper::Config();
 
-            $query = Reservation::on('temp')->withSum('avances', 'montant')->with('desistement_att_validation_rejete', 'last_statut', 'first_avance')
-                ->orderBy('created_at', 'desc')
+
+            $query = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance')
+            ->orderBy('created_at', 'desc')
                 ->where('projet_id', $projet_id)
                 ->where('etat', 1);
             // Optional filters (Add more if needed)
@@ -125,11 +128,11 @@ class ReservationController extends Controller
 
             if ($request->filled('date_start')) {
                 $start = Carbon::parse($request->input('date_start'));
-                $query->whereDate('reservations.date_reservation', '>=', $start);
+                $query->whereDate('reservations.date_reservation','>=', $start);
             }
             if ($request->filled('date_end')) {
                 $end = Carbon::parse($request->input('date_end'));
-                $query->whereDate('reservations.date_reservation', '<=', $end);
+                $query->whereDate('reservations.date_reservation','<=', $end);
             }
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
@@ -190,46 +193,46 @@ class ReservationController extends Controller
     /*public function get_reservations_rejets(Request $request, $projet_id)
     {
 
-    if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
-    DatabaseHelper::Config();
-    $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
-    $page = $request->input('page', 1);
-    $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
-    ->groupby('reservation_id');
+        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
+            $page = $request->input('page', 1);
+            $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
+                ->groupby('reservation_id');
 
-    if (RoleHelper::AdminSup()) {
-    //ADMIN
-    $reservations = Reservation::on('temp')->with('last_statut')
-    ->joinSub($avances, 'avances_req', function ($join) {
-    $join->on('avances_req.reservation_id', '=', 'reservations.id');
-    })
-    ->select('reservations.*', 'avances_req.sum_avances')
-    ->orderBy('reservations.created_at', 'desc')
-    ->where('reservations.etat', 1)
-    ->where('reservations.statut', 2)
-    ->where('reservations.projet_id', $projet_id)
-    ->paginate($perPage, ['*'], 'page', $page);
+            if (RoleHelper::AdminSup()) {
+                //ADMIN
+                $reservations = Reservation::on('temp')->with('last_statut')
+                    ->joinSub($avances, 'avances_req', function ($join) {
+                        $join->on('avances_req.reservation_id', '=', 'reservations.id');
+                    })
+                    ->select('reservations.*', 'avances_req.sum_avances')
+                    ->orderBy('reservations.created_at', 'desc')
+                    ->where('reservations.etat', 1)
+                    ->where('reservations.statut', 2)
+                    ->where('reservations.projet_id', $projet_id)
+                    ->paginate($perPage, ['*'], 'page', $page);
 
-    } else
-    if (RoleHelper::Com()) {
-    $user = Auth::user();
-    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-    $reservations = Reservation::on('temp')->with('last_statut')
-    ->joinSub($avances, 'avances_req', function ($join) {
-    $join->on('avances_req.reservation_id', '=', 'reservations.id');
-    })
-    ->select('reservations.*', 'avances_req.sum_avances')
-    ->orderBy('reservations.created_at', 'desc')
-    ->where('reservations.etat', 1)
-    ->where('reservations.statut', 2)
-    ->where('reservations.user_id', $userAuth->value('id'))
-    ->where('reservations.projet_id', $projet_id)
-    ->paginate($perPage, ['*'], 'page', $page);
-    }
-    return response()->json(['reservations' => $reservations], 200);
+            } else
+            if (RoleHelper::Com()) {
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                $reservations = Reservation::on('temp')->with('last_statut')
+                    ->joinSub($avances, 'avances_req', function ($join) {
+                        $join->on('avances_req.reservation_id', '=', 'reservations.id');
+                    })
+                    ->select('reservations.*', 'avances_req.sum_avances')
+                    ->orderBy('reservations.created_at', 'desc')
+                    ->where('reservations.etat', 1)
+                    ->where('reservations.statut', 2)
+                    ->where('reservations.user_id', $userAuth->value('id'))
+                    ->where('reservations.projet_id', $projet_id)
+                    ->paginate($perPage, ['*'], 'page', $page);
+            }
+            return response()->json(['reservations' => $reservations], 200);
 
-    }
-    return response()->json(['error' => 'Unauthorized'], 401);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
     }*/
     /**
      * Show the form for creating a new resource.
@@ -260,7 +263,7 @@ class ReservationController extends Controller
             if ($request->has('code_reservation')) {
                 $request->validate([
                     'code_reservation' => [
-                        Rule::unique('reservations')->where('etat', 1)->whereNull('deleted_at'),
+                        Rule::unique('reservations')->where('etat',1)->whereNull('deleted_at'),
                     ],
                 ]);
             }
@@ -431,9 +434,9 @@ class ReservationController extends Controller
                         $piecesJointeController = new PiecesJointeController();
                         $pieceJointeRequest = new StorePiecesJointeRequest();
                         $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
-                        $societe = Societe::findOrFail($user_societes->societe_id);
+                        $societe = Societe::findOrfail($user_societes->societe_id);
 
-                        // Récupérer le nom original du fichier
+                        // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
                         $Myfile = $fileName;
 
@@ -442,10 +445,7 @@ class ReservationController extends Controller
 
                         // Créer le répertoire s'il n'existe pas déjà
                         File::makeDirectory($directory, 0755, true, true);
-
-                        // Déplacer le fichier dans le répertoire créé
                         $file->move($directory, $Myfile);
-
                         $fileType = $file->getClientOriginalExtension();
                         $datapieceJointe = [
                             'fichier' => $Myfile,
@@ -482,34 +482,9 @@ class ReservationController extends Controller
     }
     /*public function info_reservation($id)
     {
-    if (RoleHelper::ACSup()) {
-    DatabaseHelper::Config();
-    $reservation = Reservation::on('temp')->with('remboursement_dd_with_transfert')->findOrFail($id);
-    $statut = $reservation->statut;
-    $nb_histo = count($reservation->historiques);
-    $etat = $reservation->etat;
-    $code = $reservation->code_reservation;
-    $code_desistement = $reservation->code_desistement;
-    $prix = $reservation->prix;
-    $user_id = $reservation->user_id;
-    if ($reservation->etat > 1) {
-    $nb_aq = count($reservation->aquereurs_ancien);
-    $nb_pj = count($reservation->piece_jointe_desiste);
-    } else {
-    $nb_aq = count($reservation->aquereurs);
-    $nb_pj = count($reservation->piece_jointe);
-    }
-    $nb_av = count($reservation->avances);
-    return response()->json(['code_res' => $code, 'code_desistement' => $code_desistement, 'prix' => $prix, 'nb_aquer' => $nb_aq, 'nb_av' => $nb_av, 'nb_pj' => $nb_pj, 'etat' => $etat, 'transfert' => $reservation->remboursement_dd_with_transfert, 'statut' => $statut, 'user_id' => $user_id, 'nb_histo' => $nb_histo], 200);
-    } else {
-    return response()->json(['error' => 'Unauthorized'], 401);
-    }
-    }*/
-    public function info_reservation($id)
-    {
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $reservation = Reservation::on('temp')->with('remboursement_dd_with_transfert', 'compromis_vente')->findOrFail($id);
+            $reservation = Reservation::on('temp')->with('remboursement_dd_with_transfert')->findOrFail($id);
             $statut = $reservation->statut;
             $nb_histo = count($reservation->historiques);
             $etat = $reservation->etat;
@@ -525,28 +500,53 @@ class ReservationController extends Controller
                 $nb_pj = count($reservation->piece_jointe);
             }
             $nb_av = count($reservation->avances);
-
-            $sum_avances = 0;
-            //si dossier desiste
-            if ($reservation->etat > 1) {
-                foreach ($reservation->avances_desist as $av) {
-                    //avance validé
-                    if ($av->statut == StatutReservationEnum::Validé->value) {
-                        $sum_avances += $av->montant;
-                    }
-                }
-
-            } else {
-                foreach ($reservation->avances as $av) {
-                    //avance validé
-                    if ($av->statut == StatutReservationEnum::Validé->value) {
-                        $sum_avances += $av->montant;
-                    }
-                }
+            return response()->json(['code_res' => $code, 'code_desistement' => $code_desistement, 'prix' => $prix, 'nb_aquer' => $nb_aq, 'nb_av' => $nb_av, 'nb_pj' => $nb_pj, 'etat' => $etat, 'transfert' => $reservation->remboursement_dd_with_transfert, 'statut' => $statut, 'user_id' => $user_id, 'nb_histo' => $nb_histo], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }*/
+    public function info_reservation($id)
+    {
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            $reservation = Reservation::on('temp')->with('remboursement_dd_with_transfert','compromis_vente')->findOrFail($id);
+            $statut=$reservation->statut;
+            $nb_histo=count($reservation->historiques);
+            $etat=$reservation->etat;
+            $code=$reservation->code_reservation;
+            $code_desistement=$reservation->code_desistement;
+            $prix=$reservation->prix;
+            $user_id=$reservation->user_id;
+            if($reservation->etat>1){
+               $nb_aq=count($reservation->aquereurs_ancien);
+               $nb_pj=count($reservation->piece_jointe_desiste);
+            }else{
+               $nb_aq=count($reservation->aquereurs);
+               $nb_pj=count($reservation->piece_jointe);
             }
+            $nb_av=count($reservation->avances);
 
-            return response()->json(['code_res' => $code, 'code_desistement' => $code_desistement, 'prix' => $prix, 'nb_aquer' => $nb_aq, 'nb_av' => $nb_av, 'nb_pj' => $nb_pj, 'etat' => $etat, 'transfert' => $reservation->remboursement_dd_with_transfert, 'statut' => $statut, 'user_id' => $user_id, 'nb_histo' => $nb_histo
-                , 'sum_avances' => $sum_avances], 200);
+            $sum_avances=0;
+             //si dossier desiste
+             if($reservation->etat>1){
+                foreach($reservation->avances_desist as $av){
+                    //avance validé
+                    if($av->statut==StatutReservationEnum::Validé->value){
+                        $sum_avances+=$av->montant;
+                    }
+                 }
+
+             }else{
+                foreach($reservation->avances as $av){
+                    //avance validé
+                    if($av->statut==StatutReservationEnum::Validé->value){
+                        $sum_avances+=$av->montant;
+                    }
+                 }
+             }
+
+            return response()->json(['code_res' => $code,'code_desistement' => $code_desistement,'prix'=>$prix,'nb_aquer'=>$nb_aq,'nb_av'=>$nb_av,'nb_pj'=>$nb_pj,'etat'=>$etat,'transfert'=>$reservation->remboursement_dd_with_transfert,'statut'=>$statut,'user_id'=>$user_id,'nb_histo'=>$nb_histo
+            ,'sum_avances'=>$sum_avances], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -565,7 +565,7 @@ class ReservationController extends Controller
                 $propriete = $bien->get_propriete_bien_concat($reservation->bien_id);
             }
             $sum_avances_valides = 0;
-            // $sum_avances = 0;
+           // $sum_avances = 0;
             //si dossier desiste
             if ($reservation->etat > 1) {
                 foreach ($reservation->avances_desist as $av) {
@@ -578,18 +578,18 @@ class ReservationController extends Controller
                 $sum_avances+=$av->montant;
                 }*/
                 }
-                // $count_avances = Avance::on('temp')->where('reservation_id', $id)->onlyTrashed()->count('id');
+               // $count_avances = Avance::on('temp')->where('reservation_id', $id)->onlyTrashed()->count('id');
 
             } else {
                 foreach ($reservation->avances_valides as $av) {
-                    $sum_avances_valides += $av->montant;
+                        $sum_avances_valides += $av->montant;
 
                     /*//tous les avances !=refuse
                 if($av->statut!=StatutReservationEnum::REFUSER->value){
                 $sum_avances+=$av->montant;
                 }*/
                 }
-                // $count_avances = Avance::on('temp')->where('reservation_id', $id)->count('id');
+               // $count_avances = Avance::on('temp')->where('reservation_id', $id)->count('id');
 
             }
 
@@ -599,16 +599,17 @@ class ReservationController extends Controller
         }
     }
 
+
     public function get_pj_res($id, Request $request)
     {
         if (Auth::guard('api')->check()) {
 
             DatabaseHelper::Config();
-            $reservation = Reservation::on('temp')->findOrFail($id);
-            if ($reservation->etat == 1) {
-                $data = $reservation->piece_jointe;
-            } else {
-                $data = $reservation->piece_jointe_desiste;
+            $reservation=Reservation::on('temp')->findOrFail($id);
+            if($reservation->etat==1){
+                $data=$reservation->piece_jointe;
+            }else{
+                $data=$reservation->piece_jointe_desiste;
             }
             return response()->json([
                 'data' => $data,
@@ -663,7 +664,7 @@ class ReservationController extends Controller
             if ($request->has('code_reservation')) {
                 $request->validate([
                     'code_reservation' => [
-                        Rule::unique('reservations')->ignore($reservation->id)->where('etat', 1)->whereNull('deleted_at'),
+                        Rule::unique('reservations')->ignore($reservation->id)->where('etat',1)->whereNull('deleted_at'),
                     ],
                 ]);
             }
@@ -789,27 +790,20 @@ class ReservationController extends Controller
                     $pjController = new PiecesJointeController();
                     $pjController->destoryFileUsingReservationId($id, $societe);
                     foreach ($request->file('files_reservation') as $file) {
-                        $codeReservation = $request->input('code_reservation'); // ou bien via une variable issue d'un modèle, ex : $reservation->code
-
                         $piecesJointeController = new PiecesJointeController();
                         $pieceJointeRequest = new StorePiecesJointeRequest();
-                        $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
-                        $societe = Societe::findOrFail($user_societes->societe_id);
 
-                        // Récupérer le nom original du fichier
-                        $fileName = $file->getClientOriginalName();
-                        $Myfile = $fileName;
-
-                        // Construire le chemin du répertoire avec le code de réservation
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/' . $codeReservation);
-
-                        // Créer le répertoire s'il n'existe pas déjà
-                        File::makeDirectory($directory, 0755, true, true);
-
-                        // Déplacer le fichier dans le répertoire créé
-                        $file->move($directory, $Myfile);
+                        // Récupérer le nom du fichier
+                        $Myfile = $file->getClientOriginalName();
 
                         $fileType = $file->getClientOriginalExtension();
+
+                        // Déplacer le fichier vers le répertoire de destination
+                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations');
+                        File::makeDirectory($directory, 0755, true, true);
+
+                        $file->move($directory, $Myfile);
+
                         $datapieceJointe = [
                             'fichier' => $Myfile,
                             'type' => $fileType,
@@ -885,139 +879,141 @@ class ReservationController extends Controller
             $pjController->destoryFileUsingReservationId($id, $user_societes, $societe);
             $notif = new NotificationController();
             $notif->destory_force_by_column_id('reservation', $id);
-            //desistements
-            $desistements = Desistement::on('temp')->where(function ($query) use ($id) {
-                $query->where('reservation_id', $id)
-                    ->orwhere('reservation_id_new', $id);
-            })
+             //desistements
+             $desistements=Desistement::on('temp')->where(function ($query)use ($id){
+                $query->where('reservation_id',$id)
+                    ->orwhere('reservation_id_new',$id);})
                 ->get();
-            if (count($desistements) > 0) {
+                if(count($desistements)>0){
 
-                //biens desistements_id
-                foreach ($desistements as $des) {
-                    $biens = Bien::on('temp')->where('desistement_id', $des->id)->get();
-                    if (count($biens) > 0) {
-                        foreach ($biens as $bi) {
-                            $bi->setConnection('temp');
-                            $bi->desistement_id = null;
-                            $bi->save();
-                        }
-                    }
+                    //biens desistements_id
+                    foreach($desistements as $des){
+                         $biens=Bien::on('temp')->where('desistement_id',$des->id)->get();
+                         if(count($biens)>0){
+                            foreach($biens as $bi){
+                                $bi->setConnection('temp');
+                                $bi->desistement_id=null;
+                                $bi->save();
+                            }
+                         }
 
-                    if ($des->penalite_desistement != null) {
-                        $des->penalite_desistement->delete();
-                    }
-                    if (count($des->remboursement) > 0) {
-                        foreach ($des->remboursement as $remb) {
-                            $remb->delete();
+                        if($des->penalite_desistement!=null){
+                            $des->penalite_desistement->delete();
                         }
-                    }
-                    if (count($des->aquereurs_desisteurs) > 0) {
-                        foreach ($des->aquereurs_desisteurs as $aq) {
-                            $aq->delete();
+                        if(count($des->remboursement)>0){
+                            foreach($des->remboursement as $remb){
+                                $remb->delete();
+                            }
                         }
-                    }
-                    if (count($des->aquereurs_non_desisteurs) > 0) {
-                        foreach ($des->aquereurs_non_desisteurs as $aqn) {
-                            $aqn->delete();
+                        if(count($des->aquereurs_desisteurs)>0){
+                            foreach($des->aquereurs_desisteurs as $aq){
+                                $aq->delete();
+                            }
                         }
-                    }
-                    if (count($des->aquereurs_profits) > 0) {
-                        foreach ($des->aquereurs_profits as $aqpr) {
-                            $aqpr->delete();
+                        if(count($des->aquereurs_non_desisteurs)>0){
+                            foreach($des->aquereurs_non_desisteurs as $aqn){
+                                $aqn->delete();
+                            }
                         }
-                    }
-                    if (count($des->aquereurs_partiel) > 0) {
-                        foreach ($des->aquereurs_partiel as $aqp) {
-                            $aqp->delete();
+                        if(count($des->aquereurs_profits)>0){
+                            foreach($des->aquereurs_profits as $aqpr){
+                                $aqpr->delete();
+                            }
                         }
-                    }
-                    if (count($des->nouvel_aquereurs_desistements) > 0) {
-                        foreach ($des->nouvel_aquereurs_desistements as $n_aq) {
-                            $naq->delete();
+                        if(count($des->aquereurs_partiel)>0){
+                            foreach($des->aquereurs_partiel as $aqp){
+                                $aqp->delete();
+                            }
                         }
-                    }
-                    if (count($des->Piece_jointes) > 0) {
-                        foreach ($des->Piece_jointes as $pj_d) {
-                            $pj_d->delete();
+                        if(count($des->nouvel_aquereurs_desistements)>0){
+                            foreach($des->nouvel_aquereurs_desistements as $n_aq){
+                                $n_aq->delete();
+                            }
                         }
-                    }
-                    $hdes = HistoriqueDesistement::on('temp')->where('desistement_id', $des->id)->get();
-                    if (count($hdes) > 0) {
-                        foreach ($hdes as $hbi) {
-                            $hbi->delete();
+                        if(count($des->Piece_jointes)>0){
+                            foreach($des->Piece_jointes as $pj_d){
+                                $pj_d->delete();
+                            }
                         }
-                    }
+                        $hdes=HistoriqueDesistement::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($hdes)>0){
+                           foreach($hdes as $hbi){
+                               $hbi->delete();
+                           }
+                        }
 
-                    $hbiens = HistoriqueBien::on('temp')->where('desistement_id', $des->id)->get();
-                    if (count($hbiens) > 0) {
-                        foreach ($hbiens as $hbi) {
-                            $hbi->delete();
-                        }
-                    }
 
-                    $avances = Avance::on('temp')->where('desistement_id', $des->id)->get();
-                    if (count($avances) > 0) {
-                        foreach ($avances as $av) {
-                            $av->setConnection('temp');
-                            $av->desistement_id = null;
-                            $av->save();
+                        $hbiens=HistoriqueBien::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($hbiens)>0){
+                           foreach($hbiens as $hbi){
+                               $hbi->delete();
+                           }
                         }
-                    }
-                    $pre = PreReservation::on('temp')->where('desistement_id', $des->id)->get();
-                    if (count($pre) > 0) {
-                        foreach ($pre as $hbi) {
-                            $hbi->delete();
-                        }
-                    }
 
-                    $des->delete();
+                        $avances=Avance::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($avances)>0){
+                           foreach($avances as $av){
+                               $av->setConnection('temp');
+                               $av->desistement_id=null;
+                               $av->save();
+                           }
+                        }
+                        $pre=PreReservation::on('temp')->where('desistement_id',$des->id)->get();
+                        if(count($pre)>0){
+                           foreach($pre as $hbi){
+                               $hbi->delete();
+                           }
+                        }
+
+                        $des->delete();
+                    }
+                    //
                 }
-                //
-            }
 
-            $traitement_appels = TraitementAppel::on('temp')->where('reservation_id', $id)->get();
-            if (count($traitement_appels) > 0) {
-                foreach ($traitement_appels as $tr_ap) {
+            $traitement_appels=TraitementAppel::on('temp')->where('reservation_id',$id)->get();
+            if(count($traitement_appels)>0){
+                foreach($traitement_appels as $tr_ap){
                     $tr_ap->delete();
                 }
             }
-            $histo_b = HistoriqueBien::on('temp')->where('reservation_id', $id)->get();
-            if (count($histo_b) > 0) {
-                foreach ($histo_b as $h_id) {
+            $histo_b=HistoriqueBien::on('temp')->where('reservation_id',$id)->get();
+            if(count($histo_b)>0){
+                foreach($histo_b as $h_id){
                     $h_id->delete();
                 }
             }
-            $histo_r = HistoReservation::on('temp')->where('reservation_id', $id)->get();
-            if (count($histo_r) > 0) {
-                foreach ($histo_r as $h_r) {
+            $histo_r=HistoReservation::on('temp')->where('reservation_id',$id)->get();
+            if(count($histo_r)>0){
+                foreach($histo_r as $h_r){
                     $h_r->delete();
                 }
             }
-            $st_r = StatutReservation::on('temp')->where('reservation_id', $id)->get();
-            if (count($st_r) > 0) {
-                foreach ($st_r as $st) {
+            $st_r=StatutReservation::on('temp')->where('reservation_id',$id)->get();
+            if(count($st_r)>0){
+                foreach($st_r as $st){
                     $st->delete();
                 }
             }
-            $rdv = Rendez_vous::on('temp')->where('reservation_id', $id)->get();
-            if (count($rdv) > 0) {
-                foreach ($rdv as $rd) {
+            $rdv=Rendez_vous::on('temp')->where('reservation_id',$id)->get();
+            if(count($rdv)>0){
+                foreach($rdv as $rd){
                     $rd->delete();
                 }
             }
-            $comp = Compromis_vente::on('temp')->where('reservation_id', $id)->get();
-            if (count($comp) > 0) {
-                foreach ($comp as $c) {
+            $comp=Compromis_vente::on('temp')->where('reservation_id',$id)->get();
+            if(count($comp)>0){
+                foreach($comp as $c){
                     $c->delete();
                 }
             }
-            $cont = Contrat_vente::on('temp')->where('reservation_id', $id)->get();
-            if (count($cont) > 0) {
-                foreach ($cont as $cn) {
+            $cont=Contrat_vente::on('temp')->where('reservation_id',$id)->get();
+            if(count($cont)>0){
+                foreach($cont as $cn){
                     $cn->delete();
                 }
             }
+
+
 
             if ($reservation->delete()) {
                 return response()->json(['message' => 'reservation supprimée avec succès.'], 200);
@@ -1028,6 +1024,8 @@ class ReservationController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+
+
     public function get_Historiques_by_reservation($id, Request $request)
     {
         if (Auth::guard('api')->check()) {
@@ -1036,12 +1034,13 @@ class ReservationController extends Controller
 
             DatabaseHelper::Config();
 
-            $query = HistoReservation::on('temp')->with('user', 'bien')->where('reservation_id', $id);
+
+            $query = HistoReservation::on('temp')->with('user','bien')->where('reservation_id', $id);
             // Optional filters (Add more if needed)
 
             if ($request->filled('date')) {
                 $start = Carbon::parse($request->input('date'));
-                $query->whereDate('created_at', $start);
+                $query->whereDate('created_at' ,$start);
             }
 
             if ($request->filled('respo')) {
@@ -1057,6 +1056,7 @@ class ReservationController extends Controller
                     $q->where('propriete_dite_bien', 'like', '%' . $request->input('bien') . '%');
                 });
             }
+
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
                 // Paginate if size and page are valid
@@ -1082,16 +1082,18 @@ class ReservationController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function get_reservations_by_etat($projet_id, $statut, Request $request)
-    {
+
+
+    public function get_reservations_by_etat($projet_id, $statut, Request $request)    {
         if (Auth::guard('api')->check()) {
             $size = $request->input('size', config('app.default_item_number_perpage')); // Default size if not provided
             $page = $request->input('page', 1); // Default page if not provided
 
             DatabaseHelper::Config();
 
-            $query = Reservation::on('temp')->withSum('avances', 'montant')->with('desistement_att_validation_rejete', 'last_statut', 'first_avance')
-                ->orderBy('created_at', 'desc')
+
+            $query = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance')
+            ->orderBy('created_at', 'desc')
                 ->where('projet_id', $projet_id)
                 ->where('etat', 1)->where('reservations.statut', $statut);
             if (RoleHelper::Com()) {
@@ -1137,11 +1139,11 @@ class ReservationController extends Controller
 
             if ($request->filled('date_start')) {
                 $start = Carbon::parse($request->input('date_start'));
-                $query->whereDate('reservations.date_reservation', '>=', $start);
+                $query->whereDate('reservations.date_reservation','>=', $start);
             }
             if ($request->filled('date_end')) {
                 $end = Carbon::parse($request->input('date_end'));
-                $query->whereDate('reservations.date_reservation', '<=', $end);
+                $query->whereDate('reservations.date_reservation','<=', $end);
             }
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
@@ -1174,20 +1176,22 @@ class ReservationController extends Controller
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
             DatabaseHelper::Config();
 
+
+
             if (RoleHelper::AdminSup()) {
 
-                $nb_att_validation = Reservation::on('temp')->withSum('avances', 'montant')->with('desistement_att_validation_rejete', 'last_statut', 'first_avance')
-                    ->orderBy('created_at', 'desc')
-                    ->where('projet_id', $projet_id)
-                    ->where('etat', 1)->where('statut', 3)->count();
+                $nb_att_validation = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance')
+                ->orderBy('created_at', 'desc')
+                ->where('projet_id', $projet_id)
+                ->where('etat', 1)->where('statut',3)->count();
 
             } else if (RoleHelper::Com()) {
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-                $nb_att_validation = Reservation::on('temp')->withSum('avances', 'montant')->with('desistement_att_validation_rejete', 'last_statut', 'first_avance')
-                    ->orderBy('created_at', 'desc')
+                $nb_att_validation = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance')
+                ->orderBy('created_at', 'desc')
                     ->where('projet_id', $projet_id)
-                    ->where('etat', 1)->where('statut', 3)->where('user_id', $userAuth->value('id'))->count();
+                    ->where('etat', 1)->where('statut',3)->where('user_id', $userAuth->value('id'))->count();
             }
             return response()->json(['nb' => $nb_att_validation]);
 

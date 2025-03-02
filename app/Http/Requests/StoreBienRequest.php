@@ -43,7 +43,7 @@ class StoreBienRequest extends FormRequest
             'bloc_id' => 'integer|nullable',
             'avance_minimale' => 'required|numeric',
             'immeuble_id' => 'integer|nullable',
-            'propriete_dite_bien' => ['required', Rule::unique('temp.'.$DatabaseName.'.biens','propriete_dite_bien')->where(function ($query) {
+            'propriete_dite_bien' => ['required', Rule::unique('temp.'.$DatabaseName.'.biens','propriete_dite_bien')->whereNull('deleted_at')->where(function ($query) {
                         if ($this->immeuble_id==null){
                             if ($this->bloc_id==null){
                                 if ($this->tranche_id==null){

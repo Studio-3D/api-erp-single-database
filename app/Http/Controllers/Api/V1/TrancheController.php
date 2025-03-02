@@ -12,6 +12,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
+use App\Models\TraitementAppel;
+
+use App\Models\FreinTranche;
+
+
 class TrancheController extends Controller
 {
     /**
@@ -211,10 +216,63 @@ class TrancheController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $tranche = Tranche::on('temp')->findOrfail($id);
+            $bloc=new BlocController();
+
+            if(count($tranche->bloc)>0){
+                foreach($tranche->bloc as $blc){
+                    $bloc->destroy($blc->id);
+                }
+            }
+
+            if(count($tranche->immeuble)>0){
+                $imme=new ImmeubleController();
+                foreach($tranche->immeuble as $imm){
+                    $imme->destroy($imm->id);
+                }
+            }
+            if(count($tranche->bien)>0){
+                $bien=new BienController();
+                foreach($tranche->bien as $b){
+                    $bien->destroy($b->id);
+                }
+            }
+
+             //traitement_appel
+             $traitement_appels=TraitementAppel::on('temp')->where('tranche_id',$id)->get();
+             if(count($traitement_appels)>0){
+                $appel=new AppelController();
+                 foreach($traitement_appels as $tr){
+                     $appel->destroy_t_appel($tr->id,1);
+                 }
+             }
+             //freinTranche
+             $freinTranche=FreinTranche::on('temp')->where('tranche_id',$id)->get();
+             if(count($freinTranche)>0){
+                 foreach($freinTranche as $tr){
+                     $tr->delete();
+                 }
+             }
+
+             if(count($tranche->all_coefficients)>0){
+                foreach($tranche->all_coefficients as $c ){
+                    $c->delete();
+                }
+             }
+             if(count($tranche->bien_tva)>0){
+                foreach($tranche->bien_tva as $b){
+                    $b->delete();
+                }
+             }
+             if(count($tranche->echeancesTranches)>0){
+                foreach($tranche->echeancesTranches as $ech){
+                    $ech->delete();
+                }
+             }
+
             if ($tranche->delete()) {
-                return response()->json(['message' => 'tranche deleted succesfully'], 200);
+                return response()->json(['message' => 'tranche supprimé avec succés'], 200);
             } else {
-                return response()->json(['message' => 'tranche not deleted'], 404);
+                return response()->json(['message' => 'tranche non supprimé'], 404);
             }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

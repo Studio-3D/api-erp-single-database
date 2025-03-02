@@ -29,7 +29,7 @@ class UpdateTypeBienRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_biens','type')
+            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_biens','type')->whereNull('deleted_at')
             ->where(function ($query) {
                 $query->where('type', $this->type)
                     ->where('projet_id', $this->projet_id);})

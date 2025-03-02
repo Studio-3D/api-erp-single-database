@@ -373,7 +373,6 @@ class DatabaseHelper
 
     public static function import_fichiers($databases)
     {
-        Config::set('broadcasting.default', 'pusher_3');
 
         foreach ($databases as $database) {
             $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
@@ -431,6 +430,7 @@ class DatabaseHelper
                         $imp->statut='1';
                         $imp->save();
                         \Log::info("sort projet_id '. $imp->projet_id.");
+                        Config::set('broadcasting.default', 'pusher_3');
                         $data_notif = [
                             'lien' => '/projets/show/' . $imp->projet_id,
                             'date' => Carbon::now(),

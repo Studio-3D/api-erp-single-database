@@ -31,7 +31,7 @@ class StorePartenaireRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            'description'=>['required',Rule::unique('temp.'.$DatabaseName.'.partenaires','description')
+            'description'=>['required',Rule::unique('temp.'.$DatabaseName.'.partenaires','description')->whereNull('deleted_at')
                 ->where('projet_id',$this->projet_id)
                 ],
             'remise'=>'integer|nullable',

@@ -12,6 +12,9 @@ use App\Http\Helpers\RoleHelper;
 use Illuminate\Http\Request;
 use App\Models\Tranche;
 use App\Models\Bloc;
+use App\Models\TraitementAppel;
+
+
 
 
 
@@ -83,7 +86,7 @@ class ImmeubleController extends Controller
 
             $query = Immeuble::on('temp')->where('projet_id', $projet_id);
 
-            
+
             if ($request->filled('nom')) {
                 $query->where('nom', 'like', '%' . $request->input('nom') . '%');
             }
@@ -121,7 +124,7 @@ class ImmeubleController extends Controller
 
                 return response()->json(['immeubles' => $immeubles], 200);
             }
-            
+
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -155,9 +158,9 @@ class ImmeubleController extends Controller
                 {
                     $bloc = Bloc::on('temp')->findOrfail($request->bloc_id);
                     $immeuble->tranche_id=$bloc->tranche_id;
-                    
+
                 }
-            
+
             $immeuble->save();
 
             return response()->json(['message' => $immeuble], 200);
@@ -222,10 +225,25 @@ class ImmeubleController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $immeuble = immeuble::on('temp')->findOrfail($id);
+            if(count($immeuble->bien)>0){
+                foreach($immeuble->bien as $b){
+                    $bien=new BienController();
+                    $bien->destroy($b->id);
+                }
+            }
+             //traitement_appel
+             $traitement_appels=TraitementAppel::on('temp')->where('immeuble_id',$id)->get();
+             if(count($traitement_appels)>0){
+                 foreach($traitement_appels as $tr){
+                     $appel=new AppelController();
+                     $appel->destroy_t_appel($tr->id,1);
+                 }
+
+             }
             if ($immeuble->delete()) {
-                return response()->json(['message' => 'immeuble deleted succesfully'], 200);
+                return response()->json(['message' => 'immeuble supprimé avec Succés'], 200);
             } else {
-                return response()->json(['message' => 'immeuble not deleted'], 404);
+                return response()->json(['message' => 'immeuble non supprimé'], 404);
             }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -252,7 +270,7 @@ class ImmeubleController extends Controller
         }
     }
 
-    
-    
+
+
 
     }

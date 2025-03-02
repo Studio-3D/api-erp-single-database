@@ -33,8 +33,8 @@ class UpdateProspectRequest extends FormRequest
             //'prenom' => 'required',
             'telephone' => 'required|min:10|max:14',
             //'telephone_num2' => 'nullable|min:10|max:14',
-            'cin' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->ignore($this->prospect)],
-            'email' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->ignore($this->prospect)],
+            'cin' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->whereNull('deleted_at')->ignore($this->prospect)],
+            'email' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->whereNull('deleted_at')->ignore($this->prospect)],
         ];
     }
 

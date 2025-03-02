@@ -41,7 +41,7 @@ class UpdateProjetRequest extends FormRequest
             'nbre_immeubles' => 'integer',
             'nbre_biens' => 'integer',
             'selectedUsers' => 'required',
-            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.projets','nom')->ignore($this->projet)],
+            'nom' => ['required', Rule::unique('temp.'.$DatabaseName.'.projets','nom')->whereNull('deleted_at')->ignore($this->projet)],
         ];
     }
 

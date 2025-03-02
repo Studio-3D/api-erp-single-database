@@ -10,7 +10,8 @@ use App\Http\Requests\UpdateTypologieRequest;
 use App\Models\Appel;
 use App\Models\TraitementAppel;
 use App\Models\Frein;
-
+use App\Models\HistoriqueBien;
+use App\Models\PreReservation;
 use App\Models\Prospect;
 use App\Models\User;
 use App\Models\Notification;
@@ -30,6 +31,7 @@ use App\Models\TypeBienAppel;
 use App\Http\Requests\UpdateAppelRequest;
 use App\Http\Requests\UpdateDate_relance_Rdv;
 use App\Events\NotifMenuEvent;
+
 
 
 
@@ -778,7 +780,7 @@ class AppelController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-    
+
 
 
     public function index_traitement_appel(Request $request, $id)
@@ -847,7 +849,7 @@ class AppelController extends Controller
             $traitement_appels=TraitementAppel::on('temp')->where('appel_id',$id)->get();
             if(count($traitement_appels)>0){
                 foreach($traitement_appels as $tr_ap){
-                    $tr_ap->delete();
+                 $this->destroy_t_appel($tr_ap->id,0);
                 }
             }
             if ($appel->delete()) {
@@ -861,12 +863,65 @@ class AppelController extends Controller
     }
 
 //destroy traitement appel
-    public function destroy_t_appel($id)
+    public function destroy_t_appel($id,$number)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $t_appel = TraitementAppel::on('temp')->findOrFail($id);
+            $relances_rdv=Relance_Rdv_Appel::on('temp')->where('traite_appel_id',$id)->get();
+            if(count($relances_rdv)>0){
+                foreach($relances_rdv as $r){
+                    $r->delete();
+                }
+            }
+            $freins=Frein::on('temp')->where('traite_appel_id',$id)->get();
+            if(count($freins)>0){
+                foreach($freins as $fr){
+                    $fr->setConnection('temp');
+                    $fr->traite_appel_id=null;
+                    $fr->save();
+                }
+            }
+            $histo=HistoriqueBien::on('temp')->where('t_appel_id',$id)->get();
+            if(count($histo)>0){
+                foreach($histo as $hs){
+                    $hs->setConnection('temp');
+                    $hs->t_appel_id=null;
+                    $hs->save();
+                }
+            }
+            $pre=PreReservation::on('temp')->where('appel_id',$id)->get();
+            if(count($pre)>0){
+                foreach($pre as $pr){
+                    $pr->delete();
+                }
+            }
+
+            $notif=Notification::on('temp')->where('traite_appel_id',$id)->get();
+            if(count($notif)>0){
+                foreach($notif as $nt){
+                    $nt->delete();
+                }
+            }
+            $tp_b_appel=TypeBienAppel::on('temp')->where('traite_appel_id',$id)->get();
+            if(count($tp_b_appel)>0){
+                foreach($tp_b_appel as $t){
+                    $t->delete();
+                }
+            }
+            $notif = new NotificationController();
+            $notif->destory_force_by_column_id('t_appel', $id);
+            $app_id=$t_appel->appel_id;
             if ($t_appel->delete()) {
+                if($number==1){
+                    $traitement_appels=TraitementAppel::on('temp')->where('appel_id',$app_id)->get();
+                    //ya aucun traitements appels
+                    if(count($traitement_appels)==0){
+                        $appel = Appel::on('temp')->findOrFail($t_appel->appel_id);
+                        $appel->delete();
+                    }
+                }
+
                 return response()->json(['message' => 'traitement appel supprimée avec succès.'], 200);
             } else {
                 return response()->json(['error' => "Le traitement appel n'a pas été supprimée."], 404);
