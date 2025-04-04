@@ -24,6 +24,7 @@ use App\Models\Remboursement;
 use App\Models\Rendez_vous;
 use App\Enum\RoleEnum;
 use App\Models\Frein;
+use App\Models\WebhookEvent;
 
 
 class NotificationController extends Controller
@@ -382,31 +383,34 @@ class NotificationController extends Controller
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $i=0;
+            $platforms = ['facebook', 'instagram'];
             if(RoleHelper::AdminSup()){
-
-               $all_notifications=Notification::on('temp')->with('projet','prospect','user','reservation','avance','bien','TraitementAppel')
+                    // Notifications Webhook Facebook/Instagram/WhatsApp
+               $notifs_webhook_fcb_insta_whstp=WebhookEvent::on('temp')->whereIn('platform', $platforms)->withTrashed()->whereDate('created_at', '<=', Carbon::now())->orderBy('id','desc')->get();
+                   // Toutes les notifications
+               $all_notifications=Notification::on('temp')->with('prospect','user','reservation','avance','bien')
                ->where(function ($query) {
                 $query->where('role',RoleEnum::ADMIN->value)
                     ->orwhere('user_id',Auth::guard('api')->user()->id)
                 ;})
                ->where('projet_id',$projet_id)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('id','desc')->get();
-               $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)
-               ->where(function ($query) {
-                $query->where('role',RoleEnum::ADMIN->value)
-                    ->orwhere('user_id',Auth::guard('api')->user()->id)
-                ;})->where('deleted_at',null)->count();
+                  // Nombre de nouvelles notifications
+               $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('role',RoleEnum::ADMIN->value)->where('deleted_at',null)->count();
+                  // Nombre de nouvelles notifications Webhook
+               $new_notif_webhook_fcb_inst_whtsp=WebhookEvent::on('temp') ->whereIn('platform', $platforms)->whereDate('created_at', '<=', Carbon::now())->where('deleted_at',null)->orderBy('id','desc')->count();
 
             }else{
-                $all_notifications=Notification::on('temp')->with('projet','prospect','user','reservation','avance','bien')->where('projet_id',$projet_id)->where('user_id',Auth::guard('api')->user()->id)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('date','desc')->get();
+                $all_notifications=Notification::on('temp')->with('prospect','user','reservation','avance','bien')->where('projet_id',$projet_id)->where('user_id',Auth::guard('api')->user()->id)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('date','desc')->get();
                 $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('deleted_at',null)->where('user_id',Auth::guard('api')->user()->id)->count();
-                }
-           return response()->json(['all_notifications' => $all_notifications,'new_notifications_count'=>$new_notifications_count]);
+                $notifs_webhook_fcb_insta_whstp=[];
+                $new_notif_webhook_fcb_inst_whtsp=0;
+            }
+           return response()->json(['all_notifications' => $all_notifications,'notifs_webhook_fcb_insta_whstp'=>$notifs_webhook_fcb_insta_whstp,'new_notifications_count'=>$new_notifications_count+$new_notif_webhook_fcb_inst_whtsp]);
         }
          else{
             return response()->json(['error' => 'Unauthorized'], 401);
          }
     }
-
     public function DestroyNotif($id){
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();

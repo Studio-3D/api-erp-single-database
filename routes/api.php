@@ -52,7 +52,7 @@ use App\Http\Controllers\Api\V1\CommissionController as V1CommissionController;
 
 
 use App\Http\Controllers\EnumController;
-use App\Http\Controllers\Facebook\FacebookController;
+use App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController;
 use App\Http\Controllers\Landing_page\Landing_pageController;
 use App\Http\Controllers\LivraisonController;
 use App\Http\Controllers\NotificationController;
@@ -82,14 +82,22 @@ Route::post('/resetPassword/{token}', [UserController::class, 'resetPassword']);
 
 /*************************************APIs FROM Outside ***************************** */
 
-Route::post('handlemessage', [FacebookController::class, 'handleMessage']);
-Route::get('get_pivacy_policy', [FacebookController::class, 'get_pivacy_policy']);
-Route::post('/webhooks', [WhatsAppController::class, 'webhooks']);
+Route::post('/webhook_whtsp', [WhatsAppController::class, 'webhook_whtsp']);
 Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_page']);
+Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class,'handleWebhook']);
+Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class,'verify']);
+
+
 
 Route::middleware('auth:api')->group(function () {
+
     //Il est nécessaire de versionner l'API pour garantir son évolutivité et une gestion efficace des modifications futures.
     Route::prefix('v1')->group(function () {
+        /********************Social Netxork*********************/
+        Route::post('/postTo_Social_Network', [Facebook_InstagramController::class, 'postTo_Social_Network']);
+        Route::get('/configurations_social_network', [Facebook_InstagramController::class, 'configurations_social_network']);
+        Route::post('store_configurations_social_network', [Facebook_InstagramController::class, 'store_configurations_social_network'])->name('');
+
         // Routes de la version numero 1
         // l'API utilisateurs
         Route::resource('/utilisateurs', V1UserController::class);

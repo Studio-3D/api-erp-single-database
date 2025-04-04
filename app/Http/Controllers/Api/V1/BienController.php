@@ -492,8 +492,8 @@ class BienController extends Controller
             $bien->superficie_balcon_calculer = $request->superficie_balcon_calculer;
             $bien->superficie_balcon = $request->superficie_balcon;
             if ($request->superficie_habitable == 0) {
-                $bien->prix = 
-                    floatval($request->prix_unitaire) * 
+                $bien->prix =
+                    floatval($request->prix_unitaire) *
                     (
                         floatval($request->superficie_terrasse_calculer) +
                         floatval($request->superficie_architecte) + // Remplace superficie_habitable par superficie_architecte
@@ -503,7 +503,7 @@ class BienController extends Controller
                     floatval($request->prix_box) +
                     floatval($request->prix_parking);
             }
-            
+
             if ($request->bloc_id && ($request->tranche_id === null || !$request->tranche_id)) {
                 $bloc = Bloc::on('temp')->findOrfail($request->bloc_id);
                 $bien->tranche_id = $bloc->tranche_id;
@@ -518,7 +518,7 @@ class BienController extends Controller
                     $bien->bloc_id = $immeuble->bloc_id;
                 }
             }
-            
+
             if ($bien->save()) {
                 if ($bien->etat == 'disponible') {
                     Bien_Helper::store_bien_frein($bien->id,null);
@@ -540,7 +540,7 @@ class BienController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $bien = bien::on('temp')->with('reservation', 'Bien_tva', 'tva_collectes', 'tva_collectes_ancien_reservation')->withSum('tva_collectes', 'tva_a_payer')->findOrfail($id);
+            $bien = bien::on('temp')->with('reservation', 'Bien_tva', 'tva_collectes', 'tva_collectes_ancien_reservation','piece_jointes')->withSum('tva_collectes', 'tva_a_payer')->findOrfail($id);
             return response()->json(['bien' => $bien], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

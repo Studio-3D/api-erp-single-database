@@ -23,6 +23,7 @@ use App\Http\Requests\UpdateDate_relance_Rdv;
 use App\Http\Requests\UpdateFreinRequest;
 use App\Http\Requests\UpdateVisiteRequest;
 use App\Models\Bien;
+use App\Models\Projet;
 use App\Models\Bloc;
 use App\Models\Client;
 use App\Models\Frein;
@@ -45,6 +46,7 @@ use \NumberFormatter;
 use App\Models\TraitementFrein;
 use App\Models\HistoriqueBien;
 use App\Models\PreReservation;
+use Illuminate\Support\Facades\Http;
 
 
 
@@ -272,6 +274,30 @@ class VisiteController extends Controller
      * Store a newly created resource in storage.
      */
 
+     function convertToInternational($number) {
+        // Vérifie si le numéro commence par "0" et le remplace par "+212"
+        if (preg_match('/^0(\d{9})$/', $number, $matches)) {
+            return '+212' . $matches[1];
+        }
+        return $number; // Retourne le numéro inchangé s'il ne commence pas par "0"
+    }
+    public function send_whatsapp($request)
+    {
+        // Récupérer les identifiants UltraMsg depuis le fichier .env
+        $instanceId = env('INSTANCE_ID_ULTRA_MSG');
+        $token = env('TOKEN_ULTRA_MSG');
+        $to =$request->to;
+
+        // Envoyer la requête à l'API UltraMsg
+        $response = Http::timeout(60)->post("https://api.ultramsg.com/$instanceId/messages/chat", [
+            'token' => $token,
+            'to' => $request->to,
+            'body' => $request->body
+        ]);
+
+        return $response->json(); // Retourne la réponse de l'API pour vérification
+    }
+
     public function store(StoreVisiteRequest $request)
     {
         /***liste des fonctions a ajouter
@@ -281,8 +307,10 @@ class VisiteController extends Controller
          ****/
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
+            $msg_sended=0;
             DatabaseHelper::Config();
             Config::set('broadcasting.default', 'pusher_3');
+            $projet=Projet::on('temp')->findorfail($request->selectedProjet);
             ///decoder les stringfy
             $list_bien_interesse = json_decode($request->input('list_bien_interesse', '[]'), true);
             $list_bien_transfere_vendu = json_decode($request->input('list_bien_transfere_vendu', '[]'), true);
@@ -622,6 +650,23 @@ class VisiteController extends Controller
                                         $rdv->user_id = $userAuth->value('id');
                                         $rdv->visite_id = $visite->id;
                                         $rdv->save();
+
+                                        if($prospect->telephone!=null){
+
+                                            $bien=Bien::on('temp')->findorfail( $list_biens['bien_id']);
+                                            $data_whtsp = [
+                                                'to' =>$this->convertToInternational($prospect->telephone),
+                                                'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                . 'Merci pour votre visite chez le Projet '. $projet->nom.' aujourd’hui. '
+                                                . 'Nous espérons que votre expérience a été agréable. '
+                                                . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
+                                                . 'Concernant le Bien ' .$bien->propriete_dite_bien . '. '
+                                                . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
+                                            ];
+
+                                            $this->send_whatsapp($request->merge($data_whtsp));
+                                            $msg_sended=1;
+                                        }
                                     }
                                 }
 
@@ -800,6 +845,22 @@ class VisiteController extends Controller
                                         $rdv->user_id = $userAuth->value('id');
                                         $rdv->visite_id = $visite->id;
                                         $rdv->save();
+
+                                        if($prospect->telephone!=null){
+                                            $bien=Bien::on('temp')->findorfail( $list_biens['bien_id']);
+                                            $data_whtsp = [
+                                                'to' =>$this->convertToInternational($prospect->telephone),
+                                                'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                . 'Merci pour votre visite chez le Projet '.$projet->nom.' aujourd’hui. '
+                                                . 'Nous espérons que votre expérience a été agréable. '
+                                                . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
+                                                . 'Concernant le Bien ' .$bien->propriete_dite_bien . '. '
+                                                . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
+                                            ];
+
+                                            $this->send_whatsapp($request->merge($data_whtsp));
+                                            $msg_sended=1;
+                                        }
                                     }
                                 }
 
@@ -926,7 +987,26 @@ class VisiteController extends Controller
                     }
                 }
 
+
             }
+              //send message WhatsApp de bienvenue en cas de n'existe pas de relance ou rendez-vous ou frein
+
+              if($msg_sended==0){
+                if($prospect->telephone!=null){
+
+                    $data_whtsp = [
+                        'to' =>$this->convertToInternational($prospect->telephone),
+                        'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                        . 'Merci pour votre visite chez le Projet '.$projet->nom.' aujourd’hui. '
+                        . 'Nous espérons que votre expérience a été agréable. '
+                        . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
+                    ];
+
+                $this->send_whatsapp($request->merge($data_whtsp));
+                }
+            }
+
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }

@@ -31,6 +31,10 @@ class Visite extends Model
     {
         return $this->belongsTo(Bien::class,'bien_id');
     }
+    public function projet()
+    {
+        return $this->belongsTo(Projet::class,'projet_id');
+    }
 
     public function source(){
         return $this->belongsTo(Source::class,'source_id');
@@ -62,7 +66,7 @@ class Visite extends Model
     {
         return $this->hasone(Reservation::class,'visite_id','id');
     }
-    //frein used on cas de store n visite 
+    //frein used on cas de store n visite
     public function freins()
     {
         return $this->hasone(Frein::class,'visite_id')->where('etat','!=',5)->orderby('created_at','desc')->latest();

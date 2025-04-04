@@ -15,6 +15,8 @@ use App\Models\User;
 use Carbon\Carbon;
 use App\Models\Import;
 use App\Models\Projet;
+use App\Models\WebhookEvent;
+use Illuminate\Support\Facades\Http;
 use App\Http\Helpers\ImportExcelHelper;
 
 use Illuminate\Support\Facades\Artisan;
@@ -94,6 +96,7 @@ class DatabaseHelper
     public static function Config($societe_id = null)
     {
         if (!$societe_id) {
+            \Log::info("ste__id $societe_id.");
             $societe_id = Auth::guard('api')->user()->societe_id;
         }
         $societe = Societe::findOrfail($societe_id);
@@ -178,6 +181,35 @@ class DatabaseHelper
                 }
             } else {
                 \log::info("Table 'propositions' does not exist in $databaseName.");
+            }
+        }
+    }
+
+
+    public static function deleteWebhookTable($databases)
+    {
+        foreach ($databases as $database) {
+            $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+
+            // Switch to the temporary database
+            $connection = DatabaseHelper::Connection_database($databaseName);
+            config(['database.connections.temp' => $connection]);
+            DB::connection('temp')->setDatabaseName($connection['database']);
+            DB::reconnect('temp');
+
+            //
+            if (Schema::connection('temp')->hasTable('webhook_events')) {
+                    $webhook_events = WebhookEvent::on('temp')->withTrashed() // id  from  users from mother db
+                        ->get();
+                    foreach ($webhook_events as $web) {
+                        $web->forceDelete();
+                    }
+
+                    \Log::info("Deleted webhook_events for not connected users in $databaseName.");
+
+
+            } else {
+                \log::info("Table webhook_events' does not exist in $databaseName.");
             }
         }
     }
@@ -369,6 +401,96 @@ class DatabaseHelper
                 Log::info("Processus d'envoi des emails terminé pour la base de données {$databaseName}");
             }
         }
+    }
+
+
+    public static function envoyer_whatsapp_rdv_rlc($databases)
+    {
+        foreach ($databases as $database) {
+            $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+
+            // Configurer la connexion à la base de données temporaire
+            $connection = DatabaseHelper::Connection_database($databaseName);
+            config(['database.connections.temp' => $connection]);
+            DB::connection('temp')->setDatabaseName($connection['database']);
+            DB::reconnect('temp');
+
+            if (Schema::connection('temp')->hasTable('relances_rdv_visites')) {
+                $tomorrow = Carbon::tomorrow()->toDateString();
+                $today = Carbon::now()->toDateString();
+                log::info('tom'.$tomorrow);
+               // Récupérer les relances pour les users
+                $relances = Relance_Rdv_visite::on('temp')
+                    ->with(['user','visite.prospect'])
+                    ->whereDate('date_relance', $today)
+                    ->where('type', 1)
+                    ->get();
+                    log::info('count'.count($relances));
+                //send msg to commercial pou relancer prospect
+
+                    if(count($relances)>0){
+                        foreach ($relances as $relance) {
+                            $user = $relance->user;
+                            if($user->phone!=null){
+                                // Assuming the relationship exist
+                                $prospect = $relance->visite->prospect->nom .' '.$relance->visite->prospect->prenom; // Adjust field name as needed
+                                $phone_prospect=$relance->visite->prospect->telephone;
+                                $message = "Bonjour, nous vous rappelons que vous avez une relance à effectuer pour le prospect $prospect. le Numéro telephone est :$phone_prospect";
+                                DatabaseHelper::sendWhatsAppMessage($user->phone, $message);
+                                Log::info(' message de relance whtsap send to prospect'.$user->phone);
+
+                            }
+                    }
+
+                }
+                   // Récupérer les relances pour les prospects
+                $rdvs = Relance_Rdv_visite::on('temp')
+                    ->with(['visite.prospect','user','visite.projet','visite.bien'])
+                    ->whereDate('rdv', $tomorrow)
+                    ->where('type', 2)
+                    ->get();
+
+
+                if(count($rdvs)>0){
+                        foreach ($rdvs as $rdv) {
+                            $prospect = $rdv->visite->prospect;
+                            if($prospect!=null){
+                                // Assuming the relationship exists
+                                $phone = $prospect->telephone; // Adjust field name as needed
+                                $heure = Carbon::parse($rdv->rdv)->format('H:i'); // Extracts only the time
+                                $user=$rdv->user->name. ' '.$rdv->user->prenom;
+                                $projet=$rdv->visite->projet->nom;
+                                $bien=$rdv->visite->bien->propriete_dite_bien;
+                                $message ="Madame/Monsieur, nous vous rappelons que vous avez un rendez-vous de suivi programmée demain à $heure avec le Commercial $user pour le Projet :$projet conecernant le bien $bien. Nous restons à votre disposition pour toute information complémentaire.";
+                                DatabaseHelper::sendWhatsAppMessage($phone, $message);
+                                Log::info(' message de rdv whtsap send to prospect'.$prospect->telephone. ' w rdv id ==>'.$rdv->id);
+
+                            }
+                    }
+                }
+
+
+
+                Log::info('Processus de relance et notification terminé pour la base de données ' . $databaseName);
+            } else {
+                Log::warning('La table relances_rdv_visites est absente dans la base de données ' . $databaseName);
+            }
+        }
+    }
+
+
+    public static function sendWhatsAppMessage($phone, $message)
+    {
+        $instanceId =env('INSTANCE_ID_ULTRA_MSG');  // Replace with your instance ID
+        $token = env('TOKEN_ULTRA_MSG');
+        // Replace with your WhatsApp API provider details
+        $response = Http::timeout(60)->post("https://api.ultramsg.com/$instanceId/messages/chat", [
+            'to'   => $phone,
+            'body' => $message,
+            'token' => $token
+        ]);
+
+        Log::info("WhatsApp message sent to $phone: " . $response->body());
     }
 
     public static function import_fichiers($databases)

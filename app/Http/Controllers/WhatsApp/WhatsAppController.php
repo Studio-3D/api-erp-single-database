@@ -6,60 +6,65 @@ namespace App\Http\Controllers\WhatsApp;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http; 
-use App\Models\interfaceAPIs;
-use App\Http\Controllers\ProspectController;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Helpers\DatabaseHelper;
+use App\Models\WebhookEvent;
+use Illuminate\Support\Facades\Config;
+use App\Events\NotificationEvent;
 
 class WhatsAppController extends Controller
 {
-    public function webhooks(Request $request)
+     // Facebook Webhook Verification
+     public function webhook_whtsp(Request $request)
+     {
+          // Log incoming messages for debugging
+         Log::info('UltraMsg Webhook Received:', $request->all());
+         DatabaseHelper::Config(10);
+         Config::set('broadcasting.default', 'pusher_3');
+         // Extraire les données du webhook
+         $data = $request->input('data');
 
-    {
-        Log::info($request);
-        $whatsappToken = 'whatssap_token';
-        if ($request->input('hub_verify_token') === $whatsappToken) {
-            return $request->input('hub_challenge');
+         // Extraire les valeurs spécifiques
+         $from = $data['from'] ?? 'Unknown'; // Numéro de l'expéditeur
+         $pushname = $data['pushname'] ?? 'Unknown'; // Nom de l'expéditeur
+         $message = $data['body'] ?? 'No message'; // Message reçu
+         $timestamp = $data['time'] ?? time(); // Timestamp Unix
+        if($data['type']=='chat'){
+            $type='whatsapp_message';
+        }elseif($data['type']=='location'){
+            $type='whatsapp_location';
         }
-        $entries = $request->input('entry');
-
-        if ($entries && is_array($entries)) {
-            foreach ($entries as $entry) {
-                $messaging = $entry['changes'][0]['value']['messages'][0] ?? null;
-                if ($messaging) {
-                    $phone_number_id = $entry['changes'][0]['value']['metadata']['phone_number_id'];
-                    $from = $messaging['from'];
-                     $auth= Auth::guard('api')->user()->societe_id ?? 'societe_id not found ' ;
-                    $msg_body = $messaging['text']['body'];
-                    $name =$entry['changes'][0]['value']['contacts'][0]['profile']['name'];
-                    $displayPhoneNumber = $entry['changes'][0]['value']['metadata']['display_phone_number'];
-                    $this->storeMessage($displayPhoneNumber);
-                    $interfaceAPI = interfaceAPIs::where('client_num', $displayPhoneNumber)->select('societe_id')->first();
-                    $societe_id=$interfaceAPI->societe_id;
-                    Log::info("Received message from $from (Phone ID: $phone_number_id): $msg_body  $societe_id ");
-                    ProspectController::Store_WhatsApp($phone_number_id, $from, $msg_body,$name,$societe_id);  
-                    Http::post("https://graph.facebook.com/v18.0/$phone_number_id/messages?access_token=''" , [
-                        'messaging_product' => 'whatsapp',
-                        'to' => $from,
-                        'text' => ['body' => 'Ack: ' . $msg_body],
-                    ]);
-                    return response()->json(['status' => 'success']);
-                }
-            }
+        elseif($data['type']=='image'){
+            $type='whatsapp_image';
         }
+        elseif($data['type']=='audio'||$data['type']=='ptt'){
+            $type='whatsapp_audio';
+        }
+        elseif($data['type']=='video'){
+            $type='whatsapp_video';
+        }else{
+            $type='unknown';
+        }
+         // Convertir le timestamp en format lisible
+         $formattedDate = date('Y-m-d H:i:s', $timestamp);
 
-        return response()->json(['status' => 'error', 'message' => 'Invalid request data']);
-    }
+         $web=new WebhookEvent();
+         $web->setConnection('temp');
+         $web->platform='whatsap';
+         $web->type=$type;
+         $web->data=$request->all();
+         $web->save();
+         broadcast(new NotificationEvent(0));
 
-    private function storeMessage($displayPhoneNumber)
-    {
-        interfaceAPIs::create([
-           'client_num'=>$displayPhoneNumber,
-           'societe_id'=>119,
-           'source'=>1,
-        ]);
-    }
+         // Log des informations reçues
+         $typep=$data['type'];
+         Log::info("From: $from ($pushname) | Message: $message | Timestamp: $formattedDate | type $typep");
 
-    
+         return response()->json(['status' => 'success']);
+
+     }
+
+
 }
 

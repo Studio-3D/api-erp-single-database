@@ -20,6 +20,8 @@ class Kernel extends ConsoleKernel
         $schedule->command(command: 'emails:send-scheduled')->dailyAt('00:00'); // Exécute tous les jours à minuit
         $schedule->command(command: 'app:echeance-email')->dailyAt('00:00'); // Exécute tous les jours à minuit
         $schedule->command('app:import_fichiers')->everyMinute();
+        $schedule->command('app:clear-webhook_events-table')->sundays()->at('07:00'); // Runs every Sunday at midnight
+        $schedule->command(command: 'whatsapp:send-reminder')->dailyAt('00:00'); // Exécute tous les jours à minuit
 
        }
 
