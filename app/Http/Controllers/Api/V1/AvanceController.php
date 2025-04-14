@@ -581,16 +581,18 @@ class AvanceController extends Controller
                 {if ($request->files_avance) {
 
                     foreach ($request->files_avance as $file) {
+
+
                         $piecesJointeController = new PiecesJointeController();
                         $pieceJointeRequest = new StorePiecesJointeRequest();
                         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                         $user_connecter = $userAuth->value('user_id_origin');
                         $user_societes = User::where('id', $user_connecter)->first();
                         $societe = Societe::findOrfail($user_societes->societe_id);
-
+        
                         // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements');
+                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements' . '/' . $reservation->code_reservation);
                         File::makeDirectory($directory, 0755, true, true);
                         $file->move($directory, $fileName);
                         $fileType = $file->getClientOriginalExtension();
@@ -600,7 +602,7 @@ class AvanceController extends Controller
                             'avance_id' => $avance->id,
                             'active' => 1,
                         ];
-
+        
                         $pieceJointeRequest->merge($datapieceJointe);
                         $piecesJointeController->store($pieceJointeRequest);
                     }
@@ -898,7 +900,7 @@ class AvanceController extends Controller
                        // Récupérer le nom du fichier
                        $Myfile = $file->getClientOriginalName();
 
-                       $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements');
+                       $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
                        File::makeDirectory($directory, 0755, true, true);
                        $file->move($directory, $Myfile);
                        $fileType = $file->getClientOriginalExtension();

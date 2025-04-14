@@ -430,7 +430,7 @@ class DesistementController extends Controller
 
                                 // Récupérer le nom du fichier
                                 $fileName = $file->getClientOriginalName();
-                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements');
+                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
                                 File::makeDirectory($directory, 0755, true, true);
                                 $file->move($directory, $fileName);
                                 $fileType = $file->getClientOriginalExtension();
@@ -529,10 +529,11 @@ class DesistementController extends Controller
                             foreach ($request->file('files_penalite') as $file) {
                                 $piecesJointeController = new PiecesJointeController();
                                 $pieceJointeRequest = new StorePiecesJointeRequest();
+                                $reservation = Reservation::on('temp')->findOrFail($desistement->reservation_id);
 
                                 // Récupérer le nom du fichier
                                 $fileName = $file->getClientOriginalName();
-                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/penalites');
+                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/penalites' . '/' . $reservation->code_reservation);
                                 File::makeDirectory($directory, 0755, true, true);
                                 $file->move($directory, $fileName);
                                 $fileType = $file->getClientOriginalExtension();

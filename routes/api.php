@@ -195,6 +195,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('desactiver_freins/{id}', [V1FreinController::class, 'desactiver_freins'])->name('');
 
         //l'API prospect
+
         Route::resource('prospects', V1ProspectController::class);
         Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
         Route::get('search_prospect_by_param/{param_1}/{value}', [V1ProspectController::class, 'search_prospect_by_param']);
@@ -203,6 +204,9 @@ Route::middleware('auth:api')->group(function () {
         Route::post('upload_excel_prospect', [V1ProspectController::class, 'upload'])->name('');
         Route::put('traiter_prospect/{id}', [V1ProspectController::class, 'traiter_prospect'])->name('');
         Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
+
+        Route::get('projets/{idprojet}/prospects', [V1ClientController::class, 'indexByProjet']);
+
 
         //l'API client
         Route::resource('clients', V1ClientController::class);

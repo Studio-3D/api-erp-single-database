@@ -205,10 +205,11 @@ class RemboursementController extends Controller
             $remboursement->mode_rembourse_client=$request->mode_rembourse_client;
             $remboursement->pour_le_compte=$request->pour_le_compte;
             $remboursement->num_paiement=$request->num_paiement;
+            $codeReservation = $remboursement->reservation->code_reservation;
 
             if ($request->hasFile('fichier_autorisation')) {
                 $remboursement->fichier_autorisation =$request->file('fichier_autorisation')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisations');
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisations/' .$codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_autorisation')->move($directory,$request->file('fichier_autorisation')->getClientOriginalName());
             }
@@ -252,11 +253,13 @@ class RemboursementController extends Controller
 
             $remboursement = Remboursement::on('temp')->findOrFail($id);
             $remboursement->statut=2;
+            $codeReservation = $remboursement->reservation->code_reservation;
+
            // $remboursement->remis_le=$request->remis_le;
             $remboursement->user_id_remis=$userAuth->value('id');
             if ($request->hasFile('cheque_client_signe')) {
                 $remboursement->cheque_client_signe=$request->file('cheque_client_signe')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus/' .$codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('cheque_client_signe')->move($directory,$request->file('cheque_client_signe')->getClientOriginalName());
             }

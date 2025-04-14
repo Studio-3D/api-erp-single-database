@@ -427,6 +427,9 @@ class ReservationController extends Controller
 
                 //////storer les pieces jointe de résérvation
                 if ($request->file('files_reservation')) {
+                    // Supposons que le code de réservation est passé dans la requête ou obtenu autrement
+                    $codeReservation = $request->input('code_reservation'); // ou bien via une variable issue d'un modèle, ex : $reservation->code
+
                     foreach ($request->file('files_reservation') as $file) {
                         $piecesJointeController = new PiecesJointeController();
                         $pieceJointeRequest = new StorePiecesJointeRequest();
@@ -436,7 +439,11 @@ class ReservationController extends Controller
                         // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
                         $Myfile = $fileName;
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations');
+
+                        // Construire le chemin du répertoire avec le code de réservation
+                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/' . $codeReservation);
+
+                        // Créer le répertoire s'il n'existe pas déjà
                         File::makeDirectory($directory, 0755, true, true);
                         $file->move($directory, $Myfile);
                         $fileType = $file->getClientOriginalExtension();

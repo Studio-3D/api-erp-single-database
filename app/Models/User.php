@@ -72,4 +72,42 @@ class User extends Authenticatable
         return $this->belongsToMany(Projet::class);
     }
 
+    public function projets()
+    {
+        return $this->belongsToMany(Projet::class, 'user_projets', 'user_id', 'projet_id');
+    }
+
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class, 'user_id');
+    }
+
+    public function desistements()
+    {
+        return $this->hasMany(Desistement::class, 'user_id');
+    }
+
+    public function visites()
+    {
+        return $this->hasMany(Visite::class, 'user_id');
+    }
+
+    public function avances()
+    {
+        return $this->hasMany(Avance::class, 'user_id');
+    }
+    public function compromis_ventes()
+    {
+        return $this->hasMany(Compromis_vente::class, 'user_id');
+    }
+    public function contrat_ventes()
+    {
+        return $this->hasMany(Contrat_vente::class, 'user_id');
+    }
+    public function traitement_appels()
+    {
+        return $this->hasMany(TraitementAppel::class, 'user_id');
+    }
+    
+
 }

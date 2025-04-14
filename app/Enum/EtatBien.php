@@ -10,5 +10,4 @@ enum EtatBien:int
      case BLOQUE=4;
      case VENDU=5;
      case ENCOURS_DE_PROPOSITION=6;
-
 }

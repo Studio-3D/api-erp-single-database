@@ -215,8 +215,7 @@ class UserController extends Controller
                 }
                 $dataArray_projets = json_decode($request->input('selectedProjets', '[]'), true);
 
-
-                $this->createSubUser($request, $user->id, $user->photo, $dataArray_projets==null?[]:$dataArray_projets);
+                $this->createSubUser($request, $user->id, $user->photo, $dataArray_projets == null ? [] : $dataArray_projets);
 
                 //send accces par email to user
 
@@ -236,16 +235,31 @@ class UserController extends Controller
     }
     public function show($id)
     {
-        $user = null;
-        if (RoleHelper::Superadmin()) {
-            $user = User::findOrfail($id);
-        } else {
-            DatabaseHelper::Config();
-            $user = User::on('temp')->where('user_id_origin', $id)->first();
-        }
-        return response()->json(['user' => $user]);
+        $userAuth = Auth::guard('api')->user();
 
+        if (RoleHelper::Superadmin() && $userAuth->societe_id == 1) {
+            // Récupérer l'utilisateur et compter ses relations
+            $user = User::find($id);
+        } else if (RoleHelper::Admin() || (RoleHelper::Superadmin() && $userAuth->societe_id != 1)) {
+            DatabaseHelper::Config();
+            $user = User::on('temp')
+                ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+                ->withCount(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+                ->where('user_id_origin', $id)
+                ->first();
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        if (!$user) {
+            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+        }
+
+        return response()->json([
+            'user' => $user,
+        ], 200);
     }
+
     public function update(UpdateUserRequest $request, $id)
     {
 
@@ -377,23 +391,23 @@ class UserController extends Controller
                 $user->solde_conge = $request->solde_conge;
                 $user->save();
 
-                if (RoleHelper::Admin()){
+                if (RoleHelper::Admin()) {
                     //modifier user projet
                     $user_projets = UserProjet::on('temp')->where('user_id', $user_societes->id)->delete();
                     // par id du prjet
-                    if($request->user_has_already_projets=='1'){
-                            if (!empty($request->selectedProjets)) {
-                                $projets_array = explode(',', $request->selectedProjets); // $projets_array sera ['5', '2']
-                                foreach ($projets_array as $id_projet) {
-                                    UserProjetHelper::createUserProjet($id_projet, $user_societes->id);
-                                }
+                    if ($request->user_has_already_projets == '1') {
+                        if (!empty($request->selectedProjets)) {
+                            $projets_array = explode(',', $request->selectedProjets); // $projets_array sera ['5', '2']
+                            foreach ($projets_array as $id_projet) {
+                                UserProjetHelper::createUserProjet($id_projet, $user_societes->id);
                             }
-                    }else{
+                        }
+                    } else {
                         //par projet global
                         //[{'projet_values'],{'prjet_2_value}]
                         $dataArray_projets = json_decode($request->input('selectedProjets', '[]'), true);
                         foreach ($dataArray_projets as $valeur) {
-                            UserProjetHelper::createUserProjet($valeur['id'],$user_societes->id);
+                            UserProjetHelper::createUserProjet($valeur['id'], $user_societes->id);
                         }
                     }
                 }
@@ -525,9 +539,8 @@ class UserController extends Controller
 
         // Vérifier si l'utilisateur existe
         if (!$user) {
-            return response()->json(['error' =>"Nous n'avons pas trouvé de compte associé à cette adresse e-mail."], 404);
+            return response()->json(['error' => "Nous n'avons pas trouvé de compte associé à cette adresse e-mail."], 404);
         }
-
 
         DB::table('password_reset_tokens')
             ->where('email', $user->email)
@@ -554,14 +567,13 @@ class UserController extends Controller
     }
     public function resendEmail(Request $request)
     {
-            // Validate the request and check for user existence
-           $request->validate([
+        // Validate the request and check for user existence
+        $request->validate([
             'email' => 'required|email',
         ]);
 
         // Rechercher l'utilisateur par email
         $user = User::where('email', $request->email)->first();
-
 
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
@@ -620,21 +632,21 @@ class UserController extends Controller
     }
 
     public function reset(Request $request)
-{
-    $request->validate([
-        'current_password' => 'required',
-        'new_password' => 'required|confirmed',
-    ]);
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|confirmed',
+        ]);
 
-    $user = auth()->user();
+        $user = auth()->user();
 
-    if (!Hash::check($request->current_password, $user->password)) {
-        return response()->json(['error' => 'Ancien mot de passe incorrect'], 400);
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['error' => 'Ancien mot de passe incorrect'], 400);
+        }
+
+        $user->update(['password' => Hash::make($request->new_password)]);
+
+        return response()->json(['message' => 'Mot de passe réinitialisé avec succès'], 200);
     }
-
-    $user->update(['password' => Hash::make($request->new_password)]);
-
-    return response()->json(['message' => 'Mot de passe réinitialisé avec succès'], 200);
-}
 
 }
