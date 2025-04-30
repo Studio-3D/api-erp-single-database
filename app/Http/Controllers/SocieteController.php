@@ -2,25 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\NewSocieteEvent;
 use App\Http\Helpers\DatabaseHelper;
+use App\Http\Helpers\FichierHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreSocieteRequest;
 use App\Http\Requests\UpdateSocieteRequest;
 use App\Models\Societe;
 use App\Models\User;
-use Pusher\Pusher;
-use App\Models\Projet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use \Illuminate\Support\Facades\Storage;
-use App\Events\Societes;
-use App\Events\NewSocieteEvent;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Config;
-use App\Http\Helpers\FichierHelper;
-
-
-
+use Illuminate\Support\Facades\File;
+use Pusher\Pusher;
+use \Illuminate\Support\Facades\Storage;
 
 class SocieteController extends Controller
 {
@@ -31,11 +26,12 @@ class SocieteController extends Controller
     public function get_societes()
     {
         if (RoleHelper::Superadmin()) {
-            $societes = Societe::whereNotIn('id', [1])->get();
+            //$societes = Societe::whereNotIn('id', [1])->get();
+            $societes = Societe::all();
+
             return response()->json(['societes' => $societes]);
 
         }
-
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -46,9 +42,9 @@ class SocieteController extends Controller
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
 
-           $societes = Societe::where('id', '!=', 1)
-                   ->orderBy('created_at', 'desc')
-                   ->paginate($perPage, ['*'], 'page', $page);
+            $societes = Societe::where('id', '!=', 1)
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage, ['*'], 'page', $page);
 
             return response()->json(['societes' => $societes]);
         }
@@ -63,9 +59,6 @@ class SocieteController extends Controller
     {
         //
     }
-
-
-
 
     /**
      * Store a newly created resource in storage.
@@ -91,7 +84,7 @@ class SocieteController extends Controller
             }
             $societe->save();
             if ($request->hasFile('logo')) {
-                FichierHelper::ajouter_fichier($request->logo,$raison_sociale_concatene,$societe->id,'logos',$logo);
+                FichierHelper::ajouter_fichier($request->logo, $raison_sociale_concatene, $societe->id, 'logos', $logo);
                 //$request->logo->move(public_path('Docs/'. $raison_sociale_concatene.'_'.$societe->id.'/logos'), $logo);
                 $societe->logo = $logo;
                 $societe->save();
@@ -111,8 +104,6 @@ class SocieteController extends Controller
             } else {
                 return response()->json(['message' => $response->getOriginalContent()['message']]);
             }
-
-
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -161,15 +152,15 @@ class SocieteController extends Controller
             $societe->email = $request->email;
             if ($request->hasFile('logo')) {
 
-                if($societe->logo!=null){
-                    $image_path = public_path('Docs/'.$societe->raison_sociale_concatene.'_'.$id.'/logos'.$societe->logo);
-                    if(file_exists($image_path)){
-                      //unlink(C:\Users\HP\Desktop\20190513_174204.jpg);
-                      File::delete('C:\Users\HP\Desktop\20190513_174204.jpg');
+                if ($societe->logo != null) {
+                    $image_path = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $id . '/logos' . $societe->logo);
+                    if (file_exists($image_path)) {
+                        //unlink(C:\Users\HP\Desktop\20190513_174204.jpg);
+                        File::delete('C:\Users\HP\Desktop\20190513_174204.jpg');
                     }
                 }
                 $logo = time() . '.' . $raison_sociale_concatene . '.' . $request->logo->extension();
-                $request->logo->move(public_path('Docs/'. $raison_sociale_concatene.'_'.$societe->id.'/logos'), $logo);
+                $request->logo->move(public_path('Docs/' . $raison_sociale_concatene . '_' . $societe->id . '/logos'), $logo);
                 $societe->logo = $logo;
             }
             $societe->save();
@@ -208,7 +199,7 @@ class SocieteController extends Controller
             if ($societe->delete()) {
 
                 Config::set('broadcasting.default', 'pusher_1');
-                $societes=Societe::all();
+                $societes = Societe::all();
 
                 broadcast(new NewSocieteEvent($societe->id));
                 return response()->json(['message' => 'societe supprimé avec succes'], 200);
@@ -292,8 +283,6 @@ class SocieteController extends Controller
             '1722976',
             $options
         );
-
-
 
     }
 }

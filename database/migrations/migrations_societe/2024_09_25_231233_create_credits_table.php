@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('piece_jointe');
             $table->date('date');
             $table->double('montant_capital',20,2);
-            $table->double('frais_dossier',20,2);
+            $table->double('frais_dossier',20,places: 2);
             $table->date('de');
             $table->date('a');
             $table->integer('nb_mois');

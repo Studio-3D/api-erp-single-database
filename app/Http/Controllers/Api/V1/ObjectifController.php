@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -7,16 +6,16 @@ use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Models\Objectif;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Carbon\Carbon;
 
 class ObjectifController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function indexByProjet (Request $request)
+    public function indexByProjet(Request $request)
     {
         if (Auth::guard('api')->check()) {
             $size = $request->input('size', null);
@@ -26,7 +25,6 @@ class ObjectifController extends Controller
 
             // Démarrer la requête directement sur le modèle
             $query = Objectif::on('temp')->with('user');
-
 
             if ($request->filled('date')) {
                 $date = Carbon::parse($request->input('date'));
@@ -50,8 +48,8 @@ class ObjectifController extends Controller
                 // Extraire les propriétés du paginateur
                 $pagination = [
                     'currentPage' => $obj->currentPage(),
-                    'totalItems' => $obj->total(),
-                    'totalPages' => $obj->lastPage(),
+                    'totalItems'  => $obj->total(),
+                    'totalPages'  => $obj->lastPage(),
                 ];
 
                 // Extraire les éléments d'utilisateur du paginateur
@@ -59,7 +57,7 @@ class ObjectifController extends Controller
 
                 // Retourner la réponse simplifiée
                 return response()->json([
-                    'data' => $obj,
+                    'data'       => $obj,
                     'pagination' => $pagination,
                 ], 200);
             } else {
@@ -79,55 +77,27 @@ class ObjectifController extends Controller
      * Show the form for creating a new resource.
      */
 
-
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
 
-       // return response()->json(['app' =>json_decode($request->input('appels', '[]'), true)]);
+        // return response()->json(['app' =>json_decode($request->input('appels', '[]'), true)]);
         if (RoleHelper::AdminSup()) {
 
             DatabaseHelper::Config();
-            $user = Auth::user();
+            $user     = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $obj = new Objectif();
+            $obj      = new Objectif();
             $obj->setConnection('temp');
-            $obj->projet_id = $request->projet_id;
-            $obj->user_id = $request->user_id;
+            $obj->projet_id   = $request->projet_id;
+            $obj->user_id     = $request->user_id;
             $obj->user_id_add = $userAuth->value('id');
-            $decode_visites = json_decode($request->input('visites', '[]'), true);
-            if ($decode_visites) {
-                foreach ($decode_visites as $v) {
-                    $obj->visites=[
-                        'semaine' => $v['semaine'],
-                        'jours' => $v['jours'],
-                        'mois' => $v['mois']
-                    ];
-                }
-            }
+            $obj->visites = $request->visites;
+            $obj->appels = $request->appels;
+            $obj->reservations = $request->reservations;
 
-            $decode_appels = json_decode($request->input('appels', '[]'), true);
-            if ($decode_appels) {
-                foreach ($decode_appels as $ap) {
-                    $obj->appels=[
-                        'semaine' => $ap['semaine'],
-                        'jours' => $ap['jours'],
-                        'mois' => $ap['mois']
-                    ];
-                }
-            }
-           $decode_res = json_decode($request->input('reservations', '[]'), true);
-            if ($decode_res) {
-                foreach ($decode_res as $r) {
-                    $obj->reservations=[
-                        'semaine' => $r['semaine'],
-                        'jours' => $r['jours'],
-                        'mois' => $r['mois'],
-                    ];
-                }
-            }
             $obj->save();
 
             return response()->json(['objectif' => $obj], 200);
@@ -172,46 +142,17 @@ class ObjectifController extends Controller
     {
         //return response()->json(json_decode($request->input('reservations', '[]'), true));
 
-
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $obj = Objectif::on('temp')->findOrfail($id);
+            $obj            = Objectif::on('temp')->findOrfail($id);
             $obj->projet_id = $request->projet_id;
-            $obj->user_id = $request->user_id;
-            $decode_visites = json_decode($request->input('visites', '[]'), true);
-            if ($decode_visites) {
-                foreach ($decode_visites as $v) {
-                    $obj->visites=[
-                        'semaine' => $v['semaine'],
-                        'jours' => $v['jours'],
-                        'mois' => $v['mois']
-                    ];
-                }
-            }
-
-            $decode_appels = json_decode($request->input('appels', '[]'), true);
-            if ($decode_appels) {
-                foreach ($decode_appels as $ap) {
-                    $obj->appels=[
-                        'semaine' => $ap['semaine'],
-                        'jours' => $ap['jours'],
-                        'mois' => $ap['mois']
-                    ];
-                }
-            }
-           $decode_res = json_decode($request->input('reservations', '[]'), true);
-            if ($decode_res) {
-                foreach ($decode_res as $r) {
-                    $obj->reservations=[
-                        'semaine' => $r['semaine'],
-                        'jours' => $r['jours'],
-                        'mois' => $r['mois'],
-                    ];
-                }
-            }
+            $obj->user_id   = $request->user_id;
+            
+            $obj->visites = $request->visites;
+            $obj->appels = $request->appels;
+            $obj->reservations = $request->reservations;
 
             $obj->save();
-
 
             return response()->json(['objectif' => $obj], 200);
         } else {
@@ -237,6 +178,5 @@ class ObjectifController extends Controller
 
         }
     }
-
 
 }
