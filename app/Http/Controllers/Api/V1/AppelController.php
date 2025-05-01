@@ -67,14 +67,31 @@ class AppelController extends Controller
                     $q->where('prenom', 'like', '%' . $request->input('prenom') . '%');
                 });
             }
+            if ($request->filled('date')) {
+                $start = Carbon::parse($request->input('date'));
+                $query->whereHas('last_traitement_appel', function ($q) use ($start) {
+                        $q->whereDate('date', $start);
+
+                });
+
+            }
             if ($request->filled('telephone')) {
                 $query->whereHas('prospect', function ($q) use ($request) {
-                    $q->where('telephone', 'like', '%' . $request->input('telephone') . '%');
+                    $q->where(function ($q) use ($request) {
+                        $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
+                            ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                    });
                 });
             }
             if ($request->filled('telephone_num2')) {
                 $query->whereHas('prospect', function ($q) use ($request) {
                     $q->where('telephone_num2', 'like', '%' . $request->input('telephone_num2') . '%');
+                });
+            }
+
+            if ($request->filled('interet')) {
+                $query->whereHas('last_traitement_appel', function ($q) use ($request) {
+                        $q->where('interet',$request->interet);
                 });
             }
 
@@ -808,10 +825,9 @@ class AppelController extends Controller
 
             $query = TraitementAppel::on('temp')->with('tranche','bloc','immeuble','type_biens','rdv','relance','frein')->where('appel_id', $id);
 
-
             if ($request->filled('date')) {
-                $query->where('date', 'like', '%' . $request->input('date') . '%');
-            }
+                $start = Carbon::parse($request->input('date'));
+                $query->whereDate('date', $start);            }
             if ($request->filled('responsable')) {
                 $query->whereHas('user', function ($q) use ($request) {
                     $q->where(function ($q) use ($request) {

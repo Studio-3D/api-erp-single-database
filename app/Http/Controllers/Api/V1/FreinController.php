@@ -447,6 +447,10 @@ class FreinController extends Controller
                 $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
                 ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');});
             }
+            if ($request->filled('date')) {
+                $start = Carbon::parse($request->input('date'));
+                $query->whereDate('created_at', $start);
+            }
             if ($request->filled('frein')) {
                 $frein=strtolower($request->input('frein'));
                 if(str_contains($frein, 'etage')){

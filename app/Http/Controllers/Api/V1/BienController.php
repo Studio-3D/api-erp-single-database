@@ -146,7 +146,7 @@ class BienController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
-            $query = PreReservation::on('temp')->with('desistement', 'bien', 'visite', 'visite.rdv_relation', 't_appel', 't_appel.rdv');
+            $query = PreReservation::on('temp')->with('desistement', 'bien', 'visite', 'visite.rdv_relation', 't_appel', 't_appel.last_traitement_appel.rdv');
             $query->whereHas('bien', function ($subQuery) use ($projet_id) {
                 $subQuery->where('projet_id', $projet_id);
             });
@@ -156,7 +156,7 @@ class BienController extends Controller
             //appels
             //desistement (pas la peine)
             if ($request->filled('bien')) {
-                $query->whereHas('bien', function ($request) {
+                $query->whereHas('bien', function ($subQuery) use ($request) {
                     $subQuery->where('propriete_dite_bien', 'like', '%' . $request->input('bien') . '%');
                 });
             }
@@ -166,7 +166,7 @@ class BienController extends Controller
                     $q->where('nom', 'like', '%' . $request->input('prospect') . '%')
                         ->orWhere('prenom', 'like', '%' . $request->input('prospect') . '%');
                 });
-                $query->orwhereHas('t_appel.appel.prospect', function ($q) use ($request) {
+                $query->orwhereHas('t_appel.prospect', function ($q) use ($request) {
                     $q->where('nom', 'like', '%' . $request->input('prospect') . '%')
                         ->orWhere('prenom', 'like', '%' . $request->input('prospect') . '%');
                 });
@@ -179,7 +179,7 @@ class BienController extends Controller
                             ->orWhere('prenom', 'like', '%' . $request->input('respo') . '%');
                     });
                 });
-                $query->orwhereHas('t_appel.user', function ($q) use ($request) {
+                $query->orwhereHas('t_appel.last_traitement_appel.user', function ($q) use ($request) {
                     $q->where(function ($q) use ($request) {
                         $q->where('name', 'like', '%' . $request->input('respo') . '%')
                             ->orWhere('prenom', 'like', '%' . $request->input('respo') . '%');

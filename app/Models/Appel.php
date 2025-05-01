@@ -26,6 +26,4 @@ class Appel extends Model
     {
         return $this->hasOne(TraitementAppel::class,'appel_id')->latest();
     }
-
-
 }

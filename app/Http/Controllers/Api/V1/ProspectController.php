@@ -57,8 +57,19 @@ class ProspectController extends Controller
             if ($request->filled('nom')) {
                 $query->where('nom', 'like', '%' . $request->input('nom') . '%');
             }
+            if ($request->filled('email')) {
+                $query->where('email', 'like', '%' . $request->input('email') . '%');
+            }
             if ($request->filled('prenom')) {
                 $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+            }
+            if ($request->filled('statut')) {
+                $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+            }
+            if ($request->filled('statut')) {
+                $query->whereHas('last_statut', function ($q) use ($request) {
+                        $q->where('statut',  $request->input('statut'));
+                });
             }
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
@@ -242,17 +253,19 @@ class ProspectController extends Controller
             // Optional filters (Add more if needed)
 
             if ($request->filled('date_traitement')) {
-                $start = Carbon::parse($request->input('date'));
+                $start = Carbon::parse($request->input('date_traitement'));
                 $query->whereDate('date_traitement' ,$start);
             }
-
-            if ($request->filled('respo')) {
-                $query->whereHas('user', function ($q) use ($request) {
-                    $q->where(function ($q) use ($request) {
-                        $q->where('name', 'like', '%' . $request->input('cc') . '%')
-                            ->orWhere('prenom', 'like', '%' . $request->input('cc') . '%');
-                    });
-                });
+            if ($request->filled('rdv')) {
+                $start = Carbon::parse($request->input('rdv'));
+                $query->whereDate('rdv' ,$start);
+            }
+            if ($request->filled('date_rappel')) {
+                $start = Carbon::parse($request->input('date_rappel'));
+                $query->whereDate('date_rappel' ,$start);
+            }
+            if ($request->filled('statut')) {
+                $query->where('statut',$request->statut);
             }
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
