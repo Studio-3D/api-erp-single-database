@@ -30,7 +30,7 @@ use App\Models\Frein;
 use App\Models\Immeuble;
 use App\Models\Notification;
 use App\Models\Prospect;
-use App\Models\Relance_Rdv_visite;
+use App\Models\Relance_Rdv_Visite;
 use App\Models\TraitementAppel;
 use App\Models\Tranche;
 use App\Models\Typologie;
@@ -424,7 +424,7 @@ class VisiteController extends Controller
                                 $notif_helper->storeNotification($request->merge($data_notif));
                                 broadcast(new NotificationEvent($visite->id));
 
-                                $relance = new Relance_Rdv_visite();
+                                $relance = new Relance_Rdv_Visite();
                                 $relance->setConnection('temp');
                                 $relance->type = 1; //relance
                                 $relance->mode_relance = $request->mode_relance;
@@ -492,7 +492,7 @@ class VisiteController extends Controller
                                     }
                                 }
                                 /***RENDRE LES OLD RELANCES ET OLD RDV EN TRAITE AUTOMATIQUE****/
-                                $old_relances_rdv = Relance_Rdv_visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
+                                $old_relances_rdv = Relance_Rdv_Visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
                                 if (count($old_relances_rdv) > 0) {
                                     foreach ($old_relances_rdv as $old) {
                                         $old->type_traitement = 2; //auto
@@ -616,7 +616,7 @@ class VisiteController extends Controller
                                         $notif_helper->storeNotification($request->merge($data_notif));
 
                                         broadcast(new NotificationEvent($visite->id));
-                                        $relance = new Relance_Rdv_visite();
+                                        $relance = new Relance_Rdv_Visite();
                                         $relance->setConnection('temp');
                                         $relance->type = 1; //relance
                                         $relance->mode_relance = $list_biens['mode_relance'];
@@ -644,7 +644,7 @@ class VisiteController extends Controller
                                         $notif_helper->storeNotification($request->merge($data_notif));
 
                                         broadcast(new NotificationEvent($visite->id));
-                                        $rdv = new Relance_Rdv_visite();
+                                        $rdv = new Relance_Rdv_Visite();
                                         $rdv->setConnection('temp');
                                         $rdv->type = 2; //rdv
                                         $rdv->rdv = $list_biens['rdv'];
@@ -812,7 +812,7 @@ class VisiteController extends Controller
                                         $notif_helper->storeNotification($request->merge($data_notif));
 
                                         broadcast(new NotificationEvent($visite->id));
-                                        $relance = new Relance_Rdv_visite();
+                                        $relance = new Relance_Rdv_Visite();
                                         $relance->setConnection('temp');
                                         $relance->type = 1; //relance
                                         $relance->mode_relance = $list_biens['mode_relance'];
@@ -839,7 +839,7 @@ class VisiteController extends Controller
                                         $notif_helper->storeNotification($request->merge($data_notif));
 
                                         broadcast(new NotificationEvent($visite->id));
-                                        $rdv = new Relance_Rdv_visite();
+                                        $rdv = new Relance_Rdv_Visite();
                                         $rdv->setConnection('temp');
                                         $rdv->type = 2; //rdv
                                         $rdv->rdv = $list_biens['rdv'];
@@ -967,7 +967,7 @@ class VisiteController extends Controller
                             }
                         }
                         /***RENDRE LES OLD RELANCES ET OLD RDV EN TRAITE AUTOMATIQUE****/
-                        $old_relances_rdv = Relance_Rdv_visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
+                        $old_relances_rdv = Relance_Rdv_Visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
                         if (count($old_relances_rdv) > 0) {
                             foreach ($old_relances_rdv as $old) {
                                 $old->type_traitement = 2; //auto
@@ -1118,7 +1118,7 @@ class VisiteController extends Controller
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $relance = Relance_Rdv_visite::on('temp')->findOrFail($id);
+            $relance = Relance_Rdv_Visite::on('temp')->findOrFail($id);
             //if date !=null (nouvelle relance )
             if ($request->date != null) {
 
@@ -1138,7 +1138,7 @@ class VisiteController extends Controller
                         }
                     }
                     //store new relance
-                    $new_relance = new Relance_Rdv_visite();
+                    $new_relance = new Relance_Rdv_Visite();
                     $new_relance->setConnection('temp');
                     if ($relance->type == 1) {
                         $new_relance->type = 1; //relance
@@ -1388,7 +1388,7 @@ class VisiteController extends Controller
                     $notif_helper->storeNotification($request->merge($data_notif));
 
                     broadcast(new NotificationEvent($visite->id));
-                    $relance = new Relance_Rdv_visite();
+                    $relance = new Relance_Rdv_Visite();
                     $relance->setConnection('temp');
                     $relance->type = 1; //relance
                     $relance->mode_relance = $request->mode_relance;
@@ -1418,7 +1418,7 @@ class VisiteController extends Controller
                     $notif_helper->storeNotification($request->merge($data_notif));
 
                     broadcast(new NotificationEvent($visite->id));
-                    $rdv = new Relance_Rdv_visite();
+                    $rdv = new Relance_Rdv_Visite();
                     $rdv->setConnection('temp');
                     $rdv->type = 2; //rdv
                     $rdv->rdv = $request->rdv;
@@ -1605,7 +1605,7 @@ class VisiteController extends Controller
                 $freinController->destroy($frein->id);
             }
             //relance_rdv
-            $relance_rdv = Relance_Rdv_visite::on('temp')->where('visite_id', $id)->get();
+            $relance_rdv = Relance_Rdv_Visite::on('temp')->where('visite_id', $id)->get();
             if (count($relance_rdv) > 0) {
                 foreach ($relance_rdv as $r) {
                     $r->delete();
@@ -1719,7 +1719,7 @@ class VisiteController extends Controller
 
                                 broadcast(new NotificationEvent($newVisit->id));
 
-                                $relance = new Relance_Rdv_visite();
+                                $relance = new Relance_Rdv_Visite();
                                 $relance->setConnection('temp');
                                 $relance->type = 1; //relance
                                 $relance->mode_relance = $request->mode_relance;
@@ -1765,7 +1765,7 @@ class VisiteController extends Controller
                                     }
                                 }
                                 /***RENDRE LES OLD RELANCES ET OLD RDV EN TRAITE AUTOMATIQUE****/
-                                $old_relances_rdv = Relance_Rdv_visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
+                                $old_relances_rdv = Relance_Rdv_Visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
                                 if (count($old_relances_rdv) > 0) {
                                     foreach ($old_relances_rdv as $old) {
                                         $old->type_traitement = 2; //auto
@@ -1885,7 +1885,7 @@ class VisiteController extends Controller
                                         $notif_helper->storeNotification($request->merge($data_notif));
 
                                         broadcast(new NotificationEvent($newVisit->id));
-                                        $relance = new Relance_Rdv_visite();
+                                        $relance = new Relance_Rdv_Visite();
                                         $relance->setConnection('temp');
                                         $relance->type = 1; //relance
                                         $relance->mode_relance = $list_biens['mode_relance'];
@@ -1913,7 +1913,7 @@ class VisiteController extends Controller
 
                                         broadcast(new NotificationEvent($newVisit->id));
 
-                                        $rdv = new Relance_Rdv_visite();
+                                        $rdv = new Relance_Rdv_Visite();
                                         $rdv->setConnection('temp');
                                         $rdv->type = 2; //rdv
                                         $rdv->rdv = $list_biens['rdv'];
@@ -2108,7 +2108,7 @@ class VisiteController extends Controller
                             }
                         }
                         /***RENDRE LES OLD RELANCES ET OLD RDV EN TRAITE AUTOMATIQUE****/
-                        $old_relances_rdv = Relance_Rdv_visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
+                        $old_relances_rdv = Relance_Rdv_Visite::on('temp')->where('visite_id', $old_visite->id)->where('type_traitement', 0)->get();
                         if (count($old_relances_rdv) > 0) {
                             foreach ($old_relances_rdv as $old) {
                                 $old->type_traitement = 2; //auto
@@ -2162,7 +2162,7 @@ class VisiteController extends Controller
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $query = Relance_Rdv_visite::on('temp')->with('visite')
+            $query = Relance_Rdv_Visite::on('temp')->with('visite')
                 ->where('type', $request->type)->where('type_traitement', 0)
                 ->whereHas('visite', function ($q) use ($projet_id) {
                     $q->where('projet_id', $projet_id)->where('etat', 1);

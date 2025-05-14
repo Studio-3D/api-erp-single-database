@@ -9,7 +9,7 @@ use App\Models\Avance;
 use App\Models\Bien;
 use App\Models\Notification;
 use App\Models\Proposition;
-use App\Models\Relance_Rdv_visite;
+use App\Models\Relance_Rdv_Visite;
 use App\Models\Societe;
 use App\Models\User;
 use Carbon\Carbon;
@@ -257,13 +257,13 @@ class DatabaseHelper
                 $today = Carbon::now()->toDateString();
 
                 // Récupérer les relances et RDVs pour les prospects
-                $relances = Relance_Rdv_visite::on('temp')
+                $relances = Relance_Rdv_Visite::on('temp')
                     ->with(['visite.prospect'])
                     ->whereDate('date_relance', $today)
                     ->where('type', 1)
                     ->get();
 
-                $rdvs = Relance_Rdv_visite::on('temp')
+                $rdvs = Relance_Rdv_Visite::on('temp')
                     ->with(['visite.prospect'])
                     ->whereDate('rdv', $today)
                     ->where('type', 2)
@@ -272,12 +272,12 @@ class DatabaseHelper
                 $prospectNotifications = $relances->merge($rdvs);
 
                 // Récupérer les relances et RDVs pour les utilisateurs
-                $relanceUserIds = Relance_Rdv_visite::on('temp')
+                $relanceUserIds = Relance_Rdv_Visite::on('temp')
                     ->where('type', 1)
                     ->whereDate('date_relance', $today)
                     ->pluck('user_id');
 
-                $rdvUserIds = Relance_Rdv_visite::on('temp')
+                $rdvUserIds = Relance_Rdv_Visite::on('temp')
                     ->where('type', 2)
                     ->whereDate('rdv', $today)
                     ->pluck('user_id');
@@ -421,7 +421,7 @@ class DatabaseHelper
                 $today = Carbon::now()->toDateString();
                 log::info('tom'.$tomorrow);
                // Récupérer les relances pour les users
-                $relances = Relance_Rdv_visite::on('temp')
+                $relances = Relance_Rdv_Visite::on('temp')
                     ->with(['user','visite.prospect'])
                     ->whereDate('date_relance', $today)
                     ->where('type', 1)
@@ -444,7 +444,7 @@ class DatabaseHelper
                          }
                     }
                    // Récupérer les relances pour les prospects
-                $rdvs = Relance_Rdv_visite::on('temp')
+                $rdvs = Relance_Rdv_Visite::on('temp')
                     ->with(['visite.prospect','user','visite.projet','visite.bien'])
                     ->whereDate('rdv', $tomorrow)
                     ->where('type', 2)
