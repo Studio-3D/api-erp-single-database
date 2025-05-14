@@ -46,4 +46,8 @@ class Prospect extends Model
 
     }
 
+    public function last_statut()
+    {
+        return $this->hasOne(StatutProspect::class,'prospect_id')->latest();
+    }
 }

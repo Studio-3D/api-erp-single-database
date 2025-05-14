@@ -144,7 +144,10 @@ class Bien extends Model
     {
     return $this->hasMany(HistoriqueDesistement::class,'bien_id');
     }
-
+    public function piece_jointes()
+    {
+        return $this->hasMany(PiecesJointe::class, 'bien_id')->where('active',1);
+    }
 }
 
 

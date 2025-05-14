@@ -1,21 +1,14 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Controller;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Models\Prestataire;
+use App\Models\Reclamation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Models\Reclamation;
 
-use Carbon\Carbon;
-use App\Models\Societe;
-use Illuminate\Support\Facades\File;
-use Twilio\Rest\Client;
-use Exception;
 class PrestatairesController extends Controller
 {
     /**
@@ -29,10 +22,10 @@ class PrestatairesController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
-            $query = Prestataire::on('temp')->with('service','reclamations');
+            $query = Prestataire::on('temp')->with('service', 'reclamations');
 
             if ($request->filled('serviceId')) {
-                $query->where('service_id',  $request->input('serviceId'));
+                $query->where('service_id', $request->input('serviceId'));
             }
             if ($request->filled('nom')) {
                 $query->where('nom', 'like', '%' . $request->input('nom') . '%');
@@ -60,8 +53,8 @@ class PrestatairesController extends Controller
                 // Extraire les propriétés du paginateur
                 $pagination = [
                     'currentPage' => $pre->currentPage(),
-                    'totalItems' => $pre->total(),
-                    'totalPages' => $pre->lastPage(),
+                    'totalItems'  => $pre->total(),
+                    'totalPages'  => $pre->lastPage(),
                 ];
 
                 // Extraire les éléments d'utilisateur du paginateur
@@ -70,7 +63,7 @@ class PrestatairesController extends Controller
                 // Retourner la réponse simplifiée
                 return response()->json([
                     'data' => $pre,
-                    'pagination' => $pagination,
+                    'pagination'   => $pagination,
                 ], 200);
             } else {
                 // Return all results if pagination parameters are not provided or invalid
@@ -92,7 +85,7 @@ class PrestatairesController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $prestataire = Prestataire::on('temp')->where($param_1, $value)
-                    ->get()->first();
+                ->get()->first();
 
             return response()->json(['prestataire' => $prestataire]);
         }
@@ -107,13 +100,14 @@ class PrestatairesController extends Controller
             DatabaseHelper::Config();
             $pre = new Prestataire();
             $pre->setConnection('temp');
-            $pre->nom = $request->nom;
-            $pre->cin = $request->cin;
-            $pre->prenom = $request->prenom;
-            $pre->telephone = $request->telephone;
-            $pre->adresse = $request->adresse;
+            $pre->nom        = $request->nom;
+            $pre->cin        = $request->cin;
+            $pre->prenom     = $request->prenom;
+            $pre->telephone  = $request->telephone;
+            $pre->adresse    = $request->adresse;
             $pre->service_id = $request->service_id;
-            $pre->email = $request->email;
+            $pre->email      = $request->email;
+            $pre->civilite      = $request->civilite;
             if ($pre->save()) {
                 return response()->json(['prestataire' => $pre], 200);
             }
@@ -145,21 +139,17 @@ class PrestatairesController extends Controller
         }
     }*/
 
-
-    public function get_info_cin_prestataire_unique($id,$cin)
+    public function get_info_cin_prestataire_unique($id, $cin)
     {
-            if(RoleHelper::ACSup()){
-                DatabaseHelper::Config();
-                //cin unique
-                $pres_count=Prestataire::on('temp')->where('cin',$cin)->where('id','!=',$id)->count();
-                return response()->json(['pres_count' => $pres_count]);
+        if (RoleHelper::ACSup()) {
+            DatabaseHelper::Config();
+            //cin unique
+            $pres_count = Prestataire::on('temp')->where('cin', $cin)->where('id', '!=', $id)->count();
+            return response()->json(['pres_count' => $pres_count]);
 
-
-            } else {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
-
-
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
     }
 
@@ -193,13 +183,15 @@ class PrestatairesController extends Controller
             DatabaseHelper::Config();
             $pre = Prestataire::on('temp')->findOrfail($id);
             $pre->setConnection('temp');
-            $pre->nom = $request->nom;
-            $pre->cin = $request->cin;
-            $pre->prenom = $request->prenom;
-            $pre->telephone = $request->telephone;
-            $pre->adresse = $request->adresse;
+            $pre->nom        = $request->nom;
+            $pre->cin        = $request->cin;
+            $pre->prenom     = $request->prenom;
+            $pre->telephone  = $request->telephone;
+            $pre->adresse    = $request->adresse;
             $pre->service_id = $request->service_id;
-            $pre->email = $request->email;
+            $pre->email      = $request->email;
+            $pre->civilite      = $request->civilite;
+
             if ($pre->save()) {
                 return response()->json(['prestataire' => $pre], 200);
             }
@@ -213,17 +205,17 @@ class PrestatairesController extends Controller
      */
     public function destroy(string $id)
     {
-        if (RoleHelper::AdminSup() ) {
+        if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $pre = Prestataire::on('temp')->findOrFail($id);
-            $reclamations=Reclamation::on('temp')->where('prestataire_id',$id)->get();
-            if(count($reclamations)>0){
-                foreach($reclamations as $rec){
+            $pre          = Prestataire::on('temp')->findOrFail($id);
+            $reclamations = Reclamation::on('temp')->where('prestataire_id', $id)->get();
+            if (count($reclamations) > 0) {
+                foreach ($reclamations as $rec) {
                     $recController = new ReclamationSavController();
                     $recController->destroy($rec->id);
                 }
             }
-             if ($pre->delete()) {
+            if ($pre->delete()) {
                 return response()->json(['message' => 'prestataire Supprimé avec succés'], 200);
             } else {
                 return response()->json(['message' => 'prestataire Non Suprimé'], 400);
@@ -233,4 +225,3 @@ class PrestatairesController extends Controller
         }
     }
 }
-

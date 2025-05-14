@@ -30,9 +30,15 @@ class UpdateProspectRequest extends FormRequest
         $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
         DatabaseHelper::Config();
         return [
-            //'prenom' => 'required',
-            'telephone' => 'required|min:10|max:14',
-            //'telephone_num2' => 'nullable|min:10|max:14',
+            'telephone_num2' => 'nullable|min:10|max:14', // Optional telephone_num2 field
+            'telephone' => [
+                'required', // Telephone is required
+                'min:10',   // Minimum length of 10
+                'max:14',   // Maximum length of 14
+                Rule::unique('temp.' . $DatabaseName . '.prospects', 'telephone') // Unique check on telephone column
+                    ->whereNull('deleted_at') // Only check non-deleted records
+                    ->ignore($this->prospect) // Ignore the current record for updates
+            ],
             'cin' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->whereNull('deleted_at')->ignore($this->prospect)],
             'email' => [ 'nullable',Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->whereNull('deleted_at')->ignore($this->prospect)],
         ];

@@ -10,8 +10,6 @@ enum OrientationEnum:int
    case O=4;
    case N_E=5;
    case N_O=6;
-   case N_S=7;
-   case O_E=8;
-   case O_S=9;
-   case E_S=10;
+   case S_E=7;
+   case S_O=8;
 }

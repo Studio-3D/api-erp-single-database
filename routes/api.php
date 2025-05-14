@@ -1,6 +1,5 @@
 <?php
 
-
 use App\Http\Controllers\Api\V1\ActualiteController as V1ActualiteController;
 use App\Http\Controllers\Api\V1\AppelController as V1AppelController;
 use App\Http\Controllers\Api\V1\AquereurController as V1AquereurController;
@@ -9,6 +8,7 @@ use App\Http\Controllers\Api\V1\BanqueController as V1BanqueController;
 use App\Http\Controllers\Api\V1\BienController as V1BienController;
 use App\Http\Controllers\Api\V1\BlocController as V1BlocController;
 use App\Http\Controllers\Api\V1\ClientController as V1ClientController;
+use App\Http\Controllers\Api\V1\CommissionController as V1CommissionController;
 use App\Http\Controllers\Api\V1\CompositionBienController as V1CompositionBienController;
 use App\Http\Controllers\Api\V1\ComptabiliteController as V1ComptabiliteController;
 use App\Http\Controllers\Api\V1\CpsController as V1CpsController;
@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\DecompteController as V1DecompteController;
 use App\Http\Controllers\Api\V1\DesistementController as V1DesistementController;
 use App\Http\Controllers\Api\V1\EcheancesTrancheController as V1EchancesTrancheCleController;
 use App\Http\Controllers\Api\V1\EncaissementController as V1EncaissementController;
+use App\Http\Controllers\Api\V1\EtapeProjetController as V1EtapeProjetController;
 use App\Http\Controllers\Api\V1\FactureController as V1FactureController;
 use App\Http\Controllers\Api\V1\FournisseurController as V1FournisseurController;
 use App\Http\Controllers\Api\V1\FreinController as V1FreinController;
@@ -46,17 +47,11 @@ use App\Http\Controllers\Api\V1\UploadBienController as V1UploadBienController;
 use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\VisiteController as V1VisiteController;
 use App\Http\Controllers\Api\V1\VueController as V1VueController;
-use App\Http\Controllers\Api\V1\EtapeProjetController as V1EtapeProjetController;
-use App\Http\Controllers\Api\V1\CommissionController as V1CommissionController;
-
-
-
 use App\Http\Controllers\EnumController;
-use App\Http\Controllers\Facebook\FacebookController;
+use App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController;
 use App\Http\Controllers\Landing_page\Landing_pageController;
 use App\Http\Controllers\LivraisonController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\PartenaireController;
 use App\Http\Controllers\SocieteController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsApp\WhatsAppController;
@@ -82,14 +77,20 @@ Route::post('/resetPassword/{token}', [UserController::class, 'resetPassword']);
 
 /*************************************APIs FROM Outside ***************************** */
 
-Route::post('handlemessage', [FacebookController::class, 'handleMessage']);
-Route::get('get_pivacy_policy', [FacebookController::class, 'get_pivacy_policy']);
-Route::post('/webhooks', [WhatsAppController::class, 'webhooks']);
+Route::post('/webhook_whtsp', [WhatsAppController::class, 'webhook_whtsp']);
 Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_page']);
+Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class, 'handleWebhook']);
+Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify']);
 
 Route::middleware('auth:api')->group(function () {
+
     //Il est nécessaire de versionner l'API pour garantir son évolutivité et une gestion efficace des modifications futures.
     Route::prefix('v1')->group(function () {
+        /********************Social Netxork*********************/
+        Route::post('/postTo_Social_Network', [Facebook_InstagramController::class, 'postTo_Social_Network']);
+        Route::get('/configurations_social_network', [Facebook_InstagramController::class, 'configurations_social_network']);
+        Route::post('store_configurations_social_network', [Facebook_InstagramController::class, 'store_configurations_social_network'])->name('');
+
         // Routes de la version numero 1
         // l'API utilisateurs
         Route::resource('/utilisateurs', V1UserController::class);
@@ -111,7 +112,7 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API banques
         Route::resource('banques', V1BanqueController::class);
-     //   Route::get('get_banques', [V1BanqueController::class, 'get_banques'])->name('get_banques');
+        //   Route::get('get_banques', [V1BanqueController::class, 'get_banques'])->name('get_banques');
 
         //l'API VUES
         Route::resource('vues', V1VueController::class);
@@ -139,8 +140,8 @@ Route::middleware('auth:api')->group(function () {
         //l'API partenare
         Route::resource('projets', V1ProjetController::class);
         Route::get('get_projets', [V1ProjetController::class, 'get_projets'])->name('get_projets');
-       // Route::get('get_projets_users/{societe_id}/{user_id}', [V1ProjetController::class, 'get_projets_user'])->name('');
-       Route::get('get_projets_users/{user_id}', [V1ProjetController::class, 'get_projets_user'])->name('');
+        // Route::get('get_projets_users/{societe_id}/{user_id}', [V1ProjetController::class, 'get_projets_user'])->name('');
+        Route::get('get_projets_users/{user_id}', [V1ProjetController::class, 'get_projets_user'])->name('');
         //l'API tranches
         Route::resource('tranches', V1TrancheController::class);
         Route::get('projets/{idprojet}/tranches', [V1TrancheController::class, 'indexByProjet']);
@@ -189,12 +190,15 @@ Route::middleware('auth:api')->group(function () {
         //l'API prospect
 
         Route::resource('prospects', V1ProspectController::class);
+        Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
         Route::get('search_prospect_by_param/{param_1}/{value}', [V1ProspectController::class, 'search_prospect_by_param']);
         Route::get('search_prospect_by_cin/{cin}', [V1ProspectController::class, 'search_prospect_by_cin']);
         Route::get('search_prospect_by_phone/{phone}', [V1ProspectController::class, 'search_prospect_by_phone']);
         Route::post('upload_excel_prospect', [V1ProspectController::class, 'upload'])->name('');
-        Route::get('projets/{idprojet}/prospects', [V1ClientController::class, 'indexByProjet']);
+        Route::put('traiter_prospect/{id}', [V1ProspectController::class, 'traiter_prospect'])->name('');
+        Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
 
+        Route::get('projets/{idprojet}/prospects', [V1ClientController::class, 'indexByProjet']);
 
         //l'API client
         Route::resource('clients', V1ClientController::class);
@@ -255,6 +259,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('show_t_appel/{id}', [V1AppelController::class, 'show_t_appel']);
         Route::get('index_traitement_appel/{id}', [V1AppelController::class, 'index_traitement_appel']);
         Route::delete('destroy_t_appel/{id}/{number}', [V1AppelController::class, 'destroy_t_appel'])->name('');
+
         Route::put('traiter_relance_rdv_appel/{id}', [V1AppelController::class, 'traiter_relance_rdv_appel'])->name('');
         Route::get('get_info_cin_unique/{prospect_id}/{cin}', [V1AppelController::class, 'get_info_cin_unique']);
         //RELANCES RDV APPELS
@@ -324,7 +329,8 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('/ReclamationsSav', V1ReclamationsSavController::class);
         Route::get('projets/{idprojet}/ReclamationsSav', [V1ReclamationsSavController::class, 'indexByProjet']);
         Route::get('getBiens_Vendu_ByProjet_Concat/{id}/{text}', [V1BienController::class, 'getBiens_Vendu_ByProjet_Concat'])->name('');
-        Route::put('traiter_reclamation_sav/{id}', [V1ReclamationsSavController::class, 'traiter_reclamation'])->name('');
+        Route::post('traiter_reclamation_sav/{id}', [V1ReclamationsSavController::class, 'traiter_reclamation'])->name('');
+        Route::post('resoudre_reclamation_sav/{id}', [V1ReclamationsSavController::class, 'resoudre_reclamation'])->name('');
 
         //Remise Cles
         Route::resource('/RemiseCles', V1RemiseCleController::class);
@@ -368,12 +374,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('actualites/{projet_id}/{user_id}/{de_date}/{a_date}', [V1ActualiteController::class, 'index'])->name('');
 
         //Commission
-            //Configurations
+        //Configurations
         Route::resource('commissionsConfigurations', V1CommissionController::class);
         Route::get('configurations_commissions/{idprojet}', [V1CommissionController::class, 'configurations_commissions']);
-            // Montant Fixe
+        // Montant Fixe
         Route::get('commission_montant/{idprojet}', [V1CommissionController::class, 'commission_montant']);
-            //Mensuelle
+        //Mensuelle
         Route::get('projets/{idprojet}/commissions_mensuelle_en_attente', [V1CommissionController::class, 'commissions_mensuelle_en_attente']);
         Route::get('cummulles_commissions/{user_id}', [V1CommissionController::class, 'cummulles_commissions']);
         Route::post('traiter_commission/{comm_id}', [V1CommissionController::class, 'traiter_commission'])->name('');

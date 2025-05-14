@@ -26,10 +26,7 @@ use Illuminate\Support\Facades\Auth;
         $rules = [];
         $rules['bien_id'] = 'required';
         $rules['client_id'] = 'required';
-        $rules['prestataire_id'] = 'required';
         $rules['date_reclamation'] = 'required';
-        $rules['date_intervention'] = 'required';
-        $rules['date_fin_intervention'] = 'required';
         $rules['problemes'] = 'required';
 
 

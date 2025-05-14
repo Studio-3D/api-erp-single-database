@@ -37,7 +37,7 @@ use Illuminate\Http\Request;
         if ($request->telephone_num2!="null" && $request->telephone_num2!=null ) {
             $rules['telephone_num2']='min:10|max:14';
         }
-        if ($request->source_txt==='PARTENAIRE') {
+        if ($request->source_txt==='PARTENAIRE'||$request->source_txt==='Partenaire') {
             $rules['partenaire_id']='required';
         }
        if ($request->interet == 3){

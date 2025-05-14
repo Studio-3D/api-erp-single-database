@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
 use App\Events\NewSocieteEvent;
@@ -35,7 +34,7 @@ class SocieteController extends Controller
     }
     public function store(StoreSocieteRequest $request)
     {
-        if (!RoleHelper::Superadmin()) {
+        if (! RoleHelper::Superadmin()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -50,7 +49,7 @@ class SocieteController extends Controller
 
     public function show($id)
     {
-        if (!RoleHelper::Superadmin()) {
+        if (! RoleHelper::Superadmin()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
         $societe = $this->societeService->getSocieteById($id);
@@ -59,11 +58,11 @@ class SocieteController extends Controller
     public function index(Request $request)
     {
         if (RoleHelper::Superadmin()) {
-            $filters = FilterUtils::fromRequest($request, ['raison_sociale', 'nom_contact', 'prenom_contact', 'email', 'tel']);
+            $filters          = FilterUtils::fromRequest($request, ['raison_sociale', 'nom_contact', 'prenom_contact', 'email', 'tel', 'adresse']);
             $paginationParams = PaginationUtils::fromRequest($request);
-            $data = $this->societeService->getSocietes($filters, $paginationParams['size'], $paginationParams['page']);
+            $data             = $this->societeService->getSocietes($filters, $paginationParams['size'], $paginationParams['page']);
             return response()->json([
-                'societes' => $data['items'],
+                'societes'   => $data['items'],
                 'pagination' => $data['pagination'],
             ], 200);
         }
@@ -73,19 +72,19 @@ class SocieteController extends Controller
     public function update(UpdateSocieteRequest $request, $id)
     {
         if (RoleHelper::Superadmin()) {
-            $societe = Societe::findOrfail($id);
-            $originalRaisonSociale = $societe->raison_sociale_concatene;
-            $societe->raison_sociale = $request->raison_sociale;
-            $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
+            $societe                           = Societe::findOrfail($id);
+            $originalRaisonSociale             = $societe->raison_sociale_concatene;
+            $societe->raison_sociale           = $request->raison_sociale;
+            $raison_sociale_concatene          = str_replace(' ', '', $request->raison_sociale);
             $societe->raison_sociale_concatene = $raison_sociale_concatene;
-            $societe->adresse = $request->adresse;
-            $societe->nom_contact = $request->nom_contact;
-            $societe->prenom_contact = $request->prenom_contact;
-            $societe->tel = $request->tel;
-            $societe->email = $request->email;
-            $societe->id_fiscal = $request->id_fiscal;
-            $societe->registre_commerce = $request->registre_commerce;
-            $societe->capital = $request->capital;
+            $societe->adresse                  = $request->adresse;
+            $societe->nom_contact              = $request->nom_contact;
+            $societe->prenom_contact           = $request->prenom_contact;
+            $societe->tel                      = $request->tel;
+            $societe->email                    = $request->email;
+            $societe->id_fiscal                = $request->id_fiscal;
+            $societe->registre_commerce        = $request->registre_commerce;
+            $societe->capital                  = $request->capital;
             if ($request->hasFile('logo')) {
 
                 if ($societe->logo != null) {
@@ -123,9 +122,9 @@ class SocieteController extends Controller
     public function destroy($id)
     {
         if (RoleHelper::Superadmin()) {
-            $user = Auth::guard('api')->user();
+            $user    = Auth::guard('api')->user();
             $societe = Societe::findOrFail($id);
-            $users = User::where('societe_id', $societe->id)->get();
+            $users   = User::where('societe_id', $societe->id)->get();
             foreach ($users as $user) {
                 UserController::destroy($user->id);
             }

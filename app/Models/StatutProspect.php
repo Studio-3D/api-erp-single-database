@@ -6,24 +6,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Appel extends Model
+class StatutProspect extends Model
 {
     use HasFactory;
     use SoftDeletes;
-    protected $with=['prospect','projet'];
 
-    protected $table='appels';
+    protected $table='statut_prospects';
+    protected $with = ['prospect','user'];
     protected $dates=['deleted_at'];
 
     public function prospect(){
         return $this->belongsTo(Prospect::class,'prospect_id');
     }
-    public function projet(){
-        return $this->belongsTo(Projet::class,'projet_id');
+    public function user()
+    {
+        return $this->belongsTo(User::class,'user_id_traite');
     }
 
-    public function last_traitement_appel()
-    {
-        return $this->hasOne(TraitementAppel::class,'appel_id')->latest();
-    }
 }

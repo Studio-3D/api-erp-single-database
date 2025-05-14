@@ -3,22 +3,20 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\TypeFrein;
-use App\Http\Requests\StoreTypeFreinRequest;
-use App\Http\Requests\UpdateTypeFreinRequest;
-use Illuminate\Support\Facades\Auth;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
+use App\Http\Requests\StoreTypeFreinRequest;
+use App\Http\Requests\UpdateTypeFreinRequest;
+use App\Models\TypeFrein;
 use Illuminate\Http\Request;
-
-
+use Illuminate\Support\Facades\Auth;
 
 class TypeFreinController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-        public function index(Request $request)
+    public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
             $size = $request->input('size', null);
@@ -51,7 +49,7 @@ class TypeFreinController extends Controller
                 ], 200);
             } else {
                 // Return all results if pagination parameters are not provided or invalid
-                $typeFreins = $query->orderBy('created_at', 'desc')
+                $typeFreins = $query->orderBy('created_at')
                     ->get();
 
                 return response()->json(['typefreins' => $typeFreins], 200);
@@ -78,7 +76,6 @@ class TypeFreinController extends Controller
      * Show the form for creating a new resource.
      */
 
-
     /**
      * Store a newly created resource in storage.
      */
@@ -101,7 +98,7 @@ class TypeFreinController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show( $id)
+    public function show($id)
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
@@ -117,17 +114,16 @@ class TypeFreinController extends Controller
      * Show the form for editing the specified resource.
      */
 
-
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateTypeFreinRequest $request,  $id)
+    public function update(UpdateTypeFreinRequest $request, $id)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $typefrein = TypeFrein::on('temp')->findOrfail($id);
             $update = $request->all();
-            foreach($update as $key => $value) {
+            foreach ($update as $key => $value) {
                 $typefrein->$key = $value;
             }
             $typefrein->save();
@@ -171,6 +167,5 @@ class TypeFreinController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-
 
 }

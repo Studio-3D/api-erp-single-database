@@ -47,6 +47,8 @@ use App\Models\Rendez_vous;
 use App\Models\Compromis_vente;
 use App\Models\Contrat_vente;
 
+use App\Http\Controllers\NotificationController;
+
 class ReservationController extends Controller
 {
     /**

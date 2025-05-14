@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Api\V1;
-
+use App\Models\StatutProspect;
 use App\Enum\EtatBien;
 use App\Enum\InteretEnum;
 use App\Enum\StatutVisiteEnum;
@@ -23,6 +23,7 @@ use App\Http\Requests\UpdateDate_relance_Rdv;
 use App\Http\Requests\UpdateFreinRequest;
 use App\Http\Requests\UpdateVisiteRequest;
 use App\Models\Bien;
+use App\Models\Projet;
 use App\Models\Bloc;
 use App\Models\Client;
 use App\Models\Frein;
@@ -45,7 +46,9 @@ use \NumberFormatter;
 use App\Models\TraitementFrein;
 use App\Models\HistoriqueBien;
 use App\Models\PreReservation;
+use Illuminate\Support\Facades\Http;
 
+use App\Http\Controllers\NotificationController;
 
 
 class VisiteController extends Controller
@@ -272,6 +275,30 @@ class VisiteController extends Controller
      * Store a newly created resource in storage.
      */
 
+     function convertToInternational($number) {
+        // Vérifie si le numéro commence par "0" et le remplace par "+212"
+        if (preg_match('/^0(\d{9})$/', $number, $matches)) {
+            return '+212' . $matches[1];
+        }
+        return $number; // Retourne le numéro inchangé s'il ne commence pas par "0"
+    }
+    public function send_whatsapp($request)
+    {
+        // Récupérer les identifiants UltraMsg depuis le fichier .env
+        $instanceId = env('INSTANCE_ID_ULTRA_MSG');
+        $token = env('TOKEN_ULTRA_MSG');
+        $to =$request->to;
+
+        // Envoyer la requête à l'API UltraMsg
+        $response = Http::timeout(60)->post("https://api.ultramsg.com/$instanceId/messages/chat", [
+            'token' => $token,
+            'to' => $request->to,
+            'body' => $request->body
+        ]);
+
+        return $response->json(); // Retourne la réponse de l'API pour vérification
+    }
+
     public function store(StoreVisiteRequest $request)
     {
         /***liste des fonctions a ajouter
@@ -281,8 +308,10 @@ class VisiteController extends Controller
          ****/
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
+            $msg_sended=0;
             DatabaseHelper::Config();
             Config::set('broadcasting.default', 'pusher_3');
+            $projet=Projet::on('temp')->findorfail($request->selectedProjet);
             ///decoder les stringfy
             $list_bien_interesse = json_decode($request->input('list_bien_interesse', '[]'), true);
             $list_bien_transfere_vendu = json_decode($request->input('list_bien_transfere_vendu', '[]'), true);
@@ -294,6 +323,7 @@ class VisiteController extends Controller
                 $validatedData['cin'] = $request->cin;
                 $validatedData['email'] = $request->email;
                 $validatedData['source'] = $request->source_id;
+                $validatedData['projet_id'] =  $request->selectedProjet;
                 if ($request->source_txt == 'Partenaire') {
                     $validatedData['partenaire_id'] = $request->partenaire_id;
                 } else {
@@ -302,7 +332,7 @@ class VisiteController extends Controller
                 $validatedData['telephone'] = $request->telephone;
                 $validatedData['nom'] = $request->nom;
                 $validatedData['prenom'] = $request->prenom;
-                $validatedData['telephone_num2'] = $request->input('telephone_num2');
+                $validatedData['telephone_num2']=$request->telephone_num2=="null"?null:$request->telephone_num2;
                 $validatedData['ville'] = $request->input('ville');
                 $validatedData['origin'] = 'visite';
                 $validatedData['notifie'] = $request->notifie;
@@ -622,6 +652,23 @@ class VisiteController extends Controller
                                         $rdv->user_id = $userAuth->value('id');
                                         $rdv->visite_id = $visite->id;
                                         $rdv->save();
+
+                                        if($prospect->telephone!=null){
+
+                                            $bien=Bien::on('temp')->findorfail( $list_biens['bien_id']);
+                                            $data_whtsp = [
+                                                'to' =>$this->convertToInternational($prospect->telephone),
+                                                'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                . 'Merci pour votre visite chez le Projet '. $projet->nom.' aujourd’hui. '
+                                                . 'Nous espérons que votre expérience a été agréable. '
+                                                . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
+                                                . 'Concernant le Bien ' .$bien->propriete_dite_bien . '. '
+                                                . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
+                                            ];
+
+                                            $this->send_whatsapp($request->merge($data_whtsp));
+                                            $msg_sended=1;
+                                        }
                                     }
                                 }
 
@@ -800,6 +847,22 @@ class VisiteController extends Controller
                                         $rdv->user_id = $userAuth->value('id');
                                         $rdv->visite_id = $visite->id;
                                         $rdv->save();
+
+                                        if($prospect->telephone!=null){
+                                            $bien=Bien::on('temp')->findorfail( $list_biens['bien_id']);
+                                            $data_whtsp = [
+                                                'to' =>$this->convertToInternational($prospect->telephone),
+                                                'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                . 'Merci pour votre visite chez le Projet '.$projet->nom.' aujourd’hui. '
+                                                . 'Nous espérons que votre expérience a été agréable. '
+                                                . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
+                                                . 'Concernant le Bien ' .$bien->propriete_dite_bien . '. '
+                                                . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
+                                            ];
+
+                                            $this->send_whatsapp($request->merge($data_whtsp));
+                                            $msg_sended=1;
+                                        }
                                     }
                                 }
 
@@ -926,7 +989,35 @@ class VisiteController extends Controller
                     }
                 }
 
+
             }
+              // store statut du  prospect
+                $statut_pro = new StatutProspect();
+                $statut_pro->setConnection('temp');
+                $statut_pro->prospect_id=$prospect->id;
+                $statut_pro->statut='4';
+                $statut_pro->date_traitement = Carbon::now();
+                $statut_pro->user_id_traite = $userAuth->value('id');
+                $statut_pro->visite_id = $origin_id;
+                $statut_pro->save();
+              //send message WhatsApp de bienvenue en cas de n'existe pas de relance ou rendez-vous ou frein
+
+              if($msg_sended==0){
+                if($prospect->telephone!=null){
+
+                    $data_whtsp = [
+                        'to' =>$this->convertToInternational($prospect->telephone),
+                        'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                        . 'Merci pour votre visite chez le Projet '.$projet->nom.' aujourd’hui. '
+                        . 'Nous espérons que votre expérience a été agréable. '
+                        . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
+                    ];
+
+                $this->send_whatsapp($request->merge($data_whtsp));
+                }
+            }
+
+
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -939,42 +1030,41 @@ class VisiteController extends Controller
     public function get_propriete_bien_concat($id)
     {
         DatabaseHelper::Config();
-        $b_pr = Bien::on('temp')->findorfail($id);
+        $b_pr = Bien::on('temp')->with(['tranche', 'bloc', 'immeuble'])->findorfail($id);
         $propriete = 0;
+        $nom = '';
 
-        //tranches bloc w immeuble
-        if ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
-            $propriete = $propriete = $b_pr->tranche->nom . '-' . $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien;
+            // Tranche + Bloc + Immeuble
+            if ($b_pr->tranche && $b_pr->bloc && $b_pr->immeuble) {
+                $nom = $b_pr->tranche->nom . '-' . $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom;
+            }
+            // Tranche + Bloc
+            elseif ($b_pr->tranche && $b_pr->bloc && !$b_pr->immeuble) {
+                $nom = $b_pr->tranche->nom . '-' . $b_pr->bloc->nom;
+            }
+            // Tranche + Immeuble
+            elseif ($b_pr->tranche && !$b_pr->bloc && $b_pr->immeuble) {
+                $nom = $b_pr->tranche->nom . '-' . $b_pr->immeuble->nom;
+            }
+            // Bloc + Immeuble
+            elseif (!$b_pr->tranche && $b_pr->bloc && $b_pr->immeuble) {
+                $nom = $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom;
+            }
+            // Bloc only
+            elseif (!$b_pr->tranche && $b_pr->bloc && !$b_pr->immeuble) {
+                $nom = $b_pr->bloc->nom;
+            }
+            // Immeuble only
+            elseif (!$b_pr->tranche && !$b_pr->bloc && $b_pr->immeuble) {
+                $nom = $b_pr->immeuble->nom;
+            }
+            // Tranche only
+            elseif ($b_pr->tranche && !$b_pr->bloc && !$b_pr->immeuble) {
+                $nom = $b_pr->tranche->nom;
+            }
+            return response()->json($nom);
 
         }
-        //tranche bloc
-        elseif ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
-            $propriete = $b_pr->tranche->nom . '-' . $b_pr->bloc->nom . '-' . $b_pr->propriete_dite_bien;
-        }
-        //tranche immeuble
-        elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
-            $propriete = $b_pr->tranche->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien;
-        }
-        //bloc immeuble
-        elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
-            $propriete = $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien;
-        }
-        //bloc
-        elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
-            $propriete = $b_pr->bloc->nom . '-' . $b_pr->propriete_dite_bien;
-        }
-        //immeuble
-        elseif ($b_pr->tranche_id == null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
-            $propriete = $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien;
-        }
-        //tranche
-        elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id == null) {
-            $propriete = $b_pr->tranche->nom . '-' . $b_pr->propriete_dite_bien;
-        }
-
-        return response()->json($propriete);
-
-    }
 
     public function relance_rdv_by_visite($id)
     {
@@ -1218,7 +1308,7 @@ class VisiteController extends Controller
                 if (($visite->statut == StatutVisiteEnum::Pré_Réservation->value || $visite->statut == StatutVisiteEnum::Vendu->value) && $visite->bien_id != null) {
                     if ($visite->bien_id != $request->bien_id) {
                         $oldBien = Bien::on('temp')->find($visite->bien_id);
-                        if ($oldBien->etat == 'Pré_Réservation' || $oldBien->etat == 'Vendu') {
+                        if ($oldBien->etat == 'PRE_RESERVATION' || $oldBien->etat == 'VENDU') {
                             Bien_Helper::libererBien($visite->bien_id, null, null);
 
                         }
@@ -1338,13 +1428,42 @@ class VisiteController extends Controller
                     $rdv->save();
                 }
             }
-            //store code pre reserve to table ==>PreReservation
+            /*//store code pre reserve to table ==>PreReservation
             if ($old_visite->statut != StatutVisiteEnum::Pré_Réservation->value) {
                 if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
                     $bien_c = new BienController();
                     $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
+                    HistoriqueBienHelper::createHistoriqueBien(2, "Pre Reserve pour le prospect :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
+
                 }
             }
+            //IF CHANGE BIEN NOT CHANGING STATUT
+            if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
+                if($old_visite->bien_id!=$visite->bien_id){
+                    //pre reserve le new bien
+                    $bien_c = new BienController();
+                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
+                    HistoriqueBienHelper::createHistoriqueBien(2, "Pre Reserve pour le prospect :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
+
+                }
+            }*/
+            // Conditions communes
+            $isInteresseEtPreReserve = $visite->interet == InteretEnum::Intéressé->value &&
+                                    $visite->statut == StatutVisiteEnum::Pré_Réservation->value;
+
+            // Condition 1 : Passage en pré-réservation
+            $wasNotPreReserve = $old_visite->statut != StatutVisiteEnum::Pré_Réservation->value;
+
+            // Condition 2 : Changement de bien
+            $bienChanged = $old_visite->bien_id != $visite->bien_id;
+
+            if ($isInteresseEtPreReserve && ($wasNotPreReserve || $bienChanged)) {
+                $bienController = new BienController();
+                $bienController->prereserverBien($visite->bien_id, $visite->id, null, null);
+
+
+            }
+
 
             //if($old_visite->statut!=StatutVisiteEnum::Vendu->value ){
             if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
@@ -1383,8 +1502,8 @@ class VisiteController extends Controller
                     'civilite' => '1',
                     'type_client' => 1,
                     'situation_familliale' => 1,
-                    'sr' => $request->sr,
-                    'check_montant' => $request->check_montant,
+                    'sr' => ($request->sr === 'false' || $request->sr === null) ? 0 : 1,
+                    'check_montant' => ($request->check_montant === 'false' || $request->check_montant === null) ? 0 : 1,
                     'type_encaissement' => 1,
                     'avance' => $request->avance_res,
                     'mode_paiement' => $request->mode_paiement,
@@ -1423,10 +1542,13 @@ class VisiteController extends Controller
 
                 $freinController = new FreinController();
                 if (!$frein_id->isEmpty()) {
+
                     $freinController->update(new UpdateFreinRequest($freinRequest), $frein_id->value('id'));
                 } else {
+
                     $freinRequest['visite_id'] = $visite->id;
                     $freinController->store(new StoreFreinRequest($freinRequest));
+
                 }
             } else {
 

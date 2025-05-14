@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -38,11 +37,11 @@ class UserController extends Controller
             DatabaseHelper::Config();
             //->where('role',3)
             $users = UserProjet::on('temp')->with('user')
-            ->where('projet_id', $projet_id)
-            ->whereHas('user', function ($q) {
-                $q->where('role', 3);
+                ->where('projet_id', $projet_id)
+                ->whereHas('user', function ($q) {
+                    $q->where('role', 3);
 
-            })->distinct()->get();
+                })->distinct()->get();
             return response()->json(['users' => $users], 200);
         }
 
@@ -56,7 +55,7 @@ class UserController extends Controller
             DatabaseHelper::Config();
             if (RoleHelper::AdminSup()) {
                 $objectifs = Objectif::on('temp')->distinct(['user_id'])->get('user_id');
-                $arrQuery = array();
+                $arrQuery  = [];
                 for ($i = 0; $i < count($objectifs); $i++) {
                     array_push($arrQuery, $objectifs[$i]->user_id);
                 }
@@ -105,7 +104,7 @@ class UserController extends Controller
     {
 
         // Vérifier si l'utilisateur est authentifié
-        if (!Auth::guard('api')->check()) {
+        if (! Auth::guard('api')->check()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -119,12 +118,12 @@ class UserController extends Controller
         $query = User::query();
         // Filtrer par nom si le nom est spécifié
         if ($request->filled('nom')) {
-            $query->where('name', 'like', '%' . $request->input('nom') . '%');
+            $query->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->input('nom') . '%')
+                    ->orWhere('prenom', 'like', '%' . $request->input('nom') . '%');
+            });
         }
-        // Filtrer par prénom si le prénom est spécifié
-        if ($request->filled('prenom')) {
-            $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
-        }
+
         // Filtrer par prénom si l'email est spécifié
         if ($request->filled('email')) {
             $query->where('email', 'like', '%' . $request->input('email') . '%');
@@ -133,6 +132,16 @@ class UserController extends Controller
         if ($request->filled('telephone')) {
             $query->where('phone', 'like', '%' . $request->input('telephone') . '%');
         }
+        if ($request->filled('status')) {
+            $query->where('is_actif', 'like', '%' . $request->input('status') . '%');
+        }
+        if ($request->filled('gender')) {
+            $query->where('gender', 'like', '%' . $request->input('gender') . '%');
+        }
+        if ($request->filled('role')) {
+            $query->where('role', 'like', '%' . $request->input('role') . '%');
+        }
+        
 
         // Si l'utilisateur s'agit d'un 'superadmin'
         if (RoleHelper::Superadmin() && $user->societe_id == 1) {
@@ -143,7 +152,6 @@ class UserController extends Controller
                 });
             }
 
-            // Filtrer par rôle si le rôle est spécifié
             if ($request->filled('role')) {
                 $query->where('role', $request->input('role'));
             }
@@ -159,8 +167,8 @@ class UserController extends Controller
         // Extraire les propriétés de pagination du paginateur
         $pagination = [
             'currentPage' => $users->currentPage(),
-            'totalItems' => $users->total(),
-            'totalPages' => $users->lastPage(),
+            'totalItems'  => $users->total(),
+            'totalPages'  => $users->lastPage(),
         ];
 
         // Extraire les éléments d'utilisateur du paginateur
@@ -168,7 +176,7 @@ class UserController extends Controller
 
         // Retourner la réponse simplifiée
         return response()->json([
-            'users' => $users,
+            'users'      => $users,
             'pagination' => $pagination,
         ], 200);
     }
@@ -181,28 +189,28 @@ class UserController extends Controller
         }
         } */
         if (RoleHelper::SuperAdmin()) {
-            $user = new User();
-            $user->name = $request->name;
-            $user->societe_id = $request->societe_id;
-            $user->prenom = $request->prenom;
-            $user->email = $request->email;
-            $user->password = $request->password;
-            $user->gender = $request->gender;
-            $user->role = $request->role;
-            $user->phone = $request->phone;
-            $user->cin = $request->cin;
-            $user->fonction = $request->fonction;
-            $user->date_embauche = $request->date_embauche;
-            $user->niveau_etude = $request->niveau_etude;
-            $user->adresse = $request->adresse;
-            $user->cnss = $request->cnss;
-            $user->is_actif = $request->is_actif;
-            $user->nb_appel_recu = $request->nb_appel_recu;
+            $user                  = new User();
+            $user->name            = $request->name;
+            $user->societe_id      = $request->societe_id;
+            $user->prenom          = $request->prenom;
+            $user->email           = $request->email;
+            $user->password        = $request->password;
+            $user->gender          = $request->gender;
+            $user->role            = $request->role;
+            $user->phone           = $request->phone;
+            $user->cin             = $request->cin;
+            $user->fonction        = $request->fonction;
+            $user->date_embauche   = $request->date_embauche;
+            $user->niveau_etude    = $request->niveau_etude;
+            $user->adresse         = $request->adresse;
+            $user->cnss            = $request->cnss;
+            $user->is_actif        = $request->is_actif;
+            $user->nb_appel_recu   = $request->nb_appel_recu;
             $user->nb_appel_traite = $request->nb_appel_traite;
-            $user->solde_conge = $request->solde_conge;
+            $user->solde_conge     = $request->solde_conge;
 
             if ($request->hasFile('photo')) {
-                $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
+                $photo       = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $user->photo = $photo;
 
             }
@@ -220,7 +228,7 @@ class UserController extends Controller
                 //send accces par email to user
 
                 $to_email = $user->email;
-                $data = array('password' => $request->password, 'sexe' => $request->gender, 'nom' => $request->name, 'prenom' => $request->prenom, 'email' => $request->email);
+                $data     = ['password' => $request->password, 'sexe' => $request->gender, 'nom' => $request->name, 'prenom' => $request->prenom, 'email' => $request->email];
                 Mail::send('User.mail', $data, function ($message) use ($to_email) {
                     $message->to($to_email)
                         ->subject('Codes Accés au Immo Gestion');
@@ -251,7 +259,7 @@ class UserController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Utilisateur non trouvé'], 404);
         }
 
@@ -282,23 +290,23 @@ class UserController extends Controller
         if ($request->is_profil) {
             $user = Auth::user();
             DatabaseHelper::Config();
-            $user = User::on('temp')->where('user_id_origin', Auth::guard('api')->user()->id)->first();
-            $user->name = $request->input('name');
-            $user->prenom = $request->input('prenom');
-            $user->gender = $request->input('gender');
-            $user->role = $request->input('role');
-            $user->phone = $request->input('phone');
-            $user->cin = $request->input('cin');
-            $user->fonction = $request->input('fonction');
+            $user                = User::on('temp')->where('user_id_origin', Auth::guard('api')->user()->id)->first();
+            $user->name          = $request->input('name');
+            $user->prenom        = $request->input('prenom');
+            $user->gender        = $request->input('gender');
+            $user->role          = $request->input('role');
+            $user->phone         = $request->input('phone');
+            $user->cin           = $request->input('cin');
+            $user->fonction      = $request->input('fonction');
             $user->date_embauche = $request->input('date_embauche');
-            $user->niveau_etude = $request->input('niveau_etude');
-            $user->adresse = $request->input('adresse');
-            $user->cnss = $request->input('cnss');
-            $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
-            $user->solde_conge = $request->input('solde_conge');
-            $user_origin = User::where('id', $user->user_id_origin)->first();
-            $societe = Societe::findOrfail($user_origin->societe_id);
-            $photo = '';
+            $user->niveau_etude  = $request->input('niveau_etude');
+            $user->adresse       = $request->input('adresse');
+            $user->cnss          = $request->input('cnss');
+            $user->is_actif      = $request->input('is_actif'); // Default to 1 if not provided
+            $user->solde_conge   = $request->input('solde_conge');
+            $user_origin         = User::where('id', $user->user_id_origin)->first();
+            $societe             = Societe::findOrfail($user_origin->societe_id);
+            $photo               = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = asset('img/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users' . $user_origin->photo);
@@ -327,23 +335,23 @@ class UserController extends Controller
 
             }
         } else if (RoleHelper::AdminSup()) {
-            $user = User::findOrFail($id);
-            $old_email = $user->email;
-            $user->name = $request->input('name');
-            $user->prenom = $request->input('prenom');
-            $user->email = $request->input('email');
-            $user->gender = $request->input('gender');
-            $user->role = $request->input('role');
-            $user->phone = $request->input('phone');
-            $user->cin = $request->input('cin');
-            $user->fonction = $request->input('fonction');
+            $user                = User::findOrFail($id);
+            $old_email           = $user->email;
+            $user->name          = $request->input('name');
+            $user->prenom        = $request->input('prenom');
+            $user->email         = $request->input('email');
+            $user->gender        = $request->input('gender');
+            $user->role          = $request->input('role');
+            $user->phone         = $request->input('phone');
+            $user->cin           = $request->input('cin');
+            $user->fonction      = $request->input('fonction');
             $user->date_embauche = $request->input('date_embauche');
-            $user->niveau_etude = $request->input('niveau_etude');
-            $user->adresse = $request->input('adresse');
-            $user->cnss = $request->input('cnss');
-            $user->is_actif = $request->input('is_actif'); // Default to 1 if not provided
-            $user->solde_conge = $request->input('solde_conge');
-            $photo = '';
+            $user->niveau_etude  = $request->input('niveau_etude');
+            $user->adresse       = $request->input('adresse');
+            $user->cnss          = $request->input('cnss');
+            $user->is_actif      = $request->input('is_actif'); // Default to 1 if not provided
+            $user->solde_conge   = $request->input('solde_conge');
+            $photo               = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
                     $image_path = public_path('img/users/' . $user->photo);
@@ -351,7 +359,7 @@ class UserController extends Controller
                         unlink($image_path);
                     }
                 }
-                $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
+                $photo   = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $societe = Societe::findOrfail($user->societe_id);
                 //$request->photo->move(public_path('img/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
                 FichierHelper::ajouter_fichier($request->photo, $societe->raison_sociale_concatene, $user->societe_id, 'users', $photo);
@@ -373,22 +381,22 @@ class UserController extends Controller
                 //update user database fils
                 $user = User::on('temp')->findOrFail($user_societes->id);
                 $user->setConnection('temp');
-                $user->name = $request->name;
-                $user->prenom = $request->prenom;
-                $user->email = $request->email;
-                $user->gender = $request->gender;
-                $user->role = $request->role;
-                $user->phone = $request->phone;
-                $user->cin = $request->cin;
-                $user->fonction = $request->fonction;
-                $user->date_embauche = $request->date_embauche;
-                $user->niveau_etude = $request->niveau_etude;
-                $user->adresse = $request->adresse;
-                $user->cnss = $request->cnss;
-                $user->is_actif = $request->is_actif;
-                $user->nb_appel_recu = $request->nb_appel_recu;
+                $user->name            = $request->name;
+                $user->prenom          = $request->prenom;
+                $user->email           = $request->email;
+                $user->gender          = $request->gender;
+                $user->role            = $request->role;
+                $user->phone           = $request->phone;
+                $user->cin             = $request->cin;
+                $user->fonction        = $request->fonction;
+                $user->date_embauche   = $request->date_embauche;
+                $user->niveau_etude    = $request->niveau_etude;
+                $user->adresse         = $request->adresse;
+                $user->cnss            = $request->cnss;
+                $user->is_actif        = $request->is_actif;
+                $user->nb_appel_recu   = $request->nb_appel_recu;
                 $user->nb_appel_traite = $request->nb_appel_traite;
-                $user->solde_conge = $request->solde_conge;
+                $user->solde_conge     = $request->solde_conge;
                 $user->save();
 
                 if (RoleHelper::Admin()) {
@@ -396,7 +404,7 @@ class UserController extends Controller
                     $user_projets = UserProjet::on('temp')->where('user_id', $user_societes->id)->delete();
                     // par id du prjet
                     if ($request->user_has_already_projets == '1') {
-                        if (!empty($request->selectedProjets)) {
+                        if (! empty($request->selectedProjets)) {
                             $projets_array = explode(',', $request->selectedProjets); // $projets_array sera ['5', '2']
                             foreach ($projets_array as $id_projet) {
                                 UserProjetHelper::createUserProjet($id_projet, $user_societes->id);
@@ -414,7 +422,7 @@ class UserController extends Controller
 
                 if ($old_email != $request->email) {
                     $to_email = $user->email;
-                    $data = array('password' => 'Votre Ancien Password', 'sexe' => $request->gender, 'nom' => $request->name, 'prenom' => $request->prenom, 'email' => $request->email);
+                    $data     = ['password' => 'Votre Ancien Password', 'sexe' => $request->gender, 'nom' => $request->name, 'prenom' => $request->prenom, 'email' => $request->email];
                     Mail::send('User.mail', $data, function ($message) use ($to_email) {
                         $message->to($to_email)
                             ->subject('Codes Accés au Immo Gestion');
@@ -433,7 +441,7 @@ class UserController extends Controller
     public static function destroy($id)
     {
         if (RoleHelper::SuperAdmin()) {
-            $user = User::findOrFail($id);
+            $user           = User::findOrFail($id);
             $user->is_actif = 0;
             $user->save();
 
@@ -465,24 +473,24 @@ class UserController extends Controller
         DatabaseHelper::Config($request->societe_id);
         $user = new User();
         $user->setConnection('temp');
-        $user->user_id_origin = $user_id;
-        $user->name = $request->name;
-        $user->prenom = $request->prenom;
-        $user->email = $request->email;
-        $user->password = $request->password;
-        $user->gender = $request->gender;
-        $user->role = $request->role;
-        $user->phone = $request->phone;
-        $user->cin = $request->cin;
-        $user->fonction = $request->fonction;
-        $user->date_embauche = $request->date_embauche;
-        $user->niveau_etude = $request->niveau_etude;
-        $user->adresse = $request->adresse;
-        $user->cnss = $request->cnss;
-        $user->is_actif = $request->is_actif;
-        $user->nb_appel_recu = $request->nb_appel_recu;
+        $user->user_id_origin  = $user_id;
+        $user->name            = $request->name;
+        $user->prenom          = $request->prenom;
+        $user->email           = $request->email;
+        $user->password        = $request->password;
+        $user->gender          = $request->gender;
+        $user->role            = $request->role;
+        $user->phone           = $request->phone;
+        $user->cin             = $request->cin;
+        $user->fonction        = $request->fonction;
+        $user->date_embauche   = $request->date_embauche;
+        $user->niveau_etude    = $request->niveau_etude;
+        $user->adresse         = $request->adresse;
+        $user->cnss            = $request->cnss;
+        $user->is_actif        = $request->is_actif;
+        $user->nb_appel_recu   = $request->nb_appel_recu;
         $user->nb_appel_traite = $request->nb_appel_traite;
-        $user->solde_conge = $request->solde_conge;
+        $user->solde_conge     = $request->solde_conge;
         if ($request->hasFile('photo')) {
             $user->photo = $user_photo;
         }
@@ -497,7 +505,7 @@ class UserController extends Controller
     public function activateUser($user_id)
     {
         if (RoleHelper::AdminSup()) {
-            $user = User::findOrFail($user_id);
+            $user           = User::findOrFail($user_id);
             $user->is_actif = 1;
             if ($user->save()) {
                 DatabaseHelper::Config($user->societe_id);
@@ -513,7 +521,7 @@ class UserController extends Controller
     public function desactivateUser($user_id)
     {
         if (RoleHelper::AdminSup()) {
-            $user = User::findOrFail($user_id);
+            $user           = User::findOrFail($user_id);
             $user->is_actif = 0;
             if ($user->save()) {
                 DatabaseHelper::Config($user->societe_id);
@@ -538,7 +546,7 @@ class UserController extends Controller
         $user = User::where('email', $request->email)->first();
 
         // Vérifier si l'utilisateur existe
-        if (!$user) {
+        if (! $user) {
             return response()->json(['error' => "Nous n'avons pas trouvé de compte associé à cette adresse e-mail."], 404);
         }
 
@@ -546,12 +554,12 @@ class UserController extends Controller
             ->where('email', $user->email)
             ->delete();
 
-        $token = Str::random(60);
+        $token            = Str::random(60);
         $confirmationCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        $expirationTime = now()->addMinutes(3);
+        $expirationTime   = now()->addMinutes(3);
         DB::table('password_reset_tokens')->insert([
-            'email' => $user->email,
-            'token' => $token,
+            'email'      => $user->email,
+            'token'      => $token,
             'expires_at' => $expirationTime,
             'created_at' => now(),
         ]);
@@ -575,20 +583,20 @@ class UserController extends Controller
         // Rechercher l'utilisateur par email
         $user = User::where('email', $request->email)->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'User not found'], 404);
         }
         DB::table('password_reset_tokens')
             ->where('email', $user->email)
             ->delete();
 
-        $token = Str::random(60);
+        $token            = Str::random(60);
         $confirmationCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        $expirationTime = now()->addMinutes(3); // Expires in 1 minute
-        // Store the token in the 'password_resets' table
+        $expirationTime   = now()->addMinutes(3); // Expires in 1 minute
+                                                  // Store the token in the 'password_resets' table
         DB::table('password_reset_tokens')->insert([
-            'email' => $user->email,
-            'token' => $token,
+            'email'      => $user->email,
+            'token'      => $token,
             'expires_at' => $expirationTime,
             'created_at' => now(),
         ]);
@@ -610,7 +618,7 @@ class UserController extends Controller
                 ->where('token', $token)
                 ->first();
 
-            if (!$passwordReset) {
+            if (! $passwordReset) {
                 return response()->json(['message' => 'Token not found'], 404);
             }
 
@@ -635,12 +643,12 @@ class UserController extends Controller
     {
         $request->validate([
             'current_password' => 'required',
-            'new_password' => 'required|confirmed',
+            'new_password'     => 'required|confirmed',
         ]);
 
         $user = auth()->user();
 
-        if (!Hash::check($request->current_password, $user->password)) {
+        if (! Hash::check($request->current_password, $user->password)) {
             return response()->json(['error' => 'Ancien mot de passe incorrect'], 400);
         }
 

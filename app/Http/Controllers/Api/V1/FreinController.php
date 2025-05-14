@@ -70,7 +70,7 @@ class FreinController extends Controller
             DatabaseHelper::Config();
             $frein = new Frein();
             $frein->setConnection('temp');
-            if (str_contains($request->freins, 'AUTRE')==true) {
+            if (str_contains($request->freins, 'AUTRE')==true||str_contains($request->freins, 'autre')) {
                 $frein->description_autre = $request->description_autre;
             }else{
                 $frein->description_autre = null;
@@ -208,11 +208,11 @@ class FreinController extends Controller
                 $frein->avance=null;
             }
             $frein->etat=$request->etat;
-            $frein->tranche=str_contains($request->freins, 'TRANCHE')?false:true;
-            $frein->etage=str_contains($request->freins, 'ETAGE')?false:true ;
-            $frein->orientation= str_contains($request->freins, 'ORIENTATION')?false:true;
-            $frein->vue=str_contains($request->freins, 'VUE')?false:true;
-            $frein->typologie= str_contains($request->freins, 'TYPOLOGIE') ?false:true;
+            $frein->tranche=str_contains($request->freins, 'TRANCHE')?true:false;
+            $frein->etage = str_contains($request->freins, 'ETAGE') ? true : false;
+            $frein->orientation= str_contains($request->freins, 'ORIENTATION')?true:false;
+            $frein->vue=str_contains($request->freins, 'VUE')?true:false;
+            $frein->typologie= str_contains($request->freins, 'TYPOLOGIE') ?true:false;
             $frein->save();
             FreinTrancheHelper::destroyFreinTranche($frein->id);
             if(!empty($request->selectedTranches) && str_contains($request->freins, 'TRANCHE') ){
@@ -222,12 +222,15 @@ class FreinController extends Controller
                 }
             }
             FreinEtageHelper::destroyFreinEtage($frein->id);
+            // Check if selectedEtages is provided and not empty
             if (!empty($request->selectedEtages)&& str_contains($request->freins, 'ETAGE')) {
-                $array_etage = explode(',', $request->selectedEtages); // $tranches_array sera ['5', '2']
-                foreach ($array_etage as $valeur) {
-                    FreinEtageHelper::createFreinEtage($valeur, $frein->id);
+
+                    $array_etage = explode(',', $request->selectedEtages); // Convert '1,2,3' into ['1', '2', '3']
+                    foreach ($array_etage as $valeur) {
+                        // Create a new entry for each selected etage
+                        FreinEtageHelper::createFreinEtage($valeur, $frein->id);
+                    }
                 }
-            }
             FreinOrientationHelper::destroyFreinOrientation($frein->id);
             if (!empty($request->selectedOrientations)&& str_contains($request->freins, 'ORIENTATION')) {
                 $array_orientation = explode(',', $request->selectedOrientations); // $tranches_array sera ['5', '2']
@@ -444,6 +447,10 @@ class FreinController extends Controller
                 $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
                 ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');});
             }
+            if ($request->filled('date')) {
+                $start = Carbon::parse($request->input('date'));
+                $query->whereDate('created_at', $start);
+            }
             if ($request->filled('frein')) {
                 $frein=strtolower($request->input('frein'));
                 if(str_contains($frein, 'etage')){
@@ -639,7 +646,7 @@ class FreinController extends Controller
 
     public function traiter_bien_frein(Traite_Bien_freinRequest $request, $frein_id)
     {
-
+        return response()->json($request);
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $user = Auth::user();
@@ -742,6 +749,7 @@ class FreinController extends Controller
                             $frein_new->prix_max = $request->prix_max;
                             $frein_new->superficie_min = $request->sup_min;
                             $frein_new->superficie_max = $request->sup_max;
+                            $freinn_new->description_autre = $request->description_autre;
                             //create new frein by appel bien disponible
                             $frein_new->etat = 6;
                             $frein_new->avance = $request->avance;

@@ -1,20 +1,14 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Controller;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\RoleHelper;
+use App\Models\Prestataire;
 use App\Models\ServicesPrestataires;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\Controller;
-use App\Models\User;
-use Carbon\Carbon;
 
-use App\Models\Fournisseur;
-use App\Models\Prestataire;
-use App\Models\Societe;
-use Illuminate\Support\Facades\File;
 class ServicesPrestatairesController extends Controller
 {
     /**
@@ -35,7 +29,6 @@ class ServicesPrestatairesController extends Controller
                 $query->where('nom', 'like', '%' . $request->input('nom') . '%');
             }
 
-
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
                 $ser = $query->orderBy('created_at', 'desc')
                     ->paginate($size, ['*'], 'page', $page);
@@ -43,8 +36,8 @@ class ServicesPrestatairesController extends Controller
                 // Extraire les propriétés du paginateur
                 $pagination = [
                     'currentPage' => $ser->currentPage(),
-                    'totalItems' => $ser->total(),
-                    'totalPages' => $ser->lastPage(),
+                    'totalItems'  => $ser->total(),
+                    'totalPages'  => $ser->lastPage(),
                 ];
 
                 // Extraire les éléments d'utilisateur du paginateur
@@ -52,13 +45,13 @@ class ServicesPrestatairesController extends Controller
 
                 // Retourner la réponse simplifiée
                 return response()->json([
-                    'data' => $ser,
+                    'data'   => $ser,
                     'pagination' => $pagination,
                 ], 200);
             } else {
                 // Return all results if pagination parameters are not provided or invalid
                 $ser = $query->orderBy('created_at', 'desc')
-                ->get();
+                    ->get();
 
                 return response()->json(['services' => $ser], 200);
             }
@@ -66,10 +59,11 @@ class ServicesPrestatairesController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-    public function get_services(Request $request){
+    public function get_services(Request $request)
+    {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $ser=ServicesPrestataires::on('temp')->with('prestataires')->orderBy('id', 'asc')->get();
+            $ser = ServicesPrestataires::on('temp')->with('prestataires')->orderBy('id', 'asc')->get();
             return response()->json(['services' => $ser], 200);
         }
     }
@@ -144,12 +138,12 @@ class ServicesPrestatairesController extends Controller
      */
     public function destroy(string $id)
     {
-        if (RoleHelper::AdminSup() ) {
+        if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            $ser = ServicesPrestataires::on('temp')->findOrFail($id);
-            $prestataires=Prestataire::on('temp')->where('service_id',$id)->get();
-            if(count($prestataires)>0){
-                foreach($prestataires as $pre){
+            $ser          = ServicesPrestataires::on('temp')->findOrFail($id);
+            $prestataires = Prestataire::on('temp')->where('service_id', $id)->get();
+            if (count($prestataires) > 0) {
+                foreach ($prestataires as $pre) {
                     $preController = new PrestatairesController();
                     $preController->destroy($pre->id);
                 }
@@ -164,4 +158,3 @@ class ServicesPrestatairesController extends Controller
         }
     }
 }
-

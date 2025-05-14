@@ -36,6 +36,8 @@ use App\Http\Helpers\PaginationHelper;
 use App\Enum\ModePaiement;
 use App\Models\PiecesJointe;
 use DB;
+use App\Http\Controllers\NotificationController;
+
 class AvanceController extends Controller
 {
     /**

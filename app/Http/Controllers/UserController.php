@@ -32,7 +32,6 @@ class UserController extends Controller
 
         // Rechercher l'utilisateur par email
         $User = User::where('email', $request->email)->first();
-
         // Vérifier si l'utilisateur existe
         if (!$User) {
             return response()->json(['error' => 'Utilisateur non trouvé'], 404);

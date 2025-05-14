@@ -30,7 +30,7 @@ class StoreProspectRequest extends FormRequest
         $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
         return [
-            'telephone' => 'required|min:10|max:14',
+            'telephone' => 'required',
             'cin' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->whereNull('deleted_at')],
             'email' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->whereNull('deleted_at')],
 
