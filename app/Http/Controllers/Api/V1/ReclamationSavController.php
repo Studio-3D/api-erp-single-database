@@ -144,10 +144,11 @@ class ReclamationSavController extends Controller
             $rec->projet_id=$request->projet_id;
             $rec->client_id=$request->client_id;
             $rec->date_reclamation=$request->date_reclamation;
-            $rec->date_intervention=$request->date_intervention;
-            $rec->date_fin_intervention=$request->date_fin_intervention;
+            //$rec->date_intervention=$request->date_intervention;
+            //$rec->date_fin_intervention=$request->date_fin_intervention;
             $rec->statut=1;
-            $rec->prestataire_id=$request->prestataire_id;
+            $rec->service_id=$request->service_id;
+            $rec->emplacements=$request->emplacements;
             $rec->problemes=$request->problemes;
             $rec->user_id= $userAuth->value('id');
             if($rec->save()){
@@ -181,17 +182,17 @@ class ReclamationSavController extends Controller
                     }
                 }
                 //send email to prestataire
-                $pres=Prestataire::on('temp')->findorfail($request->prestataire_id);
+                /* $pres=Prestataire::on('temp')->findorfail($request->prestataire_id);
                 if($pres->email!=null){
                     $to_email=$pres->email;
-                    $data=array('bien'=>$rec->bien->propriete_dite_bien,'client'=>$rec->client->nom.' '.$rec->client->prenom,'probleme'=>$rec->problemes);
+                    $data=array('bien'=>$rec->bien->propriete_dite_bien,'client'=>$rec->client->nom.' '.$rec->client->prenom,'emplacement'=>$rec->emplacements);
                       Mail::send('SAV.mail', $data, function($message) use($to_email){
                         $message->to($to_email)
                             ->subject ('Nouvlle Réclamation');
                         $message->from('immo.immobilier02@gmail.com','Immobilier');
 
                     });
-                }
+                } */
 
             }
 
@@ -210,8 +211,8 @@ class ReclamationSavController extends Controller
             DatabaseHelper::Config();
             $rec = Reclamation::on('temp')->with('piece_jointe')->findOrfail($id);
             $bien=Bien::on('temp')->with('reservation')->findorfail($rec->bien_id);
-            $prestataires=Prestataire::on('temp')->where('service_id',$rec->prestataire->service_id)->get();
-            return response()->json(['reclamation' => $rec,'bien'=>$bien,'prestataires'=>$prestataires], 200);
+            //$prestataires=Prestataire::on('temp')->where('service_id',$rec->prestataire->service_id)->get();
+            return response()->json(['reclamation' => $rec,'bien'=>$bien], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -225,15 +226,45 @@ class ReclamationSavController extends Controller
         if(RoleHelper::AdminSup()){
             DatabaseHelper::Config();
             $rec=Reclamation::on('temp')->findOrFail($id);
-            $rec->statut=$request->statut;
-            $rec->date_traitement=$request->date_traitement;
-            $rec->commentaire=$request->commentaire;
+            $rec->statut=2;
+            $rec->date_intervention=$request->date_intervention;
+            $rec->prestataire_id=$request->prestataire_id;
+            $rec->commentaires=$request->commentaire;
             $rec->save();
+            /* $pres=Prestataire::on('temp')->findorfail($request->prestataire_id);
+                if($pres->email!=null){
+                    $to_email=$pres->email;
+                    $data=array('bien'=>$rec->bien->propriete_dite_bien,'client'=>$rec->client->nom.' '.$rec->client->prenom,'emplacement'=>$rec->emplacements);
+                    Mail::send('SAV.mail', $data, function($message) use($to_email){
+                        $message->to($to_email)
+                            ->subject ('Nouvlle Réclamation');
+                        $message->from('immo.immobilier02@gmail.com','Immobilier');
+
+                    });
+                } */
             return response()->json(['rec'=>$rec],200);
         }else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+    public function resoudre_reclamation($id, Request $request)
+{
+
+    if(RoleHelper::AdminSup()){
+        DatabaseHelper::Config();
+        $rec = Reclamation::on('temp')->findOrFail($id);
+        $rec->date_fin_intervention = $request->input('date_fin_intervention');
+
+        $rec->statut = $request->input('statut');
+        $rec->commentaire_trait = $request->input('commentaire'); // Vérifie que c’est bien ce champ dans ta base
+
+        $rec->save();
+
+        return response()->json(['rec' => $rec], 200);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+}
 
     /**
      * Update the specified resource in storage.
@@ -252,6 +283,7 @@ class ReclamationSavController extends Controller
             $rec->date_intervention=$request->date_intervention;
             $rec->date_fin_intervention=$request->date_fin_intervention;
             $rec->prestataire_id=$request->prestataire_id;
+            $rec->emplacements=$request->emplacements;
             $rec->problemes=$request->problemes;
             if($rec->save()){
                 ////storer les pieces jointe d
@@ -290,17 +322,17 @@ class ReclamationSavController extends Controller
                     }
                 }
                   //send email to prestataire
-                  $pres=Prestataire::on('temp')->findorfail($request->prestataire_id);
+                  /* $pres=Prestataire::on('temp')->findorfail($request->prestataire_id);
                   if($pres->email!=null){
                       $to_email=$pres->email;
-                      $data=array('bien'=>$rec->bien->propriete_dite_bien,'client'=>$rec->client->nom.' '.$rec->client->prenom,'probleme'=>$rec->problemes);
+                      $data=array('bien'=>$rec->bien->propriete_dite_bien,'client'=>$rec->client->nom.' '.$rec->client->prenom,'emplacement'=>$rec->emplacements);
                         Mail::send('SAV.mail', $data, function($message) use($to_email){
                           $message->to($to_email)
                               ->subject ('Nouvlle Réclamation');
                           $message->from('immo.immobilier02@gmail.com','Immobilier');
 
                       });
-                  }
+                  } */
             }
             return response()->json(['rec'=>$rec],200);
         }

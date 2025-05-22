@@ -73,7 +73,13 @@ class EncaissementController extends Controller
                      $q->where('code_reservation', 'like', '%' . $request->input('code_reservation') . '%');
                  });
              }
-             if ($request->filled('type_encaissement')) {
+             if ($request->filled('bienId')) {
+                $query->where('bien_id', $request->input('bienId'));
+            }
+            if ($request->filled('clientId')) {
+                $query->where('client_id', $request->input('clientId'));
+            }
+            if ($request->filled('type_encaissement')) {
                 $query->where('type_encaissement', $request->input('type_encaissement'));
             }
             if ($request->filled('montant')) {

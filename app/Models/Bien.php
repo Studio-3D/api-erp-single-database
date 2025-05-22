@@ -72,9 +72,9 @@ class Bien extends Model
    {
        return $this->hasMany(CompositionBien::class);
    }
-   public function Bien_tva()
+   public function Bien_Tva()
    {
-       return $this->hasone(Bien_tva::class,'bien_id')->latest();
+       return $this->hasone(Bien_Tva::class,'bien_id')->latest();
    }
    public function tva_collectes()
    {

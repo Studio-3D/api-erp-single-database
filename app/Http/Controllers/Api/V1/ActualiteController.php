@@ -8,7 +8,7 @@ use App\Http\Helpers\RoleHelper;
 use App\Models\User;
 use App\Models\Visite;
 use App\Models\Avance;
-use App\Models\Relance_Rdv_visite;
+use App\Models\Relance_Rdv_Visite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -137,7 +137,7 @@ class ActualiteController extends Controller
             array_push($Array_visite,$this->get_visites($request->merge($data_v_reserve_perdu))->original['nb_v']);
             array_push($Array_visite,$this->get_visites($request->merge($data_v_perdu))->original['nb_v']);
 
-            $rdv_relances=Relance_Rdv_visite::on('temp')->join('visites', 'visites.id', '=', 'relances_rdv_visites.visite_id')
+            $rdv_relances=Relance_Rdv_Visite::on('temp')->join('visites', 'visites.id', '=', 'relances_rdv_visites.visite_id')
             ->select('relances_rdv_visites.*')
             ->whereBetween('relances_rdv_visites.date_traitement', [$dt, $a_dt])
             ->whereIN('relances_rdv_visites.type_traitement',[2,3])
@@ -302,7 +302,7 @@ class ActualiteController extends Controller
             array_push($Array_visite,$this->get_visites($request->merge($data_v_reserve_perdu))->original['nb_v']);
             array_push($Array_visite,$this->get_visites($request->merge($data_v_perdu))->original['nb_v']);
 
-            $rdv_relances=Relance_Rdv_visite::on('temp')->join('visites', 'visites.id', '=', 'relances_rdv_visites.visite_id')
+            $rdv_relances=Relance_Rdv_Visite::on('temp')->join('visites', 'visites.id', '=', 'relances_rdv_visites.visite_id')
             ->select('relances_rdv_visites.*')
             ->whereBetween('relances_rdv_visites.created_at', [$dt,$a_dt])
             ->whereIN('relances_rdv_visites.type_traitement',[2,3])

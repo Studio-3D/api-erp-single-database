@@ -33,7 +33,7 @@ use Illuminate\Support\Facades\Config;
 use App\Models\User;
 use App\Enum\InteretEnum;
 use App\Http\Helpers\Bien_Helper;
-use App\Models\Relance_Rdv_visite;
+use App\Models\Relance_Rdv_Visite;
 
 
 class FreinController extends Controller
@@ -684,7 +684,7 @@ class FreinController extends Controller
                 if($t_f->save()){
                     //set ancien relance to traite automatique
                     /***RENDRE LES OLD RELANCES ET OLD RDV EN TRAITE AUTOMATIQUE****/
-                    $old_relances_rdv=Relance_Rdv_visite::on('temp')->where('visite_id',$frein->visite->id)->where('type_traitement',0)->get();
+                    $old_relances_rdv=Relance_Rdv_Visite::on('temp')->where('visite_id',$frein->visite->id)->where('type_traitement',0)->get();
                     if(count($old_relances_rdv)>0){
                         foreach($old_relances_rdv as $old){
                             $old->type_traitement=2;//auto
@@ -723,7 +723,7 @@ class FreinController extends Controller
                                 $notif_helper->storeNotification($request->merge($data_notif));
                                // broadcast(new NotificationEvent($frein->visite->id));
 
-                                $relance = new Relance_Rdv_visite();
+                                $relance = new Relance_Rdv_Visite();
                                 $relance->setConnection('temp');
                                 $relance->type = 1; //relance
                                 $relance->mode_relance = $request->mode_relance;
@@ -832,7 +832,7 @@ class FreinController extends Controller
                                 $notif_helper->storeNotification($request->merge($data_notif));
 
                                // broadcast(new NotificationEvent($frein->visite->id));
-                                $rdv = new Relance_Rdv_visite();
+                                $rdv = new Relance_Rdv_Visite();
                                 $rdv->setConnection('temp');
                                 $rdv->type = 2; //rdv
                                 $rdv->rdv = $request->rdv;

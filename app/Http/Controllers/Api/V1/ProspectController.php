@@ -1,31 +1,29 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enum\InteretEnum;
+use App\Enum\StatutVisiteEnum;
+use App\Events\NotificationEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Helpers\DatabaseHelper;
+use App\Http\Helpers\NotificationHelper;
 use App\Http\Helpers\PaginationHelper;
 use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreProspectRequest;
 use App\Http\Requests\UpdateProspectRequest;
 use App\Models\Client;
+use App\Models\Notification;
 use App\Models\Prospect;
 use App\Models\Source;
-use App\Models\Visite;
-use App\Models\Notification;
 use App\Models\StatutProspect;
+use App\Models\TraitementFrein;
 use App\Models\User;
+use App\Models\Visite;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use App\Models\TraitementFrein;
-use App\Enum\InteretEnum;
-use App\Enum\StatutVisiteEnum;
 use Illuminate\Support\Facades\Config;
-use App\Events\NotificationEvent;
-use App\Events\NotifMenuEvent;
-use App\Http\Helpers\NotificationHelper;
+use Illuminate\Support\Facades\Log;
 
 class ProspectController extends Controller
 {
@@ -33,7 +31,7 @@ class ProspectController extends Controller
      * Display a listing of the resource.
      */
 
-     public function indexByProjet(Request $request,$projet_id)
+    public function indexByProjet(Request $request, $projet_id)
     {
         if (Auth::guard('api')->check()) {
             $size = $request->input('size', null);
@@ -42,6 +40,7 @@ class ProspectController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
+
             $query = prospect::on('temp')->with('client','visites','appels','last_statut')->where('projet_id', $projet_id);
              if ($request->filled('telephone')) {
             $query->where(function ($q) use ($request) {
@@ -51,6 +50,7 @@ class ProspectController extends Controller
                             ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
                     });
                 }
+
             });}
             if ($request->filled('cin')) {
                 $query->where('cin', 'like', '%' . $request->input('cin') . '%');
@@ -69,7 +69,7 @@ class ProspectController extends Controller
             }
             if ($request->filled('statut')) {
                 $query->whereHas('last_statut', function ($q) use ($request) {
-                        $q->where('statut',  $request->input('statut'));
+                    $q->where('statut', $request->input('statut'));
                 });
             }
 
@@ -81,8 +81,8 @@ class ProspectController extends Controller
                 // Extraire les propriétés du paginateur
                 $pagination = [
                     'currentPage' => $prospects->currentPage(),
-                    'totalItems' => $prospects->total(),
-                    'totalPages' => $prospects->lastPage(),
+                    'totalItems'  => $prospects->total(),
+                    'totalPages'  => $prospects->lastPage(),
                 ];
 
                 // Extraire les éléments d'utilisateur du paginateur
@@ -90,7 +90,7 @@ class ProspectController extends Controller
 
                 // Retourner la réponse simplifiée
                 return response()->json([
-                    'prospects' => $prospects,
+                    'prospects'  => $prospects,
                     'pagination' => $pagination,
                 ], 200);
             } else {
@@ -114,7 +114,7 @@ class ProspectController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
-            $query = prospect::on('temp')->with('client','visites','appels');
+            $query = prospect::on('temp')->with('client', 'visites', 'appels');
             $query->where(function ($q) use ($request) {
                 if ($request->filled('telephone')) {
                     $q->where(function ($subQuery) use ($request) {
@@ -141,8 +141,8 @@ class ProspectController extends Controller
                 // Extraire les propriétés du paginateur
                 $pagination = [
                     'currentPage' => $prospects->currentPage(),
-                    'totalItems' => $prospects->total(),
-                    'totalPages' => $prospects->lastPage(),
+                    'totalItems'  => $prospects->total(),
+                    'totalPages'  => $prospects->lastPage(),
                 ];
 
                 // Extraire les éléments d'utilisateur du paginateur
@@ -150,7 +150,7 @@ class ProspectController extends Controller
 
                 // Retourner la réponse simplifiée
                 return response()->json([
-                    'prospects' => $prospects,
+                    'prospects'  => $prospects,
                     'pagination' => $pagination,
                 ], 200);
             } else {
@@ -168,7 +168,7 @@ class ProspectController extends Controller
 
     public function traiter_prospect($id, Request $request)
     {
-          // ✅ Validate that 'statut' is required and must not be null
+        // ✅ Validate that 'statut' is required and must not be null
         $request->validate([
             'statut' => 'required',
         ], [
@@ -176,62 +176,60 @@ class ProspectController extends Controller
         ]);
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $user = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $prospect = Prospect::on('temp')->findOrFail($id);
+            $user      = Auth::user();
+            $userAuth  = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $prospect  = Prospect::on('temp')->findOrFail($id);
             $ps_statut = new statutProspect();
             $ps_statut->setConnection('temp');
-            $ps_statut->prospect_id = $id;
-            $ps_statut->statut = $request->statut;
-            $ps_statut->commentaire = $request->commentaire;
-            $ps_statut->user_id_traite = $userAuth->value('id');
+            $ps_statut->prospect_id     = $id;
+            $ps_statut->statut          = $request->statut;
+            $ps_statut->commentaire     = $request->commentaire;
+            $ps_statut->user_id_traite  = $userAuth->value('id');
             $ps_statut->date_traitement = Carbon::now();
             if ($request->statut == 1) {
                 $ps_statut->rdv = $request->rdv;
-            }elseif($request->statut == 3) {
+            } elseif ($request->statut == 3) {
                 $ps_statut->date_rappel = $request->date_rappel;
             }
 
-          if($ps_statut->save()){
-            if ($request->statut == 2) {
-                //rappel
-                Config::set('broadcasting.default', 'pusher_3');
-                $data_notif = [
-                    'lien' => '/crm/prospects/' . $id,
-                    'date' => $request->date_rappel,
-                    'type' => 30,
-                    'user_id' => Auth::guard('api')->user()->id,
-                    'description' => 'le prospect doit etre rappelé',
-                    'projet_id' => $prospect->projet_id,
-                    'prospect_id' => $id,
+            if ($ps_statut->save()) {
+                if ($request->statut == 2) {
+                    //rappel
+                    Config::set('broadcasting.default', 'pusher_3');
+                    $data_notif = [
+                        'lien'        => '/crm/prospects/' . $id,
+                        'date'        => $request->date_rappel,
+                        'type'        => 30,
+                        'user_id'     => Auth::guard('api')->user()->id,
+                        'description' => 'le prospect doit etre rappelé',
+                        'projet_id'   => $prospect->projet_id,
+                        'prospect_id' => $id,
 
-                ];
-                $notif_helper = new NotificationHelper();
-                $notif_helper->storeNotification($request->merge($data_notif));
-                broadcast(new NotificationEvent($id));
+                    ];
+                    $notif_helper = new NotificationHelper();
+                    $notif_helper->storeNotification($request->merge($data_notif));
+                    broadcast(new NotificationEvent($id));
 
+                }
+                if ($request->statut == 1) {
+                    //rdv
+                    Config::set('broadcasting.default', 'pusher_3');
+                    $data_notif = [
+                        'lien'        => '/crm/prospects/' . $id,
+                        'date'        => $request->rdv,
+                        'type'        => 31,
+                        'user_id'     => Auth::guard('api')->user()->id,
+                        'description' => 'le prospect a un rdv',
+                        'projet_id'   => $prospect->projet_id,
+                        'prospect_id' => $id,
+
+                    ];
+                    $notif_helper = new NotificationHelper();
+                    $notif_helper->storeNotification($request->merge($data_notif));
+                    broadcast(new NotificationEvent($id));
+                }
             }
-            if ($request->statut == 1) {
-                //rdv
-                Config::set('broadcasting.default', 'pusher_3');
-                $data_notif = [
-                    'lien' => '/crm/prospects/' . $id,
-                    'date' =>$request->rdv,
-                    'type' => 31,
-                    'user_id' => Auth::guard('api')->user()->id,
-                    'description' => 'le prospect a un rdv',
-                    'projet_id' => $prospect->projet_id,
-                    'prospect_id' => $id,
-
-                ];
-                $notif_helper = new NotificationHelper();
-                $notif_helper->storeNotification($request->merge($data_notif));
-                broadcast(new NotificationEvent($id));
-            }
-          }
-          return response()->json(['message' => 'done'], 200);
-
-
+            return response()->json(['message' => 'done'], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -243,28 +241,27 @@ class ProspectController extends Controller
     {
         if (Auth::guard('api')->check()) {
             $size = $request->input('size', config('app.default_item_number_perpage')); // Default size if not provided
-            $page = $request->input('page', 1); // Default page if not provided
+            $page = $request->input('page', 1);                                         // Default page if not provided
 
             DatabaseHelper::Config();
 
-
-            $query = StatutProspect::on('temp')->with('user')->where('prospect_id', $id)->orderBy('date_traitement','desc');
+            $query = StatutProspect::on('temp')->with('user')->where('prospect_id', $id)->orderBy('date_traitement', 'desc');
             // Optional filters (Add more if needed)
 
             if ($request->filled('date_traitement')) {
                 $start = Carbon::parse($request->input('date_traitement'));
-                $query->whereDate('date_traitement' ,$start);
+                $query->whereDate('date_traitement', $start);
             }
             if ($request->filled('rdv')) {
                 $start = Carbon::parse($request->input('rdv'));
-                $query->whereDate('rdv' ,$start);
+                $query->whereDate('rdv', $start);
             }
             if ($request->filled('date_rappel')) {
                 $start = Carbon::parse($request->input('date_rappel'));
-                $query->whereDate('date_rappel' ,$start);
+                $query->whereDate('date_rappel', $start);
             }
             if ($request->filled('statut')) {
-                $query->where('statut',$request->statut);
+                $query->where('statut', $request->statut);
             }
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
@@ -275,15 +272,15 @@ class ProspectController extends Controller
                 // Add pagination info
                 $pagination = [
                     'currentPage' => $historiques->currentPage(),
-                    'totalItems' => $historiques->total(),
-                    'totalPages' => $historiques->lastPage(),
+                    'totalItems'  => $historiques->total(),
+                    'totalPages'  => $historiques->lastPage(),
                 ];
 
                 $historiques = $historiques->items();
 
                 return response()->json([
                     'historiques' => $historiques,
-                    'pagination' => $pagination,
+                    'pagination'  => $pagination,
                 ], 200);
             }
         }
@@ -309,19 +306,19 @@ class ProspectController extends Controller
             DatabaseHelper::Config();
             $prospect = new Prospect();
             $prospect->setConnection("temp");
-            $prospect->cin = $request->cin;
-            $prospect->nom = $request->nom;
-            $prospect->prenom = $request->prenom;
-            $prospect->telephone = $request->telephone;
+            $prospect->cin            = $request->cin;
+            $prospect->nom            = $request->nom;
+            $prospect->prenom         = $request->prenom;
+            $prospect->telephone      = $request->telephone;
             $prospect->telephone_num2 = $request->telephone_num2;
-            $prospect->email = $request->email;
-            $prospect->origin = $request->origin!=null?$request->origin:'manuel';
-            $prospect->notifie = $request->notifie;
-            $prospect->source = $request->source;
-            $prospect->partenaire_id = $request->partenaire_id;
-            $prospect->message = $request->message;
-            $prospect->ville = $request->ville;
-            $prospect->projet_id = $request->projet_id;
+            $prospect->email          = $request->email;
+            $prospect->origin         = $request->origin != null ? $request->origin : 'manuel';
+            $prospect->notifie        = $request->notifie;
+            $prospect->source         = $request->source;
+            $prospect->partenaire_id  = $request->partenaire_id;
+            $prospect->message        = $request->message;
+            $prospect->ville          = $request->ville;
+            $prospect->projet_id      = $request->projet_id;
             $prospect->save();
             return $prospect;
 
@@ -337,13 +334,13 @@ class ProspectController extends Controller
         DatabaseHelper::Config($societe_id);
         $prospect = new Prospect();
         $prospect->setConnection("temp");
-        $prospect->cin = null;
-        $prospect->message = $msg_body;
-        $prospect->nom = $name;
+        $prospect->cin       = null;
+        $prospect->message   = $msg_body;
+        $prospect->nom       = $name;
         $prospect->telephone = $from;
-        $prospect->email = null;
-        $prospect->origin = 'whatssap';
-        $prospect->source = 1;
+        $prospect->email     = null;
+        $prospect->origin    = 'whatssap';
+        $prospect->source    = 1;
         $prospect->save();
     }
 
@@ -353,14 +350,14 @@ class ProspectController extends Controller
         DatabaseHelper::Config($societe_id);
         $prospect = new Prospect();
         $prospect->setConnection("temp");
-        $prospect->cin = null;
-        $prospect->message = null;
-        $prospect->nom = $name;
-        $prospect->prenom = $prenom;
+        $prospect->cin       = null;
+        $prospect->message   = null;
+        $prospect->nom       = $name;
+        $prospect->prenom    = $prenom;
         $prospect->telephone = $phone;
-        $prospect->email = $email;
-        $prospect->origin = 'landingPage';
-        $prospect->source = 3;
+        $prospect->email     = $email;
+        $prospect->origin    = 'landingPage';
+        $prospect->source    = 3;
         $prospect->save();
     }
 
@@ -400,7 +397,7 @@ class ProspectController extends Controller
                 }
             }
             $prospect = Prospect::on('temp')->findOrFail($id);
-            $update = $request->all();
+            $update   = $request->all();
             foreach ($update as $key => $value) {
                 $prospect->$key = $value;
             }
@@ -419,12 +416,12 @@ class ProspectController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $prospect = Prospect::on('temp')->findOrFail($id);
-            if(count($prospect->visites)>0||$prospect->appel!=null || $prospect->client!=null){
+            if (count($prospect->visites) > 0 || $prospect->appel != null || $prospect->client != null) {
                 return response()->json(['error' => 'Il est impossible de supprimer ce Prospect car il possède plusieurs dossiers liés à des visites, des appels ou client.'], 422);
-            }else{
-                $notifications=Notification::on('temp')->where('prospect_id',$id)->get();
-                if(count($notifications)){
-                    foreach($notifications as $nt){
+            } else {
+                $notifications = Notification::on('temp')->where('prospect_id', $id)->get();
+                if (count($notifications)) {
+                    foreach ($notifications as $nt) {
                         $nt->forceDelete();
                     }
                 }
@@ -445,13 +442,13 @@ class ProspectController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             if ($param_1 == 'cin' || $param_1 == 'email') {
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves', 'visites','visites.freins','visites.freins.freinTranche','visites.freins.FreinEtage','visites.freins.FreinOrientation','visites.freins.FreinTypologie','visites.freins.FreinVue', 'appels')->where($param_1, $value)
+                $prospect = Prospect::on('temp')->with('visite_pre_reserves', 'visites', 'visites.freins', 'visites.freins.freinTranche', 'visites.freins.FreinEtage', 'visites.freins.FreinOrientation', 'visites.freins.FreinTypologie', 'visites.freins.FreinVue', 'appels')->where($param_1, $value)
                     ->get()->first();
                 $client = Client::on('temp')->with('prospect')->where($param_1, $value)->get()->first();
 
             } else {
                 //telephone
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves', 'visites', 'visites.freins','visites.freins.freinTranche','visites.freins.FreinEtage','visites.freins.FreinOrientation','visites.freins.FreinTypologie','visites.freins.FreinVue','appels')
+                $prospect = Prospect::on('temp')->with('visite_pre_reserves', 'visites', 'visites.freins', 'visites.freins.freinTranche', 'visites.freins.FreinEtage', 'visites.freins.FreinOrientation', 'visites.freins.FreinTypologie', 'visites.freins.FreinVue', 'appels')
                     ->where(function ($query) use ($value) {
                         $query->where('telephone', $value)
                             ->orwhere('telephone_num2', $value)
@@ -468,17 +465,17 @@ class ProspectController extends Controller
             }
 
             //bien pre reserve par appel on cas des biens disponibles
-            $biens_traitement_freins=[];
-            if($prospect!=null){
-                $biens_traitement_freins = TraitementFrein::on('temp')->with('bien','visite')
-                ->whereHas('visite', function ($q) use ($prospect) {
-                $q->where('prospect_id', $prospect->id);
-                })
-                ->where('interet', InteretEnum::Intéressé->value)
-                ->where('statut', StatutVisiteEnum::Pré_Réservation->value)->orderby('created_at', 'desc')->get(['bien_id', 'id'])->take(1);
+            $biens_traitement_freins = [];
+            if ($prospect != null) {
+                $biens_traitement_freins = TraitementFrein::on('temp')->with('bien', 'visite')
+                    ->whereHas('visite', function ($q) use ($prospect) {
+                        $q->where('prospect_id', $prospect->id);
+                    })
+                    ->where('interet', InteretEnum::Intéressé->value)
+                    ->where('statut', StatutVisiteEnum::Pré_Réservation->value)->orderby('created_at', 'desc')->get(['bien_id', 'id'])->take(1);
             }
 
-            return response()->json(['prospect' => $prospect, 'client' => $client,'biens_traitement_freins'=>$biens_traitement_freins]);
+            return response()->json(['prospect' => $prospect, 'client' => $client, 'biens_traitement_freins' => $biens_traitement_freins]);
         }
     }
     public function VisitesByprospect(Request $request, $prospect_id)
@@ -486,7 +483,7 @@ class ProspectController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
+            $page    = $request->input('page', 1);
             $visites = Visite::on('temp')->latest('created_at')->where('etat', 1)
                 ->select('visites.*')
                 ->where('prospect_id', $prospect_id)
@@ -494,23 +491,23 @@ class ProspectController extends Controller
 
             $visites = $visites->map(function ($visite) {
                 return [
-                    'id' => $visite->first()->id,
-                    'origin_id' => $visite->first()->origin_id,
-                    'nom_cc' => $visite->first()->user->name,
-                    'prenom_cc' => $visite->first()->user->prenom,
-                    'date' => $visite->first()->created_at,
-                    'prospect_id' => $visite->first()->prospect->id,
-                    'cin' => $visite->first()->prospect->cin,
-                    'nom' => $visite->first()->prospect->nom,
-                    'prenom' => $visite->first()->prospect->prenom,
-                    'telephone' => $visite->first()->prospect->telephone,
-                    'telephone2' => $visite->first()->prospect->telephone_num2,
-                    'interet' => $visite->first()->interet,
-                    'statut' => $visite->first()->statut,
+                    'id'                  => $visite->first()->id,
+                    'origin_id'           => $visite->first()->origin_id,
+                    'nom_cc'              => $visite->first()->user->name,
+                    'prenom_cc'           => $visite->first()->user->prenom,
+                    'date'                => $visite->first()->created_at,
+                    'prospect_id'         => $visite->first()->prospect->id,
+                    'cin'                 => $visite->first()->prospect->cin,
+                    'nom'                 => $visite->first()->prospect->nom,
+                    'prenom'              => $visite->first()->prospect->prenom,
+                    'telephone'           => $visite->first()->prospect->telephone,
+                    'telephone2'          => $visite->first()->prospect->telephone_num2,
+                    'interet'             => $visite->first()->interet,
+                    'statut'              => $visite->first()->statut,
                     'propriete_dite_bien' => $visite->first()->bien_id ? $visite->first()->bien->propriete_dite_bien : '',
-                    'etat_bien' => $visite->first()->bien_id ? $visite->first()->bien->etat : '',
-                    'bien_id' => $visite->first()->bien_id ? $visite->first()->bien_id : '',
-                    'visit_count' => count($visite),
+                    'etat_bien'           => $visite->first()->bien_id ? $visite->first()->bien->etat : '',
+                    'bien_id'             => $visite->first()->bien_id ? $visite->first()->bien_id : '',
+                    'visit_count'         => count($visite),
 
                 ];
             });
@@ -522,12 +519,10 @@ class ProspectController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-
-
     public function upload(Request $request)
     {
         // ✅ Validate that 'jsonData' is required and must not be null
-          $request->validate([
+        $request->validate([
             'jsonData' => 'required',
         ], [
             'jsonData.required' => 'Le champ des données est obligatoire.',
@@ -538,72 +533,71 @@ class ProspectController extends Controller
             ini_set('memory_limit', '-1');
 
             $data = $request->input('jsonData');
-            if(count($data)>0){
-                foreach($data as $row)
-                {
-                    $prospect_cin=0;
-                    $prospect_email=0;
-                    $prospect_tel=0;
-                    $prospect_tel2=0;
+            if (count($data) > 0) {
+                foreach ($data as $row) {
+                    $prospect_cin   = 0;
+                    $prospect_email = 0;
+                    $prospect_tel   = 0;
+                    $prospect_tel2  = 0;
 
                     //cin unique
-                    if (!empty($row['cin'])) {
-                        $prospect_cin=Prospect::on('temp')->where('cin',$row['cin'])->count();
+                    if (! empty($row['cin'])) {
+                        $prospect_cin = Prospect::on('temp')->where('cin', $row['cin'])->count();
                     }
 
                     //tel1 unique
-                    if (!empty($row['telephone'])) {
-                        $prospect_tel=Prospect::on('temp')
-                        ->where(function ($subQuery) use ($row) {
-                            $subQuery->where('telephone',$row['telephone'])
-                                     ->orWhere('telephone_num2', $row['telephone']);
-                        })-> count();
+                    if (! empty($row['telephone'])) {
+                        $prospect_tel = Prospect::on('temp')
+                            ->where(function ($subQuery) use ($row) {
+                                $subQuery->where('telephone', $row['telephone'])
+                                    ->orWhere('telephone_num2', $row['telephone']);
+                            })->count();
                     }
 
                     //tel2 unique
-                    if (!empty($row['telephone_num2'])) {
-                        $prospect_tel2=Prospect::on('temp')
-                        ->where(function ($subQuery) use ($row) {
-                            $subQuery->where('telephone',$row['telephone_num2'])
-                                     ->orWhere('telephone_num2', $row['telephone_num2']);
-                        })-> count();
+                    if (! empty($row['telephone_num2'])) {
+                        $prospect_tel2 = Prospect::on('temp')
+                            ->where(function ($subQuery) use ($row) {
+                                $subQuery->where('telephone', $row['telephone_num2'])
+                                    ->orWhere('telephone_num2', $row['telephone_num2']);
+                            })->count();
                     }
-                    if (!empty($row['email'])) {
-                        $prospect_email=Prospect::on('temp')->where('email',$row['email'])->count();
+                    if (! empty($row['email'])) {
+                        $prospect_email = Prospect::on('temp')->where('email', $row['email'])->count();
                     }
 
-                    if($prospect_cin==0 && $prospect_email==0&&$prospect_tel==0&&$prospect_tel2==0){
-                        $source_id=null;
-                        if(!empty($row['source'])){
-                            $source=Source::on('temp')->where('source',$row['source'])->first();
-                            if($source!=null){
-                                $source_id=$source->id;
+                    if ($prospect_cin == 0 && $prospect_email == 0 && $prospect_tel == 0 && $prospect_tel2 == 0) {
+                        $source_id = null;
+                        if (! empty($row['source'])) {
+                            $source = Source::on('temp')->where('source', $row['source'])->first();
+                            if ($source != null) {
+                                $source_id = $source->id;
                             }
                         }
 
-                        $prospect=new Prospect();
+                        $prospect = new Prospect();
                         $prospect->setConnection("temp");
-                        $prospect->cin = $row['cin'];
-                        $prospect->nom = $row['nom'];
-                        $prospect->prenom = $row['prenom'];
-                        $prospect->telephone = $row['telephone'];
-                        $prospect->telephone_num2 = empty($row['telephone_num2'])?null:$row['telephone_num2'];
-                        $prospect->email = empty($row['email'])?null:$row['email'];
-                        $prospect->origin = 'import';
-                        $prospect->notifie = 0;
-                        $prospect->source = $source_id;
-                        $prospect->partenaire_id =NULL;
-                        $prospect->message = NULL;
-                        $prospect->projet_id = $request->projet_id;
-                        $prospect->ville =empty($row['ville'])?null:$row['ville'];;
+                        $prospect->cin            = $row['cin'];
+                        $prospect->nom            = $row['nom'];
+                        $prospect->prenom         = $row['prenom'];
+                        $prospect->telephone      = $row['telephone'];
+                        $prospect->telephone_num2 = empty($row['telephone_num2']) ? null : $row['telephone_num2'];
+                        $prospect->email          = empty($row['email']) ? null : $row['email'];
+                        $prospect->origin         = 'import';
+                        $prospect->notifie        = 0;
+                        $prospect->source         = $source_id;
+                        $prospect->partenaire_id  = null;
+                        $prospect->message        = null;
+                        $prospect->projet_id      = $request->projet_id;
+                        $prospect->ville          = empty($row['ville']) ? null : $row['ville'];
                         $prospect->save();
                         return response()->json('done');
                     }
 
                 }
-            }else{
-            return response()->json(['error' => 'Le fichier doit être rempli.'], 400);
-                }
+            } else {
+                return response()->json(['error' => 'Le fichier doit être rempli.'], 400);
+            }
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

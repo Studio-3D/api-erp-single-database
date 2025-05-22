@@ -79,10 +79,8 @@ Route::post('/resetPassword/{token}', [UserController::class, 'resetPassword']);
 
 Route::post('/webhook_whtsp', [WhatsAppController::class, 'webhook_whtsp']);
 Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_page']);
-Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class,'handleWebhook']);
-Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class,'verify']);
-
-
+Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class, 'handleWebhook']);
+Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify']);
 
 Route::middleware('auth:api')->group(function () {
 
@@ -199,6 +197,8 @@ Route::middleware('auth:api')->group(function () {
         Route::post('upload_excel_prospect', [V1ProspectController::class, 'upload'])->name('');
         Route::put('traiter_prospect/{id}', [V1ProspectController::class, 'traiter_prospect'])->name('');
         Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
+        Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
+
 
         //l'API client
         Route::resource('clients', V1ClientController::class);
@@ -329,7 +329,8 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('/ReclamationsSav', V1ReclamationsSavController::class);
         Route::get('projets/{idprojet}/ReclamationsSav', [V1ReclamationsSavController::class, 'indexByProjet']);
         Route::get('getBiens_Vendu_ByProjet_Concat/{id}/{text}', [V1BienController::class, 'getBiens_Vendu_ByProjet_Concat'])->name('');
-        Route::put('traiter_reclamation_sav/{id}', [V1ReclamationsSavController::class, 'traiter_reclamation'])->name('');
+        Route::post('traiter_reclamation_sav/{id}', [V1ReclamationsSavController::class, 'traiter_reclamation'])->name('');
+        Route::post('resoudre_reclamation_sav/{id}', [V1ReclamationsSavController::class, 'resoudre_reclamation'])->name('');
 
         //Remise Cles
         Route::resource('/RemiseCles', V1RemiseCleController::class);
@@ -338,7 +339,7 @@ Route::middleware('auth:api')->group(function () {
         //ReclamationsClients
         Route::resource('ReclamationsClients', V1ReclamationsController::class);
         // Route::get('projets/{idprojet}/ReclamationsClients ', [V1ReclamationsController::class, 'indexByProjet']);
-        Route::put('traiter_reclamation_client/{id}', [V1ReclamationsController::class, 'traiter_reclamation_client'])->name('');
+        Route::post('traiter_reclamation_client/{id}', [V1ReclamationsController::class, 'traiter_reclamation_client'])->name('');
 
         //Echéances Tranche
 

@@ -15,7 +15,7 @@ class Reclamation extends Model
 
     protected $table='reclamations';
     protected $dates=['deleted_at'];
-    protected $with = ['prestataire','bien','client'];
+    protected $with = ['prestataire','bien','client','service'];
     //pour repmir les json par array
 
 
@@ -27,6 +27,10 @@ class Reclamation extends Model
     public function prestataire()
     {
         return $this->belongsTo(Prestataire::class,'prestataire_id');
+    }
+    public function service()
+    {
+        return $this->belongsTo(ServicesPrestataires::class,'service_id');
     }
 
     public function bien()

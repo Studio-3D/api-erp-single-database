@@ -9,7 +9,7 @@ use App\Models\Frein_Bien;
 use App\Http\Helpers\FreinBienHelper;
 use App\Models\Frein;
 use App\Models\Notification;
-use App\Models\Relance_Rdv_visite;
+use App\Models\Relance_Rdv_Visite;
 use App\Enum\EtatBien;
 use App\Models\Visite;
 use App\Enum\StatutVisiteEnum;
@@ -325,7 +325,7 @@ class Bien_Helper
                        }
                     }
                 /***RENDRE LES OLD RELANCES ET OLD RDV EN TRAITE AUTOMATIQUE****/
-                    $old_relances_rdv=Relance_Rdv_visite::on('temp')->where('visite_id',$visite->id)->where('type_traitement',0)->get();
+                    $old_relances_rdv=Relance_Rdv_Visite::on('temp')->where('visite_id',$visite->id)->where('type_traitement',0)->get();
                     if(count($old_relances_rdv)>0){
                         foreach($old_relances_rdv as $old){
                             $old->type_traitement=2;//auto
@@ -365,7 +365,7 @@ class Bien_Helper
                        }
                     }
                 /***RENDRE LES OLD RELANCES ET OLD RDV EN TRAITE AUTOMATIQUE****/
-                    $old_relances_rdv=Relance_Rdv_visite::on('temp')->where('visite_id',$traitement_frein->visite_id)->where('type_traitement',0)->get();
+                    $old_relances_rdv=Relance_Rdv_Visite::on('temp')->where('visite_id',$traitement_frein->visite_id)->where('type_traitement',0)->get();
                     if(count($old_relances_rdv)>0){
                         foreach($old_relances_rdv as $old){
                             $old->type_traitement=2;//auto

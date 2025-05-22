@@ -18,4 +18,9 @@ class ServicesPrestataires extends Model
     {
         return $this->hasMany(Prestataire::class,'service_id');
     }
+    
+    public function reclamations()
+    {
+        return $this->hasMany(Reclamation::class,'prestataire_id');
+    }
 }
