@@ -397,7 +397,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/commissions_traites', [V1CommissionController::class, 'commissions_traites']);
         Route::get('projets/{idprojet}/commissions_cumuls_by_projet', [V1CommissionController::class, 'commissions_cumuls_by_projet']);
 
-        // TikTok API Integration - streamlined endpoints
+        // TikTok API Integration - updated with OAuth flow
+        Route::get('/tiktok/auth-url', [TikTokApiController::class, 'getAuthUrl']);
+        Route::post('/tiktok/callback', [TikTokApiController::class, 'handleCallback']);
         Route::post('/tiktok/publish', [TikTokApiController::class, 'publishContent']);
         Route::get('/tiktok/status', [TikTokApiController::class, 'checkPublishStatus']);
 
@@ -493,6 +495,5 @@ Route::middleware('auth:api')->group(function () {
     Route::get('show_contrat/{id}', [LivraisonController::class, 'show_contrat'])->name('');
     Route::put('update_contrat/{cont_id}', [LivraisonController::class, 'update_contrat'])->name('');
     Route::post('scanner_contrat', [LivraisonController::class, 'scanner_contrat'])->name('');
-
 });
 Route::get('sendResetPasswordEmail', [UserController::class, 'sendResetPasswordEmail']);
