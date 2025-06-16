@@ -163,36 +163,98 @@ class LinkedInController extends Controller
                     $uploadUrl = $registerUploadData['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl'];
                     $assetUrn = $registerUploadData['value']['asset'];
                     
-                    // Step 3: Fetch the media content using a more reliable method
+                    // Step 3: Convert HTTP to HTTPS and fetch the media content using APP_URL_HOST
                     try {
-                        // First, try to use Guzzle to download the content
-                        $mediaResponse = $client->get($mediaUrl, [
-                            'timeout' => 30, // Increase timeout for large files
+                        // Always use HTTPS and the proper host for LinkedIn compatibility
+                        $httpsMediaUrl = $mediaUrl;
+                        
+                        // If it's HTTP, convert to HTTPS
+                        if (strpos($mediaUrl, 'http://') === 0) {
+                            $httpsMediaUrl = str_replace('http://', 'https://', $mediaUrl);
+                        }
+                        
+                        // Use APP_URL_HOST if it's available and different from the current URL
+                        $appUrlHost = env('APP_URL_HOST');
+                        if ($appUrlHost) {
+                            // Extract the host from the media URL
+                            $urlParts = parse_url($httpsMediaUrl);
+                            if (isset($urlParts['host'])) {
+                                // Replace the host with APP_URL_HOST (which should be HTTPS)
+                                $httpsMediaUrl = str_replace($urlParts['host'], str_replace(['http://', 'https://'], '', $appUrlHost), $httpsMediaUrl);
+                                
+                                // Ensure it starts with https://
+                                if (!str_starts_with($httpsMediaUrl, 'https://')) {
+                                    $httpsMediaUrl = 'https://' . ltrim($httpsMediaUrl, '/');
+                                }
+                            }
+                        }
+                        
+                        Log::info("LinkedIn media download attempt", [
+                            'original_url' => $mediaUrl,
+                            'https_url' => $httpsMediaUrl
+                        ]);
+                        
+                        // First, try to use Guzzle to download the content with HTTPS
+                        $mediaResponse = $client->get($httpsMediaUrl, [
+                            'timeout' => 30,
+                            'verify' => false, // Disable SSL verification for self-signed certificates
+                            'headers' => [
+                                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                            ]
                         ]);
                         $mediaContent = $mediaResponse->getBody()->getContents();
+                        
+                        Log::info("LinkedIn media download successful", [
+                            'url' => $httpsMediaUrl,
+                            'size' => strlen($mediaContent)
+                        ]);
+                        
                     } catch (\Exception $e) {
-                        // If the URL is from our own server, try using an absolute URL
-                        if (strpos($mediaUrl, 'localhost') !== false || strpos($mediaUrl, '127.0.0.1') !== false) {
-                            // Try using your hosted domain instead of localhost
-                            $hostedUrl = str_replace(['localhost', '127.0.0.1'], env('APP_URL_HOST', 'your-hosted-domain.com'), $mediaUrl);
-                            
-                            $mediaResponse = $client->get($hostedUrl, [
+                        Log::warning("HTTPS download failed, trying fallback methods: " . $e->getMessage(), [
+                            'url' => $httpsMediaUrl
+                        ]);
+                        
+                        // Fallback 1: Try with different SSL options
+                        try {
+                            $mediaResponse = $client->get($httpsMediaUrl, [
                                 'timeout' => 30,
+                                'verify' => false,
+                                'allow_redirects' => true,
+                                'headers' => [
+                                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                    'Accept' => 'image/*,*/*;q=0.8'
+                                ]
                             ]);
                             $mediaContent = $mediaResponse->getBody()->getContents();
-                        } else {
-                            // If all else fails, try using cURL directly
+                        } catch (\Exception $e2) {
+                            Log::warning("Guzzle fallback failed, trying cURL: " . $e2->getMessage());
+                            
+                            // Fallback 2: Use cURL with custom options
                             $ch = curl_init();
-                            curl_setopt($ch, CURLOPT_URL, $mediaUrl);
+                            curl_setopt($ch, CURLOPT_URL, $httpsMediaUrl);
                             curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
                             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
                             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+                            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                'Accept: image/*,*/*;q=0.8'
+                            ]);
                             $mediaContent = curl_exec($ch);
+                            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                            $curlError = curl_error($ch);
                             curl_close($ch);
                             
-                            if (!$mediaContent) {
-                                throw new \Exception("Could not download media from URL using any method: {$mediaUrl}");
+                            if (!$mediaContent || $httpCode !== 200) {
+                                throw new \Exception("Could not download media from URL. HTTP Code: {$httpCode}. cURL Error: {$curlError}. Original URL: {$mediaUrl}, HTTPS URL: {$httpsMediaUrl}");
                             }
+                            
+                            Log::info("LinkedIn media download successful via cURL", [
+                                'url' => $httpsMediaUrl,
+                                'http_code' => $httpCode,
+                                'size' => strlen($mediaContent)
+                            ]);
                         }
                     }
                     

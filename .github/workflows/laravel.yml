@@ -79,7 +79,7 @@ jobs:
             docker compose -f docker-compose.prod.yml down
             
             # Build and start the production environment
-            ./start-ssl-api.sh
+            ./start-prod.sh
             
             # Check if the containers are running
             docker ps

@@ -1566,10 +1566,19 @@ class BienController extends Controller
                 $bien->save();
             }
 
+            // Generate HTTPS URL for the media
+            $mediaUrl = route('media.show', ['path' => $filePath]);
+            
+            // Force HTTPS if APP_URL_HOST is set with HTTPS
+            $appUrlHost = env('APP_URL_HOST');
+            if ($appUrlHost && str_contains($appUrlHost, 'https://')) {
+                $mediaUrl = str_replace('http://', 'https://', $mediaUrl);
+            }
+
             return response()->json([
                 'message' => 'Media uploaded successfully',
                 'media' => $media,
-                'url' => route('media.show', ['path' => $filePath])
+                'url' => $mediaUrl
             ], 201);
         }
 
@@ -1590,13 +1599,21 @@ class BienController extends Controller
 
         return response()->json([
             'media' => $media->map(function($item) {
+                $mediaUrl = route('media.show', ['path' => $item->file_path]);
+                
+                // Force HTTPS if APP_URL_HOST is set with HTTPS
+                $appUrlHost = env('APP_URL_HOST');
+                if ($appUrlHost && str_contains($appUrlHost, 'https://')) {
+                    $mediaUrl = str_replace('http://', 'https://', $mediaUrl);
+                }
+                
                 return [
                     'id' => $item->id,
                     'file_type' => $item->file_type,
                     'title' => $item->title,
                     'description' => $item->description,
                     'is_featured' => $item->is_featured,
-                    'url' => route('media.show', ['path' => $item->file_path]),
+                    'url' => $mediaUrl,
                     'created_at' => $item->created_at,
                 ];
             }),
