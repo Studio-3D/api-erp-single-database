@@ -56,6 +56,7 @@ return new class extends Migration
         $table->foreignId('user_id_valider')->nullable()->constrained('users')->onDelete('cascade');
         $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
         $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+        $table->string('type_remb')->nullable();
         $table->timestamps();
         $table->softDeletes();
     });

@@ -66,7 +66,7 @@ class HomeController extends Controller
                     ->whereDate('created_at', Carbon::now());
                     if ($projet_id!=0) {
                         $query_v_now->where('projet_id',  $projet_id );
-                        
+
                     }
                     $nb_visites_now = $query_v_now->count();
 
@@ -474,7 +474,7 @@ class HomeController extends Controller
             }
            $nb_clients=$query_client->count();
 
-            /**********************Reclamations*************** statut ==>0 *********/
+            /**********************Reclamations*************** statut ==>0 ********
             $query_reclamations = DB::connection('mysql_client')->table('reclamations')
            // ->Leftjoin('erp_societe_principal_10.users as users_traite','users_traite.id','=','reclamations.user_id_traite')
             ->Leftjoin('erp_societe_principal_10.reservations','reservations.id','=','reclamations.dossier_id');
@@ -637,8 +637,8 @@ class HomeController extends Controller
             'nb_appels'=>$nb_appels,
             'nb_prospects'=>$nb_prospects,
             'nb_clients'=>$nb_clients,
-            'reclamations_clients'=>$reclamations,
-            'count_reclamation'=>$count_reclamation,
+            'reclamations_clients'=>[],
+            'count_reclamation'=>0,
             'echeances'=>$echeances,
             'nb_echeances'=>$nb_echeance,
             'biens'=>$Array_biens_etat,
