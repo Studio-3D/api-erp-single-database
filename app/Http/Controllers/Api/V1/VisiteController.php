@@ -146,6 +146,15 @@ class VisiteController extends Controller
                     });
                 });
             }
+            if ($request->filled('user_id')) {
+                $realUserId = User::on('temp')
+                    ->where('user_id_origin', $request->user_id)
+                    ->value('id');
+
+                if ($realUserId) {
+                    $query->where('user_id', $realUserId);
+                }
+            }
 
             if ($request->filled('bien')) {
                 $query->whereHas('bien', function ($q) use ($request) {
@@ -204,6 +213,7 @@ class VisiteController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
 
     public function get_historiques($origin_id)
     {
@@ -323,7 +333,7 @@ class VisiteController extends Controller
                 $validatedData['email']     = $request->email;
                 $validatedData['source']    = $request->source_id;
                 $validatedData['projet_id'] = $request->selectedProjet;
-
+                
                 if ($request->source_txt == 'Partenaire') {
                     $validatedData['partenaire_id'] = $request->partenaire_id;
                 } else {
@@ -348,7 +358,7 @@ class VisiteController extends Controller
                     $prospect->client_id = $request->client_id;
                     $prospect->save();
                 }
-
+                
             } else {
                 //recupere le prospect //modifier info
                 $prospect = Prospect::on('temp')->findorfail($request->prospect_id);

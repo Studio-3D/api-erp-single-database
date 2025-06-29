@@ -99,6 +99,18 @@ class ReservationController extends Controller
             if ($request->filled('date_reservation')) {
                 $query->where('date_reservation', $request->input('date_reservation'));
             }
+            if ($request->filled('user_id')) {
+                $realUserId = User::on('temp')
+                    ->where('user_id_origin', $request->user_id)
+                    ->value('id');
+
+                if ($realUserId) {
+                    $query->where('user_id', $realUserId)
+                        ->where('etat', 1); // ou 'statut' selon le champ de ta base
+                } 
+            }
+
+
             if ($request->filled('client_id')) {
                 $query->whereHas('Aquereurs.client', function ($q) use ($request) {
                     $q->where(function ($q) use ($request) {
