@@ -53,9 +53,9 @@ use App\Http\Controllers\Landing_page\Landing_pageController;
 use App\Http\Controllers\LivraisonController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SocieteController;
+use App\Http\Controllers\TikTok\TikTokApiController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsApp\WhatsAppController;
-use App\Http\Controllers\TikTok\TikTokApiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -98,6 +98,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('commerciaux_objectif/{projet_id}', [V1UserController::class, 'list_commerciaux_objectif'])->name('');
         Route::get('commerciaux/{projet_id}', [V1UserController::class, 'list_commerciaux'])->name('');
         Route::get('get_commerciaux/{projet_id}', [V1UserController::class, 'get_commerciaux'])->name('get_users');
+        Route::post('/utilisateurs/{id}', [V1UserController::class, 'update']);
 
         // l'API societes
         Route::resource('societes', V1SocieteController::class);
@@ -203,7 +204,6 @@ Route::middleware('auth:api')->group(function () {
         Route::put('traiter_prospect/{id}', [V1ProspectController::class, 'traiter_prospect'])->name('');
         Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
         Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
-
 
         //l'API client
         Route::resource('clients', V1ClientController::class);
@@ -323,7 +323,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('files_docs_by_code/{docs}/{code}', [V1PiecesJointeController::class, 'files_docs_by_code'])->name('files_docs_by_code');
 
         Route::get('files_docs/{docs}', [V1PiecesJointeController::class, 'files_docs'])->name('files_docs');
-       Route::post('scanner_file', [V1PiecesJointeController::class, 'scanner_file'])->name('scanner_file');
+        Route::post('scanner_file', [V1PiecesJointeController::class, 'scanner_file'])->name('scanner_file');
 
         //sav
         Route::resource('ServicesPrestataires', V1ServicesPrestatairesController::class);
@@ -475,7 +475,7 @@ Route::middleware('auth:api')->group(function () {
     Route::put('traiter_rdv_reservation/{rdv_id}', [LivraisonController::class, 'traiter_rdv_reservation'])->name('');
     Route::delete('destroy_rdv_reservation/{id}', [LivraisonController::class, 'destroy_rdv_reservation'])->name('');
     Route::get('get_rdv_notaire_menu/{projet_id}', [LivraisonController::class, 'get_rdv_notaire_menu'])->name('');
-   //Rendez Vous
+    //Rendez Vous
     Route::get('creneaux-occupes', [LivraisonController::class, 'getCreneauxOccupes']);
 
     /************compromis vente******/

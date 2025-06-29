@@ -228,12 +228,52 @@ class ClientController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $client = Client::on('temp')->with('reservations')->findOrFail($id);
-            return response()->json(['client' => $client], 200);
 
+            $client = Client::on('temp')->findOrFail($id);
+            $reservations = $client->reservations()->with([
+                'bien', 'user', 'projet', 'aquereurs.client'
+            ])->get();
+
+            $visites = Visite::on('temp')
+                ->where('etat', 1)
+                ->where('prospect_id', $client->prospect_id)
+                ->latest('created_at')
+                ->get();
+
+            $groupedVisites = $visites->groupBy('origin_id')->map(function ($visite) {
+                $firstVisite = $visite->first();
+                return [
+                    'id'                  => $firstVisite->id,
+                    'origin_id'           => $firstVisite->origin_id,
+                    'nom_cc'              => $firstVisite->user ? $firstVisite->user->name : null,
+                    'prenom_cc'           => $firstVisite->user ? $firstVisite->user->prenom : null,
+                    'date'                => $firstVisite->created_at,
+                    'cin'                 => $firstVisite->prospect ? $firstVisite->prospect->cin : null,
+                    'nom'                 => $firstVisite->prospect ? $firstVisite->prospect->nom : null,
+                    'prenom'              => $firstVisite->prospect ? $firstVisite->prospect->prenom : null,
+                    'telephone'           => $firstVisite->prospect ? $firstVisite->prospect->telephone : null,
+                    'telephone2'          => $firstVisite->prospect ? $firstVisite->prospect->telephone_num2 : null,
+                    'prospect_id'         => $firstVisite->prospect ? $firstVisite->prospect->id : null,
+                    'interet'             => $firstVisite->interet,
+                    'statut'              => $firstVisite->statut,
+                    'propriete_dite_bien' => $firstVisite->bien ? $firstVisite->bien->propriete_dite_bien : '',
+                    'etat_bien'           => $firstVisite->bien ? $firstVisite->bien->etat : '',
+                    'bien_id'             => $firstVisite->bien_id ?? '',
+                    'visit_count'         => $visite->count(),
+                    'reservation'         => $firstVisite->reservation ?? null,
+                ];
+            });
+
+            return response()->json([
+                'client'       => $client,
+                'reservations' => $reservations,
+                'visites'      => $groupedVisites->values(),
+            ], 200);
         }
+
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
 
     /**
      * Show the form for editing the specified resource.
