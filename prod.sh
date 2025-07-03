@@ -34,8 +34,8 @@ echo "MySQL server is now available."
 php artisan migrate --force
 echo "Database migrated successfully"
 
-php artisan db:seed --force
-echo "Database seeded successfully"
+# php artisan db:seed --force
+# echo "Database seeded successfully"
 
 php artisan passport:install --force
 echo "Passport installed successfully"
