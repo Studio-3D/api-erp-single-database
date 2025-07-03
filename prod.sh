@@ -31,18 +31,15 @@ done
 
 echo "MySQL server is now available."
 
-# Run migrations (with --force to run in production)
 php artisan migrate --force
 echo "Database migrated successfully"
 
-# Only seed if needed in production (be careful with this)
-# php artisan db:seed --force
-# echo "Database seeded successfully"
+php artisan db:seed --force
+echo "Database seeded successfully"
 
 php artisan passport:install --force
 echo "Passport installed successfully"
 
-# Check if pusher:install command exists (Laravel may not have this command by default)
 if php artisan | grep -q "pusher:install"; then
     php artisan pusher:install
     echo "Pusher installed successfully"

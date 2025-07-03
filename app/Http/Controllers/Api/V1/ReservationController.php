@@ -778,7 +778,7 @@ class ReservationController extends Controller
                         $bienController->reserverBien($request->input('bien_id'), null, $reservation->id);
                         //liberer l'ancien bien
                         Bien_Helper::libererBien($old_bien_id, null, null);
-                       /* //store to historique reservation
+                        //store to historique reservation
                         $histo = new HistoReservation();
                         $histo->setConnection('temp');
                         $histo->reservation_id = $reservation->id;
@@ -786,7 +786,7 @@ class ReservationController extends Controller
                         $histo->bien_id = $old_bien_id;
                         $histo->action=1;
                         $histo->description = json_encode(['bien' => $changes['bien']]);
-                        $histo->save();*/
+                        $histo->save();
                         //store notif to all commerciaux
                         $commerciaux = User::on('temp')->where('role', 3)->get();
                         foreach ($commerciaux as $comm) {

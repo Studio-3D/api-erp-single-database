@@ -26,12 +26,10 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"      # HTTP
-      - "443:443"    # HTTPS
+      - "80:80"      # HTTP only
     volumes:
       - ./:/var/www/html
       - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/ssl:/etc/nginx/ssl
     depends_on:
       - app
     networks:

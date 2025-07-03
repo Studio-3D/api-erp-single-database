@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
@@ -21,17 +22,17 @@ class StoreClientRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "type_client"          => "required",
-            "prenom"               => "required|string",
-            "telephone_num1"       => "required|min:10|max:14",
-            "telephone_num2"       => "nullable|min:10|max:14",
-            "notifie"              => "integer",
-            "cin"                  => "required",
-            "date_naissance"       => "date|nullable",
-            "age"                  => "integer|nullable",
-            "date_mariage"         => "date|nullable",
-            "situation_familliale" => "required",
-            "civilite"             => "required",
+            "type_client" => "required|string",
+            "prenom" => "required|string",
+            "telephone_num1" => "required|min:10|max:14",
+            "telephone_num2" => "nullable|min:10|max:14",
+            "notifie" => "integer",
+            "cin" => "required",
+            "date_naissance" => "date|nullable",
+            "age" => "integer|nullable",
+            "date_mariage" => "date|nullable",
+            "situation_familliale" => "required|string",
+            "civilite" => "required|string",
 
         ];
     }
