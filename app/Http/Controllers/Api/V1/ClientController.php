@@ -204,7 +204,7 @@ class ClientController extends Controller
             $client->lieu_mariage         = $request->lieu_mariage;
             $client->nom_pere             = $request->nom_pere;
             $client->nom_mere             = $request->nom_mere;
-            $client->prospect_id          = $request->prospect_id;
+            $client->prospect_id          = $request->prospect_id==''?null:$request->prospect_id;
             $client->code_client          = $request->cin . '_' . $request->nom . '_' . $request->prenom;
             $client->password             = '01020304';
             if ($client->save()) {

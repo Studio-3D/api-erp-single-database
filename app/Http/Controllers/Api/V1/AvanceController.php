@@ -85,7 +85,13 @@ class AvanceController extends Controller
                         $sum_avances += $av->montant;
                     }
                 }
-            } else {
+                /*avances valides*/
+                $sum_avances_valides = Avance::on('temp')
+                    ->where('reservation_id', $reservation_id)
+                    ->where('statut', StatutReservationEnum::Validé->value)
+                    ->sum('montant');
+
+                } else {
                 // Requête pour les avances supprimées (dossier désisté)
                 $query = Avance::on('temp')
                     ->with('last_statut')
@@ -101,7 +107,12 @@ class AvanceController extends Controller
                         $sum_avances += $av->montant;
                     }
                 }
-            }
+                $sum_avances_valides = Avance::on('temp')
+                    ->withTrashed()
+                    ->where('reservation_id', $reservation_id)
+                    ->where('statut', StatutReservationEnum::Validé->value)
+                    ->sum('montant');
+                }
 
             // Application des filtres supplémentaires
             if ($request->filled('numero_paiement')) {
@@ -145,6 +156,7 @@ class AvanceController extends Controller
                 'data' => $avances->items(),
                 'pagination' => $pagination,
                 'sum_avances' => $sum_avances,
+                'sum_avances_valides' => $sum_avances_valides,
                 'prix' => $reservation->prix,
                 'etat_res' => $reservation->etat,
             ], 200);
@@ -396,7 +408,7 @@ class AvanceController extends Controller
                     Config::set('broadcasting.default', 'pusher_3');
 
                     $data_notif = [
-                        'lien' => '/reservations/show/' . $avance->reservation_id,
+                        'lien' => '/ventes/reservations/' . $avance->reservation_id,
                         'date' => Carbon::now(),
                         'type' => 17,
                         'description' => 'avance validé',
@@ -450,7 +462,7 @@ class AvanceController extends Controller
                     //store new notification rejeté
                     Config::set('broadcasting.default', 'pusher_3');
                     $data_notif = [
-                        'lien' => '/reservations/show/' . $avance->reservation_id,
+                        'lien' => '/ventes/reservations/' . $avance->reservation_id,
                         'date' => Carbon::now(),
                         'type' => 18,
                         'description' => 'avance rejeté',
@@ -611,7 +623,7 @@ class AvanceController extends Controller
                 if ($avance->echeance != null) {
                     Config::set('broadcasting.default', 'pusher_3');
                     $data_notif = [
-                        'lien' => '/reservations/show/'.$avance->reservation_id,
+                        'lien' => '/ventes/reservations/'.$avance->reservation_id,
                         'date' => $avance->echeance,
                         'type' => 5,
                         'description' => 'ECHEANCE',
@@ -641,7 +653,7 @@ class AvanceController extends Controller
                         Config::set('broadcasting.default', 'pusher_3');
                         $data_notif = [
                            // 'lien' => '/reservations/show/'.$avance->reservation_id,
-                            'lien'=>'/validation/avances/attente',
+                            'lien'=>'/ventes/validations/avances',
                             'date' => Carbon::now(),
                             'type' => 7,
                             'user_id'=>null,
@@ -1095,7 +1107,7 @@ class AvanceController extends Controller
                     Config::set('broadcasting.default', 'pusher_3');
                     if ($avance->echeance != null) {
                         $data_notif = [
-                            'lien' => '/reservations/show/' . $avance->reservation_id,
+                            'lien' => '/ventes/reservations/' . $avance->reservation_id,
                             'date' => $avance->echeance,
                             'type' => 5,
                             'description' => 'ECHEANCE',
@@ -1120,7 +1132,7 @@ class AvanceController extends Controller
                     //si commercial==> demande validation du paiement
                     if (RoleHelper::Com()) {
                         $data_notif = [
-                            'lien' => '/reservations/show/' . $avance->reservation_id,
+                            'lien' => '/ventes/reservations/' . $avance->reservation_id,
                             'date' => Carbon::now(),
                             'type' => 7,
                             'user_id'=>null,
@@ -1140,7 +1152,7 @@ class AvanceController extends Controller
                             Config::set('broadcasting.default', 'pusher_3');
                             $data_notif = [
                                // 'lien' => '/reservations/show/'.$avance->reservation_id,
-                                'lien'=>'/validation/avances/attente',
+                                'lien'=>'/ventes/validations/avances',
                                 'date' => Carbon::now(),
                                 'type' => 7,
                                 'user_id'=>null,

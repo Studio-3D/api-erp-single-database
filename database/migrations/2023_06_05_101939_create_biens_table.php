@@ -44,7 +44,7 @@ return new class extends Migration
             $table->double('superficie_vendable', 12, 2);
             $table->enum('etat', [EtatBien::DISPONIBLE->name, EtatBien::PRE_RESERVATION->name, EtatBien::RESERVATION->name, EtatBien::BLOQUE->name, EtatBien::VENDU->name, EtatBien::ENCOURS_DE_PROPOSITION->name]); //1=disponible, 2=pré-réservé, 3=réservé, 4=bloqué
             $table->foreignId('type_id')->constrained('type_biens');
-            $table->foreignId(column: 'projet_id')->constrained('projets')->onDelete('cascade');
+            $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
             $table->foreignId('tranche_id')->nullable()->constrained('tranches')->onDelete('cascade');
             $table->foreignId('bloc_id')->nullable()->constrained('blocs')->onDelete('cascade');
             $table->foreignId('immeuble_id')->nullable()->constrained('immeubles')->onDelete('cascade');

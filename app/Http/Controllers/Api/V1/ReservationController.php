@@ -107,7 +107,7 @@ class ReservationController extends Controller
                 if ($realUserId) {
                     $query->where('user_id', $realUserId)
                         ->where('etat', 1); // ou 'statut' selon le champ de ta base
-                } 
+                }
             }
 
 
@@ -375,18 +375,20 @@ class ReservationController extends Controller
                     $aquereurRequest->merge($dataAquereur);
                     $aquereurController->store($aquereurRequest);
                 } else {
-                    // Parse the string back to an array
+                   // Parse the string back to an array
                     $dataArray_clients = json_decode($request->input('clients'), true);
                     $dataArrayString = $request->input('oldClients', '[]');
-
                     $dataArray_oldClients = json_decode($dataArrayString, true); // Ensure it's an array
 
                     // Check if it's an array and not null
-
                     if ($dataArray_clients) {
-                        foreach ($dataArray_clients as $clientInfo) {
+                        foreach ($dataArray_clients as &$clientInfo) {  // Note the & for reference to modify the array
+                            // Add projet_id to each client info
+                            $clientInfo['projet_id'] = $request->projet_id;
+
                             $clientRequest->merge($clientInfo);
                             $clientData = $clientController->store($clientRequest);
+
                             $dataAquereur = [
                                 'pourcentage' => $clientInfo['pourcentage'],
                                 'client_id' => $clientData->id,
@@ -395,6 +397,7 @@ class ReservationController extends Controller
                             $aquereurRequest->merge($dataAquereur);
                             $aquereurController->store($aquereurRequest);
                         }
+                        unset($clientInfo); // Break the reference
                     }
                     if ($dataArray_oldClients) {
                         foreach ($dataArray_oldClients as $clientInfo) {
@@ -503,31 +506,7 @@ class ReservationController extends Controller
             return response()->json(['reservation' => $reservation]);
         }
     }
-    /*public function info_reservation($id)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $reservation = Reservation::on('temp')->with('remboursement_dd_with_transfert')->findOrFail($id);
-            $statut = $reservation->statut;
-            $nb_histo = count($reservation->historiques);
-            $etat = $reservation->etat;
-            $code = $reservation->code_reservation;
-            $code_desistement = $reservation->code_desistement;
-            $prix = $reservation->prix;
-            $user_id = $reservation->user_id;
-            if ($reservation->etat > 1) {
-                $nb_aq = count($reservation->aquereurs_ancien);
-                $nb_pj = count($reservation->piece_jointe_desiste);
-            } else {
-                $nb_aq = count($reservation->aquereurs);
-                $nb_pj = count($reservation->piece_jointe);
-            }
-            $nb_av = count($reservation->avances);
-            return response()->json(['code_res' => $code, 'code_desistement' => $code_desistement, 'prix' => $prix, 'nb_aquer' => $nb_aq, 'nb_av' => $nb_av, 'nb_pj' => $nb_pj, 'etat' => $etat, 'transfert' => $reservation->remboursement_dd_with_transfert, 'statut' => $statut, 'user_id' => $user_id, 'nb_histo' => $nb_histo], 200);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-    }*/
+
     public function info_reservation($id)
     {
         if (RoleHelper::ACSup()) {
@@ -579,7 +558,7 @@ class ReservationController extends Controller
     {
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $reservation = Reservation::on('temp')->with('desistements_ancien','rdv','avances','last_statut','contrat_vente')->findOrFail($id);
+            $reservation = Reservation::on('temp')->with('desistements_ancien','rdv','avances','last_statut','contrat_vente','piece_jointe_desiste','piece_jointe','remboursement_dd_with_transfert')->findOrFail($id);
 
             //get nom propriete _dite_bien concat
             $propriete = null;
@@ -778,7 +757,7 @@ class ReservationController extends Controller
                         $bienController->reserverBien($request->input('bien_id'), null, $reservation->id);
                         //liberer l'ancien bien
                         Bien_Helper::libererBien($old_bien_id, null, null);
-                       /* //store to historique reservation
+                        //store to historique reservation
                         $histo = new HistoReservation();
                         $histo->setConnection('temp');
                         $histo->reservation_id = $reservation->id;
@@ -786,13 +765,13 @@ class ReservationController extends Controller
                         $histo->bien_id = $old_bien_id;
                         $histo->action=1;
                         $histo->description = json_encode(['bien' => $changes['bien']]);
-                        $histo->save();*/
+                        $histo->save();
                         //store notif to all commerciaux
                         $commerciaux = User::on('temp')->where('role', 3)->get();
                         foreach ($commerciaux as $comm) {
                             Config::set('broadcasting.default', 'pusher_3');
                             $data_notif = [
-                                'lien' => '/reservations/show/' . $id,
+                                'lien' => '/ventes/reservations/' . $id,
                                 'date' => Carbon::now(),
                                 'type' => 8,
                                 'user_id' => $comm->user_id_origin,
@@ -839,6 +818,7 @@ class ReservationController extends Controller
 
                 if ($dataArray_clients) {
                     foreach ($dataArray_clients as $clientInfo) {
+                        $clientInfo['projet_id'] = $reservation->projet_id;
                         $clientRequest->merge($clientInfo);
                         $clientData = $clientController->store($clientRequest);
                         $dataAquereur = [
@@ -1360,7 +1340,7 @@ class ReservationController extends Controller
                 //store new notification validé
                 Config::set('broadcasting.default', 'pusher_3');
                 $data_notif = [
-                    'lien' => '/reservations/show/' . $id,
+                    'lien' => '/ventes/reservations/' . $id,
                     'date' => Carbon::now(),
                     'type' => 15,
                     'user_id' => $reservation->user->user_id_origin,
@@ -1381,7 +1361,7 @@ class ReservationController extends Controller
                 //store new notification rejeté
                 Config::set('broadcasting.default', 'pusher_3');
                 $data_notif = [
-                    'lien' => '/reservations/show/' . $id,
+                    'lien' => '/ventes/reservations/' . $id,
                     'date' => Carbon::now(),
                     'type' => 16,
                     'user_id' => $reservation->user->user_id_origin,

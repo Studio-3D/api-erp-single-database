@@ -36,59 +36,66 @@ class RemboursementController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le
-            $query = Remboursement::on('temp')->with('desistement_not_trashed','aquereur','banque')->where('etat',1)->where('archive',0)->where('mode_rembourse','!=','transfert');
+            $query = Remboursement::on('temp')->with('desistement_not_trashed','aquereur','banque')->where('archive',0)->where('etat', 1)->where('mode_rembourse','!=','transfert');
             $query->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
                 $q->where('projet_id', $projet_id);
             });
 
 
 
-            if(RoleHelper::AdminSup()){
-                // demande de pre remboursemen (apres vente) $action==0
-                //3= attente accuses du chéque
-                if($action==3){
-                $query->where(function ($q) {
-                    $q->where('remboursements.statut', 1)
-                        ->orwhere('remboursements.statut',0)
-                ;})->where('cheque_client_signe',NULL)
-                ->where('user_id_remis',NULL);
-                }
-                elseif($action==1){
-                    $query->where('user_id_remis','!=',NULL)->where('statut',2);
-                }
-                 //2=Liste des Accusé
-                elseif($action==2){
-                    $query->where('statut',3)
-                    ->where('date_decaissement','!=',NULL)
-                    ->where('banque_id','!=',NULL);
-                }
+           if (RoleHelper::AdminSup()) {
+                switch ($action) {
+                    case 0: // Demande de pré-remboursement
+                        $query->where('remboursements.statut', 0)
+                            ->whereNull('cheque_client_signe')
+                            ->whereNull('user_id_remis');
+                         break;
 
-            }elseif(RoleHelper::Com()){
+                    case 1: // Remboursements remis
+                        $query->whereNotNull('user_id_remis')
+                            ->where('statut', 2);
+                        break;
 
+                    case 2: // Liste des accusés
+                        $query->where('statut', 3)
+                            ->whereNotNull('date_decaissement')
+                            ->whereNotNull('banque_id');
+                        break;
+
+                    case 3: // Attente accusés du chèque
+                        $query->where('remboursements.statut', 1)
+                            ->whereNull('cheque_client_signe')
+                            ->whereNull('user_id_remis');
+                        break;
+                }
+            } elseif (RoleHelper::Com()) {
                 $user = Auth::user();
-                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-                $query->whereHas('desistement_not_trashed', function ($q) use ($userAuth) {
-                    $q->where('user_id',  $userAuth->value('id'));
-                });
-                if($action==3){
-                    $query->where(function ($s) {
-                        $s->where('statut', 1)
-                            ->orwhere('statut',0)
-                    ;})
-                    ->where('cheque_client_signe',NULL)
-                    ->where('user_id_remis',NULL);
-                }
-                 //4==> accuses_cheque_traiter par user_id
-                elseif($action==4){
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
 
-                    $query->where('statut',2)->where('user_id_remis',$userAuth->value('id'));
+                $query->whereHas('desistement_not_trashed', fn($q) => $q->where('user_id', $userAuth->id));
 
+                switch ($action) {
+                    case 0: // Demande de pré-remboursement
+                        $query->where('statut', 0)
+                            ->whereNull('cheque_client_signe')
+                            ->whereNull('user_id_remis');
+                        break;
+
+                    case 3: // Attente accusés du chèque
+                        $query->where('statut', 1)
+                            ->whereNull('cheque_client_signe')
+                            ->whereNull('user_id_remis');
+                        break;
+
+                    case 4: // Accusés chèque traités
+                        $query->where('statut', 2)
+                            ->where('user_id_remis', $userAuth->id);
+                        break;
                 }
             }
-
             if ($request->filled('bien')) {
                 $query->whereHas('desistement_not_trashed.bien_ancien', function ($q) use ($request) {
-                    $q->where('propriete_dite_bien', $request->input('bien'));
+                    $q->where('propriete_dite_bien','like',$request->input('bien'));
                 });
             }
 
@@ -216,7 +223,7 @@ class RemboursementController extends Controller
             if ($request->hasFile('cheque_recu')) {
                 $remboursement->cheque =$request->file('cheque_recu')->getClientOriginalName();
                 $remboursement->cheque_client_signe =$request->file('cheque_recu')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus');
+                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus/'.$codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
             }
@@ -267,7 +274,7 @@ class RemboursementController extends Controller
                 if(RoleHelper::Com()){
                     //si commercial ==> envoi notif au admin que client a pris le cheque de remboursement
                     $data_notif = [
-                        'lien' =>  '/remboursements/att_decaissement',
+                        'lien' =>  '/ventes/remboursements/att_decaissement',
                         'date' => Carbon::now(),
                         'type' =>21,
                         'role'=>RoleEnum::ADMIN->value,
@@ -372,7 +379,6 @@ class RemboursementController extends Controller
             }
 
              if ($request->filled('montant')) {
-
                  $query->where('montant_transfert','like', '%' . $request->input('montant') . '%');
              }
 

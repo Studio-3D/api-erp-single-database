@@ -114,6 +114,10 @@ class Bien extends Model
    {
        return $this->hasMany(Reservation::class,'bien_id');
    }
+   public function all_reservations_active()
+   {
+       return $this->hasMany(Reservation::class,'bien_id')->where('etat',1);
+   }
 
    public function all_propositions()
    {

@@ -38,7 +38,7 @@ class AquereurController extends Controller
         return response()->json(['error' => 'Unauthorized'],401);
     }
 
-    public function getAquereurByReservation(Request $request, $reservation_id)
+   /* public function getAquereurByReservation(Request $request, $reservation_id)
 {
     if (RoleHelper::ACSup()) {
         DatabaseHelper::Config();
@@ -63,26 +63,26 @@ class AquereurController extends Controller
                 $q->where('nom', 'like', '%' . $request->input('nom') . '%');
             });
         }
-        
+
         if ($request->filled('cin')) {
             $query->whereHas('client', function ($q) use ($request) {
                 $q->where('cin', 'like', '%' . $request->input('cin') . '%');
             });
         }
-        
+
         if ($request->filled('prenom')) {
             $query->whereHas('client', function ($q) use ($request) {
                 $q->where('prenom', 'like', '%' . $request->input('prenom') . '%');
             });
         }
-        
+
         if ($request->filled('telephone')) {
             $query->whereHas('client', function ($q) use ($request) {
                 $q->where('telephone_num1', 'like', '%' . $request->input('telephone') . '%')
                   ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
             });
         }
-        
+
         if ($request->filled('pourcentage')) {
             $query->where('pourcentage', 'like', '%' . $request->input('pourcentage') . '%');
         }
@@ -106,7 +106,7 @@ class AquereurController extends Controller
     } else {
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-}
+}*/
 
 
 
@@ -143,24 +143,51 @@ class AquereurController extends Controller
         return  response()->json(['error','Unauthorized'],401);
     }
 
-    public function store_aquereurs_desistement(Request $request)
-    {
-        if(RoleHelper::ACSup()){
-            DatabaseHelper::Config();
-            $aquereur=new AquereurDesistement();
-            $aquereur->setConnection('temp');
-            $aquereur->desistement_id=$request->desistement_id;
-            $aquereur->pourcentage=$request->pourcentage;
-            $aquereur->client_id=$request->client_id;
-            $aquereur->aq_id=$request->aq_id;
-            //desisteur ou profit
-            $aquereur->type=$request->type_desisteur;
-            if($aquereur->save()){
-                return response()->json(['Aquérreur',$aquereur],200);
-            }
-        }
-        return  response()->json(['error','Unauthorized'],401);
+   public function store_aquereurs_desistement(Request $request)
+{
+    if(!RoleHelper::ACSup()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+    DatabaseHelper::Config();
+
+    try {
+        $cl_id = $request->client_id;
+
+        if(empty($cl_id)) {
+            $aq = Aquereur::on('temp')->find($request->aq_id);
+
+            if(!$aq) {
+                return response()->json([
+                    'error' => 'Aquereur not found',
+                    'aq_id' => $request->aq_id
+                ], 404);
+            }
+
+            $cl_id = $aq->client_id;
+        }
+
+        $aquereur = new AquereurDesistement();
+        $aquereur->setConnection('temp');
+        $aquereur->desistement_id = $request->desistement_id;
+        $aquereur->pourcentage = $request->pourcentage;
+        $aquereur->client_id = $cl_id;
+        $aquereur->aq_id = $request->aq_id;
+        $aquereur->type = $request->type_desisteur;
+
+        if($aquereur->save()) {
+            return response()->json(['Aquérreur' => $aquereur], 200);
+        }
+
+        return response()->json(['error' => 'Failed to save'], 500);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Server error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
     public function store_new_aquereurs_desistement(Request $request)
     {
         if(RoleHelper::ACSup()){

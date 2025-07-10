@@ -33,7 +33,6 @@ use App\Http\Requests\UpdateDate_relance_Rdv;
 use App\Events\NotifMenuEvent;
 use App\Models\StatutProspect;
 use App\Http\Controllers\NotificationController;
-use App\Models\Client;
 
 
 
@@ -62,10 +61,6 @@ class AppelController extends Controller
                 $query->whereHas('prospect', function ($q) use ($request) {
                     $q->where('nom', 'like', '%' . $request->input('nom') . '%');
                 });
-            }
-            if ($request->filled('client_id')) {
-                $client = Client::on('temp')->findOrFail($request->filled('client_id'));
-                $query->where('prospect_id', $client->prospect_id);
             }
             if ($request->filled('prenom')) {
                 $query->whereHas('prospect', function ($q) use ($request) {
@@ -305,15 +300,6 @@ class AppelController extends Controller
                     $validatedData['projet_id']=$request->projet_id;
                     $prospectController = new ProspectController();
                     $prospect = $prospectController->store(new StoreProspectRequest($validatedData));
-                    if ($request->client_id && $prospect) {
-                    $client = Client::on('temp')->find($request->client_id);
-                    if ($client) {
-                        $client->prospect_id = $prospect->id;
-                        $client->save();
-                    }
-                    $prospect->client_id = $request->client_id;
-                    $prospect->save();
-                }
                 }
                 else{
 

@@ -37,11 +37,11 @@ class ImportFichiers extends Command
     public function handle()
     {
         $databases = DB::table('societes')
-        ->whereNull('deleted_at')
-        //->where('id', 293)   // Filtrer uniquement la société avec id = 292
-        ->get();
+    ->whereNull('deleted_at')
+    ->where('id', 292)   // Filtrer uniquement la société avec id = 292
+    ->get();
 
-        DatabaseHelper::import_fichiers($databases);
+DatabaseHelper::import_fichiers($databases);
 
     }
 }

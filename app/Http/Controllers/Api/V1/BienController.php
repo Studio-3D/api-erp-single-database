@@ -50,8 +50,8 @@ class BienController extends Controller
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
-            $size      = $request->input('size', config('app.default_item_number_perpage'));
-            $page      = $request->input('page', 1);
+            $size      = $request->input('size', null);
+            $page      = $request->input('page', null);
             $projet_id = $request->input('projet_id');
             DatabaseHelper::Config();
 
@@ -262,7 +262,7 @@ class BienController extends Controller
             if ($request->filled('etat')) {
                 $query->where('etat', 'like', '%' . $request->input('etat') . '%');
             }
-            
+
             if ($request->filled('etat_bien') && $request->input('etat_bien') != "null") {
                 $query->where('etat', $request->input('etat_bien'));
             }
@@ -861,7 +861,7 @@ class BienController extends Controller
 
     public function reserverBien($bien_id, $visite_id, $reservation_id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::ACSup()) {
             $request = new \Illuminate\Http\Request();
             DatabaseHelper::Config();
             $bien       = Bien::on('temp')->findOrFail($bien_id);
@@ -894,7 +894,7 @@ class BienController extends Controller
                         //to admin et commerciaux
                         Config::set('broadcasting.default', 'pusher_3');
                         $data_notif = [
-                            'lien'           => '/remboursements/AttAccuseCheque',
+                            'lien'           => '/ventes/remboursements/apres_ventes',
                             'date'           => Carbon::now(),
                             'type'           => 19,
                             'description'    => 'bien desisté est vendu',
@@ -911,7 +911,7 @@ class BienController extends Controller
                         if ($bien->desistement->user->role == 3) {
 
                             $data_notif = [
-                                'lien'           => '/remboursements/AttAccuseCheque',
+                                'lien'           => '/ventes/remboursements/apres_ventes',
                                 'date'           => Carbon::now(),
                                 'type'           => 19,
                                 'description'    => 'bien desisté est vendu',
@@ -1527,7 +1527,7 @@ class BienController extends Controller
      */
     public function uploadMedia(Request $request, $id)
     {
-        if (!RoleHelper::ACSup()) {
+        if (! RoleHelper::ACSup()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -1535,14 +1535,14 @@ class BienController extends Controller
         $bien = Bien::on('temp')->findOrFail($id);
 
         $request->validate([
-            'media' => 'required|file|mimes:jpeg,jpg,png,gif,mp4,mov,avi|max:10240', // 10MB max
-            'title' => 'nullable|string|max:255',
+            'media'       => 'required|file|mimes:jpeg,jpg,png,gif,mp4,mov,avi|max:10240', // 10MB max
+            'title'       => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'is_featured' => 'nullable|boolean',
         ]);
 
         if ($request->hasFile('media')) {
-            $file = $request->file('media');
+            $file     = $request->file('media');
             $fileName = time() . '_' . Str::random(10) . '.' . $file->getClientOriginalExtension();
             $filePath = $file->storeAs('biens/' . $bien->id . '/media', $fileName, 'public');
 
@@ -1550,14 +1550,14 @@ class BienController extends Controller
 
             $media = new BienMedia();
             $media->setConnection('temp');
-            $media->bien_id = $bien->id;
-            $media->file_path = $filePath;
-            $media->file_type = $fileType;
-            $media->mime_type = $file->getMimeType();
+            $media->bien_id       = $bien->id;
+            $media->file_path     = $filePath;
+            $media->file_type     = $fileType;
+            $media->mime_type     = $file->getMimeType();
             $media->original_name = $file->getClientOriginalName();
-            $media->title = $request->title ?? null;
-            $media->description = $request->description ?? null;
-            $media->is_featured = $request->is_featured ?? false;
+            $media->title         = $request->title ?? null;
+            $media->description   = $request->description ?? null;
+            $media->is_featured   = $request->is_featured ?? false;
             $media->save();
 
             // Update the bien description if provided
@@ -1568,7 +1568,7 @@ class BienController extends Controller
 
             // Generate HTTPS URL for the media
             $mediaUrl = route('media.show', ['path' => $filePath]);
-            
+
             // Force HTTPS if APP_URL_HOST is set with HTTPS
             $appUrlHost = env('APP_URL_HOST');
             if ($appUrlHost && str_contains($appUrlHost, 'https://')) {
@@ -1577,8 +1577,8 @@ class BienController extends Controller
 
             return response()->json([
                 'message' => 'Media uploaded successfully',
-                'media' => $media,
-                'url' => $mediaUrl
+                'media'   => $media,
+                'url'     => $mediaUrl,
             ], 201);
         }
 
@@ -1590,7 +1590,7 @@ class BienController extends Controller
      */
     public function getMedia($id)
     {
-        if (!Auth::guard('api')->check()) {
+        if (! Auth::guard('api')->check()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -1598,23 +1598,23 @@ class BienController extends Controller
         $media = BienMedia::on('temp')->where('bien_id', $id)->get();
 
         return response()->json([
-            'media' => $media->map(function($item) {
+            'media' => $media->map(function ($item) {
                 $mediaUrl = route('media.show', ['path' => $item->file_path]);
-                
+
                 // Force HTTPS if APP_URL_HOST is set with HTTPS
                 $appUrlHost = env('APP_URL_HOST');
                 if ($appUrlHost && str_contains($appUrlHost, 'https://')) {
                     $mediaUrl = str_replace('http://', 'https://', $mediaUrl);
                 }
-                
+
                 return [
-                    'id' => $item->id,
-                    'file_type' => $item->file_type,
-                    'title' => $item->title,
+                    'id'          => $item->id,
+                    'file_type'   => $item->file_type,
+                    'title'       => $item->title,
                     'description' => $item->description,
                     'is_featured' => $item->is_featured,
-                    'url' => $mediaUrl,
-                    'created_at' => $item->created_at,
+                    'url'         => $mediaUrl,
+                    'created_at'  => $item->created_at,
                 ];
             }),
         ], 200);
@@ -1625,20 +1625,20 @@ class BienController extends Controller
      */
     public function deleteMedia($id, $mediaId)
     {
-        if (!RoleHelper::ACSup()) {
+        if (! RoleHelper::ACSup()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         DatabaseHelper::Config();
         $media = BienMedia::on('temp')->where('bien_id', $id)->findOrFail($mediaId);
-        
+
         // Delete the file from storage
         if (Storage::disk('public')->exists($media->file_path)) {
             Storage::disk('public')->delete($media->file_path);
         }
-        
+
         $media->delete();
-        
+
         return response()->json(['message' => 'Media deleted successfully'], 200);
     }
 
@@ -1647,23 +1647,23 @@ class BienController extends Controller
      */
     public function updateDescription(Request $request, $id)
     {
-        if (!RoleHelper::ACSup()) {
+        if (! RoleHelper::ACSup()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         DatabaseHelper::Config();
         $bien = Bien::on('temp')->findOrFail($id);
-        
+
         $request->validate([
             'description' => 'required|string',
         ]);
-        
+
         $bien->description = $request->description;
         $bien->save();
-        
+
         return response()->json([
             'message' => 'Description updated successfully',
-            'bien' => $bien
+            'bien'    => $bien,
         ], 200);
     }
 }

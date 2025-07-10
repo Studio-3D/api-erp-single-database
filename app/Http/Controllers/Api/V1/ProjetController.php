@@ -332,9 +332,11 @@ class ProjetController extends Controller
                         foreach ($array_user as $userId) {
                             UserProjetHelper::createUserProjet($projet->id, $userId);
                         }
-                    }
-                }
-            }
+                    }}}
+
+
+
+
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

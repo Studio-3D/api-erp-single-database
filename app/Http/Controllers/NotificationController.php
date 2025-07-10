@@ -312,8 +312,7 @@ class NotificationController extends Controller
                 $rel_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')->where('visites.etat',1)->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.date_relance', '<=', Carbon::now())->where('relances_rdv_visites.user_id', $userAuth->value('id'))->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 1)->orderby('relances_rdv_visites.date_relance', 'asc') ->count();
                 $rdv_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')->where('visites.etat',1)->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.rdv', '<=',Carbon::now())->where('relances_rdv_visites.user_id', $userAuth->value('id'))->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 2)->orderby('relances_rdv_visites.rdv', 'asc')->count();
                 $rel_client_freins=0;
-                $frein=new FreinController();
-                $data_get=$frein->get_clients_freins($projet_id,$request);
+                $data_get=$this->get_clients_freins($projet_id,$request);
                 foreach($data_get->original as $key => $v){
                     if($key=='count_clients'){
                         $rel_client_freins = $v;

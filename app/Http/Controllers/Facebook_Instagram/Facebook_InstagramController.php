@@ -404,27 +404,106 @@ class Facebook_InstagramController extends Controller
 
 
 
-        // Facebook Webhook Verification
-        public function verify(Request $request)
-        {
+        /******************************Webhook Configuration*************************/
+    
+    public function webhook_configuration(Request $request)
+    {
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            $config = ConfigurationSocialNetwork::on('temp')->first();
+            
+            $webhookConfig = [
+                'webhook_verify_token' => $config->webhook_verify_token ?? '',
+                'webhook_enabled' => $config->webhook_enabled ?? false,
+                'webhook_subscriptions' => $config->webhook_subscriptions ?? [],
+                'webhook_url' => env('WEBHOOK_BASE_URL', url('/api')) . '/webhookFcb_Insta',
+            ];
+            
+            return response()->json(['webhook_config' => $webhookConfig], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
 
-                    //webhook facebook
-            //https://immogestion.online/coline_dev/webhook?hub_verify_token=fadwa&hub_challenge=123456&hub_mode=subscribe
-            //or ngrok
-            //https://5491-105-66-132-248.ngrok-free.app/api/webhook?hub_verify_token=fadwa&hub_challenge=123456&hub_mode=subscribe
-            $facebook_verify_token='fadwa';
-            $hub_mode = $request->hub_mode;
-            $hub_challenge = $request->hub_challenge;
-            $hub_verify_token = $request->hub_verify_token;
+    public function store_webhook_configuration(Request $request)
+    {
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            
+            // Check if basic social network configuration exists first
+            $config = ConfigurationSocialNetwork::on('temp')->first();
+            if (!$config) {
+                return response()->json([
+                    'error' => 'Vous devez d\'abord configurer Facebook ou Instagram avant de configurer les webhooks'
+                ], 400);
+            }
+            
+            $request->validate([
+                'webhook_verify_token' => 'required|string',
+                'webhook_subscriptions' => 'array'
+            ]);
 
-            // Check the verify token matches your custom token
-            Log::info($hub_verify_token);
-            if ($hub_verify_token === $facebook_verify_token) {
-                return response($hub_challenge, 200);
+            $config->setConnection('temp');
+            $config->webhook_verify_token = $request->webhook_verify_token;
+            $config->webhook_enabled = $request->webhook_enabled ?? false;
+            $config->webhook_subscriptions = $request->webhook_subscriptions ?? [];
+            $config->save();
+
+            return response()->json(['message' => 'Configuration webhook enregistrée avec succès'], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function test_webhook_verification(Request $request)
+    {
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            $config = ConfigurationSocialNetwork::on('temp')->first();
+            
+            if (!$config || !$config->webhook_verify_token) {
+                return response()->json(['error' => 'Webhook not configured'], 400);
             }
 
-            return response('Unauthorized', 403);
+            try {
+                // Test webhook verification with our known URL
+                $webhookUrl = env('WEBHOOK_BASE_URL', url('/api')) . '/webhookFcb_Insta';
+                $testUrl = $webhookUrl . '?hub.mode=subscribe&hub.challenge=test_challenge&hub.verify_token=' . $config->webhook_verify_token;
+                
+                $response = Http::get($testUrl);
+                
+                if ($response->successful() && $response->body() === 'test_challenge') {
+                    return response()->json(['success' => true, 'message' => 'Webhook verification successful'], 200);
+                } else {
+                    return response()->json(['success' => false, 'message' => 'Webhook verification failed', 'response' => $response->body()], 400);
+                }
+            } catch (\Exception $e) {
+                return response()->json(['success' => false, 'message' => 'Error testing webhook: ' . $e->getMessage()], 500);
+            }
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
+    }
+
+    // Modified verify method to use database configuration with fallback to env
+    public function verify(Request $request)
+    {
+        DatabaseHelper::Config();
+        $config = ConfigurationSocialNetwork::on('temp')->first();
+        
+        // Use database config first, then env variable, then fallback
+        $facebook_verify_token = $config->webhook_verify_token ?? env('WEBHOOK_VERIFY_TOKEN', 'default_fallback_token');
+        $hub_mode = $request->hub_mode;
+        $hub_challenge = $request->hub_challenge;
+        $hub_verify_token = $request->hub_verify_token;
+
+        Log::info("Webhook verification attempt with token: " . $hub_verify_token);
+        if ($hub_verify_token === $facebook_verify_token) {
+            return response($hub_challenge, 200);
+        }
+
+        return response('Unauthorized', 403);
+    }
 
 
         public function handleWebhook(Request $request)
@@ -622,36 +701,58 @@ class Facebook_InstagramController extends Controller
          //store les Configurations
         public function store_configurations_social_network(Request $request)
         {
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            
+            // Validate only the fields that are being sent
+            $rules = [];
+            if ($request->has('page_fcb_id') || $request->has('acces_token_page')) {
+                $rules['page_fcb_id'] = 'required_with:acces_token_page|string|nullable';
+                $rules['acces_token_page'] = 'required_with:page_fcb_id|string|nullable';
+            }
+            if ($request->has('instagram_id') || $request->has('acces_token_user')) {
+                $rules['instagram_id'] = 'required_with:acces_token_user|string|nullable';
+                $rules['acces_token_user'] = 'required_with:instagram_id|string|nullable';
+            }
+            
+            $request->validate($rules);
 
-            if (RoleHelper::AdminSup()) {
-                DatabaseHelper::Config();
-                $config=ConfigurationSocialNetwork::on('temp')->first();
-                if($config!=null){
-                        $config->setConnection('temp');
-                        $config->page_fcb_id=$request->page_fcb_id;
-                        $config->acces_token_page=$request->acces_token_page;
-                        $config->instagram_id=$request->instagram_id;
-                        $config->acces_token_user=$request->acces_token_user;
-                        $config->save();
-
-                }else{
-                    $config = new ConfigurationSocialNetwork();
-                        $config->setConnection('temp');
-                        $config->page_fcb_id=$request->page_fcb_id;
-                        $config->acces_token_page=$request->acces_token_page;
-                        $config->instagram_id=$request->instagram_id;
-                        $config->acces_token_user=$request->acces_token_user;
-                        $config->save();
-
+            $config = ConfigurationSocialNetwork::on('temp')->first();
+            if ($config != null) {
+                $config->setConnection('temp');
+                
+                // Only update fields that are provided
+                if ($request->has('page_fcb_id')) {
+                    $config->page_fcb_id = $request->page_fcb_id;
                 }
-
-                return response()->json(['configuration' => 'done'], 200);
-
-            }else{
-                return response()->json(['error' => 'Unauthorized'], 401);
-
+                if ($request->has('acces_token_page')) {
+                    $config->acces_token_page = $request->acces_token_page;
+                }
+                if ($request->has('instagram_id')) {
+                    $config->instagram_id = $request->instagram_id;
+                }
+                if ($request->has('acces_token_user')) {
+                    $config->acces_token_user = $request->acces_token_user;
+                }
+                
+                $config->save();
+            } else {
+                $config = new ConfigurationSocialNetwork();
+                $config->setConnection('temp');
+                
+                // Set provided fields or empty strings as defaults
+                $config->page_fcb_id = $request->page_fcb_id ?? '';
+                $config->acces_token_page = $request->acces_token_page ?? '';
+                $config->instagram_id = $request->instagram_id ?? '';
+                $config->acces_token_user = $request->acces_token_user ?? '';
+                
+                $config->save();
             }
 
+            return response()->json(['configuration' => 'done'], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+}
 
