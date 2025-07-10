@@ -97,7 +97,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('desactivateUser/{id}', [V1UserController::class, 'desactivateUser'])->name('desactivateUser');
         Route::get('commerciaux_objectif/{projet_id}', [V1UserController::class, 'list_commerciaux_objectif'])->name('');
         Route::get('commerciaux/{projet_id}', [V1UserController::class, 'list_commerciaux'])->name('');
-        Route::get('get_commerciaux/{projet_id}', [V1UserController::class, 'get_commerciaux'])->name('get_users');
+        Route::get('get_commerciaux/{projet_id}', [V1UserController::class, 'get_commerciaux'])->name('get_commerciaux');
         Route::post('/utilisateurs/{id}', [V1UserController::class, 'update']);
 
         // l'API societes
@@ -421,7 +421,7 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('user', UserController::class);
 
     Route::get('getUsersBySocieteId/{id}', [UserController::class, 'getUsersBySocieteId'])->name('getUsersBySocieteId');
-    Route::put('activateUser/{id}', [UserController::class, 'activateUser'])->name('activateUser');
+    Route::put('activateUser/{id}', [UserController::class, 'activateUser'])->name('api.activateUser');
     Route::post('restoreUser/{id}', [UserController::class, 'restoreUser'])->name('restoreUser');
     Route::get('getTrashedUsers', [UserController::class, 'getTrashedUsers'])->name('getTrashedUsers');
     Route::get('dashboard', [UserController::class, 'dashboard'])->name('dashboard');
