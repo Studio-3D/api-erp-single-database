@@ -85,10 +85,15 @@ Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify'])
 
 Route::middleware('auth:api')->group(function () {
     Route::prefix('v1')->group(function () {
-        /********************Social Netxork*********************/
+        /********************Social Network*********************/
         Route::post('/postTo_Social_Network', [Facebook_InstagramController::class, 'postTo_Social_Network']);
         Route::get('/configurations_social_network', [Facebook_InstagramController::class, 'configurations_social_network']);
         Route::post('store_configurations_social_network', [Facebook_InstagramController::class, 'store_configurations_social_network'])->name('');
+        
+        // Webhook configuration routes
+        Route::get('/webhook_configuration', [Facebook_InstagramController::class, 'webhook_configuration']);
+        Route::post('/store_webhook_configuration', [Facebook_InstagramController::class, 'store_webhook_configuration']);
+        Route::post('/test_webhook_verification', [Facebook_InstagramController::class, 'test_webhook_verification']);
 
         // Routes de la version numero 1
         // l'API utilisateurs
@@ -407,7 +412,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/linkedin/access-token', [App\Http\Controllers\LinkedIn\LinkedInController::class, 'getAccessToken']);
         Route::post('/linkedin/share', [App\Http\Controllers\LinkedIn\LinkedInController::class, 'sharePost']);
     });
-
+    
     /*************************************Société***************************** */
     Route::resource('societe', SocieteController::class);
 
