@@ -419,7 +419,7 @@ class Facebook_InstagramController extends Controller
                 'webhook_verify_token' => $config->webhook_verify_token ?? '',
                 'webhook_enabled' => $config->webhook_enabled ?? false,
                 'webhook_subscriptions' => $config->webhook_subscriptions ?? [],
-                'webhook_url' => 'https://dd1695b3aff8.ngrok-free.app/api/webhookFcb_Insta',
+                'webhook_url' => 'https://e86332116ba7.ngrok-free.app/api/webhookFcb_Insta',
             ];
             
             return response()->json(['webhook_config' => $webhookConfig], 200);
@@ -470,7 +470,7 @@ class Facebook_InstagramController extends Controller
 
             try {
                 // Test webhook verification with our known URL
-                $webhookUrl = 'https://dd1695b3aff8.ngrok-free.app/api/webhookFcb_Insta';
+                $webhookUrl = 'https://e86332116ba7.ngrok-free.app/api/webhookFcb_Insta';
                 $testUrl = $webhookUrl . '?hub.mode=subscribe&hub.challenge=test_challenge&hub.verify_token=' . $config->webhook_verify_token;
                 
                 $response = Http::get($testUrl);
@@ -1228,7 +1228,7 @@ class Facebook_InstagramController extends Controller
                             'webhook_verify_token' => $config->webhook_verify_token,
                             'webhook_enabled' => $config->webhook_enabled ?? false,
                             'webhook_subscriptions' => json_decode($config->webhook_subscriptions ?? '[]'),
-                            'webhook_url' => 'https://dd1695b3aff8.ngrok-free.app/api/webhookFcb_Insta',
+                            'webhook_url' => 'https://e86332116ba7.ngrok-free.app/api/webhookFcb_Insta',
                             'created_at' => $config->created_at,
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
@@ -1343,7 +1343,7 @@ class Facebook_InstagramController extends Controller
                             'webhook_verify_token' => $config->webhook_verify_token,
                             'webhook_enabled' => $config->webhook_enabled ?? false,
                             'webhook_subscriptions' => json_decode($config->webhook_subscriptions ?? '[]'),
-                            'webhook_url' => 'https://dd1695b3aff8.ngrok-free.app/api/webhookFcb_Insta',
+                            'webhook_url' => 'https://e86332116ba7.ngrok-free.app/api/webhookFcb_Insta',
                             'created_at' => $config->created_at,
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
