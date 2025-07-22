@@ -42,87 +42,95 @@ class AppelController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function indexByProjet(Request $request, $projet_id)
-    {
+   public function indexByProjet(Request $request, $projet_id)
+{
+    if (Auth::guard('api')->check()) {
+        // Default values for pagination
+        $size = $request->input('size', null);
+        $page = $request->input('page', null);
 
-        if (Auth::guard('api')->check()) {
-            // Default values for pagination null si non pas envoyer avec la raquete
-            $size = $request->input('size', null);
-            $page = $request->input('page', null);
+        DatabaseHelper::Config();
+        $query = Appel::on('temp')->with('projet', 'prospect', 'last_traitement_appel')
+            ->where('projet_id', $projet_id);
 
-            DatabaseHelper::Config();
-            $query = Appel::on('temp')->with('projet','prospect','last_traitement_appel')->where('projet_id', $projet_id);
-            if ($request->filled('cin')) {
-                $query->whereHas('prospect', function ($q) use ($request) {
-                    $q->where('cin', 'like', '%' . $request->input('cin') . '%');
-                });
-            }
-            if ($request->filled('nom')) {
-                $query->whereHas('prospect', function ($q) use ($request) {
-                    $q->where('nom', 'like', '%' . $request->input('nom') . '%');
-                });
-            }
-            if ($request->filled('prenom')) {
-                $query->whereHas('prospect', function ($q) use ($request) {
-                    $q->where('prenom', 'like', '%' . $request->input('prenom') . '%');
-                });
-            }
-            if ($request->filled('date')) {
-                $start = Carbon::parse($request->input('date'));
-                $query->whereHas('last_traitement_appel', function ($q) use ($start) {
-                        $q->whereDate('date', $start);
-
-                });
-
-            }
-            if ($request->filled('telephone')) {
-                $query->whereHas('prospect', function ($q) use ($request) {
-                    $q->where(function ($q) use ($request) {
-                        $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
-                            ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
-                    });
-                });
-            }
-            if ($request->filled('telephone_num2')) {
-                $query->whereHas('prospect', function ($q) use ($request) {
-                    $q->where('telephone_num2', 'like', '%' . $request->input('telephone_num2') . '%');
-                });
-            }
-
-            if ($request->filled('interet')) {
-                $query->whereHas('last_traitement_appel', function ($q) use ($request) {
-                        $q->where('interet',$request->interet);
-                });
-            }
-
-
-            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-
-                $appels = $query->orderBy('created_at', 'desc')
-                    ->paginate($size, ['*'], 'page', $page);
-
-                $pagination = [
-                    'currentPage' => $appels->currentPage(),
-                    'totalItems' => $appels->total(),
-                    'totalPages' => $appels->lastPage(),
-                ];
-
-                $appels = $appels->items();
-
-                return response()->json([
-                    'data' => $appels,
-                    'pagination' => $pagination,
-                ], 200);
-            } else {
-            $appels = $query->orderBy('created_at', 'desc')
-            ->get();
-            return response()->json(['appels' => $appels]);
-
-            }
+        // Filter by CIN
+        if ($request->filled('cin')) {
+            $query->whereHas('prospect', function ($q) use ($request) {
+                $q->where('cin', 'like', '%' . $request->input('cin') . '%');
+            });
         }
 
-        return response()->json(['error' => 'Unauthorized'], 401);
+        // Filter by nom
+        if ($request->filled('nom')) {
+            $query->whereHas('prospect', function ($q) use ($request) {
+                $q->where('nom', 'like', '%' . $request->input('nom') . '%');
+            });
+        }
+
+        // Filter by prenom
+        if ($request->filled('prenom')) {
+            $query->whereHas('prospect', function ($q) use ($request) {
+                $q->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+            });
+        }
+
+        // Filter by date - corrected to use proper date comparison
+        if ($request->filled('date')) {
+            $date = Carbon::parse($request->input('date'))->format('Y-m-d');
+            $query->whereHas('last_traitement_appel', function ($q) use ($date) {
+                $q->whereDate('date', $date);
+            });
+        }
+
+        // Filter by telephone (either primary or secondary)
+        if ($request->filled('telephone')) {
+            $query->whereHas('prospect', function ($q) use ($request) {
+                $q->where(function ($q) use ($request) {
+                    $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
+                        ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                });
+            });
+        }
+
+        // Filter by secondary phone
+        if ($request->filled('telephone_num2')) {
+            $query->whereHas('prospect', function ($q) use ($request) {
+                $q->where('telephone_num2', 'like', '%' . $request->input('telephone_num2') . '%');
+            });
+        }
+
+        // Filter by interet - corrected to properly check the value
+        if ($request->filled('interet')) {
+            $interet = $request->input('interet');
+            $query->whereHas('last_traitement_appel', function ($q) use ($interet) {
+                $q->where('interet', $interet);
+            });
+        }
+
+        // Apply pagination if parameters are valid
+        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+            $appels = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+
+            $pagination = [
+                'currentPage' => $appels->currentPage(),
+                'totalItems' => $appels->total(),
+                'totalPages' => $appels->lastPage(),
+            ];
+
+            return response()->json([
+                'data' => $appels->items(),
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+        // Return all results if no pagination parameters
+        $appels = $query->orderBy('created_at', 'desc')->get();
+        return response()->json(['appels' => $appels]);
     }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
     /**
      * Show the form for creating a new resource.
      */
@@ -182,7 +190,8 @@ class AppelController extends Controller
                         $freinRequest['etat']=1;
                         $freinRequest['avance']=$request->avance;
                         $freinRequest['selectedTranches']=$request->tranches_id;
-                        $freinRequest['selectedEtages']=$request->etages;
+                             //-1 for 0 si on selection just le 0
+                        $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
                         $freinRequest['selectedOrientations']=$request->orientations;
                         $freinRequest['selectedTypologies']=$request->typologies;
                         $freinRequest['selectedVues']=$request->vues;
@@ -200,7 +209,7 @@ class AppelController extends Controller
                 Config::set('broadcasting.default', 'pusher_3');
                 if ($request->date_relance != null) {
                     $data_notif = [
-                        'lien' => '/appels/show/'.$request->appel_id,
+                        'lien' => '/crm/appels/'.$request->appel_id,
                         'date' => $request->date_relance,
                         'type' => 27,
                         'description' => 'RELANCE APPEL',
@@ -229,7 +238,7 @@ class AppelController extends Controller
                 }
                 if ($request->rdv != null) {
                     $data_notif = [
-                        'lien' => '/appels/show/'.$request->appel_id,
+                        'lien' => '/crm/appels/'.$request->appel_id,
                         'date' => $request->rdv,
                         'type' => 28,
                         'description' => 'RDV APPEL',
@@ -385,9 +394,7 @@ class AppelController extends Controller
                     ];
                        $this->store_trait_appel($request->merge($data));
                     }
-                    }
-
-                    // store statut du  prospect
+                     // store statut du  prospect
                     $statut_pro = new StatutProspect();
                     $statut_pro->setConnection('temp');
                     $statut_pro->prospect_id=$prospect->id;
@@ -396,6 +403,9 @@ class AppelController extends Controller
                     $statut_pro->user_id_traite = $userAuth->value('id');
                     $statut_pro->appel_id = $appel->id;
                     $statut_pro->save();
+                    }
+
+
 
                 return response()->json(['message' => 'appel added.'], 200);
 
@@ -517,7 +527,7 @@ class AppelController extends Controller
                                    if ($request->date_relance != null) {
 
                                     $data_not = [
-                                        'lien' => '/appels/show/'.$request->appel_id,
+                                        'lien' => '/crm/appels/'.$request->appel_id,
                                         'date' => $request->date_relance,
                                         'type' => 27,
                                         'description' => 'RELANCE APPEL',
@@ -864,7 +874,7 @@ class AppelController extends Controller
             } else {
             $t_appels = $query->orderBy('created_at', 'desc')
             ->get();
-            return response()->json(['t_appels' => $t_appels]);
+            return response()->json(['data' => $t_appels]);
 
             }
         }
@@ -1018,7 +1028,7 @@ class AppelController extends Controller
                             Config::set('broadcasting.default', 'pusher_3');
 
                             $data_notif = [
-                                'lien' => '/appels/show/'.$new_relance->traite_appel->appel->id,
+                                'lien' => '/crm/appels/'.$new_relance->traite_appel->appel->id,
                                 'date' => $request->date,
                                 'type' => 27,
                                 'description' => 'RELANCE APPEL',
@@ -1039,7 +1049,7 @@ class AppelController extends Controller
                                 //store new notification
                                 Config::set('broadcasting.default', 'pusher_3');
                                 $data_notif = [
-                                    'lien' => '/appels/show/'.$new_relance->traite_appel->appel->id,
+                                    'lien' => '/crm/appels/'.$new_relance->traite_appel->appel->id,
                                     'date' => $request->date,
                                     'type' => 28,
                                     'description' => 'RDV APPEL',

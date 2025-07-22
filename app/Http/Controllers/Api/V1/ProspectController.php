@@ -310,7 +310,7 @@ class ProspectController extends Controller
             $prospect->nom            = $request->nom;
             $prospect->prenom         = $request->prenom;
             $prospect->telephone      = $request->telephone;
-            $prospect->telephone_num2 = $request->telephone_num2;
+            $prospect->telephone_num2 = $request->telephone_num2 == "null" ? '' : $request->telephone_num2;
             $prospect->email          = $request->email;
             $prospect->origin         = $request->origin != null ? $request->origin : 'manuel';
             $prospect->notifie        = $request->notifie;
@@ -416,7 +416,7 @@ class ProspectController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $prospect = Prospect::on('temp')->findOrFail($id);
-            if (count($prospect->visites) > 0 || $prospect->appel != null || $prospect->client != null) {
+            if (count($prospect->visites) > 0 || $prospect->appels != null || $prospect->client != null) {
                 return response()->json(['error' => 'Il est impossible de supprimer ce Prospect car il possède plusieurs dossiers liés à des visites, des appels ou client.'], 422);
             } else {
                 $notifications = Notification::on('temp')->where('prospect_id', $id)->get();

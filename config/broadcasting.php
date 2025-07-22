@@ -16,6 +16,7 @@ return [
     */
 
     'default' => env('BROADCAST_DRIVER', 'null'),
+   'default' => env('BROADCAST_CONNECTION', 'pusher_6'), // Add this line
 
     /*
     |--------------------------------------------------------------------------
@@ -104,6 +105,20 @@ return [
                 'encrypted' => true,
                 'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
             ],
+        ],
+         'pusher_6' => [
+            'driver' => 'pusher',
+            'key' => env('PUSHER_APP_KEY_6'),
+            'secret' => env('PUSHER_APP_SECRET_6'),
+            'app_id' => env('PUSHER_APP_ID_6'),
+            'options' => [
+            'cluster' => env('PUSHER_APP_CLUSTER_6'),
+            'encrypted' => true,
+            'useTLS' => true,
+            'host' => 'api-eu.pusher.com',
+            'port' => 443,
+            'scheme' => 'https',
+        ],
         ],
 
 

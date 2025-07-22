@@ -183,7 +183,7 @@ class ClientController extends Controller
             $client->projet_id            = $request->projet_id;
             $client->prenom               = $request->prenom;
             $client->telephone_num1       = $request->telephone_num1;
-            $client->telephone_num2       = $request->telephone_num2;
+            $client->telephone_num2       = $request->telephone_num2 == "null" ? '' : $request->telephone_num2;
             $client->notifie              = $request->notifie;
             $client->email                = $request->email;
             $client->civilite             = $request->civilite;

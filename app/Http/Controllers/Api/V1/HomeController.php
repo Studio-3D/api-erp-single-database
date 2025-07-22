@@ -544,7 +544,7 @@ class HomeController extends Controller
                 }
 
                 /****nb_appel_ total** */
-                 $query_nb_appel=TraitementAppel::on('temp')->with('appel')->where('type_appel',1);
+                 $query_nb_appel=TraitementAppel::on('temp')->with('appel');
                 if($dt==null && $a_dt==null){
                     $query_nb_appel ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
                 }else{
@@ -568,6 +568,9 @@ class HomeController extends Controller
             }else{
                 $query_prospect->whereBetween('created_at',[$dt,$a_dt]);
             }
+            if ($projet_id!=0) {
+                $query_prospect->where('projet_id',  $projet_id );
+            }
             $nb_prospects=$query_prospect->count();
 
             /***************************Clients*****************/
@@ -577,7 +580,10 @@ class HomeController extends Controller
             }else{
                 $query_client->whereBetween('created_at',[$dt,$a_dt]);
             }
-           $nb_clients=$query_client->count();
+             if ($projet_id!=0) {
+                $query_client->where('projet_id',  $projet_id );
+            }
+            $nb_clients=$query_client->count();
 
             /**********************Reclamations*************** statut ==>0 ********
             $query_reclamations = DB::connection('mysql_client')->table('reclamations')
@@ -936,7 +942,7 @@ class HomeController extends Controller
         $query->where('projet_id', $projet_id);
     }
 
-    if ($us_role != 2) {
+    if ($us_role==3) {
         $query->where('user_id', $us_id);
     }
 

@@ -95,12 +95,24 @@ class FreinController extends Controller
                         FreinTrancheHelper::createFreinTranche($valeur, $frein->id);
                     }
                 }
-                if (!empty($request->selectedEtages)) {
-                    $array_etage = explode(',', $request->selectedEtages); // $tranches_array sera ['5', '2']
-                    foreach ($array_etage as $valeur) {
-                        FreinEtageHelper::createFreinEtage($valeur, $frein->id);
+
+
+            if (str_contains(strtoupper($request->freins), 'ETAGE')) {
+                    if ($request->has('selectedEtages') && $request->selectedEtages !== '') {
+                        $array_etage = explode(',', $request->selectedEtages);
+                        foreach ($array_etage as $valeur) {
+                            // Convert to integer first
+                            $intValue = (int)$valeur;
+                            if (is_numeric($valeur)) {
+                                // EXPLICIT conversion of -100 to 0
+                                $valueToStore = ($intValue === -100) ? 0 : $intValue;
+                                FreinEtageHelper::createFreinEtage($valueToStore, $frein->id);
+                            }
+                        }
                     }
                 }
+
+
                 if (!empty($request->selectedOrientations)) {
                     $array_orientation = explode(',', $request->selectedOrientations); // $tranches_array sera ['5', '2']
                     foreach ($array_orientation as $valeur) {
@@ -209,7 +221,7 @@ class FreinController extends Controller
             }
             $frein->etat=$request->etat;
             $frein->tranche=str_contains($request->freins, 'TRANCHE')?true:false;
-            $frein->etage = str_contains($request->freins, 'ETAGE') ? true : false;
+            $frein->etage = str_contains(strtoupper($request->freins), 'ETAGE') ? true : false;
             $frein->orientation= str_contains($request->freins, 'ORIENTATION')?true:false;
             $frein->vue=str_contains($request->freins, 'VUE')?true:false;
             $frein->typologie= str_contains($request->freins, 'TYPOLOGIE') ?true:false;
@@ -221,16 +233,25 @@ class FreinController extends Controller
                         FreinTrancheHelper::createFreinTranche($valeur,$frein->id);
                 }
             }
-            FreinEtageHelper::destroyFreinEtage($frein->id);
-            // Check if selectedEtages is provided and not empty
-            if (!empty($request->selectedEtages)&& str_contains($request->freins, 'ETAGE')) {
 
-                    $array_etage = explode(',', $request->selectedEtages); // Convert '1,2,3' into ['1', '2', '3']
-                    foreach ($array_etage as $valeur) {
-                        // Create a new entry for each selected etage
-                        FreinEtageHelper::createFreinEtage($valeur, $frein->id);
+
+            if (str_contains(strtoupper($request->freins), 'ETAGE')) {
+                    FreinEtageHelper::destroyFreinEtage($frein->id);
+
+                    if ($request->has('selectedEtages') && $request->selectedEtages !== '') {
+                        $array_etage = explode(',', $request->selectedEtages);
+                        foreach ($array_etage as $valeur) {
+                            // Convert to integer first
+                            $intValue = (int)$valeur;
+                            if (is_numeric($valeur)) {
+                                // EXPLICIT conversion of -100 to 0
+                                $valueToStore = ($intValue === -100) ? 0 : $intValue;
+                                FreinEtageHelper::createFreinEtage($valueToStore, $frein->id);
+                            }
+                        }
                     }
                 }
+
             FreinOrientationHelper::destroyFreinOrientation($frein->id);
             if (!empty($request->selectedOrientations)&& str_contains($request->freins, 'ORIENTATION')) {
                 $array_orientation = explode(',', $request->selectedOrientations); // $tranches_array sera ['5', '2']
@@ -708,7 +729,7 @@ class FreinController extends Controller
                             if ($request->date_relance != null) {
                               //  Config::set('broadcasting.default', 'pusher_3');
                                 $data_notif = [
-                                    'lien' => '/visites/show/' . $frein->visite->origin_id,
+                                    'lien' => '/crm/visites/' . $frein->visite->origin_id,
                                     'date' => $request->date_relance,
                                     'type' => 1,
                                     'description' => 'RELANCE VISITE',
@@ -817,7 +838,7 @@ class FreinController extends Controller
                                 //Config::set('broadcasting.default', 'pusher_3');
 
                                 $data_notif = [
-                                    'lien' => '/visites/show/' . $frein->visite->origin_id,
+                                    'lien' => '/crm/visites/' . $frein->visite->origin_id,
                                     'date' => $request->rdv,
                                     'type' => 2,
                                     'description' => 'RDV VISITE',

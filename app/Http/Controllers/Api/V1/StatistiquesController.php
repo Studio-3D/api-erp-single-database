@@ -32,9 +32,10 @@ class StatistiquesController extends Controller
      */
     public function index_admin(Request $request, $projet_id,$de_date,$a_date)
     {
+        //added role
 
         DatabaseHelper::Config();
-
+    if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
             if($de_date!="null" && $a_date!="null" ){
                 $dt = Carbon::createFromFormat('Y-m-d', date($de_date))->startOfDay();
                 if($a_date=="null"){
@@ -378,7 +379,10 @@ class StatistiquesController extends Controller
 
             ], 200);
     }
+    else{
 
+        }
+    }
 
     public static function get_visites(Request $request)
     {

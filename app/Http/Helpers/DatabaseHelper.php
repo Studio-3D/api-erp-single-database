@@ -17,6 +17,8 @@ use App\Models\Import;
 use App\Models\Projet;
 use App\Models\StatutProspect;
 use App\Models\WebhookEvent;
+use App\Models\CreneauxOccupes;
+
 use Illuminate\Support\Facades\Http;
 use App\Http\Helpers\ImportExcelHelper;
 
@@ -133,59 +135,101 @@ class DatabaseHelper
         ];
     }
 
-    public static function deletePropositionTable($databases)
-    {
-        foreach ($databases as $database) {
-            $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+   public static function deletePropositionTable($databases)
+{
+    foreach ($databases as $database) {
+        $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
 
-            // Switch to the temporary database
+        try {
+            // Établir la connexion
             $connection = DatabaseHelper::Connection_database($databaseName);
             config(['database.connections.temp' => $connection]);
             DB::connection('temp')->setDatabaseName($connection['database']);
             DB::reconnect('temp');
-            // Retrieve users from the mother database
+
+            // Vérifier l'existence de la table une seule fois
+            if (!Schema::connection('temp')->hasTable('propositions')) {
+                \Log::info("Table 'propositions' does not exist in $databaseName.");
+                continue;
+            }
+
+            // Récupérer les utilisateurs une seule fois
             $notConnectedUsers = DB::table('users')->where('is_connected', 0)->pluck('id');
             $connectedUsers = DB::table('users')->where('is_connected', 1)->pluck('id');
 
-            //
-            if (Schema::connection('temp')->hasTable('propositions')) {
-                if ($notConnectedUsers->isNotEmpty()) {
-                    $propositions = Proposition::on('temp')
-                        ->whereIn('user_id', $notConnectedUsers) // id  from  users from mother db
-                        ->get();
-                    foreach ($propositions as $prop) {
-                        $bien = Bien::on('temp')->findorfail($prop->bien_id);
-                        if ($bien->etat == 'ENCOURS_DE_PROPOSITION') {
-                            Bien_Helper::libererBien($bien->id, 'console', null);
-                        }
-                        $prop->forceDelete();
-                    }
+            // Fusionner les deux traitements similaires
+            $allUsers = [
+                'not_connected' => $notConnectedUsers,
+                'connected' => $connectedUsers
+            ];
 
-                    \Log::info("Deleted propositions for not connected users in $databaseName.");
+            foreach ($allUsers as $type => $users) {
+                if ($users->isEmpty()) {
+                    continue;
                 }
-                if ($connectedUsers->isNotEmpty()) {
-                    $propositions = Proposition::on('temp')
-                        ->select('id', 'created_at', 'bien_id')
-                        ->whereIn('user_id', $connectedUsers)
-                        /*->whereNotIn('id', function ($query) use ($connectedUsers) {$query->select(DB::raw('MAX(id)'))->from('propositions')->whereIn('user_id', $connectedUsers)
-                                ->groupBy('user_id');})*/->get();
-                               Log::info($propositions);
-                    foreach ($propositions as $prop) {
-                        $bien = Bien::on('temp')->findorfail($prop->bien_id);
-                        if ($bien->etat == 'ENCOURS_DE_PROPOSITION') {
-                            Bien_Helper::libererBien($bien->id, 'console', null);
-                        }
-                        $prop->forceDelete();
-                    }
-                    \Log::info("Deleted older propositions for connected users in $databaseName.");
 
+                $propositions = Proposition::on('temp')
+                    ->when($type == 'connected', function ($query) {
+                        return $query->select('id', 'created_at', 'bien_id');
+                    })
+                    ->whereIn('user_id', $users)
+                    ->with(['bien' => function($query) {
+                        $query->select('id', 'etat', 'created_at');
+                    }])
+                    ->get();
+
+                foreach ($propositions as $prop) {
+                    $bien = $prop->bien;
+                    if ($bien && $bien->etat == 'ENCOURS_DE_PROPOSITION') {
+                        $expiryTime = Carbon::parse($bien->created_at)->addMinutes(30);
+                        if ($expiryTime->isPast()) {
+                            Bien_Helper::libererBien($bien->id, 'console', null);
+                            \Log::info("Bien proposé updated==>.".$bien->id);
+
+                        }
+                    }
+                    $prop->forceDelete();
                 }
-            } else {
-                \log::info("Table 'propositions' does not exist in $databaseName.");
+
+                \Log::info("Deleted propositions for {$type} users in $databaseName.");
             }
+        } catch (\Exception $e) {
+            \Log::error("Error processing database $databaseName: " . $e->getMessage());
         }
     }
+}
 
+  public static function deleteCreneauPropose($databases)
+{
+    foreach ($databases as $database) {
+        $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+
+        try {
+            // Établir la connexion
+            $connection = DatabaseHelper::Connection_database($databaseName);
+            config(['database.connections.temp' => $connection]);
+            DB::connection('temp')->setDatabaseName($connection['database']);
+            DB::reconnect('temp');
+
+            // Vérifier l'existence de la table une seule fois
+            if (!Schema::connection('temp')->hasTable('creneaux_occupes')) {
+                \Log::info("Table creneaux_occupes does not exist in $databaseName.");
+                continue;
+            }
+
+            $creneaux = CreneauxOccupes::on('temp')->get();
+                foreach ($creneaux as $prop) {
+                        $expiryTime = Carbon::parse($prop->created_at)->addMinutes(3);
+                        if ($expiryTime->isPast() && $prop->type==0) {
+                            $prop->forceDelete();
+                            \Log::info("creneay proposé deleted.");
+                        }
+                }
+        } catch (\Exception $e) {
+            \Log::error("Error processing database $databaseName: " . $e->getMessage());
+        }
+    }
+}
 
     public static function deleteWebhookTable($databases)
     {

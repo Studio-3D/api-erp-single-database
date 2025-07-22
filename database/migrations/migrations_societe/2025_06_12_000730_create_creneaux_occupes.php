@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->boolean('disponible')->default(true)->comment('1==>disponible 0==>occupé');
             $table->foreignId('reservation_id')->nullable()->constrained('reservations')->onDelete('cascade');
-            $table->String('type')->nullable()->comment('1=>compromis de vente ,2=>contrat de vente');
+            $table->String('type')->nullable()->comment('1=>compromis de vente ,2=>contrat de vente 0=>en proposition')->default('0');
             $table->timestamps();
             $table->softDeletes();
 

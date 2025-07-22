@@ -48,6 +48,8 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
 use \NumberFormatter;
+use Illuminate\Support\Facades\DB;
+
 
 class VisiteController extends Controller
 {
@@ -165,12 +167,15 @@ class VisiteController extends Controller
             if ($request->filled('statut')) {
                 $query->where('statut', $request->input('statut'));
             }
-            if ($request->filled('interet')) {
-                $query->where('interet', $request->input('interet'));
-            }
+
 
             $visites = $query->get()->groupBy('origin_id');
-
+// Apply interet filter after grouping
+        if ($request->filled('interet')) {
+            $visites = $visites->filter(function ($group) use ($request) {
+                return $group->first()->interet == $request->input('interet');
+            });
+        }
             $visites = $visites->map(function ($visite) {
                 $firstVisite = $visite->first();
                 return [
@@ -315,11 +320,15 @@ class VisiteController extends Controller
         convert
         lead to visite
          ****/
+        DatabaseHelper::Config();
+        Config::set('broadcasting.default', 'pusher_3');
+        // Start database transaction
+        DB::connection('temp')->beginTransaction();
+
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
+        try {
             $msg_sended = 0;
-            DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_3');
             $projet = Projet::on('temp')->findorfail($request->selectedProjet);
             ///decoder les stringfy
             $list_bien_interesse       = json_decode($request->input('list_bien_interesse', '[]'), true);
@@ -333,7 +342,7 @@ class VisiteController extends Controller
                 $validatedData['email']     = $request->email;
                 $validatedData['source']    = $request->source_id;
                 $validatedData['projet_id'] = $request->selectedProjet;
-                
+
                 if ($request->source_txt == 'Partenaire') {
                     $validatedData['partenaire_id'] = $request->partenaire_id;
                 } else {
@@ -358,7 +367,7 @@ class VisiteController extends Controller
                     $prospect->client_id = $request->client_id;
                     $prospect->save();
                 }
-                
+
             } else {
                 //recupere le prospect //modifier info
                 $prospect = Prospect::on('temp')->findorfail($request->prospect_id);
@@ -373,7 +382,7 @@ class VisiteController extends Controller
                 $prospect->nom            = $request->nom;
                 $prospect->prenom         = $request->prenom;
                 $prospect->telephone      = $request->telephone;
-                $prospect->telephone_num2 = $request->telephone_num2;
+                $prospect->telephone_num2 = $request->telephone_num2 == "null" ? '' : $request->telephone_num2;;
                 $prospect->ville          = $request->input('ville');
                 $prospect->source         = $request->source_id;
                 if ($request->source_txt == 'Partenaire') {
@@ -430,7 +439,7 @@ class VisiteController extends Controller
                         if ($visite->interet == InteretEnum::Réceptif->value) {
                             if ($request->date_relance != null) {
                                 $data_notif = [
-                                    'lien'        => '/visites/show/' . $visite->origin_id,
+                                    'lien'        => '/crm/visites/' . $visite->origin_id,
                                     'date'        => $request->date_relance,
                                     'type'        => 1,
                                     'description' => 'RELANCE VISITE',
@@ -467,7 +476,8 @@ class VisiteController extends Controller
                             $freinRequest['etat']                 = 1;
                             $freinRequest['avance']               = $request->avance;
                             $freinRequest['selectedTranches']     = $request->tranches;
-                            $freinRequest['selectedEtages']       = $request->etages;
+                              //-1 for 0 si on selection just le 0
+                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
                             $freinRequest['selectedOrientations'] = $request->orientations;
                             $freinRequest['selectedTypologies']   = $request->typologies;
                             $freinRequest['selectedVues']         = $request->vues;
@@ -621,7 +631,7 @@ class VisiteController extends Controller
                                 if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
                                     if ($list_biens['date_relance'] != null) {
                                         $data_notif = [
-                                            'lien'        => '/visites/show/' . $visite->origin_id,
+                                            'lien'        =>'/crm/visites/' . $visite->origin_id,
                                             'date'        => $list_biens['date_relance'],
                                             'type'        => 1,
                                             'description' => 'RELANCE VISITE',
@@ -649,7 +659,7 @@ class VisiteController extends Controller
                                     if ($list_biens['rdv'] != null) {
 
                                         $data_notif = [
-                                            'lien'        => '/visites/show/' . $visite->origin_id,
+                                            'lien'        => '/crm/visites/'. $visite->origin_id,
                                             'date'        => $list_biens['rdv'],
                                             'type'        => 2,
                                             'description' => 'RDV VISITE',
@@ -703,7 +713,6 @@ class VisiteController extends Controller
                                     $reservationController = new ReservationController();
                                     $reservationRequest    = new StoreReservationRequest();
 
-                                    //return response()->json(['ABCV' => $list_biens['selectedFiles_avc']], 401);
                                     $dataReservation = [
                                         'nb_acquereurs'        => 1,
                                         'code_reservation'     => $list_biens['code_reservation'],
@@ -722,8 +731,8 @@ class VisiteController extends Controller
                                         'nom'                  => $request->nom,
                                         'prenom'               => $request->prenom,
                                         'telephone_num1'       => $request->telephone,
-                                        'telephone_num2'       => $request->telephone_num2,
-                                        'notifie'              => $prospect->notifie,
+                                        'telephone_num2'       => $request->telephone_num2 == "null" ? null : $request->telephone_num2,
+                                        'notifie'              => $request->notifie==""?0:1,
                                         'prospect_id'          => $prospect->id,
                                         'civilite'             => '1',
                                         'type_client'          => 1,
@@ -744,7 +753,6 @@ class VisiteController extends Controller
                                     ];
                                     $reservationRequest->merge($dataReservation);
                                     $reservationController->store($reservationRequest);
-
                                 }
                             }
                             //convert appel to visite
@@ -817,7 +825,7 @@ class VisiteController extends Controller
                                 if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
                                     if ($list_biens['date_relance'] != null) {
                                         $data_notif = [
-                                            'lien'        => '/visites/show/' . $visite->origin_id,
+                                            'lien'        => '/crm/visites/' . $visite->origin_id,
                                             'date'        => $list_biens['date_relance'],
                                             'type'        => 1,
                                             'description' => 'RELANCE VISITE',
@@ -844,7 +852,7 @@ class VisiteController extends Controller
                                     }
                                     if ($list_biens['rdv'] != null) {
                                         $data_notif = [
-                                            'lien'        => '/visites/show/' . $visite->origin_id,
+                                            'lien'        => '/crm/visites/' . $visite->origin_id,
                                             'date'        => $list_biens['rdv'],
                                             'type'        => 2,
                                             'description' => 'RDV VISITE',
@@ -915,8 +923,8 @@ class VisiteController extends Controller
                                         'nom'                  => $request->nom,
                                         'prenom'               => $request->prenom,
                                         'telephone_num1'       => $request->telephone,
-                                        'telephone_num2'       => $request->telephone_num2,
-                                        'notifie'              => $prospect->notifie,
+                                        'telephone_num2'       => $request->telephone_num2 == "null" ? null : $request->telephone_num2,
+                                        'notifie'              => $request->notifie==""?0:1,
                                         'prospect_id'          => $prospect->id,
                                         'civilite'             => '1',
                                         'type_client'          => 1,
@@ -1018,9 +1026,7 @@ class VisiteController extends Controller
             $statut_pro->save();
             //send message WhatsApp de bienvenue en cas de n'existe pas de relance ou rendez-vous ou frein
 
-            if ($msg_sended == 0) {
-                if ($prospect->telephone != null) {
-
+            if ($msg_sended == 0  && $prospect->telephone != null) {
                     $data_whtsp = [
                         'to'   => $this->convertToInternational($prospect->telephone),
                         'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
@@ -1030,9 +1036,21 @@ class VisiteController extends Controller
                     ];
 
                     $this->send_whatsapp($request->merge($data_whtsp));
-                }
             }
 
+
+            // Commit transaction if everything is successful
+            DB::connection('temp')->commit();
+
+            return response()->json(['success' => 'Visite created successfully'], 200);
+
+        } catch (\Exception $e) {
+            // Rollback transaction on error
+            DB::connection('temp')->rollBack();
+
+            \Log::error("Visite creation failed: " . $e->getMessage());
+            return response()->json(['error' => 'Visite creation failed: ' . $e->getMessage()], 500);
+        }
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -1173,7 +1191,7 @@ class VisiteController extends Controller
                         Config::set('broadcasting.default', 'pusher_3');
 
                         $data_notif = [
-                            'lien'        => '/visites/show/' . $new_relance->visite->origin_id,
+                            'lien'        => '/crm/visites/'. $new_relance->visite->origin_id,
                             'date'        => $request->date,
                             'type'        => 1,
                             'description' => 'RELANCE VISITE',
@@ -1194,7 +1212,7 @@ class VisiteController extends Controller
                         Config::set('broadcasting.default', 'pusher_3');
 
                         $data_notif = [
-                            'lien'        => '/visites/show/' . $new_relance->visite->origin_id,
+                            'lien'        => '/crm/visites/' . $new_relance->visite->origin_id,
                             'date'        => $request->date,
                             'type'        => 2,
                             'description' => 'RDV VISITE',
@@ -1306,7 +1324,7 @@ class VisiteController extends Controller
             $prospect->nom            = $request->nom;
             $prospect->prenom         = $request->prenom;
             $prospect->telephone      = $request->telephone;
-            $prospect->telephone_num2 = $request->telephone_num2;
+            $prospect->telephone_num2 = $request->telephone_num2 == "null" ? null : $request->telephone_num2;
             $prospect->ville          = $request->input('ville');
             $prospect->source         = $request->source_id;
             if ($request->source_txt == 'Partenaire') {
@@ -1385,7 +1403,7 @@ class VisiteController extends Controller
                         $old_visite->relance_relation->delete();
                     }
                     $data_notif = [
-                        'lien'        => '/visites/show/' . $visite->origin_id,
+                        'lien'        => '/crm/visites/'. $visite->origin_id,
                         'date'        => $request->date_relance,
                         'type'        => 1,
                         'description' => 'RELANCE VISITE',
@@ -1416,7 +1434,7 @@ class VisiteController extends Controller
                         $old_visite->rdv_relation->delete();
                     }
                     $data_notif = [
-                        'lien'        => '/visites/show/' . $visite->origin_id,
+                        'lien'        => '/crm/visites/'. $visite->origin_id,
                         'date'        => $request->rdv,
                         'type'        => 2,
                         'description' => 'RDV VISITE',
@@ -1545,7 +1563,8 @@ class VisiteController extends Controller
                 $freinRequest['etat']                 = 1;
                 $freinRequest['avance']               = $request->avance;
                 $freinRequest['selectedTranches']     = $request->tranches;
-                $freinRequest['selectedEtages']       = $request->etages;
+                //-1 for 0 si on selection just le 0
+                $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
                 $freinRequest['selectedOrientations'] = $request->orientations;
                 $freinRequest['selectedTypologies']   = $request->typologies;
                 $freinRequest['selectedVues']         = $request->vues;
@@ -1558,7 +1577,7 @@ class VisiteController extends Controller
                 } else {
 
                     $freinRequest['visite_id'] = $visite->id;
-                    $freinController->store(new StoreFreinRequest($freinRequest));
+                   $freinController->store(new StoreFreinRequest($freinRequest));
 
                 }
             } else {
@@ -1652,27 +1671,35 @@ class VisiteController extends Controller
     //store n visite
     public function store_n_visite($id, Store_n_VisiteRequest $request)
     {
+
         DatabaseHelper::Config();
         Config::set('broadcasting.default', 'pusher_3');
         $originalVisite = Visite::on('temp')->find($id);
         if (! $originalVisite) {return response()->json(['error' => "L'original de la visite n'a pas été trouvé."]);}
 
         $user = Auth::user();
+        DB::connection('temp')->beginTransaction();
+        $last_origin_id_prospect=$request->last_origin_id_of_prospect;
 
+        $origin=($last_origin_id_prospect !="null" && $last_origin_id_prospect != null)
+                                        ? $last_origin_id_prospect
+                                        : $id;
         if (RoleHelper::ACSup()) {
+            try {
             //si interet on store cin du client
-            $prospect = Prospect::on('temp')->findorfail($originalVisite->prospect_id);
-            if ($request->cin != null) {
-                $cin_exist = Prospect::on('temp')->where('cin', $request->cin)->where('id', '!=', $originalVisite->prospect_id)->count();
-                if ($cin_exist == 0) {
-                    $prospect->cin = $request->cin;
-                    $prospect->save();
+            if($request->prospect_id!=null){
+                $prospect = Prospect::on('temp')->findorfail($request->prospect_id);
+                if ($request->cin != null) {
+                        $prospect->cin = $request->cin;
+                        $prospect->save();
                 }
             }
+            //get origin id of the last prospect
+
             $list_bien_interesse       = json_decode($request->input('list_bien_interesse', '[]'), true);
             $list_bien_transfere_vendu = json_decode($request->input('list_bien_transfere_vendu', '[]'), true);
             $last_number               = null;
-            $visite_exist              = Visite::on('temp')->where('origin_id', $id)->where('etat', 1)->orderBy('created_at', 'DESC')->first();
+            $visite_exist              = Visite::on('temp')->where('origin_id', $origin)->where('etat', 1)->orderBy('created_at', 'DESC')->first();
             if ($visite_exist != null) {
                 $last_number = intval(explode(" ", $visite_exist->description)[2]);
             }
@@ -1698,10 +1725,10 @@ class VisiteController extends Controller
                 $newVisit = new Visite();
                 $newVisit->setConnection('temp');
                 $newVisit->user_id     = $userAuth->value('id');
-                $newVisit->prospect_id = $originalVisite->prospect_id;
+                $newVisit->prospect_id = $request->prospect_id;
                 $newVisit->projet_id   = $request->selectedProjet;
                 $newVisit->description = 'CREATION VISITE ' . ($last_number + 1);
-                $newVisit->origin_id   = $id;
+                $newVisit->origin_id = $origin;
                 $newVisit->commentaire = $request->commentaire;
                 $newVisit->interet     = $request->interet;
                 $newVisit->show        = 1;
@@ -1713,7 +1740,7 @@ class VisiteController extends Controller
                             if ($request->date_relance != null) {
 
                                 $data_notif = [
-                                    'lien'        => '/visites/show/' . $newVisit->origin_id,
+                                    'lien'        => '/crm/visites/' . $newVisit->origin_id,
                                     'date'        => $request->date_relance,
                                     'type'        => 1,
                                     'description' => 'RELANCE VISITE',
@@ -1740,7 +1767,7 @@ class VisiteController extends Controller
                                 $relance->save();
                             }
                         }
-                        $old_visites = Visite::on('temp')->where('origin_id', $id)->where('id', '!=', $newVisit->id)->orderBy('created_at', 'DESC')->get();
+                        $old_visites = Visite::on('temp')->where('origin_id', $origin)->where('id', '!=', $newVisit->id)->orderBy('created_at', 'DESC')->get();
                         if (count($old_visites) > 0) {
                             foreach ($old_visites as $old_visite) {
                                 //si le n visite receptif || perdu
@@ -1805,7 +1832,8 @@ class VisiteController extends Controller
                             $freinRequest['etat']                 = 1;
                             $freinRequest['avance']               = $request->avance;
                             $freinRequest['selectedTranches']     = $request->tranches;
-                            $freinRequest['selectedEtages']       = $request->etages;
+                              //-1 for 0 si on selection just le 0
+                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
                             $freinRequest['selectedOrientations'] = $request->orientations;
                             $freinRequest['selectedTypologies']   = $request->typologies;
                             $freinRequest['selectedVues']         = $request->vues;
@@ -1842,14 +1870,15 @@ class VisiteController extends Controller
                             }
                         }
                         //store n visite
+
                         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                         $newVisit = new Visite();
                         $newVisit->setConnection('temp');
                         $newVisit->user_id     = $userAuth->value('id');
-                        $newVisit->prospect_id = $originalVisite->prospect_id;
+                        $newVisit->prospect_id = $request->prospect_id;
                         $newVisit->projet_id   = $request->selectedProjet;
                         $newVisit->description = 'CREATION VISITE ' . ($last_number + 1);
-                        $newVisit->origin_id   = $id;
+                        $newVisit->origin_id = $origin;
                         $newVisit->commentaire = $request->commentaire;
                         $newVisit->interet     = $request->interet;
                         $newVisit->bien_id     = $list_biens['bien_id'];
@@ -1880,7 +1909,7 @@ class VisiteController extends Controller
                                 if ($newVisit->statut == StatutVisiteEnum::Pré_Réservation->value) {
                                     if ($list_biens['date_relance'] != null) {
                                         $data_notif = [
-                                            'lien'        => '/visites/show/' . $newVisit->origin_id,
+                                            'lien'        => '/crm/visites/' . $newVisit->origin_id,
                                             'date'        => $list_biens['date_relance'],
                                             'type'        => 1,
                                             'description' => 'RELANCE VISITE',
@@ -1907,7 +1936,7 @@ class VisiteController extends Controller
                                     }
                                     if ($list_biens['rdv'] != null) {
                                         $data_notif = [
-                                            'lien'        => '/visites/show/' . $newVisit->origin_id,
+                                            'lien'        => '/crm/visites/'. $newVisit->origin_id,
                                             'date'        => $list_biens['rdv'],
                                             'type'        => 2,
                                             'description' => 'RDV VISITE',
@@ -1982,6 +2011,7 @@ class VisiteController extends Controller
                                         'date_encaissement'    => $list_biens['date_encaissement'],
                                         'files_avance'         => $list_biens['selectedFiles_avc'],
 
+
                                     ];
                                     $reservationRequest->merge($dataReservation);
                                     $reservationController->store($reservationRequest);
@@ -2001,10 +2031,10 @@ class VisiteController extends Controller
                         $newVisit = new Visite();
                         $newVisit->setConnection('temp');
                         $newVisit->user_id     = $userAuth->value('id');
-                        $newVisit->prospect_id = $originalVisite->prospect_id;
+                        $newVisit->prospect_id = $request->prospect_id;
                         $newVisit->projet_id   = $request->selectedProjet;
                         $newVisit->description = 'CREATION VISITE ' . ($last_number + 1);
-                        $newVisit->origin_id   = $id;
+                        $newVisit->origin_id = $origin;
                         $newVisit->commentaire = $request->commentaire;
                         $newVisit->interet     = $request->interet;
                         $newVisit->bien_id     = $list_biens['bien_id'];
@@ -2099,8 +2129,10 @@ class VisiteController extends Controller
                     }
                 }
                 //traite/supprimer les relances rdv des old visite=>automatique
-                $old_visites = Visite::on('temp')->where('origin_id', $id)->whereNotIn('id', $array_v_id)->orderBy('created_at', 'DESC')->get();
+
+                $old_visites = Visite::on('temp')->where('origin_id', $origin)->whereNotIn('id', $array_v_id)->orderBy('created_at', 'DESC')->get();
                 if (count($old_visites) > 0) {
+
                     foreach ($old_visites as $old_visite) {
 
                         //SUPPRIMER LES OLDS NOTIF
@@ -2131,7 +2163,58 @@ class VisiteController extends Controller
                 }
             }
 
-            return response()->json(['visite' => 'success'], 200);
+            //Si un CIN existe déjà pour un autre prospect, on associe toutes les visites du nouveau prospect à l'ancien et on supprime le nouveau prospect
+            if ($origin != $id) {
+                // Get all visits with the current origin_id
+                $visits = Visite::on('temp')->where('origin_id', $id)->get();
+
+                // Get the original prospect ID from the first visit (if exists)
+                $originalProspectId = $visits->first()?->prospect_id;
+
+                if ($originalProspectId) {
+                    // Update all visits without mass assignment
+                    $visits->each(function ($visit) use ($origin, $request) {
+                        $visit->origin_id = $origin;
+                        $visit->prospect_id = $request->prospect_id;
+                        $visit->save();
+                    });
+
+                    // Get the prospect to be merged and deleted
+                    $prospectToMerge = Prospect::on('temp')->with(['appels', 'client'])->find($originalProspectId);
+
+                    if ($prospectToMerge) {
+                        // Update all calls
+                        if( count($prospectToMerge->all_appels)>0){
+                            $prospectToMerge->appels->each(function ($call) use ($request) {
+                            $call->prospect_id = $request->prospect_id;
+                            $call->save();
+                        });
+                        }
+
+
+                        // Update client if exists
+                        if ($prospectToMerge->client!=null) {
+                            $prospectToMerge->client->prospect_id = $request->prospect_id;
+                            $prospectToMerge->client->save();
+                        }
+
+                        // Delete the prospect
+                        $prospectToMerge->delete();
+                    }
+                }
+            }
+            // Commit transaction if everything is successful
+            DB::connection('temp')->commit();
+
+            return response()->json(['success' => 'Visite created successfully'], 200);
+             } catch (\Exception $e) {
+            // Rollback transaction on error
+            DB::connection('temp')->rollBack();
+
+            \Log::error("Visite creation failed: " . $e->getMessage());
+            return response()->json(['error' => 'Visite creation failed: ' . $e->getMessage()], 500);
+             }
+
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

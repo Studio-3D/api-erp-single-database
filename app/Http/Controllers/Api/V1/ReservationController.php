@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enum\RoleEnum;
+use App\Enum\EtatBien;
+use App\Models\Proposition;
 use App\Enum\StatutReservationEnum;
 use App\Events\NotificationEvent;
 use App\Events\NotifMenuEvent;
@@ -259,95 +261,180 @@ class ReservationController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreReservationRequest $request)
-    {
-        $user = Auth::user();
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            //test si le user connecte celui qui a  fait la proposition /etat du bien
-            if ($request->bien_id != null) {
-                $bien_prop = Bien::on('temp')->findorfail($request->bien_id);
 
-                if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id != $userAuth->value('user_id_origin')) {
-                    return response()->json(['error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien . ' est en cours de proposition  par : ' . $bien_prop->is_proposed->user->name . ' ' . $bien_prop->is_proposed->user->prenom], 333);
+
+            public function store(StoreReservationRequest $request)
+                {
+                    $user = Auth::user();
+                    if (!RoleHelper::ACSup()) {
+                        return response()->json(['error' => 'Unauthorized'], 401);
+                    }
+
+                    DatabaseHelper::Config();
+                    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
+                    // Declare $reservation before try block
+                    $reservation = null;
+
+                    // Start database transaction
+                    DB::connection('temp')->beginTransaction();
+
+                    try {
+                        // Validate bien status if provided
+                        if ($request->bien_id) {
+                            $bien_prop = Bien::on('temp')->findOrFail($request->bien_id);
+                            if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' &&
+                                $bien_prop->is_proposed->user_id != $userAuth->user_id_origin) {
+                                return response()->json([
+                                    'error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien .
+                                    ' est en cours de proposition par : ' .
+                                    $bien_prop->is_proposed->user->name . ' ' .
+                                    $bien_prop->is_proposed->user->prenom
+                                ], 333);
+                            }
+                        }
+
+                        // Validate unique code if provided
+                        if ($request->has('code_reservation')) {
+                            $request->validate([
+                                'code_reservation' => [
+                                    Rule::unique('reservations')->where('etat', 1)->whereNull('deleted_at'),
+                                ],
+                            ]);
+                        }
+
+                        // Create temporary reservation with minimal data
+                        $reservation = $this->createTemporaryReservation($request, $userAuth);
+
+                        // Process all dependent operations
+                        $this->processDependencies($reservation, $request, $userAuth);
+
+                        // Finalize the reservation
+                        $this->finalizeReservation($reservation, $userAuth);
+
+                        // Commit transaction
+                        DB::connection('temp')->commit();
+
+                        return response()->json(['reservation' => $reservation], 200);
+
+                    } catch (\Exception $e) {
+                        // First rollback the transaction
+                        DB::connection('temp')->rollBack();
+
+                        // Then clean up if reservation was created
+                        if ($reservation !== null) {
+                            $this->rollbackReservationCreation($reservation);
+                        }
+
+                        \Log::error("Reservation creation failed: " . $e->getMessage());
+                        return response()->json(['error' => 'Reservation creation failed: ' . $e->getMessage()], 500);
+                    }
+                }
+            private function rollbackReservationCreation($reservation)
+            {
+                try {
+                    // Delete all related records
+                    //meter bien en proposition
+                        $bien = Bien::on('temp')->findOrFail($reservation->bien_id);
+                        $bien->etat = EtatBien::ENCOURS_DE_PROPOSITION->value;
+                        if ($bien->save()) {
+                            $bien_propose = new Proposition();
+                            $bien_propose->setConnection('temp');
+                            $bien_propose->bien_id = $bien_id;
+                            $bien_propose->user_id = Auth::guard('api')->user()->id;
+                            $bien_propose->save();
+                        }
+                    Aquereur::on('temp')->where('reservation_id', $reservation->id)->delete();
+                    Avance::on('temp')->where('reservation_id', $reservation->id)->delete();
+                    PiecesJointe::on('temp')->where('reservation_id', $reservation->id)->delete();
+
+                    // Delete the provisional reservation
+                    $reservation->delete();
+
+                } catch (\Exception $e) {
+                    \Log::error("Failed to clean up failed reservation: " . $e->getMessage());
+                }
+            }
+
+            /**
+             * Create temporary reservation with minimal data
+             */
+           private function createTemporaryReservation($request, $userAuth)
+                {
+                    $reservation = new Reservation();
+                    $reservation->setConnection('temp');
+
+                    // Set fields individually
+                    $reservation->prix = $request->prix;
+                    $reservation->mode_financement =$request->mode_financement;
+                    $reservation->nb_acquereurs = $request->nb_acquereurs;
+                    $reservation->code_reservation = $request->code_reservation;
+                    $reservation->bien_id = $request->bien_id;
+                    $reservation->projet_id = $request->projet_id;
+                    $reservation->user_id = $userAuth->id;
+                    $reservation->visite_id=$request->visite_id;
+                    $reservation->date_reservation = $request->date_reservation;
+
+
+                    // Update with all remaining fields individually
+
+                $reservation->commentaire = $request->commentaire== "null" ? null : $request->commentaire;
+                $reservation->prix_remise = $request->prix_remise;
+                $reservation->prix_remise_lettre = (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_remise);
+                $reservation->prix_forfetaire = $request->prix_forfetaire;
+                $reservation->prix_forfetaire_lettre = (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_forfetaire);
+
+                    $reservation->statut = RoleHelper::AdminSup()
+                            ? StatutReservationEnum::Validé->value
+                            : StatutReservationEnum::En_Attente->value;
+                    if (!$reservation->save()) {
+                        throw new \Exception('Failed to create temporary reservation');
+                    }
+
+                    return $reservation;
                 }
 
-            }
-            if ($request->has('code_reservation')) {
-                $request->validate([
-                    'code_reservation' => [
-                        Rule::unique('reservations')->where('etat',1)->whereNull('deleted_at'),
-                    ],
-                ]);
-            }
-            $reservation = new Reservation();
-            $reservation->setConnection('temp');
-            $reservation->nb_acquereurs = $request->nb_acquereurs;
-            $reservation->code_reservation = $request->code_reservation;
-            $reservation->prix = $request->prix;
-            $reservation->mode_financement = $request->mode_financement;
-            $reservation->date_reservation = $request->date_reservation;
-            $reservation->commentaire = $request->input('commentaire') == "null" ? null : $request->input('commentaire');
-            $reservation->visite_id = $request->visite_id;
-            $reservation->prix_remise = $request->prix_remise;
-            $numberToWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-            $prix_remise_lettre = $numberToWords->format($request->prix_remise);
-            $reservation->prix_remise_lettre = $prix_remise_lettre;
-            $reservation->prix_forfetaire = $request->prix_forfetaire;
-            $prix_forfetaire_lettre = $numberToWords->format($request->prix_forfetaire);
-            $reservation->prix_forfetaire_lettre = $prix_forfetaire_lettre;
-            $reservation->bien_id = $request->bien_id;
-            $reservation->projet_id = $request->projet_id;
-            $reservation->user_id = $userAuth->value('id');
-            if (RoleHelper::AdminSup()) {
-                $reservation->statut = StatutReservationEnum::Validé->value;
-            }
-            if (RoleHelper::Com()) {
-                $reservation->statut = StatutReservationEnum::En_Attente->value;
+            /**
+             * Process all dependent operations
+             */
+            private function processDependencies($reservation, $request, $userAuth)
+            {
+                // Reserve the bien if specified
+                if ($request->bien_id) {
+                    (new BienController())->reserverBien($request->bien_id, null, $reservation->id);
+                }
+
+                // Process clients and aquereurs
+                $this->processClients($reservation, $request);
+
+                // Process payment if specified
+                if ($request->avance) {
+                    $this->processPayment($reservation, $request);
+                }
+
+                // Process files if specified
+                if ($request->file('files_reservation')) {
+                    $this->processFiles($reservation, $request, $userAuth);
+                }
             }
 
-            if ($reservation->save()) {
-                $bienController = new BienController();
-                $bienController->reserverBien($reservation->bien_id, null, $reservation->id);
-                //si statut=1 ==>store it to table statutReservation
-                if ($reservation->statut == StatutReservationEnum::Validé->value) {
-                    $statut_R = new StatutReservation();
-                    $statut_R->setConnection('temp');
-                    $statut_R->reservation_id = $reservation->id;
-                    $statut_R->statut = StatutReservationEnum::Validé->value;
-                    $statut_R->date_validation = Carbon::now();
-                    $statut_R->user_id_valider = $userAuth->value('id');
-                    $statut_R->save();
-                }
-                if (RoleHelper::Com()) {
-                    Config::set('broadcasting.default', 'pusher_3');
-                    //notifiction to admin de valider dossier d reservation user_id=>null
-                    $data_notif = [
-                        //'lien' => '/reservations/show/' . $reservation->id,
-                        'lien' => '/validation/reservations/attente',
-                        'date' => Carbon::now(),
-                        'type' => 6,
-                        'role' => RoleEnum::ADMIN->value,
-                        'description' => 'DEMANDE VALIDATION RESERVATION',
-                        'projet_id' => $reservation->projet_id,
-                        'reservation_id' => $reservation->id,
-
-                    ];
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
-                    broadcast(new NotificationEvent($reservation->id));
-                    Config::set('broadcasting.default', 'pusher_5');
-                    //1 traitement reservation
-                    broadcast(new NotifMenuEvent(1));
-                }
+            /**
+             * Process client data
+             */
+            private function processClients($reservation, $request)
+            {
                 $clientController = new ClientController();
-                $clientRequest = new StoreClientRequest();
                 $aquereurController = new AquereurController();
+                $clientRequest = new StoreClientRequest();
                 $aquereurRequest = new StoreAquereurRequest();
+
                 if ($request->origin == 'visite') {
-                    $client_exist = Client::on('temp')->where('prospect_id', $request->prospect_id)->orderBy('created_at', 'DESC')->first();
-                    if ($client_exist != null) {
+                    $client_exist = Client::on('temp')
+                        ->where('prospect_id', $request->prospect_id)
+                        ->orderBy('created_at', 'DESC')
+                        ->first();
+
+                    if ($client_exist) {
                         $clientData = $client_exist;
                     } else {
                         $dataClient = [
@@ -362,11 +449,11 @@ class ReservationController extends Controller
                             'situation_familliale' => $request->situation_familliale,
                             'type_client' => 1,
                             'projet_id' => $request->projet_id,
-
                         ];
                         $clientRequest->merge($dataClient);
                         $clientData = $clientController->store($clientRequest);
                     }
+
                     $dataAquereur = [
                         'pourcentage' => 100,
                         'client_id' => $clientData->id,
@@ -375,17 +462,12 @@ class ReservationController extends Controller
                     $aquereurRequest->merge($dataAquereur);
                     $aquereurController->store($aquereurRequest);
                 } else {
-                   // Parse the string back to an array
                     $dataArray_clients = json_decode($request->input('clients'), true);
-                    $dataArrayString = $request->input('oldClients', '[]');
-                    $dataArray_oldClients = json_decode($dataArrayString, true); // Ensure it's an array
+                    $dataArray_oldClients = json_decode($request->input('oldClients', '[]'), true);
 
-                    // Check if it's an array and not null
                     if ($dataArray_clients) {
-                        foreach ($dataArray_clients as &$clientInfo) {  // Note the & for reference to modify the array
-                            // Add projet_id to each client info
+                        foreach ($dataArray_clients as &$clientInfo) {
                             $clientInfo['projet_id'] = $request->projet_id;
-
                             $clientRequest->merge($clientInfo);
                             $clientData = $clientController->store($clientRequest);
 
@@ -397,12 +479,13 @@ class ReservationController extends Controller
                             $aquereurRequest->merge($dataAquereur);
                             $aquereurController->store($aquereurRequest);
                         }
-                        unset($clientInfo); // Break the reference
+                        unset($clientInfo);
                     }
+
                     if ($dataArray_oldClients) {
                         foreach ($dataArray_oldClients as $clientInfo) {
                             $dataAquereur = [
-                                 'pourcentage' => $clientInfo['pourcentage1'] ?? $clientInfo['pourcentage'] ?? 0, // Fallback to 0 if neither exists
+                                'pourcentage' => $clientInfo['pourcentage1'] ?? $clientInfo['pourcentage'] ?? 0,
                                 'client_id' => $clientInfo['id'],
                                 'reservation_id' => $reservation->id,
                             ];
@@ -410,23 +493,27 @@ class ReservationController extends Controller
                             $aquereurController->store($aquereurRequest);
                         }
                     }
-
                 }
+            }
+
+            /**
+             * Process payment data
+             */
+            private function processPayment($reservation, $request)
+            {
                 $avanceController = new AvanceController();
                 $avanceRequest = new StoreAvanceRequest();
                 $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
                 $mnt_lettre = $inWords->format($request->avance);
+
                 $dataAvance = [
-                    //addedd
                     'avance_with_reservation' => true,
                     'desistement_id' => null,
                     'dossier_id_transfert' => null,
-                    /////
                     'sr' => $request->sr,
                     'type_encaissement' => 1,
                     'montant' => $request->avance,
                     'mode_paiement' => $request->mode_paiement,
-                    // 'mode_transfert' => null,
                     'numero_paiement' => $request->numero_paiement,
                     'date_reglement' => $request->date_reglement,
                     'echeance' => $request->echeance,
@@ -438,60 +525,89 @@ class ReservationController extends Controller
                     'date_encaissement' => $request->date_encaissement,
                     'files_avance' => $request->file('files_avance'),
                 ];
+
                 $avanceRequest->merge($dataAvance);
                 $avanceController->store($avanceRequest);
-                //****store piece jointe***
-
-                //////storer les pieces jointe de résérvation
-                if ($request->file('files_reservation')) {
-                    // Supposons que le code de réservation est passé dans la requête ou obtenu autrement
-                    $codeReservation = $request->input('code_reservation'); // ou bien via une variable issue d'un modèle, ex : $reservation->code
-
-                    foreach ($request->file('files_reservation') as $file) {
-                        $piecesJointeController = new PiecesJointeController();
-                        $pieceJointeRequest = new StorePiecesJointeRequest();
-                        $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
-                        $societe = Societe::findOrfail($user_societes->societe_id);
-
-                        // Récupérer le nom du fichier
-                        $fileName = $file->getClientOriginalName();
-                        $Myfile = $fileName;
-
-                        // Construire le chemin du répertoire avec le code de réservation
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/' . $codeReservation);
-
-                        // Créer le répertoire s'il n'existe pas déjà
-                        File::makeDirectory($directory, 0755, true, true);
-                        $file->move($directory, $Myfile);
-                        $fileType = $file->getClientOriginalExtension();
-                        $datapieceJointe = [
-                            'fichier' => $Myfile,
-                            'type' => $fileType,
-                            'reservation_id' => $reservation->id,
-                            'active' => 1,
-
-                        ];
-
-                        $pieceJointeRequest->merge($datapieceJointe);
-                        $piecesJointeController->store($pieceJointeRequest);
-                    }
-                }
-
             }
-              //store to historique reservation
-                        $histo = new HistoReservation();
+
+            /**
+             * Process file uploads
+             */
+            private function processFiles($reservation, $request, $userAuth)
+            {
+                $piecesJointeController = new PiecesJointeController();
+                $pieceJointeRequest = new StorePiecesJointeRequest();
+                $user_societes = User::where('id', $userAuth->user_id_origin)->first();
+                $societe = Societe::findOrFail($user_societes->societe_id);
+
+                foreach ($request->file('files_reservation') as $file) {
+                    $fileName = $file->getClientOriginalName();
+                    $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/' . $reservation->code_reservation);
+
+                    File::makeDirectory($directory, 0755, true, true);
+                    $file->move($directory, $fileName);
+
+                    $datapieceJointe = [
+                        'fichier' => $fileName,
+                        'type' => $file->getClientOriginalExtension(),
+                        'reservation_id' => $reservation->id,
+                        'active' => 1,
+                    ];
+
+                    $pieceJointeRequest->merge($datapieceJointe);
+                    $piecesJointeController->store($pieceJointeRequest);
+                }
+            }
+
+            /**
+             * Finalize the reservation
+             */
+           private function finalizeReservation($reservation, $userAuth)
+{
+
+
+    // Create status record if validated
+    if ($reservation->statut == StatutReservationEnum::Validé->value) {
+        $res_statut = new statutReservation();
+                $res_statut->setConnection('temp');
+                $res_statut->reservation_id = $reservation->id;
+                $res_statut->statut = StatutReservationEnum::Validé->value;
+                $res_statut->user_id_valider = $userAuth->id;
+                $res_statut->date_validation = Carbon::now();
+                $res_statut->save();
+    }
+
+     $histo = new HistoReservation();
                         $histo->setConnection('temp');
                         $histo->reservation_id = $reservation->id;
-                        $histo->user_id = $userAuth->value('id');
-                        $histo->bien_id = $request->bien_id;
+                        $histo->user_id = $userAuth->id;
+                        $histo->bien_id = request()->bien_id;
                         $histo->action=2;
-                        $histo->description='Création du Réservation';
+                        $histo->description = 'Création du Réservation';
                         $histo->save();
-            return response()->json(['reservation' => $reservation], 200);
 
-        }
-        return response()->json(['error' => 'Unauthorized'], 401);
+
+    // Send notifications if needed
+    if (RoleHelper::Com()) {
+        Config::set('broadcasting.default', 'pusher_3');
+
+        $data_notif = [
+            'lien' => '/ventes/validations/reservations',
+            'date' => Carbon::now(),
+            'type' => 6,
+            'role' => RoleEnum::ADMIN->value,
+            'description' => 'DEMANDE VALIDATION RESERVATION',
+            'projet_id' => $reservation->projet_id,
+            'reservation_id' => $reservation->id,
+        ];
+
+        (new NotificationHelper())->storeNotification(request()->merge($data_notif));
+        broadcast(new NotificationEvent($reservation->id));
+
+        Config::set('broadcasting.default', 'pusher_5');
+        broadcast(new NotifMenuEvent(1));
     }
+}
 
     /**
      * Display the specified resource.
@@ -949,7 +1065,7 @@ class ReservationController extends Controller
             Config::set('broadcasting.default', 'pusher_3');
             //notifiction to admin de valider dossier d reservation user_id=>null
             $data_notif = [
-                'lien' => '/validation/reservations/attente',
+                'lien' => '/ventes/validations/reservations',
                 'date' => Carbon::now(),
                 'type' => 6,
                 'role' => RoleEnum::ADMIN->value,
