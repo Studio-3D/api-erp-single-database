@@ -62,6 +62,8 @@ class DesistementController extends Controller
         Config::set('broadcasting.default', 'pusher_3');
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
+            DB::connection('temp')->beginTransaction();
+        try{
             $type=$request->type;
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
 
@@ -1364,9 +1366,18 @@ class DesistementController extends Controller
                     }
                 }
             }
+                        // Commit transaction if everything is successful
+            DB::connection('temp')->commit();
 
-            return response()->json(['desistement' => 'desistement créé'], 200);
-        } else {
+            return response()->json(['success' => 'desistement created successfully'], 200);
+        } catch (\Exception $e) {
+            // Rollback transaction on error
+            DB::connection('temp')->rollBack();
+
+            \Log::error("desistement creation failed: " . $e->getMessage());
+            return response()->json(['error' => 'desistement creation failed: ' . $e->getMessage()], 500);
+        }
+        }else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 

@@ -86,10 +86,11 @@ Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify'])
 
 Route::middleware('auth:api')->group(function () {
     Route::prefix('v1')->group(function () {
-        /********************Social Network*********************/
+        /********************Social Netxork*********************/
         Route::post('/postTo_Social_Network', [Facebook_InstagramController::class, 'postTo_Social_Network']);
         Route::get('/configurations_social_network', [Facebook_InstagramController::class, 'configurations_social_network']);
         Route::post('store_configurations_social_network', [Facebook_InstagramController::class, 'store_configurations_social_network'])->name('');
+
         
         // Facebook configurations by project
         Route::get('/facebook-configurations', [Facebook_InstagramController::class, 'facebook_configurations']);
@@ -115,6 +116,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/webhook_configuration', [Facebook_InstagramController::class, 'webhook_configuration']);
         Route::post('/store_webhook_configuration', [Facebook_InstagramController::class, 'store_webhook_configuration']);
         Route::post('/test_webhook_verification', [Facebook_InstagramController::class, 'test_webhook_verification']);
+
 
         // Routes de la version numero 1
         // l'API utilisateurs
@@ -446,7 +448,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/linkedin/poll-stats', [LinkedInController::class, 'pollLinkedInStats']);
         Route::get('/linkedin/analytics/{projectId}', [LinkedInController::class, 'getLinkedInAnalytics']);
     });
-    
+
     /*************************************Société***************************** */
     Route::resource('societe', SocieteController::class);
 
@@ -516,7 +518,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('get_rdv_notaire_menu/{projet_id}', [LivraisonController::class, 'get_rdv_notaire_menu'])->name('');
     //Rendez Vous
     Route::get('creneaux-occupes', [LivraisonController::class, 'getCreneauxOccupes']);
-
+    Route::post('/update-reservation-creneau/{reservation_id}', [LivraisonController::class, 'updateReservationCreneau']);
     /************compromis vente******/
 
     Route::post('store_compromis_vente/{rdv_id}', [LivraisonController::class, 'store_compromis_vente'])->name('');

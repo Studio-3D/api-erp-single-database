@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Rendez_vous_Prop;
 use App\Enum\RoleEnum;
 use App\Enum\StatutRdvEnum;
 use App\Enum\StatutReservationEnum;
@@ -119,6 +120,7 @@ public function store_rdv_reservation($id, Request $request)
         $creneau = CreneauxOccupes::on('temp')
             ->where('debut', $dateDebut)
             ->where('disponible', false)
+            ->where('user_id','!=',$userAuth->id)
             ->first();
 
         if ($creneau) {
@@ -140,6 +142,11 @@ public function store_rdv_reservation($id, Request $request)
             $rdv->save();
 
             // Mark time slot as occupied
+            //check the creneau propose ==> supprimer it
+            $cren_prop=CreneauxOccupes::on('temp')->where('debut',$dateDebut)->where('fin',$dateFin)->where('type',0)->where('user_id',$userAuth->id)->first();
+            if($cren_prop!=null){
+                $cren_prop->forceDelete();
+            }
             $cren = new CreneauxOccupes();
             $cren->setConnection('temp');
             $cren->debut = $dateDebut;
@@ -153,6 +160,84 @@ public function store_rdv_reservation($id, Request $request)
 
         return response()->json(['message' => 'Rendez-vous enregistré avec succès'], 201);
     }
+}
+
+// In your controller
+public function updateReservationCreneau($reservation_id, Request $request)
+{
+    $validated = $request->validate([
+        'rdv' => 'required|date',
+    ]);
+
+    if (!RoleHelper::ACSup()) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    $user = Auth::user();
+    DatabaseHelper::Config();
+    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
+    $rdvTime = Carbon::parse($validated['rdv']);
+    $dateDebut = $rdvTime->format('Y-m-d H:i:s');
+    $dateFin = $rdvTime->copy()->addMinutes(30)->format('Y-m-d H:i:s');
+
+    // Business hours check
+    if ($rdvTime->format('H:i') < '08:00' || $rdvTime->format('H:i') > '18:00') {
+        return response()->json([
+            'message' => 'Outside business hours',
+            'errors' => ['rdv' => ['Please select a time between 8am and 6pm']]
+        ], 422);
+    }
+
+    return DB::connection('temp')->transaction(function () use ($reservation_id, $dateDebut, $dateFin, $userAuth, $validated) {
+        // 1. Find and delete only the most recent creneau for this reservation
+        $lastCreneau = CreneauxOccupes::on('temp')
+            ->where('reservation_id', $reservation_id)
+            ->where('type',0)//proposition
+            ->where('user_id',$userAuth->id)//proposition
+            ->latest('debut')
+            ->first();
+
+        if ($lastCreneau) {
+            $lastCreneau->forceDelete();
+        }
+
+        // 2. Check if new slot is available
+        $existingConflict = CreneauxOccupes::on('temp')
+            ->where('debut', $dateDebut)
+            ->where('disponible', false)
+            ->exists();
+
+        if ($existingConflict) {
+            throw new \Exception('This time slot is no longer available');
+        }
+
+        // 3. Create new creneau
+          $cren = new CreneauxOccupes();
+            $cren->setConnection('temp');
+            $cren->debut = $dateDebut;
+            $cren->fin = $dateFin; // Set the end time
+            $cren->user_id= $userAuth->id;
+            //type par defaut 0
+            $cren->reservation_id=$reservation_id;
+            $cren->disponible = false;
+            $cren->save();
+
+
+        // 4. Trigger Pusher event with the affected time range
+        event(new Rendez_vous_Prop(
+            $dateDebut,
+            $userAuth->id,
+            $reservation_id,
+            $lastCreneau ? $lastCreneau->debut : null
+        ));
+
+        return response()->json([
+            'message' => 'Time slot updated successfully',
+            'new_slot' => $dateDebut,
+            'old_slot' => $lastCreneau ? $lastCreneau->debut : null
+        ]);
+    });
 }
 
 /*private function genererCreneauxJournee(Carbon $date)
@@ -214,7 +299,7 @@ public function store_rdv_reservation($id, Request $request)
                         broadcast(new NotifMenuEvent(6));
                         //store new notification a validé
                         $data_notif = [
-                            'lien' => '/reservations/show/' . $id,
+                            'lien' => '/ventes/reservations/' . $id,
                             'date' => Carbon::now(),
                             'type' => 25,
                             'description' => 'modification du rdv',
@@ -314,7 +399,7 @@ public function store_rdv_reservation($id, Request $request)
                     //store new notification validé
                     Config::set('broadcasting.default', 'pusher_3');
                     $data_notif = [
-                        'lien' => '/reservations/show/' . $rdv->reservation_id,
+                        'lien' => '/ventes/reservations/' . $rdv->reservation_id,
                         'date' => Carbon::now(),
                         'type' => 23,
                         'user_id' => $rdv->reservation->user->user_id_origin,
@@ -335,7 +420,7 @@ public function store_rdv_reservation($id, Request $request)
                     //store new notification rejeté
                     Config::set('broadcasting.default', 'pusher_3');
                     $data_notif = [
-                        'lien' => '/reservations/show/' . $rdv->reservation_id,
+                        'lien' => '/ventes/reservations/' . $rdv->reservation_id,
                         'date' => Carbon::now(),
                         'type' => 24,
                         'user_id' => $rdv->reservation->user->user_id_origin,
@@ -405,7 +490,7 @@ public function store_rdv_reservation($id, Request $request)
                     Config::set('broadcasting.default', 'pusher_3');
 
                     $data_notif = [
-                        'lien' => '/reservations/show/' . $id,
+                        'lien' => '/ventes/reservations/' . $id,
                         'date' => date('Y-m-d', strtotime($request->date_echeance . ' - 3 days')),
                         'type' => 26,
                         'description' => 'compromis bientot expirer',

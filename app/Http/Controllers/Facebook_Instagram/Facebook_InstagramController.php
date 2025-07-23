@@ -37,7 +37,7 @@ class Facebook_InstagramController extends Controller
         //pour commenter /***"https://graph.facebook.com/{page-post-id}/comments?message=I%20want%20chocolate%20cake%20! &access_token=page-access-token"  */
         //get comments           //https://graph.facebook.com/v22.0/{page-post-id}537798629425112_122104722890793117/comments?access_token=EAAI3GumKq0oBO3e3PWinEHAOpbupHdC115jYneAbK2jWQsgAW0UfSj3da54JW9ZCZBfRKn6zm1lteZBzopLobZALsZBiHkdRPuqhFSfEjY1AxTwj8vkLeUO4rjiQpnAZBDshxdL8HmkwvSXFscFcLhe42G1DtQhD0RTRRVMhZCLgtHmBAVDw4UFFY46abpNsgVcp1fHLM8iZBLbRyzmCxt3ye08b&debug=all&format=json&method=get&origin_graph_explorer=1&pretty=0&suppress_http_code=1&transport=cors
 
-        
+
         public function postTo_Social_Network(StoreSocialNetworkRequest $request){
 
                 try {
@@ -408,20 +408,20 @@ class Facebook_InstagramController extends Controller
 
 
         /******************************Webhook Configuration*************************/
-    
+
     public function webhook_configuration(Request $request)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $config = ConfigurationSocialNetwork::on('temp')->first();
-            
+
             $webhookConfig = [
                 'webhook_verify_token' => $config->webhook_verify_token ?? '',
                 'webhook_enabled' => $config->webhook_enabled ?? false,
                 'webhook_subscriptions' => $config->webhook_subscriptions ?? [],
                 'webhook_url' => 'https://e86332116ba7.ngrok-free.app/api/webhookFcb_Insta',
             ];
-            
+
             return response()->json(['webhook_config' => $webhookConfig], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -432,7 +432,7 @@ class Facebook_InstagramController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             // Check if basic social network configuration exists first
             $config = ConfigurationSocialNetwork::on('temp')->first();
             if (!$config) {
@@ -440,7 +440,7 @@ class Facebook_InstagramController extends Controller
                     'error' => 'Vous devez d\'abord configurer Facebook ou Instagram avant de configurer les webhooks'
                 ], 400);
             }
-            
+
             $request->validate([
                 'webhook_verify_token' => 'required|string'
             ]);
@@ -463,7 +463,7 @@ class Facebook_InstagramController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $config = ConfigurationSocialNetwork::on('temp')->first();
-            
+
             if (!$config || !$config->webhook_verify_token) {
                 return response()->json(['error' => 'Webhook not configured'], 400);
             }
@@ -472,9 +472,9 @@ class Facebook_InstagramController extends Controller
                 // Test webhook verification with our known URL
                 $webhookUrl = 'https://e86332116ba7.ngrok-free.app/api/webhookFcb_Insta';
                 $testUrl = $webhookUrl . '?hub.mode=subscribe&hub.challenge=test_challenge&hub.verify_token=' . $config->webhook_verify_token;
-                
+
                 $response = Http::get($testUrl);
-                
+
                 if ($response->successful() && $response->body() === 'test_challenge') {
                     return response()->json(['success' => true, 'message' => 'Webhook verification successful'], 200);
                 } else {
@@ -491,6 +491,7 @@ class Facebook_InstagramController extends Controller
     // Modified verify method to properly connect to tenant databases
     public function verify(Request $request)
     {
+
         try {
             $hub_mode = $request->hub_mode;
             $hub_challenge = $request->hub_challenge;
@@ -501,6 +502,7 @@ class Facebook_InstagramController extends Controller
                 'verify_token' => $hub_verify_token,
                 'challenge' => $hub_challenge
             ]);
+
 
             // Check if it's a subscription verification
             if ($hub_mode === 'subscribe') {
@@ -848,7 +850,7 @@ class Facebook_InstagramController extends Controller
         {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             // Validate only the fields that are being sent
             $rules = [];
             if ($request->has('page_fcb_id') || $request->has('acces_token_page')) {
@@ -859,13 +861,13 @@ class Facebook_InstagramController extends Controller
                 $rules['instagram_id'] = 'required_with:acces_token_user|string|nullable';
                 $rules['acces_token_user'] = 'required_with:instagram_id|string|nullable';
             }
-            
+
             $request->validate($rules);
 
             $config = ConfigurationSocialNetwork::on('temp')->first();
             if ($config != null) {
                 $config->setConnection('temp');
-                
+
                 // Only update fields that are provided
                 if ($request->has('page_fcb_id')) {
                     $config->page_fcb_id = $request->page_fcb_id;
@@ -879,18 +881,18 @@ class Facebook_InstagramController extends Controller
                 if ($request->has('acces_token_user')) {
                     $config->acces_token_user = $request->acces_token_user;
                 }
-                
+
                 $config->save();
             } else {
                 $config = new ConfigurationSocialNetwork();
                 $config->setConnection('temp');
-                
+
                 // Set provided fields or empty strings as defaults
                 $config->page_fcb_id = $request->page_fcb_id ?? '';
                 $config->acces_token_page = $request->acces_token_page ?? '';
                 $config->instagram_id = $request->instagram_id ?? '';
                 $config->acces_token_user = $request->acces_token_user ?? '';
-                
+
                 $config->save();
             }
 

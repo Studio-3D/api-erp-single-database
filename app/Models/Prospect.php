@@ -45,7 +45,11 @@ class Prospect extends Model
         return $this->hasOne(Appel::class,'prospect_id')->latest();
 
     }
+ public function all_appels()
+    {
+        return $this->hasMany(Appel::class,'prospect_id');
 
+    }
     public function last_statut()
     {
         return $this->hasOne(StatutProspect::class,'prospect_id')->latest();

@@ -17,21 +17,21 @@ use Illuminate\Support\Facades\DB;
 
 
 
-class ClearPropositionTable extends Command
+class DeleteCreneauxPropose extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'app:clear-proposition-table';
+    protected $signature = 'delete_creneau_propose';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Libérer le bien après 30 minutes s\'il est toujours en cours de proposition.';
+    protected $description = 'delete row crenau propose after 2min of proposition';
 
     /**
      * Execute the console command.
@@ -40,6 +40,6 @@ class ClearPropositionTable extends Command
     public function handle()
     {
         $databases = DB::table('societes')->whereNull('deleted_at')->get();
-        DatabaseHelper::deletePropositionTable($databases);
+        DatabaseHelper::deleteCreneauPropose($databases);
     }
 }

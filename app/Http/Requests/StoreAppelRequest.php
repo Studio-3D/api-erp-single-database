@@ -31,7 +31,7 @@ use Illuminate\Http\Request;
         $rules['source']='required';
         $rules['type_appel']='required';
         $rules['interet']='required';
-        $rules['commentaire']='required';
+      //  $rules['commentaire']='required';
         $rules['projet_id']='required';
 
         if ($request->telephone_num2!="null" && $request->telephone_num2!=null ) {
