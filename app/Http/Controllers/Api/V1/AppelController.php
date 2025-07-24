@@ -100,12 +100,12 @@ class AppelController extends Controller
         }
 
         // Filter by interet - corrected to properly check the value
-        if ($request->filled('interet')) {
+       /* if ($request->filled('interet')) {
             $interet = $request->input('interet');
             $query->whereHas('last_traitement_appel', function ($q) use ($interet) {
                 $q->where('interet', $interet);
             });
-        }
+        }*/
 
         // Apply pagination if parameters are valid
         if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {

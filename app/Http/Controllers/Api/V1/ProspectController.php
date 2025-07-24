@@ -368,7 +368,7 @@ class ProspectController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->with('visites_perdu')->findOrfail($id);
+            $prospect = Prospect::on('temp')->with('visites_perdu','appels')->findOrfail($id);
             return response()->json(['prospect' => $prospect], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

@@ -320,7 +320,7 @@ class VisiteController extends Controller
         convert
         lead to visite
          ****/
-        DatabaseHelper::Config();
+         DatabaseHelper::Config();
         Config::set('broadcasting.default', 'pusher_3');
         // Start database transaction
         DB::connection('temp')->beginTransaction();

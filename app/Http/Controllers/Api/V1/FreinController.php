@@ -581,7 +581,7 @@ class FreinController extends Controller
                     }
 
 
-                    array_push($clients,array('id' => $fr->id,'date' => $fr->created_at,'nom' => $fr->visite->prospect->nom,'prenom' => $fr->visite->prospect->prenom,'telephone' => $fr->visite->prospect->telephone,'telephone_2' => $fr->visite->prospect->telephone_num2,'id_origin' => $fr->visite->origin_id,'frein'=>$fr_type));
+                    array_push($clients,array('id' => $fr->id,'date' => $fr->created_at,'nom' => $fr->visite->prospect->nom,'prenom' => $fr->visite->prospect->prenom,'telephone' => $fr->visite->prospect->telephone,'telephone_2' => $fr->visite->prospect->telephone_num2,'id_origin' => $fr->visite->origin_id,'visite_id' => $fr->visite->id,'frein'=>$fr_type));
                  }
             }
 
@@ -667,7 +667,6 @@ class FreinController extends Controller
 
     public function traiter_bien_frein(Traite_Bien_freinRequest $request, $frein_id)
     {
-        return response()->json($request);
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $user = Auth::user();
@@ -763,6 +762,7 @@ class FreinController extends Controller
 
                         }else{
                             //perdu store new frein
+                            $selectedEtages = ($request->etages == "0") ? -100 : $request->etages;
 
                             $frein_new = new Frein();
                             $frein_new->setConnection('temp');
@@ -770,14 +770,14 @@ class FreinController extends Controller
                             $frein_new->prix_max = $request->prix_max;
                             $frein_new->superficie_min = $request->sup_min;
                             $frein_new->superficie_max = $request->sup_max;
-                            $freinn_new->description_autre = $request->description_autre;
+                            $frein_new->description_autre = $request->description_autre;
                             //create new frein by appel bien disponible
                             $frein_new->etat = 6;
                             $frein_new->avance = $request->avance;
                             $frein_new->visite_id = $frein->visite_id;
                             $frein_new->traite_appel_id =null;
                             $frein_new->tranche = empty($request->tranches) ? false : true;
-                            $frein_new->etage = empty($request->etages) ? false : true;
+                            $frein_new->etage = empty($request->selectedEtages) ? false : true;
                             $frein_new->orientation = empty($request->orientations) ? false : true;
                             $frein_new->vue = empty($request->vues) ? false : true;
                             $frein_new->typologie = empty($request->typologies) ? false : true;
@@ -789,12 +789,21 @@ class FreinController extends Controller
                                         FreinTrancheHelper::createFreinTranche($valeur, $frein_new->id);
                                     }
                                 }
-                                if (!empty($request->etages)) {
-                                    $array_etage = explode(',', $request->etages); // $tranches_array sera ['5', '2']
+
+
+                                if ($selectedEtages !== '') {
+                                    $array_etage = explode(',', $selectedEtages);
                                     foreach ($array_etage as $valeur) {
-                                        FreinEtageHelper::createFreinEtage($valeur, $frein_new->id);
+                                        // Convert to integer first
+                                        $intValue = (int)$valeur;
+                                        if (is_numeric($valeur)) {
+                                            // EXPLICIT conversion of -100 to 0
+                                            $valueToStore = ($intValue === -100) ? 0 : $intValue;
+                                            FreinEtageHelper::createFreinEtage($valueToStore, $frein_new->id);
+                                        }
                                     }
                                 }
+
                                 if (!empty($request->orientations)) {
                                     $array_orientation = explode(',', $request->orientations); // $tranches_array sera ['5', '2']
                                     foreach ($array_orientation as $valeur) {
