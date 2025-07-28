@@ -73,6 +73,7 @@ class DatabaseHelper
         $migration = Artisan::call('migrate', [
             '--database' => 'temp',
             '--path' => 'database/migrations/migrations_societe',
+            '--force' => true,
         ]);
 
         config(['database.connections.temp' => null]);
