@@ -98,14 +98,31 @@ class DatabaseHelper
 
     public static function Config($societe_id = null)
     {
-        if (!$societe_id) {
-            \Log::info("ste__id $societe_id.");
-            $societe_id = Auth::guard('api')->user()->societe_id;
+        try {
+            // If no societe_id provided, try to get from authenticated user
+            if ($societe_id === null) {
+                $user = Auth::user();
+                if (!$user) {
+                    Log::warning('DatabaseHelper::Config called without societe_id and no authenticated user');
+                    throw new \Exception('No societe_id provided and no authenticated user found');
+                }
+                $societe_id = $user->societe_id;
+            }
+            
+            if (!$societe_id) {
+                throw new \Exception('Invalid societe_id provided to DatabaseHelper::Config');
+            }
+            
+            Log::info("DatabaseHelper::Config called with societe_id: {$societe_id}");
+            
+            $societe = Societe::findOrfail($societe_id);
+            $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
+            $connection = DatabaseHelper::Connection_database($DatabaseName);
+            config(['database.connections.temp' => $connection]);
+        } catch (\Exception $e) {
+            Log::error('DatabaseHelper::Config error: ' . $e->getMessage());
+            throw $e;
         }
-        $societe = Societe::findOrfail($societe_id);
-        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
-        $connection = DatabaseHelper::Connection_database($DatabaseName);
-        config(['database.connections.temp' => $connection]);
     }
 
     // public static function Config($societe_id = null)
