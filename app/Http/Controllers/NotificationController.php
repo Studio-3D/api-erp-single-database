@@ -379,7 +379,7 @@ class NotificationController extends Controller
          }
     }
 
-    public function get_notifications(Request $request,$projet_id){
+    public function get_notifications(Request $request, $projet_id){
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $i=0;
@@ -411,24 +411,40 @@ class NotificationController extends Controller
                }
                    
                    // Toutes les notifications (filter out type 99)
-               $all_notifications=Notification::on('temp')->with('prospect','user','reservation','avance','bien')
-               ->where(function ($query) {
-                $query->where('role',RoleEnum::ADMIN->value)
-                    ->orwhere('user_id',Auth::guard('api')->user()->id)
-                ;})
-               ->where('projet_id',$projet_id)->where('type', '!=', 99)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('id','desc')->get();
+               $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien')
+                    ->where(function ($query) {
+                        $query->where('role',RoleEnum::ADMIN->value)
+                            ->orwhere('user_id',Auth::guard('api')->user()->id);
+                    })
+                    ->where('projet_id',$projet_id)
+                    ->where('type', '!=', 99)
+                    ->withTrashed()
+                    ->whereDate('date', '<=', Carbon::now())
+                    ->orderBy('id','desc')
+                    ->get();
                   // Nombre de nouvelles notifications
                $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('role',RoleEnum::ADMIN->value)->where('type', '!=', 99)->where('deleted_at',null)->count();
                   // Nombre de nouvelles notifications Webhook
                $new_notif_webhook_fcb_inst_whtsp=WebhookEvent::on('temp') ->whereIn('platform', $platforms)->whereDate('created_at', '<=', Carbon::now())->where('deleted_at',null)->orderBy('id','desc')->count();
 
             }else{
-                $all_notifications=Notification::on('temp')->with('prospect','user','reservation','avance','bien')->where('projet_id',$projet_id)->where('user_id',Auth::guard('api')->user()->id)->where('type', '!=', 99)->withTrashed()->whereDate('date', '<=', Carbon::now())->orderBy('date','desc')->get();
+                $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien')
+                    ->where('projet_id',$projet_id)
+                    ->where('user_id',Auth::guard('api')->user()->id)
+                    ->where('type', '!=', 99)
+                    ->withTrashed()
+                    ->whereDate('date', '<=', Carbon::now())
+                    ->orderBy('date','desc')
+                    ->get();
                 $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('deleted_at',null)->where('user_id',Auth::guard('api')->user()->id)->where('type', '!=', 99)->count();
                 $notifs_webhook_fcb_insta_whstp=[];
                 $new_notif_webhook_fcb_inst_whtsp=0;
             }
-           return response()->json(['all_notifications' => $all_notifications,'notifs_webhook_fcb_insta_whstp'=>$notifs_webhook_fcb_insta_whstp,'new_notifications_count'=>$new_notifications_count+$new_notif_webhook_fcb_inst_whtsp]);
+           return response()->json([
+                'all_notifications' => $all_notifications,
+                'notifs_webhook_fcb_insta_whstp'=>$notifs_webhook_fcb_insta_whstp,
+                'new_notifications_count'=>$new_notifications_count+$new_notif_webhook_fcb_inst_whtsp
+            ]);
         }
          else{
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -648,19 +664,14 @@ class NotificationController extends Controller
     public function mark_notification_seen(Request $request) {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $user_id = Auth::guard('api')->user()->id;
-            
             $validated = $request->validate([
                 'notification_id' => 'required|integer',
                 'projet_id' => 'required|integer'
             ]);
-            
-            SeenNotification::on('temp')->updateOrCreate([
-                'user_id' => $user_id,
-                'notification_id' => $validated['notification_id'],
-                'projet_id' => $validated['projet_id']
-            ]);
-            
+            // Mark as seen for all users
+            Notification::on('temp')
+                ->where('id', $validated['notification_id'])
+                ->update(['seen' => 1]);
             return response()->json(['success' => true]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -669,21 +680,14 @@ class NotificationController extends Controller
     public function mark_all_notifications_seen(Request $request) {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $user_id = Auth::guard('api')->user()->id;
-            
             $validated = $request->validate([
                 'notification_ids' => 'required|array',
                 'projet_id' => 'required|integer'
             ]);
-            
-            foreach ($validated['notification_ids'] as $notification_id) {
-                SeenNotification::on('temp')->updateOrCreate([
-                    'user_id' => $user_id,
-                    'notification_id' => $notification_id,
-                    'projet_id' => $validated['projet_id']
-                ]);
-            }
-            
+            // Mark all as seen for all users
+            Notification::on('temp')
+                ->whereIn('id', $validated['notification_ids'])
+                ->update(['seen' => 1]);
             return response()->json(['success' => true]);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
