@@ -24,7 +24,7 @@ class StoreUserRequest extends FormRequest
         return [
             //'name' => 'required|string',
            // 'prenom' => 'required|string',
-            'email' => 'required|email|unique:users,email,NULL,id,deleted_at,NULL',
+            'email' => 'required|email|',
             'password' => 'required|min:6|same:password_confirmation',
             'password_confirmation' => 'required|min:6',
             'role' => 'required|integer',

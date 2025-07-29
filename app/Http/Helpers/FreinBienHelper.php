@@ -27,7 +27,7 @@ class FreinBienHelper
 
                 Config::set('broadcasting.default', 'pusher_3');
                 $data_notif = [
-                    'lien' =>  '/visites/freins/home',
+                    'lien' =>  '/crm/visites/freins',
                     'date' => Carbon::now(),
                     'type' => 3,
                     'description' => 'Bien Disponible Frein',

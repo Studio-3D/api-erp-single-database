@@ -466,14 +466,14 @@ class HomeController extends Controller
             /**************************** Visites ************************/
 
 
-            $query_nb_visites=Visite::on('temp');
+            $query_nb_visites=Visite::on('temp')->where('etat', 1);
             if($dt==null && $a_dt==null){
                 $query_nb_visites ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
             }else{
                 $query_nb_visites->whereBetween('created_at',[$dt,$a_dt]);
             }
 
-            if ($projet_id!=0) {
+            if ($projet_id!=null) {
                 $query_nb_visites->where('projet_id',  $projet_id );
             }
               //comercial

@@ -141,7 +141,7 @@ class UserController extends Controller
         if ($request->filled('role')) {
             $query->where('role', 'like', '%' . $request->input('role') . '%');
         }
-        
+
 
         // Si l'utilisateur s'agit d'un 'superadmin'
         if (RoleHelper::Superadmin() && $user->societe_id == 1) {
@@ -232,7 +232,7 @@ class UserController extends Controller
                 Mail::send('User.mail', $data, function ($message) use ($to_email) {
                     $message->to($to_email)
                         ->subject('Codes Accés au Immo Gestion');
-                    $message->from('hhhh.test022@gmail.com', 'Immo Gestion');
+                    $message->from('immo8969@gmail.com', 'Immo Gestion');
 
                 });
             }
@@ -426,7 +426,7 @@ class UserController extends Controller
                     Mail::send('User.mail', $data, function ($message) use ($to_email) {
                         $message->to($to_email)
                             ->subject('Codes Accés au Immo Gestion');
-                        $message->from('hhhh.test022@gmail.com', 'Immo Gestion');
+                        $message->from('immo8969@gmail.com', 'Immo Gestion');
 
                     });
                 }
@@ -467,10 +467,18 @@ class UserController extends Controller
     }
 
     // Methodes utilitaires (partie invisible a l'exterieur de la classe)
-    private function createSubUser($request, $user_id, $user_photo, $dataArray_projets)
+  private function createSubUser($request, $user_id, $user_photo, $dataArray_projets)
     {
 
         DatabaseHelper::Config($request->societe_id);
+        $existingUser = User::on('temp')
+        ->where('email', $request->email)
+        ->first();
+
+        if ($existingUser) {
+            // L'email est déjà utilisé dans cette société
+            throw new \Exception("L'adresse email est déjà utilisée dans cette société.");
+        }
         $user = new User();
         $user->setConnection('temp');
         $user->user_id_origin  = $user_id;

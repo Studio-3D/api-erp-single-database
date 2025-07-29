@@ -20,7 +20,7 @@ class Compromis_vente extends Model
         return $this->belongsTo(Reservation::class,'reservation_id');
     }
     public function user(){
-        return $this->belongsTo(User::class,'user_id');
+        return $this->belongsTo(User::class,'user_id')->withTrashed();
     }
 
 }

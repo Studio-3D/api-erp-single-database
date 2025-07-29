@@ -17,10 +17,13 @@ class Visite extends Model
     protected $table='visites';
     protected $dates=['deleted_at'];
     protected $with=['prospect','bien','source','user','historique_bien_visite','partenaire'];
-
+ //pour repmir les json par array
+    protected $casts = [
+        'historique_modication' => 'array',
+    ];
     public function user()
     {
-        return $this->belongsTo(User::class,'user_id');
+        return $this->belongsTo(User::class,'user_id')->withTrashed();
     }
 
     public function prospect()

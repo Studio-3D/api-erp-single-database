@@ -1046,7 +1046,6 @@ class ReservationController extends Controller
                 $histo->user_id = $userAuth->value('id');
                 $histo->bien_id = $request->input('bien_id');
                 $histo->action = 3;
-                $histo->description = 'Modification du Réservation';
                 $histo->description = json_encode($changes);
                 $histo->save();
             }

@@ -18,7 +18,7 @@ class Notification extends Model
         return $this->belongsTo(Visite::class,'visite_id');
     }
     public function user(){
-        return $this->belongsTo(User::class ,'user_id','user_id_origin');
+        return $this->belongsTo(User::class ,'user_id','user_id_origin')->withTrashed();
     }
     public function prospect(){
         return $this->belongsTo(Prospect::class,'prospect_id');

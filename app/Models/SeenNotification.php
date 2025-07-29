@@ -10,16 +10,16 @@ class SeenNotification extends Model
     use HasFactory;
 
     protected $table = 'seen_notifications';
-    
+
     protected $fillable = [
         'user_id',
-        'notification_id', 
+        'notification_id',
         'projet_id'
     ];
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     public function notification()
