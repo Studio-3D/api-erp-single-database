@@ -44,9 +44,7 @@ class Kernel extends ConsoleKernel
     }
 
     protected $commands = [
-        // ...existing commands...
         \App\Console\Commands\CreateBienMediaTable::class,
-        \App\Console\Commands\AddDescriptionToBiensTable::class,
     ];
 
 
