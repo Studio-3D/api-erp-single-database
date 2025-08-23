@@ -194,7 +194,7 @@ class CommissionController extends Controller
                             break; // Stop the loop if you found the user
                         }
                     }
-                    //njib les noms w prenom nchof kif ndir nakhod nom w prenom mn dik array d users
+                    //get nom prenom from array users
                     array_push($users_with_data_vente,array('id' => $us_id,'name' =>$name ,'prenom' => $prenom,'nb_vente' => $nb_vente,'commission' => $commission));
                 }
                 }
