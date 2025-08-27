@@ -152,7 +152,7 @@ class BlocController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $bloc = Bloc::on('temp')->with('projet')->with('tranche')->findOrfail($id);
+            $bloc = Bloc::on('temp')->with('projet','tranche','bien','immeuble')->withCount('immeuble','bien')->findOrfail($id);
             return response()->json(['bloc' => $bloc], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

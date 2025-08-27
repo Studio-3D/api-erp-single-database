@@ -283,7 +283,7 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, $id)
     {
 
-        $user = User::findOrFail($id);
+       /* $user = User::findOrFail($id);
         if ($request->has('cin')) {
             $request->validate([
                 'cin' => [
@@ -297,12 +297,30 @@ class UserController extends Controller
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],
             ]);
-        }
+        }*/
         DB::connection()->beginTransaction();
         try{
             if ($request->is_profil) {
                 $user = Auth::user();
+                $societe_id = Auth::guard('api')->user()->societe_id;
+                $societe=Societe::findOrfail( $societe_id);
+                $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
                 DatabaseHelper::Config();
+                if ($request->has('cin')) {
+                    $request->validate([
+                        'cin' => [
+                                Rule::unique('temp.'.$DatabaseName.'.users')->ignore($user->id)->whereNull('deleted_at'),
+                                ],
+
+                    ]);
+                }
+                if ($request->has('email')) {
+                    $request->validate([
+                        'email' => [
+                                Rule::unique('temp.'.$DatabaseName.'.users')->ignore($user->id)->whereNull('deleted_at'),
+                                ],
+                    ]);
+                }
                 $user                = User::on('temp')->where('user_id_origin', Auth::guard('api')->user()->id)->first();
                 $user->name          = $request->input('name');
                 $user->prenom        = $request->input('prenom');
@@ -349,7 +367,22 @@ class UserController extends Controller
 
                 }
             } else if (RoleHelper::AdminSup()) {
-                $user                = User::findOrFail($id);
+
+                $user = User::findOrFail($id);
+                if ($request->has('cin')) {
+                    $request->validate([
+                        'cin' => [
+                            Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+                        ],
+                    ]);
+                }
+                if ($request->has('email')) {
+                    $request->validate([
+                        'email' => [
+                            Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+                        ],
+                    ]);
+                }
                 $old_email           = $user->email;
                 $user->name          = $request->input('name');
                 $user->prenom        = $request->input('prenom');

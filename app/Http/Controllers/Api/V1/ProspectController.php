@@ -362,7 +362,7 @@ class ProspectController extends Controller
             $statutProspect = new StatutProspect();
             $statutProspect->setConnection('temp');
             $statutProspect->prospect_id = $prospect->id;
-            $statutProspect->statut = StatutProspectEnum::En_attente->value;
+            $statutProspect->statut = '0';
             $statutProspect->date_traitement = Carbon::now();
             $statutProspect->user_id_traite = $userAuth ? $userAuth->id : null;
             $statutProspect->commentaire = 'Prospect créé manuellement';
