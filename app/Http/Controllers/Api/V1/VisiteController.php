@@ -355,8 +355,8 @@ class VisiteController extends Controller
                 $validatedData['ville']          = $request->input('ville');
                 $validatedData['origin']         = 'visite';
                 $validatedData['notifie']        = $request->notifie;
-                $prospectController              = new ProspectController();
-                $prospect                        = $prospectController->store(new StoreProspectRequest($validatedData));
+                $prospectController = new ProspectController();
+                $prospect = $prospectController->store(new StoreProspectRequest($validatedData));
                 // Si un client_id est fourni, on lie ce prospect au client
                 if ($request->client_id && $prospect) {
                     $client = Client::on('temp')->find($request->client_id);
@@ -1019,6 +1019,7 @@ class VisiteController extends Controller
             $statut_pro = new StatutProspect();
             $statut_pro->setConnection('temp');
             $statut_pro->prospect_id     = $prospect->id;
+            // Enforce numeric-only status for 'Converti_en_visite' (status '4')
             $statut_pro->statut          = '4';
             $statut_pro->date_traitement = Carbon::now();
             $statut_pro->user_id_traite  = $userAuth->value('id');

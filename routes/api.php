@@ -80,6 +80,8 @@ Route::post('/resetPassword/{token}', [UserController::class, 'resetPassword']);
 /*************************************APIs FROM Outside ***************************** */
 
 Route::post('/webhook_whtsp', [WhatsAppController::class, 'webhook_whtsp']);
+Route::post('/webhook_whatsapp_business', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'webhook_whatsapp_business']);
+Route::get('/webhook_whatsapp_business', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'webhook_whatsapp_business']);
 Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_page']);
 Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class, 'handleWebhook']);
 Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify']);
@@ -111,7 +113,18 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/instagram-webhooks', [Facebook_InstagramController::class, 'instagram_webhook_configurations']);
         Route::post('/instagram-configurations/{id}/webhook', [Facebook_InstagramController::class, 'store_instagram_webhook']);
         Route::delete('/instagram-configurations/{id}/webhook', [Facebook_InstagramController::class, 'delete_instagram_webhook']);
-        
+
+        // WhatsApp Business configurations by project
+        Route::get('/whatsapp-configurations', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'get_whatsapp_configurations']);
+        Route::post('/whatsapp-configurations', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'store_whatsapp_configuration']);
+        Route::delete('/whatsapp-configurations/{id}', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'delete_whatsapp_configuration']);
+
+        // WhatsApp Business webhook configurations
+        Route::get('/whatsapp-webhooks', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'get_whatsapp_webhooks']);
+        Route::post('/whatsapp-configurations/{id}/webhook', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'store_whatsapp_webhook_configuration']);
+        Route::delete('/whatsapp-configurations/{id}/webhook', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'delete_whatsapp_webhook']);
+        Route::put('/whatsapp-configurations/{id}/webhook/toggle', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'toggle_whatsapp_webhook']);
+
         // Webhook configuration routes
         Route::get('/webhook_configuration', [Facebook_InstagramController::class, 'webhook_configuration']);
         Route::post('/store_webhook_configuration', [Facebook_InstagramController::class, 'store_webhook_configuration']);

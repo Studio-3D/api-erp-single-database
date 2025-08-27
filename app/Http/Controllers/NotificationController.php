@@ -414,7 +414,8 @@ class NotificationController extends Controller
                $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien')
                     ->where(function ($query) {
                         $query->where('role',RoleEnum::ADMIN->value)
-                            ->orwhere('user_id',Auth::guard('api')->user()->id);
+                            ->orWhere('user_id',Auth::guard('api')->user()->id)
+                            ->orWhereNull('user_id');
                     })
                     ->where('projet_id',$projet_id)
                     ->where('type', '!=', 99)
@@ -423,20 +424,42 @@ class NotificationController extends Controller
                     ->orderBy('id','desc')
                     ->get();
                   // Nombre de nouvelles notifications (not seen)
-               $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('role',RoleEnum::ADMIN->value)->where('type', '!=', 99)->where('deleted_at',null)->where('seen', false)->count();
+               $new_notifications_count=Notification::on('temp')
+                    ->where('projet_id',$projet_id)
+                    ->where('type', '!=', 99)
+                    ->whereNull('deleted_at')
+                    ->where('seen', false)
+                    ->where(function($q){
+                        $q->where('role', RoleEnum::ADMIN->value)
+                          ->orWhere('user_id', Auth::guard('api')->user()->id)
+                          ->orWhereNull('user_id');
+                    })
+                    ->count();
                   // Nombre de nouvelles notifications Webhook
                $new_notif_webhook_fcb_inst_whtsp=WebhookEvent::on('temp') ->whereIn('platform', $platforms)->whereDate('created_at', '<=', Carbon::now())->where('deleted_at',null)->orderBy('id','desc')->count();
 
             }else{
                 $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien')
                     ->where('projet_id',$projet_id)
-                    ->where('user_id',Auth::guard('api')->user()->id)
+                    ->where(function($q){
+                        $q->where('user_id', Auth::guard('api')->user()->id)
+                          ->orWhereNull('user_id');
+                    })
                     ->where('type', '!=', 99)
                     ->withTrashed()
                     ->whereDate('date', '<=', Carbon::now())
                     ->orderBy('date','desc')
                     ->get();
-                $new_notifications_count=Notification::on('temp')->where('projet_id',$projet_id)->where('deleted_at',null)->where('user_id',Auth::guard('api')->user()->id)->where('type', '!=', 99)->where('seen', false)->count();
+                $new_notifications_count=Notification::on('temp')
+                    ->where('projet_id',$projet_id)
+                    ->where('type', '!=', 99)
+                    ->whereNull('deleted_at')
+                    ->where('seen', false)
+                    ->where(function($q){
+                        $q->where('user_id', Auth::guard('api')->user()->id)
+                          ->orWhereNull('user_id');
+                    })
+                    ->count();
                 $notifs_webhook_fcb_insta_whstp=[];
                 $new_notif_webhook_fcb_inst_whtsp=0;
             }
