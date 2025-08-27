@@ -211,7 +211,10 @@ class ProspectController extends Controller
             $ps_statut = new statutProspect();
             $ps_statut->setConnection('temp');
             $ps_statut->prospect_id     = $id;
-            $ps_statut->statut          = $request->statut;
+            // Coerce to numeric string to enforce storage policy
+            $ps_statut->statut          = is_numeric($request->statut)
+                ? (string) $request->statut
+                : (string) (\App\Enum\StatutProspectEnum::tryFrom($request->statut)?->value ?? '0');
 
             // Add unassignment note to comment for final statuses
             $commentaire = $request->commentaire;
@@ -565,7 +568,7 @@ class ProspectController extends Controller
                             $statutProspect = new StatutProspect();
                             $statutProspect->setConnection('temp');
                             $statutProspect->prospect_id = $id;
-                            $statutProspect->statut = StatutProspectEnum::Affecte->value;
+                            $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
                             $statutProspect->date_traitement = Carbon::now();
                             $statutProspect->user_id_traite = $userAuth->id;
                             $statutProspect->commentaire = 'Prospect affecté au commercial';
@@ -916,7 +919,7 @@ class ProspectController extends Controller
                         $statutProspect = new StatutProspect();
                         $statutProspect->setConnection('temp');
                         $statutProspect->prospect_id = $assignment['prospect_id'];
-                        $statutProspect->statut = StatutProspectEnum::Affecte->value;
+                        $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
                         $statutProspect->date_traitement = Carbon::now();
                         $statutProspect->user_id_traite = $userAuth->id;
                         $statutProspect->commentaire = 'Prospect affecté automatiquement au commercial';

@@ -1015,15 +1015,40 @@ class VisiteController extends Controller
                 }
 
             }
-            // store statut du  prospect
+            // store initial statut du prospect based on programmed actions
+            // If created from a visite, do NOT mark as Converti_en_visite by default.
+            // Use RDV programmé (1) if any RDV exists, else Relance programmée (3) if any relance exists,
+            // otherwise En attente (0).
+            $visitIds = \App\Models\Visite::on('temp')
+                ->where('origin_id', $origin_id)
+                ->pluck('id');
+            $hasRdv = \App\Models\Relance_Rdv_Visite::on('temp')
+                ->whereIn('visite_id', $visitIds)
+                ->where('type', 2) // 2 => RDV
+                ->exists();
+            $hasRelance = \App\Models\Relance_Rdv_Visite::on('temp')
+                ->whereIn('visite_id', $visitIds)
+                ->where('type', 1) // 1 => Relance
+                ->exists();
+
+            $initialStatut = '0';
+            $comment = 'Prospect créé via visite';
+            if ($hasRdv) {
+                $initialStatut = '1'; // Planification_RDV => Rendez-vous programmé
+                $comment = 'Rendez-vous programmé via création de visite';
+            } elseif ($hasRelance) {
+                $initialStatut = '3'; // Rappel => Relance programmée
+                $comment = 'Relance programmée via création de visite';
+            }
+
             $statut_pro = new StatutProspect();
             $statut_pro->setConnection('temp');
             $statut_pro->prospect_id     = $prospect->id;
-            // Enforce numeric-only status for 'Converti_en_visite' (status '4')
-            $statut_pro->statut          = '4';
+            $statut_pro->statut          = $initialStatut;
             $statut_pro->date_traitement = Carbon::now();
             $statut_pro->user_id_traite  = $userAuth->value('id');
             $statut_pro->visite_id       = $origin_id;
+            $statut_pro->commentaire     = $comment;
             $statut_pro->save();
             //send message WhatsApp de bienvenue en cas de n'existe pas de relance ou rendez-vous ou frein
 
