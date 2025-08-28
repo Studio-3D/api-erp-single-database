@@ -126,6 +126,7 @@ class ProjetController extends Controller
 
             $query->join('user_projets', 'user_projets.projet_id', '=', 'projets.id')
                 ->whereIn('user_projets.user_id', $user_id)
+                ->whereNull('user_projets.deleted_at')
                 ->select('projets.*');
         } elseif (RoleHelper::AdminSup() && $request->filled('user_id')) {
             // Récupération de l'ID réel du user à partir du user_id_origin
