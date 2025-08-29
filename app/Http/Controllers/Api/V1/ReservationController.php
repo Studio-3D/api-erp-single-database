@@ -295,12 +295,13 @@ class ReservationController extends Controller
                                 ], 333);
                             }
                         }
+                        
 
                         // Validate unique code if provided
                         if ($request->has('code_reservation')) {
                             $request->validate([
                                 'code_reservation' => [
-                                    Rule::unique('temp.'.$DatabaseName.'.reservations') 
+                                    Rule::unique('temp.'.$DatabaseName.'.reservations')
                                                                 ->where('etat', 1)->whereNull('deleted_at'),
                                 ],
                             ]);
@@ -333,8 +334,8 @@ class ReservationController extends Controller
                         return response()->json(['error' => 'Reservation creation failed: ' . $e->getMessage()], 500);
                     }
             }
-            
-            
+
+
             private function rollbackReservationCreation($reservation)
             {
                 try {
