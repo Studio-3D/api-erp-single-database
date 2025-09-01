@@ -212,9 +212,34 @@ class ClientController extends Controller
                     $prospect            = Prospect::on('temp')->findorfail($client->prospect_id);
                     $prospect->client_id = $client->id;
                     $prospect->save();
+
+                    // Append statut 10: Converti en client
+                    $sp = new \App\Models\StatutProspect();
+                    $sp->setConnection('temp');
+                    $sp->prospect_id = $prospect->id;
+                    $sp->statut = (string) \App\Enum\StatutProspectEnum::Converti_en_client->value; // '10'
+                    $sp->date_traitement = now();
+                    // Track who treated: current user from temp mapping
+                    $user = Auth::user();
+                    $userAuth = \App\Models\User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                    if ($userAuth) { $sp->user_id_traite = $userAuth->id; }
+                    $sp->commentaire = 'Prospect converti en client';
+                    $sp->save();
                 }
-                //store info to database client
-                $db_client = DB::connection('mysql_client')->table('users')->insert(['code_client' => $request->cin . '_' . $request->nom, 'name' => $request->nom, 'prenom' => $request->prenom, 'email' => $request->email, 'password' => Hash::make($client->password), 'gender' => $request->civilite, 'client_id' => $client->id]);
+                //store info to database client (non-blocking)
+                try {
+                    DB::connection('mysql_client')->table('users')->insert([
+                        'code_client' => $request->cin . '_' . $request->nom,
+                        'name' => $request->nom,
+                        'prenom' => $request->prenom,
+                        'email' => $request->email,
+                        'password' => Hash::make($client->password),
+                        'gender' => $request->civilite,
+                        'client_id' => $client->id
+                    ]);
+                } catch (\Throwable $e) {
+                    \Log::warning('mysql_client insert failed: ' . $e->getMessage());
+                }
                 return $client;
             }
         }

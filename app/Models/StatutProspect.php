@@ -33,6 +33,7 @@ class StatutProspect extends Model
             'Interesse' => '7', 'interesse' => '7',
             'Perdu' => '8', 'perdu' => '8',
             'Receptif' => '9', 'receptif' => '9',
+            'Converti_en_client' => '10', 'converti_en_client' => '10',
         ];
         if (is_numeric($value)) {
             $this->attributes['statut'] = (string) $value;

@@ -398,7 +398,7 @@ class ProspectController extends Controller
         $prospect->nom       = $name;
         $prospect->telephone = $from;
         $prospect->email     = null;
-        $prospect->origin    = 'whatssap';
+        $prospect->origin    = 'whatsapp';
         $prospect->source    = 1;
         $prospect->projet_id = $projet_id; // link prospect to project from WhatsApp config
         $prospect->save();

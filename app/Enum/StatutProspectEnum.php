@@ -14,6 +14,7 @@ enum StatutProspectEnum: int
     case Interesse = 7;
     case Perdu = 8;
     case Receptif = 9;
+    case Converti_en_client = 10;
 
     public function label(): string
     {
@@ -28,6 +29,7 @@ enum StatutProspectEnum: int
             self::Interesse => 'Intéressé',
             self::Perdu => 'Perdu',
             self::Receptif => 'Réceptif',
+            self::Converti_en_client => 'Converti en client',
         };
     }
 }
