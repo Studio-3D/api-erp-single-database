@@ -18,9 +18,9 @@ class Client extends Model
     protected $with = ['partenaire'];
 
 
-    public function reservation()
+    public function reservations()
     {
-       return $this->hasMany(Reservation::class);
+        return $this->belongsToMany(Reservation::class, 'aquereurs', 'client_id', 'reservation_id');
     }
 
     public function aquereur()

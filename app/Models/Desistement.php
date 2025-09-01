@@ -17,7 +17,7 @@ class Desistement extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
     public function responsable_validation()
     {

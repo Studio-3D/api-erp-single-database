@@ -88,14 +88,14 @@ class ComptabiliteController extends Controller
             DatabaseHelper::Config();
             $tranche = Tranche::on('temp')->withSum('bien', 'superficie_total')->findorfail($tranche_id);
             $somme_sup_par_tranche=23183;//$tranche->bien_sum_superficie_total;
-            $taux_tva=$tranche->projet->taux_tva;
-            $prix_aq=$tranche->projet->prix_acquisition;
-            $coeff=$request->coefficient;
-            $surface_terrain=$tranche->projet->surface_terrain;
+            $taux_tva=$tranche->projet->taux_tva;//0.20
+            $prix_aq=$tranche->projet->prix_acquisition;//109500000.00
+            $coeff=$request->coefficient;//1.009
+            $surface_terrain=$tranche->projet->surface_terrain;//207920.00
             if($request->action==0){
                 //ajouter
                 $tranche->setConnection('temp');
-                $tranche->qp_bati=$request->qp_bati;
+                $tranche->qp_bati=$request->qp_bati;//22295
                 if($tranche->save()){
                     $data = [
                         'coeffcient' => $request->coefficient,
@@ -139,6 +139,7 @@ class ComptabiliteController extends Controller
                         'taux_tva'=>$taux_tva,
                     ];
                     $this->store_coefficient_tva($request->merge($data));
+                    return response()->json( $this->store_coefficient_tva($request->merge($data)));
                 }
                 return response()->json('Modifier succuess');
 
@@ -207,7 +208,7 @@ class ComptabiliteController extends Controller
             DatabaseHelper::Config();
             $query = TvaCollecte::on('temp')->with('encaissement','reservation','bien','encaissement.remboursement');
             $query->where('etat', 1);
-          
+
             if ($request->filled('de')) {
                 $start = Carbon::parse($request->input('de'));
                 $query->whereDate('created_at','>=', $start);

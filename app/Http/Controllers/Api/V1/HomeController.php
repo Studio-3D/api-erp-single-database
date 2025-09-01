@@ -47,11 +47,19 @@ class HomeController extends Controller
                 if($user_id==0){
 
                     $query_notif=Notification::on('temp')->with('projet')
-                        ->where('type','!=',3)
+                        /*->where('type','!=',3)
                         ->where('type','!=',6)
                         ->where('type','!=',7)
                         ->where('type','!=',22)
-
+                        ->where('type','!=',29)*/
+                        //relance appel /rdv appel /relance visite /rdv visite /echeance
+                        ->where(function ($q_type) {
+                            $q_type->where('type',27)
+                            ->orwhere('type',28)
+                            ->orwhere('type',1)
+                            ->orwhere('type',2)
+                            ->orwhere('type',5)
+                        ;})
                         ->where(function ($query) {
                         $query->where('role',RoleEnum::ADMIN->value)
                             ->orwhere('user_id',Auth::guard('api')->user()->id)
@@ -105,10 +113,19 @@ class HomeController extends Controller
                     $us_id=$us->id;
                     //search par user_id not origin
                     $query_notif=Notification::on('temp')->with('projet')
-                    ->where('type','!=',3)
+                    /*->where('type','!=',3)
                     ->where('type','!=',6)
                     ->where('type','!=',7)
                     ->where('type','!=',22)
+                    ->where('type','!=',29)*/
+                    //relance appel /rdv appel /relance visite /rdv visite /echeance
+                    ->where(function ($q_type) {
+                            $q_type->where('type',27)
+                            ->orwhere('type',28)
+                            ->orwhere('type',1)
+                            ->orwhere('type',2)
+                            ->orwhere('type',5)
+                        ;})
                     ->where('user_id',$user_id)->orderBy('date','desc')->withTrashed();
                         if ($projet_id!=0) {
                             $query_notif->where('projet_id',  $projet_id );
@@ -204,13 +221,23 @@ class HomeController extends Controller
 
             }else{
                 $query_notif=Notification::on('temp')->with('projet')->where('type','!=',3)
-                ->where('type','!=',6)
+                /*->where('type','!=',6)
+                ->where('type','!=',3)
+                ->where('type','!=',29)
                 ->where('type','!=',7)
                 ->where('type','!=',22)
                 ->where('type','!=',11)
                 ->where('type','!=',12)->where('type','!=',16)->where('type','!=',18)
                 ->where('type','!=',13)->where('type','!=',14)
-                ->where('type','!=',15)
+                ->where('type','!=',15)*/
+                //relance appel /rdv appel /relance visite /rdv visite /echeance
+                 ->where(function ($q_type) {
+                            $q_type->where('type',27)
+                            ->orwhere('type',28)
+                            ->orwhere('type',1)
+                            ->orwhere('type',2)
+                            ->orwhere('type',5)
+                        ;})
                 ->where('user_id',Auth::guard('api')->user()->id)->orderBy('date','desc')->withTrashed();
                 if ($projet_id!=0) {
                     $query_notif->where('projet_id',  $projet_id );
@@ -466,14 +493,14 @@ class HomeController extends Controller
             /**************************** Visites ************************/
 
 
-            $query_nb_visites=Visite::on('temp');
+            $query_nb_visites=Visite::on('temp')->where('etat', 1);
             if($dt==null && $a_dt==null){
                 $query_nb_visites ->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month);
             }else{
                 $query_nb_visites->whereBetween('created_at',[$dt,$a_dt]);
             }
 
-            if ($projet_id!=0) {
+            if ($projet_id!=null) {
                 $query_nb_visites->where('projet_id',  $projet_id );
             }
               //comercial

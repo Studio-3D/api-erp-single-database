@@ -51,7 +51,8 @@ class StatistiquesController extends Controller
 
                 //visites
                 $query = Visite::on('temp')
-                    ->where('projet_id', $request->projet_id);
+                    ->where('projet_id', $request->projet_id)
+                    ->where('etat', 1);
 
                 // Add whereBetween only if dates are valid
                 if ($dt !== null && $a_dt !== null) {
@@ -107,10 +108,10 @@ class StatistiquesController extends Controller
                     ->where('reservations.deleted_at',null)
                     ->where('reservations.etat',1);
                 if ($dt !== null && $a_dt !== null) {
-                    $query->whereBetween('encaissements.created_at', [$dt, $a_dt]);
+                    $query->whereBetween('encaissements.date_reglement', [$dt, $a_dt]);
                 }
                 else{
-                     $query->whereYear('encaissements.created_at', Carbon::now()->year)->whereMonth('encaissements.created_at', Carbon::now()->month);
+                     $query->whereYear('encaissements.date_reglement', Carbon::now()->year)->whereMonth('encaissements.date_reglement', Carbon::now()->month);
                 }
                 $sum_encaissements = $query->sum('encaissements.montant');
 
@@ -190,12 +191,14 @@ class StatistiquesController extends Controller
                     ->where('encaissements.deleted_at', null)
                     ->where('reservations.etat', 1)
                     ->where('reservations.projet_id', $request->projet_id);
+
                 if ($dt !== null && $a_dt !== null) {
                     $query->whereBetween('encaissements.date_reglement', [$dt, $a_dt]);
                 }else{
                      $query->whereYear('encaissements.date_reglement', Carbon::now()->year)->whereMonth('encaissements.date_reglement', Carbon::now()->month);
                 }
                 $encaissements = $query->groupBy(DB::raw("day"))->get();
+
 
                 $array_encaissements=[];
                 foreach ($encaissements as $data) {

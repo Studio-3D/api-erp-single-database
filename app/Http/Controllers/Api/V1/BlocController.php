@@ -152,7 +152,7 @@ class BlocController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $bloc = Bloc::on('temp')->with('projet')->with('tranche')->findOrfail($id);
+            $bloc = Bloc::on('temp')->with('projet','tranche','bien','immeuble')->withCount('immeuble','bien')->findOrfail($id);
             return response()->json(['bloc' => $bloc], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -207,6 +207,13 @@ class BlocController extends Controller
                     $imme->destroy($imm->id);
                 }
             }
+            if(count($bloc->bien)>0){
+                $bien=new BienController();
+                foreach($bloc->bien as $b){
+                    $bien->destroy($b->id);
+                }
+            }
+
             //traitement_appel
             $traitement_appels = TraitementAppel::on('temp')->where('bloc_id', $id)->get();
             if (count($traitement_appels) > 0) {

@@ -17,7 +17,7 @@ class Encaissement extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class ,'user_id_valider');
+        return $this->belongsTo(User::class ,'user_id_valider')->withTrashed();
     }
 
     public function avance()

@@ -28,6 +28,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('prospect_id')->constrained('prospects')->onDelete('cascade');
             $table->foreignId('bien_id')->nullable()->constrained('biens')->onDelete('cascade');
+            $table->json('historique_modification')->nullable();
             $table->timestamps();
             $table->softDeletes(); // si on veut de garder historique de la visite.
             $table->index(['projet_id','etat','origin_id']);

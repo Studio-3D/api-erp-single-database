@@ -11,6 +11,7 @@ use App\Models\Tranche;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use App\Models\Societe;
 
 use App\Models\TraitementAppel;
 
@@ -159,7 +160,7 @@ class TrancheController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $tranche = Tranche::on('temp')->with('projet')->findOrfail($id);
+            $tranche = Tranche::on('temp')->with('projet','bloc','immeuble','bien')->withCount(['bloc', 'immeuble', 'bien'])->findOrfail($id);
             return response()->json(['tranche' => $tranche], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -188,12 +189,20 @@ class TrancheController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $tranche = Tranche::on('temp')->findOrfail($id);
-            if ($request->has('nom')) {
-                $request->validate([
-                    'nom' => [
-                        Rule::unique('tranches')->ignore($tranche->id)->whereNull('deleted_at'),
-                    ],
-                ]);
+if ($request->has('nom')) {
+
+
+                                $societe_id = Auth::guard('api')->user()->societe_id;
+                                $societe=Societe::findOrfail( $societe_id);
+                                $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
+                                $request->validate([
+                                            'nom' => [
+                                                Rule::unique('temp.'.$DatabaseName.'.tranches')->where('projet_id',$tranche->projet_id)
+                                                                            ->ignore($tranche->id)->whereNull('deleted_at'),
+                                            ],
+                                        ]);
+
+
             }
             $update = $request->all();
             foreach ($update as $key => $value) {

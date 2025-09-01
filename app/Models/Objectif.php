@@ -23,10 +23,10 @@ class Objectif extends Model
     ];
 
     public function user_add(){
-        return $this->belongsTo(User::class ,'user_id_add');
+        return $this->belongsTo(User::class ,'user_id_add')->withTrashed();
     }
     public function user(){
-        return $this->belongsTo(User::class ,'user_id');
+        return $this->belongsTo(User::class ,'user_id')->withTrashed();
     }
 
     public function projet(){

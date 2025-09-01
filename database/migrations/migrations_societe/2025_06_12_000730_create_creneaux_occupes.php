@@ -11,8 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-            // Migration pour la table des créneaux disponibles
-        Schema::create('creneaux_occupes', function (Blueprint $table) {
+        // Migration pour la table des créneaux disponibles
+        if (!Schema::hasTable('creneaux_occupes')) {
+            Schema::create('creneaux_occupes', function (Blueprint $table) {
             $table->id();
             $table->datetime('debut');
             $table->datetime('fin');
@@ -24,6 +25,7 @@ return new class extends Migration
             $table->softDeletes();
 
         });
+        }
     }
 
     /**

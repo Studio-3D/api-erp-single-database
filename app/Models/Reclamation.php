@@ -39,7 +39,7 @@ class Reclamation extends Model
     }
     public function user()
     {
-        return $this->belongsTo(User::class,'user_id_traitee');
+        return $this->belongsTo(User::class,'user_id_traitee')->withTrashed();
     }
     public function piece_jointe()
     {

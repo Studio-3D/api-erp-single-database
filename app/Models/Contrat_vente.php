@@ -10,7 +10,7 @@ class   Contrat_vente extends Model
 {
     use HasFactory;
     use SoftDeletes;
-    
+
     protected $table='contrat_ventes';
 
     protected $dates=['deleted_at'];
@@ -21,7 +21,7 @@ class   Contrat_vente extends Model
         return $this->belongsTo(Reservation::class,'reservation_id');
     }
     public function user(){
-        return $this->belongsTo(User::class,'user_id');
+        return $this->belongsTo(User::class,'user_id')->withTrashed();
     }
 
 }

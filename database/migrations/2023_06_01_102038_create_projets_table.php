@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('nom');
             $table->string('code');
             $table->string('adresse');
+            $table->double('taux_tva',20,2)->nullable()->default(0.20);
             $table->date('date_autorisation_construction');
             $table->date('date_permis_habiter')->nullable();
             $table->string('titre_foncier');

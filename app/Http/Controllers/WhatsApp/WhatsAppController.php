@@ -51,8 +51,8 @@ class WhatsAppController extends Controller
 
          $web=new WebhookEvent();
          $web->setConnection('temp');
-         $web->platform='whatsap';
-         $web->type=$type;
+         $web->platform='whatsapp';
+         $web->event_type=$type;
          $web->data=$request->all();
          $web->save();
          broadcast(new NotificationEvent(0));

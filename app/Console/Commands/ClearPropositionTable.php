@@ -39,7 +39,10 @@ class ClearPropositionTable extends Command
 
     public function handle()
     {
-        $databases = DB::table('societes')->whereNull('deleted_at')->get();
+        $databases = DB::table('societes')
+                        ->whereNull('deleted_at')
+                        ->where('id', '!=', 1)
+                        ->get();
         DatabaseHelper::deletePropositionTable($databases);
     }
 }

@@ -198,8 +198,8 @@ if (in_array(2, $selectedNetworks)) {
         return DB::connection('temp')
             ->table('facebook_configurations')
             ->whereNull('deleted_at')
-            ->where('webhook_enabled', true) // Only get enabled configs
-            ->first(); // You may need to add more specific filtering based on user context
+            ->orderBy('created_at', 'desc')
+            ->first(); // Get the most recent configuration
             
     } catch (\Exception $e) {
         Log::error("Error getting Facebook config for current user: " . $e->getMessage());
@@ -216,8 +216,8 @@ private function getInstagramConfigForCurrentUser()
         return DB::connection('temp')
             ->table('instagram_configurations')
             ->whereNull('deleted_at')
-            ->where('webhook_enabled', true) // Only get enabled configs
-            ->first(); // You may need to add more specific filtering based on user context
+            ->orderBy('created_at', 'desc')
+            ->first(); // Get the most recent configuration
             
     } catch (\Exception $e) {
         Log::error("Error getting Instagram config for current user: " . $e->getMessage());
@@ -1313,7 +1313,7 @@ private function createFacebookNotification($description, $link = null)
                             'webhook_verify_token' => $config->webhook_verify_token,
                             'webhook_enabled' => $config->webhook_enabled ?? false,
                             'webhook_subscriptions' => json_decode($config->webhook_subscriptions ?? '[]'),
-                            'webhook_url' => 'https://immogestion.alemsafi.live/api/webhookFcb_Insta',
+                            'webhook_url' => (config('webhook.base_url') ?? config('app.url')) . '/api/webhookFcb_Insta',
                             'created_at' => $config->created_at,
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
@@ -1439,7 +1439,7 @@ private function createFacebookNotification($description, $link = null)
                             'webhook_verify_token' => $config->webhook_verify_token,
                             'webhook_enabled' => $config->webhook_enabled ?? false,
                             'webhook_subscriptions' => json_decode($config->webhook_subscriptions ?? '[]'),
-                            'webhook_url' => 'https://immogestion.alemsafi.live/api/webhookFcb_Insta',
+                            'webhook_url' => config('app.url') . '/api/webhookFcb_Insta',
                             'created_at' => $config->created_at,
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];

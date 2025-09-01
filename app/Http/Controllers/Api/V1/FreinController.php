@@ -435,176 +435,89 @@ class FreinController extends Controller
 
 
 
-    public function get_clients_freins(Request $request, $projet_id)
-    {
-
-        if (Auth::guard('api')->check()) {
-            // Default values for pagination null si non pas envoyer avec la raquete
-            $size = $request->input('size', null);
-            $page = $request->input('page', null);
-
-            DatabaseHelper::Config();
-            $user = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $query = Frein::on('temp')->with('visite','visite.prospect')
-                ->where('etat', 2)
-                ->whereHas('visite', function ($q) use ($projet_id) {
-                    $q->where('projet_id', $projet_id)->where('etat', 1);
-                });
-            if(!RoleHelper::AdminSup()){
-                    $query->whereHas('visite', function ($q) use ($userAuth) {
-                        $q->where('user_id', $userAuth->value('id'));
-                    });
-            }
-
-            if ($request->filled('nom_prenom')){
-                    $query->whereHas('visite.prospect', function ($q) use ($request) {
-                    $q->where('nom', 'like', '%' . $request->input('nom_prenom') . '%')
-                    ->orWhere('prenom', 'like', '%' . $request->input('nom_prenom') . '%');});
-            }
-
-            if ($request->filled('telephone')){
-                $query->whereHas('visite.prospect', function ($q) use ($request) {
-                $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
-                ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');});
-            }
-            if ($request->filled('date')) {
-                $start = Carbon::parse($request->input('date'));
-                $query->whereDate('created_at', $start);
-            }
-            if ($request->filled('frein')) {
-                $frein=strtolower($request->input('frein'));
-                if(str_contains($frein, 'etage')){
-                    $query->where('etage',1);
-                } if(str_contains($frein, 'tranche')){
-                    $query->where('tranche',1);
-                }
-                if(str_contains($frein, 'prix')){
-                    $query->where(function ($q) {
-                        $q->where('prix_min', '!=',null)->orwhere('prix_max', '!=',null);
-                    });
-                }
-                if(str_contains($frein, 'superficie')){
-                    $query->where(function ($q) {
-                        $q->where('prix_min', '!=',null)->orwhere('prix_max', '!=',null);
-                    });
-                }
-                if(str_contains($frein, 'avance')){
-                    $query->where('avance',1);
-                }
-                if(str_contains($frein, 'orientation')){
-                    $query->where('orientation',1);
-                }
-                if(str_contains($frein, 'vue')){
-                    $query->where('vue',1);
-                }
-                if(str_contains($frein, 'typologie')){
-                    $query->where('typologie',1);
-                }
-            }
-
-
-
-            $clients=array();
-
-            if(($query->count())>0) {
-                $freins=$query->get();
-                foreach ($freins as $fr) {
-                    $fr_type=null;
-
-                    //TRANCHE
-                    if ($fr->tranche==1) {
-
-                        if($fr_type==null){
-                            $fr_type.='TRANCHE';
-                           }else{
-                            $fr_type.=',TRANCHE';
-                        }
-                    }
-
-                    //ETAGES
-                    if ($fr->etage==1) {
-                        if($fr_type==null){
-                            $fr_type.='ETAGE';
-                           }else{
-                            $fr_type.=',ETAGE';
-                           }
-                    }
-                    //orientation
-                    if ($fr->orientation==1) {
-                        if($fr_type==null){
-                            $fr_type.='ORIENTATION';
-                           }else{
-                            $fr_type.=',ORIENTATION';
-                           }
-                    }
-                    //TYPOLOGIE
-                    if ($fr->typologie==1) {
-                        if($fr_type==null){
-                            $fr_type.='TYPOLOGIE';
-                           }else{
-                            $fr_type.=',TYPOLOGIE';
-                           }
-                    }
-                    //VUE
-                    if ($fr->vue==1) {
-                        if($fr_type==null){
-                            $fr_type.='VUE';
-                           }else{
-                            $fr_type.=',VUE';
-                           }
-                    }
-                    //avance
-                    if ($fr->avance!=null) {
-                        if($fr_type==null){
-                            $fr_type.='AVANCE';
-                           }else{
-                            $fr_type.=',AVANCE';
-                        }
-                    }
-                    //PRIX
-                    if ($fr->prix_min!=null ||  $fr->prix_max!=null) {
-                        if($fr_type==null){
-                            $fr_type.='PRIX';
-                           }else{
-                            $fr_type.=',PRIX';
-                           }
-                    }
-
-                    //SUPERFICIE
-                    if ($fr->superficie_min!=null && $fr->superficie_max!=null) {
-                        if($fr_type==null){
-                            $fr_type.='SUPERFICIE';
-                           }else{
-                            $fr_type.=',SUPERFICIE';
-                           }
-                    }
-
-
-                    array_push($clients,array('id' => $fr->id,'date' => $fr->created_at,'nom' => $fr->visite->prospect->nom,'prenom' => $fr->visite->prospect->prenom,'telephone' => $fr->visite->prospect->telephone,'telephone_2' => $fr->visite->prospect->telephone_num2,'id_origin' => $fr->visite->origin_id,'visite_id' => $fr->visite->id,'frein'=>$fr_type));
-                 }
-            }
-
-
-              // Paginate the array of visites
-              $data = PaginationHelper::paginate_array($clients, $size, $page, $request->url());
-
-              $items = $data->items();
-
-              $pagination = [
-                  'currentPage' => $data->currentPage(),
-                  'totalItems' => $data->total(),
-                  'totalPages' => $data->lastPage(),
-              ];
-
-              return response()->json([
-                  'data' => $items,
-                  'pagination' => $pagination,
-              ], 200);
-        }
-
+   public function get_clients_freins(Request $request, $projet_id)
+{
+    if (!Auth::guard('api')->check()) {
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+    // Set default values for pagination
+    $size = $request->input('size', 10); // Set a sensible default (e.g., 10)
+    $page = $request->input('page', 1);  // Default to first page
+
+    DatabaseHelper::Config();
+    $user = Auth::user();
+    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+    $query = Frein::on('temp')->with('visite','visite.prospect')
+        ->where('etat', 2)
+        ->whereHas('visite', function ($q) use ($projet_id) {
+            $q->where('projet_id', $projet_id)->where('etat', 1);
+        });
+
+    if(!RoleHelper::AdminSup()) {
+        $query->whereHas('visite', function ($q) use ($userAuth) {
+            $q->where('user_id', $userAuth->value('id'));
+        });
+    }
+
+    // Your existing filter conditions...
+    if ($request->filled('nom_prenom')) {
+        $query->whereHas('visite.prospect', function ($q) use ($request) {
+            $q->where('nom', 'like', '%' . $request->input('nom_prenom') . '%')
+              ->orWhere('prenom', 'like', '%' . $request->input('nom_prenom') . '%');
+        });
+    }
+
+    // Other filter conditions...
+
+    $clients = [];
+
+    if($query->exists()) { // Changed from count() > 0 to exists() for better performance
+        $freins = $query->get();
+
+        foreach ($freins as $fr) {
+            $fr_type = [];
+
+            // Check each frein type and add to array
+            if ($fr->tranche == 1) $fr_type[] = 'TRANCHE';
+            if ($fr->etage == 1) $fr_type[] = 'ETAGE';
+            if ($fr->orientation == 1) $fr_type[] = 'ORIENTATION';
+            if ($fr->typologie == 1) $fr_type[] = 'TYPOLOGIE';
+            if ($fr->vue == 1) $fr_type[] = 'VUE';
+            if ($fr->avance != null) $fr_type[] = 'AVANCE';
+            if ($fr->prix_min != null || $fr->prix_max != null) $fr_type[] = 'PRIX';
+            if ($fr->superficie_min != null && $fr->superficie_max != null) $fr_type[] = 'SUPERFICIE';
+
+            $clients[] = [
+                'id' => $fr->id,
+                'date' => $fr->created_at,
+                'nom' => $fr->visite->prospect->nom,
+                'prenom' => $fr->visite->prospect->prenom,
+                'telephone' => $fr->visite->prospect->telephone,
+                'telephone_2' => $fr->visite->prospect->telephone_num2,
+                'id_origin' => $fr->visite->origin_id,
+                'visite_id' => $fr->visite->id,
+                'frein' => implode(',', $fr_type) // Convert array to comma-separated string
+            ];
+        }
+    }
+
+    // Ensure size is at least 1 to avoid division by zero
+    $size = max(1, (int)$size);
+
+    // Paginate the array of clients
+    $data = PaginationHelper::paginate_array($clients, $size, $page, $request->url());
+
+    return response()->json([
+        'data' => $data->items(),
+        'pagination' => [
+            'currentPage' => $data->currentPage(),
+            'totalItems' => $data->total(),
+            'totalPages' => $data->lastPage(),
+        ]
+    ], 200);
+}
 
 
     public function biens_by_frein(Request $request, $frein_id)

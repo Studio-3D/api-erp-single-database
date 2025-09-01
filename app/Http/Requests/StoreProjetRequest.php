@@ -52,8 +52,8 @@ class StoreProjetRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'nom.unique' => 'Ce projet est deja exist dans la societe',
-            'selectedUsers.required' => 'Veuillez choisissez un utilisateur',
+            'nom.unique' => 'Ce projet est deja existant dans la societe',
+            'selectedUsers.required' => 'Veuillez choisir un utilisateur',
         ];
     }
 }

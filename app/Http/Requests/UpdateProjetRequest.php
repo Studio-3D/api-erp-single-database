@@ -49,8 +49,8 @@ class UpdateProjetRequest extends FormRequest
     {
         return [
 
-            'nom.unique' => 'Ce projet est deja exist dans cette societe',
-            'selectedUsers.required' => 'Veuillez choisissez un utilisateur',
+            'nom.unique' => 'Ce projet est deja existant dans cette societe',
+            'selectedUsers.required' => 'Veuillez choisir un utilisateur',
         ];
     }
 }

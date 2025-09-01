@@ -9,14 +9,14 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+    public function up()
     {
-        Schema::create('webhook_events', function (Blueprint $table) {
+        Schema::create('facebook_messages', function (Blueprint $table) {
             $table->id();
-            $table->string('platform'); // facebook, instagram, whatsapp
-            $table->string('event_type'); // comment, reaction, message
-            $table->json('data'); // Stores webhook data
-            $table->softDeletes();
+            $table->string('sender_id');
+            $table->string('user_name');
+            $table->string('user_email')->nullable();
+            $table->text('message');
             $table->timestamps();
         });
     }
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('webhook_events');
+        Schema::dropIfExists('facebook_messages');
     }
 };

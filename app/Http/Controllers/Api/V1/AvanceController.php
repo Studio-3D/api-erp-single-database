@@ -70,49 +70,43 @@ class AvanceController extends Controller
 
             $reservation = Reservation::on('temp')->select('prix', 'etat')->findorfail($reservation_id);
             $sum_avances = 0;
-            if ($reservation->etat == 1) {
+             // Déterminer si on doit utiliser les éléments supprimés
+            $withTrashed = $reservation->etat != 1;
+            // Construction de la requête de base // Requête principale pour les avances non supprimées
+
+            $query = Avance::on('temp')
+                ->with([
+                    'last_statut' => function ($query) {
+                        $query->without(['avance', 'penalite']); // Désactive les relations prédéfinies
+                    },
+                    'user' => function ($q) {
+                        $q->select('id', 'name', 'prenom');
+                    }
+                ])
+                ->without('reservation')
+                ->withCount('historiques')
+                ->where('reservation_id', $reservation_id)
+                ->orderBy('created_at', 'desc');
+
+            if ($withTrashed) {
                 // Requête principale pour les avances non supprimées
-                $query = Avance::on('temp')
-                    ->with('last_statut')
-                    ->withCount('historiques')
-                    ->where('reservation_id', $reservation_id)
-                    ->orderBy('created_at', 'desc');
-
-                // Calcul de la somme des avances != refusé avant l'application des filtres
+                $query->onlyTrashed();
+            }
+             // Calcul de la somme des avances != refusé avant l'application des filtres
                 $avances = $query->get();
                 foreach ($avances as $av) {
                     if ($av->statut != StatutReservationEnum::Refusé->value) {
                         $sum_avances += $av->montant;
                     }
                 }
-                /*avances valides*/
+                /*sum avances valides if reservation etat !=sum avance supprimé else etat normal */
                 $sum_avances_valides = Avance::on('temp')
-                    ->where('reservation_id', $reservation_id)
-                    ->where('statut', StatutReservationEnum::Validé->value)
-                    ->sum('montant');
-
-                } else {
-                // Requête pour les avances supprimées (dossier désisté)
-                $query = Avance::on('temp')
-                    ->with('last_statut')
-                    ->withCount('historiques')
-                    ->onlyTrashed()
-                    ->where('reservation_id', $reservation_id)
-                    ->orderBy('created_at', 'desc');
-
-                // Calcul de la somme des avances != refusé avant l'application des filtres
-                $avances = $query->get();
-                foreach ($avances as $av) {
-                    if ($av->statut != StatutReservationEnum::Refusé->value) {
-                        $sum_avances += $av->montant;
-                    }
-                }
-                $sum_avances_valides = Avance::on('temp')
-                    ->withTrashed()
-                    ->where('reservation_id', $reservation_id)
-                    ->where('statut', StatutReservationEnum::Validé->value)
-                    ->sum('montant');
-                }
+                ->when($reservation->etat != 1, function ($query) {
+                    $query->withTrashed();
+                })
+                ->where('reservation_id', $reservation_id)
+                ->where('statut', StatutReservationEnum::Validé->value)
+                ->sum('montant');
 
             // Application des filtres supplémentaires
             if ($request->filled('numero_paiement')) {

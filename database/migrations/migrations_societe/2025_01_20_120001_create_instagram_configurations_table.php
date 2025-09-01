@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('instagram_configurations', function (Blueprint $table) {
+        if (!Schema::hasTable('instagram_configurations')) {
+            Schema::create('instagram_configurations', function (Blueprint $table) {
             $table->id();
             $table->string('instagram_id');
             $table->longText('acces_token_user');
@@ -25,6 +26,7 @@ return new class extends Migration
             $table->foreign('projet_id')->references('id')->on('projets')->onDelete('cascade');
             $table->index(['projet_id', 'deleted_at']);
         });
+        }
     }
 
     /**

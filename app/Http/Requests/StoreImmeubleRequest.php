@@ -61,18 +61,18 @@ class StoreImmeubleRequest extends FormRequest
         {   if ($this->tranche_id==null && $this->bloc_id==null){
             return [
 
-                'nom.unique' =>  'Cet immeuble est deja exist dans ce projet',
+                'nom.unique' =>  'Cet immeuble existe déjà dans ce projet',
             ];}
 
         elseif ($this->bloc_id==null) {
             return [
 
-                'nom.unique' =>  'Cet immeuble est deja exist dans cette tranche',
+                'nom.unique' =>  'Cet immeuble existe déjà dans cette tranche',
             ];}
         else {
             return [
 
-                'nom.unique' =>  'Cet immeuble est deja exist dans ce bloc',
+                'nom.unique' =>  'Cet immeuble existe déjà dans ce bloc',
             ];}
         }
 

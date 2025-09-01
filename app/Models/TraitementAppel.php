@@ -19,7 +19,7 @@ class TraitementAppel extends Model
         return $this->belongsTo(Appel::class,'appel_id');
     }
     public function user(){
-        return $this->belongsTo(User::class,'user_id');
+        return $this->belongsTo(User::class,'user_id')->withTrashed();
     }
     public function reservation(){
         return $this->belongsTo(Reservation::class,'reservation_id');
@@ -52,7 +52,7 @@ class TraitementAppel extends Model
     public function type_biens(){
         return $this->hasMany(TypeBienAppel::class,'traite_appel_id');
     }
-  
+
 
 
 }

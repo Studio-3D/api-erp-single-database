@@ -126,6 +126,7 @@ class ProjetController extends Controller
 
             $query->join('user_projets', 'user_projets.projet_id', '=', 'projets.id')
                 ->whereIn('user_projets.user_id', $user_id)
+                ->whereNull('user_projets.deleted_at')
                 ->select('projets.*');
         } elseif (RoleHelper::AdminSup() && $request->filled('user_id')) {
             // Récupération de l'ID réel du user à partir du user_id_origin
@@ -270,7 +271,7 @@ class ProjetController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $projet = Projet::on('temp')->with('tranche', 'bloc', 'immeuble', 'typesBien')->withCount(['bloc', 'tranche', 'immeuble', 'bien'])->findOrfail($id);
+            $projet = Projet::on('temp')->with('tranche', 'bloc', 'immeuble', 'typesBien', 'bien')->withCount(['bloc', 'tranche', 'immeuble', 'bien'])->findOrfail($id);
             return response()->json(['projet' => $projet], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

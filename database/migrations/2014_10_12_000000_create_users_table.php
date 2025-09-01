@@ -34,6 +34,7 @@ return new class extends Migration
             $table->integer('is_connected')->default(0);
             $table->string('fonction')->nullable();
             $table->integer('solde_conge')->nullable();
+            $table->integer('nb_prospects')->default(0);
             $table->timestamps();
             $table->softDeletes();
         });

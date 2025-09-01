@@ -15,7 +15,15 @@ class Prospect extends Model
      */
     protected $table='prospects';
     protected $dates=['deleted_at'];
-    protected $with=['source','partenaire'];
+    protected $with=['source','partenaire','commercial_affecte','affecte_par_admin','traite_par_user'];
+
+    protected $fillable = [
+        'cin', 'nom', 'prenom', 'telephone', 'telephone_num2', 'email',
+        'origin', 'notifie', 'source', 'partenaire_id', 'message', 'ville',
+        'projet_id', 'commercial_affecte', 'affecte_par_admin_id',
+        'traite_par_user_id', 'date_affectation', 'date_traitement'
+    ];
+
     public function client()
     {
         return $this->belongsTo(Client::class,'prospect_id');
@@ -53,5 +61,19 @@ class Prospect extends Model
     public function last_statut()
     {
         return $this->hasOne(StatutProspect::class,'prospect_id')->latest();
+    }
+    public function commercial_affecte()
+    {
+        return $this->belongsTo(User::class, 'commercial_affecte');
+    }
+
+    public function affecte_par_admin()
+    {
+        return $this->belongsTo(User::class, 'affecte_par_admin_id');
+    }
+
+    public function traite_par_user()
+    {
+        return $this->belongsTo(User::class, 'traite_par_user_id');
     }
 }

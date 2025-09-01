@@ -27,6 +27,7 @@ return new class extends Migration
             $table->foreignId('partenaire_id')->nullable()->constrained('partenaires')->onDelete('cascade');
             $table->boolean('notifie')->default(false)->nullable();
             $table->string('ville')->nullable();
+            $table->unsignedBigInteger('commercial_affecte')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

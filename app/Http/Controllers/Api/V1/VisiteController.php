@@ -334,6 +334,32 @@ class VisiteController extends Controller
             $list_bien_interesse       = json_decode($request->input('list_bien_interesse', '[]'), true);
             $list_bien_transfere_vendu = json_decode($request->input('list_bien_transfere_vendu', '[]'), true);
 
+            // Precompute whether this request includes a RDV or a Relance to avoid race conditions
+            $hasRdvRequested = false;
+            $hasRelanceRequested = false;
+
+            // Direct fields
+            if (!empty($request->rdv)) {
+                $hasRdvRequested = true;
+            }
+            if (!empty($request->date_relance)) {
+                $hasRelanceRequested = true;
+            }
+
+            // In list_bien_interesse
+            if (is_array($list_bien_interesse)) {
+                foreach ($list_bien_interesse as $it) {
+                    if (!empty($it['rdv'])) { $hasRdvRequested = true; }
+                    if (!empty($it['date_relance'])) { $hasRelanceRequested = true; }
+                }
+            }
+            // In list_bien_transfere_vendu
+            if (is_array($list_bien_transfere_vendu)) {
+                foreach ($list_bien_transfere_vendu as $it) {
+                    if (!empty($it['rdv'])) { $hasRdvRequested = true; }
+                    if (!empty($it['date_relance'])) { $hasRelanceRequested = true; }
+                }
+            }
             //store prospect si client n'existe pas
 
             if ($request->prospect_id == null) {
@@ -355,8 +381,8 @@ class VisiteController extends Controller
                 $validatedData['ville']          = $request->input('ville');
                 $validatedData['origin']         = 'visite';
                 $validatedData['notifie']        = $request->notifie;
-                $prospectController              = new ProspectController();
-                $prospect                        = $prospectController->store(new StoreProspectRequest($validatedData));
+                $prospectController = new ProspectController();
+                $prospect = $prospectController->store(new StoreProspectRequest($validatedData));
                 // Si un client_id est fourni, on lie ce prospect au client
                 if ($request->client_id && $prospect) {
                     $client = Client::on('temp')->find($request->client_id);
@@ -469,20 +495,20 @@ class VisiteController extends Controller
                         if ($visite->interet == InteretEnum::Perdu->value) {
 
                             $freinRequest['visite_id']            = $visite->getAttribute('id');
-                            $freinRequest['prix_min']             = $request->prix_min;
-                            $freinRequest['prix_max']             = $request->prix_max;
-                            $freinRequest['sup_min']              = $request->sup_min;
-                            $freinRequest['sup_max']              = $request->sup_max;
-                            $freinRequest['etat']                 = 1;
-                            $freinRequest['avance']               = $request->avance;
-                            $freinRequest['selectedTranches']     = $request->tranches;
-                              //-1 for 0 si on selection just le 0
-                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
-                            $freinRequest['selectedOrientations'] = $request->orientations;
-                            $freinRequest['selectedTypologies']   = $request->typologies;
-                            $freinRequest['selectedVues']         = $request->vues;
-                            $freinRequest['description_autre']    = $request->description_autre;
+                             $freinRequest['prix_min']             = str_contains($request->frein, 'prix')?$request->prix_min:NULL;
                             $freinRequest['freins']               = $request->frein;
+                            $freinRequest['prix_max']             = str_contains($request->frein, 'prix')?$request->prix_max:null;
+                            $freinRequest['sup_min']              = str_contains($request->frein, 'superficie')?$request->sup_min:null;
+                            $freinRequest['sup_max']              = str_contains($request->frein, 'superficie')?$request->sup_max:null;
+                            $freinRequest['etat']                 = 1;
+                            $freinRequest['avance']               = str_contains($request->frein, 'avance')?$request->avance:null;
+                            $freinRequest['selectedTranches']     = str_contains($request->frein, 'tranche')?$request->tranches:"";
+                            //-1 for 0 si on selection just le 0
+                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : (str_contains($request->frein, 'etage') ? $request->etages : "");
+                            $freinRequest['selectedOrientations'] = str_contains($request->frein, 'orientation')?$request->orientations:"";
+                            $freinRequest['selectedTypologies']   = str_contains($request->frein, 'typologie')?$request->typologies:"";
+                            $freinRequest['selectedVues']         = str_contains($request->frein, 'vue')?$request->vues:"";
+                            $freinRequest['description_autre']    = str_contains($request->frein, 'autre')?$request->description_autre:"";
 
                             $freinController = new FreinController();
                             $freinController->store(new StoreFreinRequest($freinRequest));
@@ -1015,14 +1041,41 @@ class VisiteController extends Controller
                 }
 
             }
-            // store statut du  prospect
+            // store initial statut du prospect based on programmed actions
+            // If created from a visite, do NOT mark as Converti_en_visite by default.
+            // Use RDV programmé (1) if any RDV exists, else Relance programmée (3) if any relance exists,
+            // otherwise En attente (0).
+            $visitIds = \App\Models\Visite::on('temp')
+                ->where('origin_id', $origin_id)
+                ->pluck('id');
+            // Prefer request-level intent flags to avoid race condition; fallback to DB check
+            $hasRdv = $hasRdvRequested || \App\Models\Relance_Rdv_Visite::on('temp')
+                ->whereIn('visite_id', $visitIds)
+                ->where('type', 2) // 2 => RDV
+                ->exists();
+            $hasRelance = $hasRelanceRequested || \App\Models\Relance_Rdv_Visite::on('temp')
+                ->whereIn('visite_id', $visitIds)
+                ->where('type', 1) // 1 => Relance
+                ->exists();
+
+            $initialStatut = '0';
+            $comment = 'Prospect créé via visite';
+            if ($hasRdv) {
+                $initialStatut = '1'; // Planification_RDV => Rendez-vous programmé
+                $comment = 'Rendez-vous programmé via création de visite';
+            } elseif ($hasRelance) {
+                $initialStatut = '3'; // Rappel => Relance programmée
+                $comment = 'Relance programmée via création de visite';
+            }
+
             $statut_pro = new StatutProspect();
             $statut_pro->setConnection('temp');
             $statut_pro->prospect_id     = $prospect->id;
-            $statut_pro->statut          = '4';
+            $statut_pro->statut          = $initialStatut;
             $statut_pro->date_traitement = Carbon::now();
             $statut_pro->user_id_traite  = $userAuth->value('id');
             $statut_pro->visite_id       = $origin_id;
+            $statut_pro->commentaire     = $comment;
             $statut_pro->save();
             //send message WhatsApp de bienvenue en cas de n'existe pas de relance ou rendez-vous ou frein
 
@@ -1283,312 +1336,482 @@ class VisiteController extends Controller
 
         $user = Auth::user();
         if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_3');
-            $userAuth        = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $old_visite      = Visite::on('temp')->findOrFail($id);
-            $old_description = $old_visite->description;
+                DatabaseHelper::Config();
+                Config::set('broadcasting.default', 'pusher_3');
+                     // Start database transaction
+                DB::connection('temp')->beginTransaction();
 
-            //test si le user connecte celui qui a  fait la proposition
-            if ($request->bien_id != null && $request->interet == InteretEnum::Intéressé->value) {
-                $bien_prop = Bien::on('temp')->findorfail($request->bien_id);
+                try {
+                    $userAuth        = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                    $old_visite      = Visite::on('temp')->findOrFail($id);
+                    $old_description = $old_visite->description;
+                    /************************Track changes historique************** */
 
-                if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id != Auth::guard('api')->user()->id) {
-                    return response()->json(['error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien . ' est en cours de proposition  par : ' . $bien_prop->is_proposed->user->name . ' ' . $bien_prop->is_proposed->user->prenom], 333);
-                }
-            }
 
-            //copier ancien visite et mettre new visite
-            $visite = $old_visite->replicate();
-            $visite->setConnection('temp');
-            if ($visite->save()) {
-                $old_visite->etat = 0;
-                $old_visite->save();
-            }
-            //calcul nb visite
-            /*$description=null;
-            $visites_count=Visite::on('temp')->where('origin_id',$visite->origin_id)->where('etat',1)->orderBy('created_at', 'DESC')->count();
-            if($visites_count>0){
-            $description='MODIFICATION VISITE '.$visites_count;
-            }*/
+                    // Initialize changes array
+                    $changes = [];
 
-            //recupere le prospect //modifier info
-            $prospect = Prospect::on('temp')->findorfail($visite->prospect_id);
-            if ($request->cin != null) {
-                $cin_exist = Prospect::on('temp')->where('cin', $request->cin)->where('id', '!=', $visite->prospect_id)->count();
-                if ($cin_exist == 0) {
-                    $prospect->cin   = $request->cin;
-                    $prospect->email = $request->email;
-                }
-            }
-            $prospect->nom            = $request->nom;
-            $prospect->prenom         = $request->prenom;
-            $prospect->telephone      = $request->telephone;
-            $prospect->telephone_num2 = $request->telephone_num2 == "null" ? null : $request->telephone_num2;
-            $prospect->ville          = $request->input('ville');
-            $prospect->source         = $request->source_id;
-            if ($request->source_txt == 'Partenaire') {
-                $prospect->partenaire_id = $request->partenaire_id;
-            }
-            $prospect->notifie = $request->notifie;
-            $prospect->save();
+                    // Define fields to track
+                    $fieldsToTrack = [
+                        'commentaire', 'interet', 'statut', 'bien_id',
+                    ];
 
-            /****Libérer le bien de l'ancienne visite**/
-            //chngement de bien
-            if ($request->interet == InteretEnum::Intéressé->value) {
-                if (($visite->statut == StatutVisiteEnum::Pré_Réservation->value || $visite->statut == StatutVisiteEnum::Vendu->value) && $visite->bien_id != null) {
-                    if ($visite->bien_id != $request->bien_id) {
-                        $oldBien = Bien::on('temp')->find($visite->bien_id);
-                        if ($oldBien->etat == 'PRE_RESERVATION' || $oldBien->etat == 'VENDU') {
-                            Bien_Helper::libererBien($visite->bien_id, null, null);
+                    // Track changes for basic fields
+                    foreach ($fieldsToTrack as $field) {
+                        if ($request->has($field) && $request->input($field) != $old_visite->$field) {
+                            $changes[$field] = [
+                                'old' => $old_visite->$field,
+                                'new' => $request->input($field)
+                            ];
+                        }
+                    }
+
+                    // Track prospect changes separately
+                    $prospectChanges = [];
+                    $prospectFields = [
+                        'cin', 'email', 'nom', 'prenom', 'telephone',
+                        'telephone_num2', 'ville', 'notifie'
+                    ];
+
+                        $prospect = Prospect::on('temp')->findorfail($old_visite->prospect_id);
+                    // Special handling for source (track source instead of source_id)
+                    if ($request->has('source_id') && $request->input('source_id') != $prospect->source) {
+                        $prospectChanges['source'] = [
+                            'old' => $prospect->source,
+                            'new' => $request->input('source_id') // This will store the source ID
+                        ];
+                    }
+
+                    // Special handling for partenaire_id (keep this as is)
+                    if ($request->has('partenaire_id') && $request->input('partenaire_id') != $prospect->partenaire_id) {
+                        $prospectChanges['partenaire_id'] = [
+                            'old' => $prospect->partenaire_id,
+                            'new' => $request->input('partenaire_id')
+                        ];
+                    }
+
+                    foreach ($prospectFields as $field) {
+                        if ($request->has($field) && $request->input($field) != $prospect->$field) {
+                            // Special handling for CIN
+                            if ($field == 'cin' && $request->cin != null) {
+                                $cin_exist = Prospect::on('temp')->where('cin', $request->cin)
+                                    ->where('id', '!=', $old_visite->prospect_id)->count();
+                                if ($cin_exist > 0) continue; // Skip if CIN exists for another prospect
+                            }
+
+                            $prospectChanges[$field] = [
+                                'old' => $prospect->$field,
+                                'new' => $request->input($field)
+                            ];
+                        }
+                    }
+
+                    if (!empty($prospectChanges)) {
+                        $changes['prospect'] = $prospectChanges;
+                    }
+                    /************************Track changes historique************** */
+
+                    //test si le user connecte celui qui a  fait la proposition
+                    if ($request->bien_id != null && $request->interet == InteretEnum::Intéressé->value) {
+                        $bien_prop = Bien::on('temp')->findorfail($request->bien_id);
+
+                        if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' && $bien_prop->is_proposed->user_id != Auth::guard('api')->user()->id) {
+                            return response()->json(['error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien . ' est en cours de proposition  par : ' . $bien_prop->is_proposed->user->name . ' ' . $bien_prop->is_proposed->user->prenom], 333);
+                        }
+                    }
+
+                    //copier ancien visite et mettre new visite
+                    $visite = $old_visite->replicate();
+                    $visite->setConnection('temp');
+                    if ($visite->save()) {
+                        $old_visite->etat = 0;
+                        $old_visite->save();
+                    }
+                    //calcul nb visite
+                    /*$description=null;
+                    $visites_count=Visite::on('temp')->where('origin_id',$visite->origin_id)->where('etat',1)->orderBy('created_at', 'DESC')->count();
+                    if($visites_count>0){
+                    $description='MODIFICATION VISITE '.$visites_count;
+                    }*/
+
+                    //recupere le prospect //modifier info
+                    $prospect = Prospect::on('temp')->findorfail($visite->prospect_id);
+                    if ($request->cin != null) {
+                        $cin_exist = Prospect::on('temp')->where('cin', $request->cin)->where('id', '!=', $visite->prospect_id)->count();
+                        if ($cin_exist == 0) {
+                            $prospect->cin   = $request->cin;
+                            $prospect->email = $request->email;
+                        }
+                    }
+                    $prospect->nom            = $request->nom;
+                    $prospect->prenom         = $request->prenom;
+                    $prospect->telephone      = $request->telephone;
+                    $prospect->telephone_num2 = $request->telephone_num2 == "null" ? null : $request->telephone_num2;
+                    $prospect->ville          = $request->input('ville');
+                    $prospect->source         = $request->source_id;
+                    if ($request->source_txt == 'Partenaire') {
+                        $prospect->partenaire_id = $request->partenaire_id;
+                    }
+                    $prospect->notifie = $request->notifie;
+                    $prospect->save();
+
+                    /****Libérer le bien de l'ancienne visite**/
+                    //chngement de bien
+                    if ($request->interet == InteretEnum::Intéressé->value) {
+                        if (($visite->statut == StatutVisiteEnum::Pré_Réservation->value || $visite->statut == StatutVisiteEnum::Vendu->value) && $visite->bien_id != null) {
+                            if ($visite->bien_id != $request->bien_id) {
+                                $oldBien = Bien::on('temp')->find($visite->bien_id);
+                                if ($oldBien->etat == 'PRE_RESERVATION' || $oldBien->etat == 'VENDU') {
+                                    Bien_Helper::libererBien($visite->bien_id, null, null);
+                                    $newBien = Bien::on('temp')->find($request->bien_id);
+                                $changes['bien'] = [
+                                        'old' => $oldBien ? $oldBien : $visite->bien_id,
+                                        'new' => $newBien ? $newBien : $request->bien_id
+                                        ];
+                                }
+                            }
+                        }
+
+                    }
+
+                    //changement d'interet (Réceptif ou Perdu)
+                    if ($visite->bien_id != null && $request->interet != InteretEnum::Intéressé->value) {
+                        Bien_Helper::libererBien($visite->bien_id, null, null);
+
+                    }
+
+                    $visite->user_id     = $userAuth->value('id');
+                    $visite->commentaire = $request->commentaire;
+                    if (str_contains($old_description, 'CREATION') == true) {
+                        $visite->description = str_replace('CREATION', 'MODIFICATION', $old_description);
+                    } else {
+                        $visite->description = $old_description;
+
+                    }
+                    $visite->old_v_id = $id;
+                    $visite->interet  = $request->interet;
+
+                    //Intéressé
+                    if ($request->interet == InteretEnum::Intéressé->value) {
+                        $visite->bien_id = $request->bien_id;
+                        $visite->statut  = $request->statut;
+                    } elseif ($request->interet == InteretEnum::Réceptif->value) {
+                        $visite->statut  = null;
+                        $visite->bien_id = null;
+                    } elseif ($request->interet == InteretEnum::Perdu->value) {
+                        $visite->statut  = null;
+                        $visite->bien_id = null;
+                    }
+                    $visite->save();
+
+                    /** store relances et rdv **/
+                    //STORE HISTORIQUE DU BIEN
+                    if ($visite->bien_id != null) {
+                        if ($visite->statut == StatutVisiteEnum::Vendu->value) {
+                            HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
+                        } else if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
+                            HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
+                        }
+                    }
+                    /**si ancien Perdu avec notif des bien dispo on supprime la notif** pas encours */
+                    //supprimer ancien notif relance rdv
+                    $notif_exist_relance_rdv = Notification::on('temp')->whereIN('type', [1, 2])->where('visite_id', $old_visite->id)->get();
+                    if (count($notif_exist_relance_rdv) > 0) {
+                        foreach ($notif_exist_relance_rdv as $nt) {
+                            $nt->delete();
+                        }
+                    }
+
+                    //store relances et rdv et notifications
+                if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value || $visite->interet == InteretEnum::Réceptif->value) {
+                                // Track relance/rdv fields only for this condition
+                                $relanceFields = ['date_relance', 'mode_relance', 'rdv'];
+                                foreach ($relanceFields as $field) {
+                                    if ($request->has($field) && $request->input($field) != $old_visite->$field) {
+                                        if ($field == 'rdv') {
+                                            $changes[$field] = [
+                                                'old' => $old_visite->rdv_relation ? $old_visite->rdv_relation->$field : null,
+                                                'new' => $request->input($field)
+                                            ];
+                                        } else {
+                                            $changes[$field] = [
+                                                'old' => $old_visite->relance_relation ? $old_visite->relance_relation->$field : null,
+                                                'new' => $request->input($field)
+                                            ];
+                                        }
+                                    }
+                                }
+                        if ($request->date_relance != null) {
+                            if ($old_visite->relance_relation != null) {
+                                $old_visite->relance_relation->delete();
+                            }
+                            $data_notif = [
+                                'lien'        => '/crm/visites/'. $visite->origin_id,
+                                'date'        => $request->date_relance,
+                                'type'        => 1,
+                                'description' => 'RELANCE VISITE',
+                                'user_id'     => Auth::guard('api')->user()->id,
+                                'role'        => null,
+                                'visite_id'   => $visite->id,
+                                'prospect_id' => $visite->prospect_id,
+                                'projet_id'   => $visite->projet_id,
+
+                            ];
+
+
+                            $notif_helper = new NotificationHelper();
+                            $notif_helper->storeNotification($request->merge($data_notif));
+
+                            broadcast(new NotificationEvent($visite->id));
+                            $relance = new Relance_Rdv_Visite();
+                            $relance->setConnection('temp');
+                            $relance->type            = 1; //relance
+                            $relance->mode_relance    = $request->mode_relance;
+                            $relance->date_relance    = $request->date_relance;
+                            $relance->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
+                            $relance->user_id         = $userAuth->value('id');
+                            $relance->visite_id       = $visite->id;
+                            $relance->save();
+                        }
+                        if ($request->rdv != null) {
+                            if ($old_visite->rdv_relation != null) {
+                                $old_visite->rdv_relation->delete();
+                            }
+                            $data_notif = [
+                                'lien'        => '/crm/visites/'. $visite->origin_id,
+                                'date'        => $request->rdv,
+                                'type'        => 2,
+                                'description' => 'RDV VISITE',
+                                'user_id'     => Auth::guard('api')->user()->id,
+                                'role'        => null,
+                                'visite_id'   => $visite->getAttribute('id'),
+                                'prospect_id' => $visite->prospect_id,
+                                'projet_id'   => $visite->projet_id,
+
+                            ];
+                            $notif_helper = new NotificationHelper();
+                            $notif_helper->storeNotification($request->merge($data_notif));
+
+                            broadcast(new NotificationEvent($visite->id));
+                            $rdv = new Relance_Rdv_Visite();
+                            $rdv->setConnection('temp');
+                            $rdv->type            = 2; //rdv
+                            $rdv->rdv             = $request->rdv;
+                            $rdv->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
+                            $rdv->user_id         = $userAuth->value('id');
+                            $rdv->visite_id       = $visite->id;
+                            $rdv->save();
+                        }
+                    }
+                    /*//store code pre reserve to table ==>PreReservation
+                    if ($old_visite->statut != StatutVisiteEnum::Pré_Réservation->value) {
+                        if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
+                            $bien_c = new BienController();
+                            $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
+                            HistoriqueBienHelper::createHistoriqueBien(2, "Pre Reserve pour le prospect :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
 
                         }
                     }
-                }
+                    //IF CHANGE BIEN NOT CHANGING STATUT
+                    if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
+                        if($old_visite->bien_id!=$visite->bien_id){
+                            //pre reserve le new bien
+                            $bien_c = new BienController();
+                            $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
+                            HistoriqueBienHelper::createHistoriqueBien(2, "Pre Reserve pour le prospect :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
 
-            }
+                        }
+                    }*/
+                    // Conditions communes
+                    $isInteresseEtPreReserve = $visite->interet == InteretEnum::Intéressé->value &&
+                    $visite->statut == StatutVisiteEnum::Pré_Réservation->value;
 
-            //changement d'interet (Réceptif ou Perdu)
-            if ($visite->bien_id != null && $request->interet != InteretEnum::Intéressé->value) {
-                Bien_Helper::libererBien($visite->bien_id, null, null);
+                    // Condition 1 : Passage en pré-réservation
+                    $wasNotPreReserve = $old_visite->statut != StatutVisiteEnum::Pré_Réservation->value;
 
-            }
+                    // Condition 2 : Changement de bien
+                    $bienChanged = $old_visite->bien_id != $visite->bien_id;
 
-            $visite->user_id     = $userAuth->value('id');
-            $visite->commentaire = $request->commentaire;
-            if (str_contains($old_description, 'CREATION') == true) {
-                $visite->description = str_replace('CREATION', 'MODIFICATION', $old_description);
-            } else {
-                $visite->description = $old_description;
+                    if ($isInteresseEtPreReserve && ($wasNotPreReserve || $bienChanged)) {
+                        $bienController = new BienController();
+                        $bienController->prereserverBien($visite->bien_id, $visite->id, null, null);
 
-            }
-            $visite->old_v_id = $id;
-            $visite->interet  = $request->interet;
-
-            //Intéressé
-            if ($request->interet == InteretEnum::Intéressé->value) {
-                $visite->bien_id = $request->bien_id;
-                $visite->statut  = $request->statut;
-            } elseif ($request->interet == InteretEnum::Réceptif->value) {
-                $visite->statut  = null;
-                $visite->bien_id = null;
-            } elseif ($request->interet == InteretEnum::Perdu->value) {
-                $visite->statut  = null;
-                $visite->bien_id = null;
-            }
-            $visite->save();
-
-            /** store relances et rdv **/
-            //STORE HISTORIQUE DU BIEN
-            if ($visite->bien_id != null) {
-                if ($visite->statut == StatutVisiteEnum::Vendu->value) {
-                    HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
-                } else if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                    HistoriqueBienHelper::createHistoriqueBien(5, "Modification visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
-                }
-            }
-            /**si ancien Perdu avec notif des bien dispo on supprime la notif** pas encours */
-            //supprimer ancien notif relance rdv
-            $notif_exist_relance_rdv = Notification::on('temp')->whereIN('type', [1, 2])->where('visite_id', $old_visite->id)->get();
-            if (count($notif_exist_relance_rdv) > 0) {
-                foreach ($notif_exist_relance_rdv as $nt) {
-                    $nt->delete();
-                }
-            }
-
-            //store relances et rdv et notifications
-            if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value || $visite->interet == InteretEnum::Réceptif->value) {
-                if ($request->date_relance != null) {
-                    if ($old_visite->relance_relation != null) {
-                        $old_visite->relance_relation->delete();
                     }
-                    $data_notif = [
-                        'lien'        => '/crm/visites/'. $visite->origin_id,
-                        'date'        => $request->date_relance,
-                        'type'        => 1,
-                        'description' => 'RELANCE VISITE',
-                        'user_id'     => Auth::guard('api')->user()->id,
-                        'role'        => null,
-                        'visite_id'   => $visite->id,
-                        'prospect_id' => $visite->prospect_id,
-                        'projet_id'   => $visite->projet_id,
 
-                    ];
+                    //if($old_visite->statut!=StatutVisiteEnum::Vendu->value ){
+                    if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
 
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
+                            $reservationChanges = [];
 
-                    broadcast(new NotificationEvent($visite->id));
-                    $relance = new Relance_Rdv_Visite();
-                    $relance->setConnection('temp');
-                    $relance->type            = 1; //relance
-                    $relance->mode_relance    = $request->mode_relance;
-                    $relance->date_relance    = $request->date_relance;
-                    $relance->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                    $relance->user_id         = $userAuth->value('id');
-                    $relance->visite_id       = $visite->id;
-                    $relance->save();
-                }
-                if ($request->rdv != null) {
-                    if ($old_visite->rdv_relation != null) {
-                        $old_visite->rdv_relation->delete();
+                        $reservationFields = [
+                            'code_reservation', 'prix', 'mode_financement', 'date_reservation',
+                            'commentaire_res', 'prix_remise', 'prix_forfetaire', 'avance_res',
+                            'mode_paiement', 'numero_paiement', 'date_reglement', 'echeance',
+                            'banque_id', 'commentaireAvance', 'num_remise', 'date_encaissement'
+                        ];
+
+                        foreach ($reservationFields as $field) {
+                            if ($request->has($field)) {
+                                $reservationChanges[$field] = [
+                                    'new' => $request->input($field)
+                                ];
+                            }
+                        }
+
+
+                        if (!empty($reservationChanges)) {
+                            $changes['reservation'] = $reservationChanges;
+                        }
+
+                    /***********************Track reservation************* */
+                        $reservationController = new ReservationController();
+                        $reservationRequest    = new StoreReservationRequest();
+
+                        $numberToWords          = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
+                        $prix_remise_lettre     = $numberToWords->format($request->prix_remise);
+                        $prix_forfetaire_lettre = $numberToWords->format($request->prix_forfetaire);
+
+                        $dataReservation = [
+                            'nb_acquereurs'          => 1,
+                            'code_reservation'       => $request->code_reservation,
+                            'prix'                   => $request->prix,
+                            'mode_financement'       => $request->mode_financement,
+                            'date_reservation'       => $request->date_reservation,
+                            'commentaire'            => $request->commentaire_res,
+                            'visite_id'              => $visite->id,
+                            'prix_remise'            => $request->prix_remise,
+                            'prix_remise_lettre'     => $request->prix_remise_lettre,
+                            'prix_forfetaire'        => $request->prix_forfetaire,
+                            'prix_forfetaire_lettre' => $request->prix_forfetaire_lettre,
+                            'bien_id'                => $request->bien_id,
+                            'projet_id'              => $visite->projet_id,
+                            'verifierPourcentages'   => true,
+                            'origin'                 => 'visite',
+                            'cin'                    => $prospect->cin,
+                            'nom'                    => $prospect->nom,
+                            'prenom'                 => $prospect->prenom,
+                            'telephone_num1'         => $prospect->telephone,
+                            'telephone_num2'         => $prospect->telephone_num2,
+                            'ville'                  => $prospect->ville,
+                            'notifie'                => $prospect->notifie,
+                            'prospect_id'            => $prospect->id,
+                            'civilite'               => '1',
+                            'type_client'            => 1,
+                            'situation_familliale'   => 1,
+                            'sr'                     => ($request->sr === 'false' || $request->sr === null) ? 0 : 1,
+                            'check_montant'          => ($request->check_montant === 'false' || $request->check_montant === null) ? 0 : 1,
+                            'type_encaissement'      => 1,
+                            'avance'                 => $request->avance_res,
+                            'mode_paiement'          => $request->mode_paiement,
+                            'numero_paiement'        => $request->numero_paiement,
+                            'date_reglement'         => $request->date_reglement,
+                            'echeance'               => $request->echeance,
+                            'banque_id'              => $request->banque_id,
+                            'commentaireAvance'      => $request->commentaireAvance,
+                            'num_remise'             => $request->num_remise,
+                            'date_encaissement'      => $request->date_encaissement,
+                            'files_avance'           => $request->selectedFiles_avc,
+
+                        ];
+                        $reservationRequest->merge($dataReservation);
+                        $reservationController->store($reservationRequest);
+
                     }
-                    $data_notif = [
-                        'lien'        => '/crm/visites/'. $visite->origin_id,
-                        'date'        => $request->rdv,
-                        'type'        => 2,
-                        'description' => 'RDV VISITE',
-                        'user_id'     => Auth::guard('api')->user()->id,
-                        'role'        => null,
-                        'visite_id'   => $visite->getAttribute('id'),
-                        'prospect_id' => $visite->prospect_id,
-                        'projet_id'   => $visite->projet_id,
 
-                    ];
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
 
-                    broadcast(new NotificationEvent($visite->id));
-                    $rdv = new Relance_Rdv_Visite();
-                    $rdv->setConnection('temp');
-                    $rdv->type            = 2; //rdv
-                    $rdv->rdv             = $request->rdv;
-                    $rdv->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                    $rdv->user_id         = $userAuth->value('id');
-                    $rdv->visite_id       = $visite->id;
-                    $rdv->save();
+
+                    if ($visite->interet == InteretEnum::Perdu->value) {
+                        /************************Track visite Perdu*******************
+                            $freinChanges = [];
+
+                            // Track frein fields
+                            $freinFields = [
+                                'prix_min', 'prix_max', 'sup_min', 'sup_max', 'avance',
+                                'description_autre'
+                            ];
+
+                            foreach ($freinFields as $field) {
+                                if ($request->has($field) && $request->input($field) != $old_visite->$field) {
+                                    $freinChanges[$field] = [
+                                        'old' => $old_visite->$field ?? null,
+                                        'new' => $request->input($field)
+                                    ];
+                                }
+                            }
+
+                            // Track array fields (tranches, etages, orientations, etc.)
+                            $arrayFields = [
+                                'tranches', 'etages', 'orientations', 'typologies', 'vues', 'frein'
+                            ];
+
+                            foreach ($arrayFields as $field) {
+                                if ($request->has($field)) {
+                                    $newValue = is_array($request->input($field)) ? $request->input($field) : json_decode($request->input($field), true);
+                                    $freinChanges[$field] = [
+                                        'new' => $newValue
+                                    ];
+                                }
+                            }
+
+                            if (!empty($freinChanges)) {
+                                $changes['frein'] = $freinChanges;
+                            }
+                            /************************Track visite Perdu*******************/
+                            $frein_id                             = Frein::on('temp')->where('visite_id', $visite->id)->get();
+                            $freinRequest['prix_min']             = str_contains($request->frein, 'PRIX')?$request->prix_min:null;
+                            $freinRequest['freins']               = $request->frein;
+                            $freinRequest['prix_max']             = str_contains($request->frein, 'PRIX')?$request->prix_max:null;
+                            $freinRequest['sup_min']              = str_contains($request->frein, 'SUPERFICIE')?$request->sup_min:null;
+                            $freinRequest['sup_max']              = str_contains($request->frein, 'SUPERFICIE')?$request->sup_max:null;
+                            $freinRequest['etat']                 = 1;
+                            $freinRequest['avance']               = str_contains($request->frein, 'AVANCE')?$request->avance:null;
+                            $freinRequest['selectedTranches']     = str_contains($request->frein, 'TRANCHE')?$request->tranches:"";
+                            //-1 for 0 si on selection just le 0
+                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : (str_contains($request->frein, 'ETAGE') ? $request->etages : "");
+                            $freinRequest['selectedOrientations'] = str_contains($request->frein, 'ORIENTATION')?$request->orientations:"";
+                            $freinRequest['selectedTypologies']   = str_contains($request->frein, 'TYPOLOGIE')?$request->typologies:"";
+                            $freinRequest['selectedVues']         = str_contains($request->frein, 'VUE')?$request->vues:"";
+                            $freinRequest['description_autre']    = str_contains($request->frein, 'AUTRE')?$request->description_autre:"";
+
+                            $freinController = new FreinController();
+                            if (! $frein_id->isEmpty()) {
+
+                                $freinController->update(new UpdateFreinRequest($freinRequest), $frein_id->value('id'));
+                            } else {
+
+                                $freinRequest['visite_id'] = $visite->id;
+                            $freinController->store(new StoreFreinRequest($freinRequest));
+
+                            }
+                            } else {
+
+                                $frein = Frein::on('temp')->where('visite_id', $id)->get();
+                                if (! $frein->isEmpty()) {
+                                    $freinController = new FreinController();
+                                    $freinController->destroy($frein->value('id'));
+                                }
+                            }
+
+
+                            // Store history with all changes
+                        if (!empty($changes)) {
+                            $visite->historique_modification=json_encode($changes);
+                            $visite->save();
+                        }
+                // Commit transaction if everything is successful
+                    DB::connection('temp')->commit();
+
+                    return response()->json(['success' => 'Visite created successfully'], 200);
+
+                } catch (\Exception $e) {
+                    // Rollback transaction on error
+                    DB::connection('temp')->rollBack();
+
+                    \Log::error("Visite creation failed: " . $e->getMessage());
+                    return response()->json(['error' => 'Visite creation failed: ' . $e->getMessage()], 500);
                 }
-            }
-            /*//store code pre reserve to table ==>PreReservation
-            if ($old_visite->statut != StatutVisiteEnum::Pré_Réservation->value) {
-                if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                    $bien_c = new BienController();
-                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
-                    HistoriqueBienHelper::createHistoriqueBien(2, "Pre Reserve pour le prospect :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
-
-                }
-            }
-            //IF CHANGE BIEN NOT CHANGING STATUT
-            if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                if($old_visite->bien_id!=$visite->bien_id){
-                    //pre reserve le new bien
-                    $bien_c = new BienController();
-                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null,null);
-                    HistoriqueBienHelper::createHistoriqueBien(2, "Pre Reserve pour le prospect :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null,null,null);
-
-                }
-            }*/
-            // Conditions communes
-            $isInteresseEtPreReserve = $visite->interet == InteretEnum::Intéressé->value &&
-            $visite->statut == StatutVisiteEnum::Pré_Réservation->value;
-
-            // Condition 1 : Passage en pré-réservation
-            $wasNotPreReserve = $old_visite->statut != StatutVisiteEnum::Pré_Réservation->value;
-
-            // Condition 2 : Changement de bien
-            $bienChanged = $old_visite->bien_id != $visite->bien_id;
-
-            if ($isInteresseEtPreReserve && ($wasNotPreReserve || $bienChanged)) {
-                $bienController = new BienController();
-                $bienController->prereserverBien($visite->bien_id, $visite->id, null, null);
-
-            }
-
-            //if($old_visite->statut!=StatutVisiteEnum::Vendu->value ){
-            if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
-
-                $reservationController = new ReservationController();
-                $reservationRequest    = new StoreReservationRequest();
-
-                $numberToWords          = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-                $prix_remise_lettre     = $numberToWords->format($request->prix_remise);
-                $prix_forfetaire_lettre = $numberToWords->format($request->prix_forfetaire);
-
-                $dataReservation = [
-                    'nb_acquereurs'          => 1,
-                    'code_reservation'       => $request->code_reservation,
-                    'prix'                   => $request->prix,
-                    'mode_financement'       => $request->mode_financement,
-                    'date_reservation'       => $request->date_reservation,
-                    'commentaire'            => $request->commentaire_res,
-                    'visite_id'              => $visite->id,
-                    'prix_remise'            => $request->prix_remise,
-                    'prix_remise_lettre'     => $request->prix_remise_lettre,
-                    'prix_forfetaire'        => $request->prix_forfetaire,
-                    'prix_forfetaire_lettre' => $request->prix_forfetaire_lettre,
-                    'bien_id'                => $request->bien_id,
-                    'projet_id'              => $visite->projet_id,
-                    'verifierPourcentages'   => true,
-                    'origin'                 => 'visite',
-                    'cin'                    => $prospect->cin,
-                    'nom'                    => $prospect->nom,
-                    'prenom'                 => $prospect->prenom,
-                    'telephone_num1'         => $prospect->telephone,
-                    'telephone_num2'         => $prospect->telephone_num2,
-                    'ville'                  => $prospect->ville,
-                    'notifie'                => $prospect->notifie,
-                    'prospect_id'            => $prospect->id,
-                    'civilite'               => '1',
-                    'type_client'            => 1,
-                    'situation_familliale'   => 1,
-                    'sr'                     => ($request->sr === 'false' || $request->sr === null) ? 0 : 1,
-                    'check_montant'          => ($request->check_montant === 'false' || $request->check_montant === null) ? 0 : 1,
-                    'type_encaissement'      => 1,
-                    'avance'                 => $request->avance_res,
-                    'mode_paiement'          => $request->mode_paiement,
-                    'numero_paiement'        => $request->numero_paiement,
-                    'date_reglement'         => $request->date_reglement,
-                    'echeance'               => $request->echeance,
-                    'banque_id'              => $request->banque_id,
-                    'commentaireAvance'      => $request->commentaireAvance,
-                    'num_remise'             => $request->num_remise,
-                    'date_encaissement'      => $request->date_encaissement,
-                    'files_avance'           => $request->selectedFiles_avc,
-
-                ];
-                $reservationRequest->merge($dataReservation);
-                $reservationController->store($reservationRequest);
 
             }
-            // }
-
-            if ($visite->interet == InteretEnum::Perdu->value) {
-
-                $frein_id                             = Frein::on('temp')->where('visite_id', $visite->id)->get();
-                $freinRequest['prix_min']             = $request->prix_min;
-                $freinRequest['freins']               = $request->frein;
-                $freinRequest['prix_max']             = $request->prix_max;
-                $freinRequest['sup_min']              = $request->sup_min;
-                $freinRequest['sup_max']              = $request->sup_max;
-                $freinRequest['etat']                 = 1;
-                $freinRequest['avance']               = $request->avance;
-                $freinRequest['selectedTranches']     = $request->tranches;
-                //-1 for 0 si on selection just le 0
-                $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
-                $freinRequest['selectedOrientations'] = $request->orientations;
-                $freinRequest['selectedTypologies']   = $request->typologies;
-                $freinRequest['selectedVues']         = $request->vues;
-                $freinRequest['description_autre']    = $request->description_autre;
-
-                $freinController = new FreinController();
-                if (! $frein_id->isEmpty()) {
-
-                    $freinController->update(new UpdateFreinRequest($freinRequest), $frein_id->value('id'));
-                } else {
-
-                    $freinRequest['visite_id'] = $visite->id;
-                   $freinController->store(new StoreFreinRequest($freinRequest));
-
-                }
-            } else {
-
-                $frein = Frein::on('temp')->where('visite_id', $id)->get();
-                if (! $frein->isEmpty()) {
-                    $freinController = new FreinController();
-                    $freinController->destroy($frein->value('id'));
-                }
-            }
-        }
     }
 
     /**
@@ -1825,20 +2048,20 @@ class VisiteController extends Controller
                         }
                         if ($newVisit->interet == InteretEnum::Perdu->value) {
                             $freinRequest['visite_id']            = $newVisit->getAttribute('id');
-                            $freinRequest['prix_min']             = $request->prix_min;
-                            $freinRequest['prix_max']             = $request->prix_max;
-                            $freinRequest['sup_min']              = $request->sup_min;
-                            $freinRequest['sup_max']              = $request->sup_max;
-                            $freinRequest['etat']                 = 1;
-                            $freinRequest['avance']               = $request->avance;
-                            $freinRequest['selectedTranches']     = $request->tranches;
-                              //-1 for 0 si on selection just le 0
-                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
-                            $freinRequest['selectedOrientations'] = $request->orientations;
-                            $freinRequest['selectedTypologies']   = $request->typologies;
-                            $freinRequest['selectedVues']         = $request->vues;
-                            $freinRequest['description_autre']    = $request->description_autre;
+                            $freinRequest['prix_min']             = str_contains($request->frein, 'prix')?$request->prix_min:null;
                             $freinRequest['freins']               = $request->frein;
+                            $freinRequest['prix_max']             = str_contains($request->frein, 'prix')?$request->prix_max:null;
+                            $freinRequest['sup_min']              = str_contains($request->frein, 'superficie')?$request->sup_min:null;
+                            $freinRequest['sup_max']              = str_contains($request->frein, 'superficie')?$request->sup_max:null;
+                            $freinRequest['etat']                 = 1;
+                            $freinRequest['avance']               = str_contains($request->frein, 'avance')?$request->avance:null;
+                            $freinRequest['selectedTranches']     = str_contains($request->frein, 'tranche')?$request->tranches:"";
+                            //-1 for 0 si on selection just le 0
+                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : (str_contains($request->frein, 'etage') ? $request->etages : "");
+                            $freinRequest['selectedOrientations'] = str_contains($request->frein, 'orientation')?$request->orientations:"";
+                            $freinRequest['selectedTypologies']   = str_contains($request->frein, 'typologie')?$request->typologies:"";
+                            $freinRequest['selectedVues']         = str_contains($request->frein, 'vue')?$request->vues:"";
+                            $freinRequest['description_autre']    = str_contains($request->frein, 'autre')?$request->description_autre:"";
 
                             $freinController = new FreinController();
                             $freinController->store(new StoreFreinRequest($freinRequest));
@@ -2317,7 +2540,7 @@ class VisiteController extends Controller
             } else {
                 $relances = $query->orderBy('created_at', 'desc')
                     ->get();
-                return response()->json(['relances' => $relances]);
+                return response()->json(['data' => $relances]);
 
             }
         }

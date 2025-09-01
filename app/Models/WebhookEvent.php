@@ -13,11 +13,12 @@ class WebhookEvent extends Model
     protected $table = 'webhook_events';
     protected $dates = ['deleted_at'];
     protected $fillable = [
-        'platform', 
-        'event_type', // Changed from 'type' to 'event_type'
-        'data', 
-        'page_id', 
-        'processed', 
+        'platform',
+        'type', // Keep as 'type' for consistency with database
+        'event_type', // Also allow event_type for flexibility
+        'data',
+        'page_id',
+        'processed',
         'processing_notes'
     ];
 

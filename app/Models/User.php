@@ -36,6 +36,7 @@ class User extends Authenticatable
         'adresse', 'cnss',
         'fonction',
         'solde_conge',
+        'nb_prospects', // Replace prospects with nb_prospects
         'is_actif',
     ];
     protected $table = 'users';
@@ -58,6 +59,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'nb_prospects' => 'integer', // Cast nb_prospects as integer
     ];
     protected $dates = ['deleted_at'];
     protected $with = ['societe'];

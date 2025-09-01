@@ -17,7 +17,7 @@ class HistoriqueVisite extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class ,'user_id','user_id_origin');
+        return $this->belongsTo(User::class ,'user_id','user_id_origin')->withTrashed();
     }
     public function bien()
     {

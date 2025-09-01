@@ -32,15 +32,21 @@ class UpdateImmeubleRequest extends FormRequest
             'nom' => [ Rule::unique('temp.'.$DatabaseName.'.immeubles','nom')->whereNull('deleted_at')->where(function ($query) {
                 if ($this->bloc_id==null){
                     if ($this->tranche_id==null)
-                    {$query->where('nom', $this->nom)
-                    ->where('projet_id', $this->projet_id);}
-                    else {$query->where('nom', $this->nom)
-                        ->where('tranche_id', $this->tranche_id);}
+                    {
+                        $query->where('nom', $this->nom)
+                              ->where('projet_id', $this->projet_id);
+                    }
+                    else {
+                        $query->where('nom', $this->nom)
+                        ->where('tranche_id', $this->tranche_id);
+                    }
                 }
 
                 elseif($this->bloc_id!=null)
-                    {$query->where('nom', $this->nom)
-                    ->where('bloc_id', $this->bloc_id);}
+                {
+                    $query->where('nom', $this->nom)
+                        ->where('bloc_id', $this->bloc_id);
+                }
 
                 })->ignore($this->immeuble)],
 
@@ -58,18 +64,18 @@ class UpdateImmeubleRequest extends FormRequest
         if ($this->tranche_id==null && $this->bloc_id==null){
             return [
 
-                'nom.unique' =>  'Cet immeuble est deja exist dans ce projet',
+                'nom.unique' =>  'Cet immeuble existe déjà dans ce projet',
             ];}
 
         elseif ($this->bloc_id==null) {
             return [
 
-                'nom.unique' =>  'Cet immeuble est deja exist dans cette tranche',
+                'nom.unique' =>  'Cet immeuble existe déjà dans cette tranche',
             ];}
         else {
             return [
 
-                'nom.unique' =>  'Cet immeuble est deja exist dans ce bloc',
+                'nom.unique' =>  'Cet immeuble existe déjà dans ce bloc',
             ];}
 
     }
