@@ -207,6 +207,13 @@ class BlocController extends Controller
                     $imme->destroy($imm->id);
                 }
             }
+            if(count($bloc->bien)>0){
+                $bien=new BienController();
+                foreach($bloc->bien as $b){
+                    $bien->destroy($b->id);
+                }
+            }
+
             //traitement_appel
             $traitement_appels = TraitementAppel::on('temp')->where('bloc_id', $id)->get();
             if (count($traitement_appels) > 0) {

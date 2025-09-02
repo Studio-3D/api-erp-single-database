@@ -178,7 +178,8 @@ class ImmeubleController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $immeuble = Immeuble::on('temp')->with('projet','tranche','bloc')->withCount('bien')->findOrfail($id);
+            $immeuble = Immeuble::on('temp')->with('projet','tranche','bloc','bien')->withCount('bien')->findOrfail($id);
+
             return response()->json(['immeuble' => $immeuble], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);

@@ -29,20 +29,32 @@ class UpdateTrancheRequest extends FormRequest
         $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
         return [
+            'nom' => [
+                    Rule::unique('temp.'.$DatabaseName.'.tranches')
+                        ->ignore($this->id)
+                        ->where('projet_id', $this->projet_id)
+                        ->whereNull('deleted_at'),
+                ],
             'projet_id' => 'integer',
             'date_lancement' => 'date|nullable',
             'date_livraison' => 'date|nullable',
             'niveau_etages' => 'integer|nullable',
             'nbre_blocs' => 'integer ',
             'nbre_immeubles' => 'integer',
-            'nbre_biens' => 'integer',
-            ];
+            'nbre_biens' => 'integer'
+           /* ,'nom' => [ Rule::unique('temp.'.$DatabaseName.'.tranches','nom')->whereNull('deleted_at')->where(function ($query) {
+                    $query->where('projet_id', $this->projet_id);
+            })->ignore($this->tranche)],*/
+
+        ];
     }
+
+
 
     public function messages(): array
     {
         return [
-            'nom.unique' => 'ce tranche est deje exist dans ce projet',
+            'nom.unique' => 'Cette tranche existe déjà dans ce projet',
         ];
     }
 }

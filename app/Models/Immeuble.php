@@ -21,7 +21,7 @@ class Immeuble extends Model
 
     protected $with=['projet','tranche','bloc'];
 
-   
+
    public function projet()
    {
        return $this->belongsTo(Projet::class,  'projet_id');

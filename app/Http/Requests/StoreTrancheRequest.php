@@ -46,7 +46,7 @@ class StoreTrancheRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'nom.unique' => 'Ce tranche est deja exist dans ce projet',
+            'nom.unique' => 'Cette tranche est déja exist dans ce projet',
         ];
     }
 }

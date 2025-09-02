@@ -70,7 +70,7 @@ class DatabaseHelper
     {
         config(['database.connections.temp' => $connection]);
 
-        $migration = Artisan::call('migrate', [
+       $migration = Artisan::call('migrate', [
             '--database' => 'temp',
             '--path' => 'database/migrations/migrations_societe',
             '--force' => true,
@@ -80,6 +80,7 @@ class DatabaseHelper
 
         return $migration === 0;
     }
+
     public function renameDatabase($oldDatabaseName, $newDatabaseName)
     {
 
