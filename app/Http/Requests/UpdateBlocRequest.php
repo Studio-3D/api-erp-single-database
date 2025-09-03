@@ -55,14 +55,14 @@ class UpdateBlocRequest extends FormRequest
     {   if ($this->tranche_id==null){
             return [
 
-            'nom.unique' =>  'ce nom de bloc existe déjà dans ce projet',
+            'nom.unique' =>  'Ce bloc existe déjà dans ce projet',
             ];
         }
 
         else {
             return [
 
-                'nom.unique' =>  'ce nom de bloc existe déjà dans cette tranche',
+                'nom.unique' =>  'Ce bloc existe déjà dans cette tranche',
             ];
         }
     }
