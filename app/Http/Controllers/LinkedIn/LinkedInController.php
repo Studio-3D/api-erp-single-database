@@ -32,13 +32,13 @@ class LinkedInController extends Controller
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 // Check if table exists first
                 if (!Schema::connection('temp')->hasTable('linkedin_configurations')) {
                     return response()->json(['configurations' => []], 200);
                 }
-                
+
                 $configurations = DB::connection('temp')
                     ->table('linkedin_configurations as lc')
                     ->leftJoin('projets as p', 'lc.projet_id', '=', 'p.id')
@@ -57,12 +57,57 @@ class LinkedInController extends Controller
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
                     });
-                
+
                 return response()->json(['configurations' => $configurations], 200);
             } catch (\Exception $e) {
                 // If table doesn't exist, return empty array
                 if (str_contains($e->getMessage(), "doesn't exist")) {
                     return response()->json(['configurations' => []], 200);
+                }
+                throw $e;
+            }
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
+    public function get_linkedin_config_by_project(Request $request, $projectId)
+    {
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+
+            try {
+                // Check if table exists first
+                if (!Schema::connection('temp')->hasTable('linkedin_configurations')) {
+                    return response()->json(['configuration' => null], 200);
+                }
+
+                $configuration = DB::connection('temp')
+                    ->table('linkedin_configurations as lc')
+                    ->leftJoin('projets as p', 'lc.projet_id', '=', 'p.id')
+                    ->select('lc.*', 'p.nom as projet_nom')
+                    ->where('lc.projet_id', $projectId)
+                    ->whereNull('lc.deleted_at')
+                    ->first();
+
+                if ($configuration) {
+                    $config = [
+                        'id' => $configuration->id,
+                        'linkedin_page_id' => $configuration->linkedin_page_id,
+                        'linkedin_page_name' => $configuration->linkedin_page_name,
+                        'projet_id' => $configuration->projet_id,
+                        'is_active' => $configuration->is_active ?? true,
+                        'created_at' => $configuration->created_at,
+                        'projet' => $configuration->projet_nom ? ['nom' => $configuration->projet_nom] : null
+                    ];
+                    return response()->json(['configuration' => $config], 200);
+                } else {
+                    return response()->json(['configuration' => null], 200);
+                }
+            } catch (\Exception $e) {
+                // If table doesn't exist, return null
+                if (str_contains($e->getMessage(), "doesn't exist")) {
+                    return response()->json(['configuration' => null], 200);
                 }
                 throw $e;
             }

@@ -634,6 +634,14 @@ private function findSocieteByPageId($pageId)
                 continue;
             }
             
+            // Handle Instagram messaging events (reactions)
+            if (isset($entry['messaging'])) {
+                foreach ($entry['messaging'] as $messaging) {
+                    $this->handleInstagramMessaging($messaging, $societeId);
+                }
+            }
+
+            // Handle changes events (comments, mentions, posts)
             foreach ($entry['changes'] ?? [] as $change) {
                 $this->processChange($change, $societeId);
             }
@@ -750,8 +758,11 @@ private function isWebhookEnabledForPage($pageId)
         case 'feed': // Facebook/Instagram posts, comments, and reactions - ALL in feed
             $this->handleFeedEvent($change['value']);
             break;
-        case 'mention': // Mentions
-            $this->handleFacebookPost($change['value']);
+        case 'mentions': // Instagram mentions
+            $this->handleInstagramMention($change['value']);
+            break;
+        case 'mention': // Facebook mentions
+            $this->handleFacebookMention($change['value']);
             break;
         default:
             Log::warning('Unhandled Webhook Event: ' . $field);
@@ -775,10 +786,20 @@ private function handleFeedEvent($data)
             $this->handleFacebookReaction($data);
             break;
         case 'comment':
-            $this->handleFacebookComment($data);
+            // Check if it's Facebook or Instagram comment
+            if (isset($data['post_id'])) {
+                $this->handleFacebookComment($data);
+            } else {
+                $this->handleInstagramComment($data);
+            }
             break;
         case 'post':
-            $this->handleFacebookPost($data);
+            // Check if it's Facebook or Instagram post
+            if (isset($data['post_id'])) {
+                $this->handleFacebookPost($data);
+            } else {
+                $this->handleInstagramPost($data);
+            }
             break;
         default:
             // If no 'item' field, try to detect based on data structure
@@ -816,7 +837,7 @@ private function handleFeedEvent($data)
             // Get post link if available
             $postLink = isset($data['post_id']) ? "https://www.facebook.com/{$data['post_id']}" : null;
             
-            $this->createFacebookNotification($description, $postLink);
+            $this->createFacebookNotification($description, $postLink, \App\Enum\TypeNotificationEnum::FacebookPublication->value);
         }
         
     } catch (\Exception $e) {
@@ -849,7 +870,7 @@ private function handleFacebookComment($data)
             $link = "https://www.facebook.com/{$postId}";
         }
         
-        $this->createFacebookNotification($description, $link);
+        $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookComment->value);
         
     } catch (\Exception $e) {
         Log::error('Error handling Facebook comment: ' . $e->getMessage());
@@ -895,22 +916,22 @@ private function handleFacebookReaction($data)
 }
 
 // Add a new method to create Facebook notifications
-private function createFacebookNotification($description, $link = null)
+private function createFacebookNotification($description, $link = null, $type = null)
 {
     try {
         // Create notification using the notification model
         $notification = new \App\Models\Notification();
         $notification->setConnection('temp');
-        
+
         // Set required fields
         $notification->date = now()->format('Y-m-d H:i:s');
-        $notification->type = \App\Enum\TypeNotificationEnum::FacebookReaction->value; // 98
+        $notification->type = $type ?? \App\Enum\TypeNotificationEnum::FacebookReaction->value; // Default to 98
         $notification->description_type = $description;
         $notification->lien = $link ?? 'https://www.facebook.com';
-        
+
         // Set role to admin so all users can see it
         $notification->role = \App\Enum\RoleEnum::ADMIN->value;
-        
+
         // Try to get the current project ID from the database context
         // Since we're in webhook context, we need to find an appropriate projet_id
         $projet = DB::connection('temp')->table('projets')->first();
@@ -920,20 +941,191 @@ private function createFacebookNotification($description, $link = null)
             // Fallback - create a default project if none exists
             $notification->projet_id = 1;
         }
-        
+
         $notification->save();
-        
+
         // Broadcast the notification
         Config::set('broadcasting.default', 'pusher_3');
         broadcast(new \App\Events\NotificationEvent($notification->id));
-        
-        Log::info('Facebook reaction notification created successfully', [
+
+        Log::info('Social media notification created successfully', [
             'notification_id' => $notification->id,
+            'type' => $type,
             'description' => $description
         ]);
-        
+
     } catch (\Exception $e) {
-        Log::error('Error creating Facebook notification: ' . $e->getMessage());
+        Log::error('Error creating social media notification: ' . $e->getMessage());
+    }
+}
+
+// Handle Instagram comments
+private function handleInstagramComment($data)
+{
+    Log::info('Processing Instagram comment:', $data);
+
+    try {
+        // Extract comment information
+        $userName = $data['from']['name'] ?? 'Utilisateur inconnu';
+        $message = $data['message'] ?? '';
+        $mediaId = $data['media']['id'] ?? null;
+        $commentId = $data['comment_id'] ?? null;
+
+        // Create notification description
+        $description = "{$userName} a commenté votre publication Instagram";
+        if (!empty($message)) {
+            $description .= ": " . (strlen($message) > 50 ? substr($message, 0, 50) . '...' : $message);
+        }
+
+        // Get Instagram post link if available
+        $link = null;
+        if ($mediaId) {
+            $link = "https://www.instagram.com/p/{$mediaId}";
+        }
+
+        $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::InstagramComment->value);
+
+    } catch (\Exception $e) {
+        Log::error('Error handling Instagram comment: ' . $e->getMessage());
+    }
+}
+
+// Handle Instagram posts/publications
+private function handleInstagramPost($data)
+{
+    Log::info('Processing Instagram post:', $data);
+
+    try {
+        $userName = $data['from']['name'] ?? 'Utilisateur inconnu';
+        $mediaId = $data['media']['id'] ?? null;
+
+        $description = "Nouvelle publication Instagram de {$userName}";
+
+        // Get Instagram post link if available
+        $link = null;
+        if ($mediaId) {
+            $link = "https://www.instagram.com/p/{$mediaId}";
+        }
+
+        $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::InstagramPublication->value);
+
+    } catch (\Exception $e) {
+        Log::error('Error handling Instagram post: ' . $e->getMessage());
+    }
+}
+
+// Handle Instagram reactions/likes (from messaging)
+private function handleInstagramReaction($data)
+{
+    Log::info('Processing Instagram reaction:', $data);
+
+    try {
+        $senderId = $data['sender']['id'] ?? 'Utilisateur inconnu';
+        $reaction = $data['reaction'] ?? [];
+        $action = $reaction['action'] ?? '';
+        $reactionType = $reaction['reaction'] ?? '';
+        $emoji = $reaction['emoji'] ?? '';
+
+        // Only create notification for new reactions (not unreact)
+        if ($action === 'react') {
+            $description = match($reactionType) {
+                'like' => "Quelqu'un a aimé votre message Instagram",
+                'love' => "Quelqu'un adore votre message Instagram ❤️",
+                'wow' => "Quelqu'un trouve votre message Instagram impressionnant",
+                'haha' => "Quelqu'un trouve votre message Instagram amusant",
+                default => "Quelqu'un a réagi à votre message Instagram" . ($emoji ? " {$emoji}" : "")
+            };
+
+            $this->createFacebookNotification($description, 'https://www.instagram.com', \App\Enum\TypeNotificationEnum::InstagramReaction->value);
+        } else {
+            Log::info("Instagram reaction removed, not creating notification");
+        }
+
+    } catch (\Exception $e) {
+        Log::error('Error handling Instagram reaction: ' . $e->getMessage());
+    }
+}
+
+// Handle Instagram mentions
+private function handleInstagramMention($data)
+{
+    Log::info('Processing Instagram mention:', $data);
+
+    try {
+        $mediaId = $data['media_id'] ?? null;
+        $commentId = $data['comment_id'] ?? null;
+
+        if ($commentId) {
+            // Mention in a comment
+            $description = "Vous avez été mentionné dans un commentaire Instagram";
+            $link = $mediaId ? "https://www.instagram.com/p/{$mediaId}" : 'https://www.instagram.com';
+        } else {
+            // Mention in a caption
+            $description = "Vous avez été mentionné dans une publication Instagram";
+            $link = $mediaId ? "https://www.instagram.com/p/{$mediaId}" : 'https://www.instagram.com';
+        }
+
+        $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::InstagramMention->value);
+
+    } catch (\Exception $e) {
+        Log::error('Error handling Instagram mention: ' . $e->getMessage());
+    }
+}
+
+// Handle Facebook mentions
+private function handleFacebookMention($data)
+{
+    Log::info('Processing Facebook mention:', $data);
+
+    try {
+        $userName = $data['from']['name'] ?? 'Utilisateur inconnu';
+        $message = $data['message'] ?? '';
+        $postId = $data['post_id'] ?? null;
+        $commentId = $data['comment_id'] ?? null;
+
+        $description = "Vous avez été mentionné par {$userName} sur Facebook";
+        if (!empty($message)) {
+            $description .= ": " . (strlen($message) > 50 ? substr($message, 0, 50) . '...' : $message);
+        }
+
+        // Get Facebook post/comment link if available
+        $link = null;
+        if ($postId && $commentId) {
+            $link = "https://www.facebook.com/{$postId}?comment_id={$commentId}";
+        } elseif ($postId) {
+            $link = "https://www.facebook.com/{$postId}";
+        }
+
+        $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookMention->value);
+
+    } catch (\Exception $e) {
+        Log::error('Error handling Facebook mention: ' . $e->getMessage());
+    }
+}
+
+// Handle Instagram messaging events (reactions)
+private function handleInstagramMessaging($messaging, $societeId)
+{
+    Log::info('Processing Instagram messaging event:', $messaging);
+
+    try {
+        // Store webhook event
+        $web = new WebhookEvent();
+        $web->setConnection('temp');
+        $web->platform = 'instagram';
+        $web->event_type = 'instagram_messaging';
+        $web->data = $messaging;
+        $web->save();
+
+        broadcast(new NotificationEvent(0));
+
+        // Check if this is a reaction event
+        if (isset($messaging['reaction'])) {
+            $this->handleInstagramReaction($messaging);
+        }
+
+    } catch (\Exception $e) {
+        Log::error('Error handling Instagram messaging: ' . $e->getMessage());
     }
 }
 

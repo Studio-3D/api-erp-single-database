@@ -445,22 +445,18 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/tiktok/publish', [TikTokApiController::class, 'publishContent']);
         Route::get('/tiktok/status', [TikTokApiController::class, 'checkPublishStatus']);
 
-        // LinkedIn integration - updated without webhook endpoints
-        Route::post('/linkedin/access-token', [LinkedInController::class, 'getAccessToken']);
+        // LinkedIn integration
         Route::post('/linkedin/share', [LinkedInController::class, 'sharePost']);
-        
+
         // LinkedIn configurations by project
         Route::get('/linkedin-configurations', [LinkedInController::class, 'linkedin_configurations']);
         Route::post('/linkedin-configurations', [LinkedInController::class, 'store_linkedin_configuration']);
         Route::delete('/linkedin-configurations/{id}', [LinkedInController::class, 'delete_linkedin_configuration']);
-        
+        Route::get('/linkedin-config/project/{projectId}', [LinkedInController::class, 'get_linkedin_config_by_project']);
+
         // LinkedIn auth endpoints
         Route::get('/linkedin-config/auth-url', [LinkedInController::class, 'getAuthUrl']);
         Route::post('/linkedin-config/callback', [LinkedInController::class, 'handleCallback']);
-        
-        // LinkedIn analytics and polling endpoints
-        Route::post('/linkedin/poll-stats', [LinkedInController::class, 'pollLinkedInStats']);
-        Route::get('/linkedin/analytics/{projectId}', [LinkedInController::class, 'getLinkedInAnalytics']);
         
         // Add the missing webhook toggle routes inside the v1 prefix
         Route::put('/facebook-configurations/{configId}/webhook/toggle', [Facebook_InstagramController::class, 'toggle_facebook_webhook']);

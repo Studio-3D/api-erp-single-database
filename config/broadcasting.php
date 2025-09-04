@@ -15,7 +15,7 @@ return [
     */
 
     'default' => env('BROADCAST_DRIVER', 'null'),
-   'default' => env('BROADCAST_CONNECTION', 'pusher_6'), // Add this line
+   'default' => env('BROADCAST_CONNECTION', 'pusher_6'),
 
     /*
     |--------------------------------------------------------------------------
