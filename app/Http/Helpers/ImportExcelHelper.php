@@ -38,7 +38,7 @@ class ImportExcelHelper
             $filename           = pathinfo($client_origin_name, PATHINFO_FILENAME) . '_' . $date;
             $extension          = pathinfo($client_origin_name, PATHINFO_EXTENSION);
             $imp->fichier       = $filename . '.' . $extension;
-            $directory          = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/Import_fichier');
+            $directory          = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/Import_fichier');
             File::makeDirectory($directory, 0755, true, true);
             $req->file->file('piece_jointe')->move($directory, $filename . '.' . $extension);
         }

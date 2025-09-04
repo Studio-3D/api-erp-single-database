@@ -96,7 +96,7 @@ class FournisseurController extends Controller
             $four->user_id=$userAuth->value('id');
             if ($request->hasFile('fichier_rc')) {
                 $four->fichier_rc = $request->file('fichier_rc')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/Fournisseurs');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/Fournisseurs');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_rc')->move($directory,$request->file('fichier_rc')->getClientOriginalName());
             }
@@ -140,7 +140,7 @@ class FournisseurController extends Controller
             $four->rc = $request->rc;
             if ($request->hasFile('fichier_rc')) {
                 $four->fichier_rc = $request->file('fichier_rc')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/fournisseurs');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/fournisseurs');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_rc')->move($directory,$request->file('fichier_rc')->getClientOriginalName());
             }

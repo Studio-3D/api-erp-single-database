@@ -174,15 +174,15 @@ class DesistementController extends Controller
 
                                     if ($request->hasFile('fichier_autorisation_' . $index)) {
                                         $remboursement->fichier_autorisation = $request->file('fichier_autorisation_' . $index)->getClientOriginalName();
-                                        File::makeDirectory(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'fichier_autorisations'.'/'.$reservation->code_reservation), 0755, true, true);
-                                        $request->file('fichier_autorisation_' . $index)->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'fichier_autorisations'.'/'.$reservation->code_reservation), $request->file('fichier_autorisation_' . $index)->getClientOriginalName());
+                                        File::makeDirectory(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'fichier_autorisations'.'/'.$reservation->code_reservation), 0755, true, true);
+                                        $request->file('fichier_autorisation_' . $index)->move(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'fichier_autorisations'.'/'.$reservation->code_reservation), $request->file('fichier_autorisation_' . $index)->getClientOriginalName());
 
                                     }
                                     if ($request->hasFile('cheque_recu_' . $index)) {
 
                                         $remboursement->cheque = $request->file('cheque_recu_' . $index)->getClientOriginalName();
-                                        File::makeDirectory(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'cheques_reçus'.'/'.$reservation->code_reservation), 0755, true, true);
-                                        $request->file('cheque_recu_' . $index)->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'cheques_reçus'.'/'.$reservation->code_reservation), $request->file('cheque_recu_' . $index)->getClientOriginalName());
+                                        File::makeDirectory(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'cheques_reçus'.'/'.$reservation->code_reservation), 0755, true, true);
+                                        $request->file('cheque_recu_' . $index)->move(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements' . '/' . 'cheques_reçus'.'/'.$reservation->code_reservation), $request->file('cheque_recu_' . $index)->getClientOriginalName());
 
                                     }
                                     //montant rembourse lettre
@@ -457,7 +457,7 @@ class DesistementController extends Controller
 
                                 // Récupérer le nom du fichier
                                 $fileName = $file->getClientOriginalName();
-                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
+                                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
                                 if (!File::exists($directory)) {
                                     File::makeDirectory($directory, 0755, true, true);
                                 }
@@ -562,7 +562,7 @@ class DesistementController extends Controller
 
                                 // Récupérer le nom du fichier
                                 $fileName = $file->getClientOriginalName();
-                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/penalites' . '/' . $reservation->code_reservation);
+                                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/penalites' . '/' . $reservation->code_reservation);
                                 File::makeDirectory($directory, 0755, true, true);
                                 $file->move($directory, $fileName);
                                 $fileType = $file->getClientOriginalExtension();
@@ -641,7 +641,7 @@ class DesistementController extends Controller
 
                         // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/desistements' . '/' . $reservation->code_reservation);
+                        $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/desistements' . '/' . $reservation->code_reservation);
 
                         File::makeDirectory($directory, 0755, true, true);
                         $file->move($directory, $fileName);
@@ -2832,7 +2832,7 @@ class DesistementController extends Controller
 
                                 // Récupérer le nom du fichier
                                 $fileName = $file->getClientOriginalName();
-                                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/penalites' . '/' . $pen->desistement->reservation_ancien->code_reservation);
+                                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/penalites' . '/' . $pen->desistement->reservation_ancien->code_reservation);
                                 File::makeDirectory($directory, 0755, true, true);
                                 $file->move($directory, $fileName);
                                 $fileType = $file->getClientOriginalExtension();

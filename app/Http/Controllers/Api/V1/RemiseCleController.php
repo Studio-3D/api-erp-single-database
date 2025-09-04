@@ -119,7 +119,7 @@ class RemiseCleController extends Controller
             $rec->user_id_remis = $request->user_id_remise;
             if ($request->hasFile('fichier')) {
                 $rec->fichier = $request->file('fichier')->getClientOriginalName();
-                $directory    = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles');
+                $directory    = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier')->move($directory, $request->file('fichier')->getClientOriginalName());
             }
@@ -174,13 +174,13 @@ class RemiseCleController extends Controller
             if ($request->hasFile('fichier')) {
 
                 if ($fich != null) {
-                    if (File::exists(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich))) {
-                        File::delete(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich));
+                    if (File::exists(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich))) {
+                        File::delete(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich));
                     }
                 }
 
                 $rec->fichier = $request->file('fichier')->getClientOriginalName();
-                $directory    = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles');
+                $directory    = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier')->move($directory, $request->file('fichier')->getClientOriginalName());
             }
@@ -207,8 +207,8 @@ class RemiseCleController extends Controller
             if ($rem->delete()) {
 
                 if ($fich != null) {
-                    if (File::exists(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich))) {
-                        File::delete(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich));
+                    if (File::exists(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich))) {
+                        File::delete(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remise_cles' . '/' . $fich));
                     }
                 }
 

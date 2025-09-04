@@ -269,7 +269,8 @@ class AvanceController extends Controller
                                 array_push($array_2,$ar);
                             }
                             elseif($ar->last_statut!=null){
-                                    if($ar->last_statut->num_remise==null && $ar->last_statut->date_encaissement==null ){
+                                //$ar->last_statut->num_remise==null &&
+                                    if( $ar->last_statut->date_encaissement==null ){
                                         array_push($array_2,$ar);
                                     }
                             }
@@ -598,7 +599,7 @@ class AvanceController extends Controller
 
                         // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements' . '/' . $reservation->code_reservation);
+                        $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements' . '/' . $reservation->code_reservation);
                         File::makeDirectory($directory, 0755, true, true);
                         $file->move($directory, $fileName);
                         $fileType = $file->getClientOriginalExtension();
@@ -702,8 +703,8 @@ class AvanceController extends Controller
 
 
                 if (RoleHelper::AdminSup()) {
-                    //store encaissement
-                    if ($request->date_encaissement != null && ($request->num_remise != null && $request->num_remise!="null")) {
+                    //store encaissement //&& ($request->num_remise != null && $request->num_remise!="null")
+                    if ($request->date_encaissement != null ) {
                         $encaiss = new Encaissement();
                         $encaiss->setConnection('temp');
                         $encaiss->reservation_id = $request->reservation_id;
@@ -907,7 +908,7 @@ class AvanceController extends Controller
                        // Récupérer le nom du fichier
                        $Myfile = $file->getClientOriginalName();
 
-                       $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
+                       $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
                        File::makeDirectory($directory, 0755, true, true);
                        $file->move($directory, $Myfile);
                        $fileType = $file->getClientOriginalExtension();
@@ -995,7 +996,8 @@ class AvanceController extends Controller
                 }
 
                     if(RoleHelper::AdminSup()){
-                        if($request->date_encaissement!=null && ($request->num_remise!=null || $request->num_remise!="null")  ){
+                        //&& ($request->num_remise!=null || $request->num_remise!="null")
+                        if($request->date_encaissement!=null   ){
                             if($avance->statut==StatutReservationEnum::Validé->value ){
                                 $st_avance = StatutAvancePenalite::on('temp')->where('avance_id',$avance->id)->orderBy('created_at','desc')->first();
                                 if($st_avance!=null){
@@ -1309,7 +1311,8 @@ class AvanceController extends Controller
                                 $nb_att_validation+=1;
                             }
                             elseif($ar->last_statut!=null){
-                                    if($ar->last_statut->num_remise==null && $ar->last_statut->date_encaissement==null ){
+                                //$ar->last_statut->num_remise==null &&
+                                    if( $ar->last_statut->date_encaissement==null ){
                                         $nb_att_validation+=1;
                                     }
                             }

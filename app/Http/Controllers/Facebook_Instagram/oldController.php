@@ -72,12 +72,12 @@ class Facebook_InstagramController extends Controller
 
                                // Get the uploaded file
                            $fileName = $file->getClientOriginalName();
-                           $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram');
-                           //  $directory = public_path('Docs/' . 'societe_principal' . '_' . 10 . '/upload_fcb_instagram');
+                           $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram');
+                           //  $directory = public_path('docs/' . 'societe_principal' . '_' . 10 . '/upload_fcb_instagram');
                            File::makeDirectory($directory, 0755, true, true);
                            $file->move($directory, $fileName);
                                // Generate the file URL
-                           $fileUrl = asset('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram/' . $fileName);
+                           $fileUrl = asset('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram/' . $fileName);
                            //$url=str_replace('\/\/', '/', $fileUrl);
                            //https://immogestion.online/coline_dev/storage/reservations/10.png
                            //https://immogestion.online/coline_dev/storage/reservations/11.png

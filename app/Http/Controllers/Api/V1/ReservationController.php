@@ -295,7 +295,7 @@ class ReservationController extends Controller
                                 ], 333);
                             }
                         }
-                        
+
 
                         // Validate unique code if provided
                         if ($request->has('code_reservation')) {
@@ -549,7 +549,7 @@ class ReservationController extends Controller
                     $piecesJointeController = new PiecesJointeController();
                     $pieceJointeRequest = new StorePiecesJointeRequest();
                     $fileName = $file->getClientOriginalName();
-                    $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/' . $reservation->code_reservation);
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/' . $reservation->code_reservation);
 
                     File::makeDirectory($directory, 0755, true, true);
                     $file->move($directory, $fileName);
@@ -1024,7 +1024,7 @@ class ReservationController extends Controller
                         $fileType = $file->getClientOriginalExtension();
 
                         // Déplacer le fichier vers le répertoire de destination
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/'.$reservation->code_reservation);
+                        $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/'.$reservation->code_reservation);
                         File::makeDirectory($directory, 0755, true, true);
 
                         $file->move($directory, $Myfile);

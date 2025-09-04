@@ -1525,6 +1525,7 @@ class BienController extends Controller
     /**
      * Upload media for a specific bien
      */
+    //path en storage/app/public
     public function uploadMedia(Request $request, $id)
     {
         if (! RoleHelper::ACSup()) {

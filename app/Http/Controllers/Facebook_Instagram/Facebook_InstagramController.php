@@ -36,7 +36,7 @@ class Facebook_InstagramController extends Controller
         //pour commenter /***"https://graph.facebook.com/{page-post-id}/comments?message=I%20want%20chocolate%20cake%20! &access_token=page-access-token"  */
         //get comments           //https://graph.facebook.com/v22.0/{page-post-id}537798629425112_122104722890793117/comments?access_token=EAAI3GumKq0oBO3e3PWinEHAOpbupHdC115jYneAbK2jWQsgAW0UfSj3da54JW9ZCZBfRKn6zm1lteZBzopLobZALsZBiHkdRPuqhFSfEjY1AxTwj8vkLeUO4rjiQpnAZBDshxdL8HmkwvSXFscFcLhe42G1DtQhD0RTRRVMhZCLgtHmBAVDw4UFFY46abpNsgVcp1fHLM8iZBLbRyzmCxt3ye08b&debug=all&format=json&method=get&origin_graph_explorer=1&pretty=0&suppress_http_code=1&transport=cors
 
-        
+
         public function postTo_Social_Network(StoreSocialNetworkRequest $request){
 
                 try {
@@ -74,12 +74,12 @@ class Facebook_InstagramController extends Controller
 
                                // Get the uploaded file
                            $fileName = $file->getClientOriginalName();
-                           $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram');
-                           //  $directory = public_path('Docs/' . 'societe_principal' . '_' . 10 . '/upload_fcb_instagram');
+                           $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram');
+                           //  $directory = public_path('docs/' . 'societe_principal' . '_' . 10 . '/upload_fcb_instagram');
                            File::makeDirectory($directory, 0755, true, true);
                            $file->move($directory, $fileName);
                                // Generate the file URL
-                           $fileUrl = asset('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram/' . $fileName);
+                           $fileUrl = asset('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram/' . $fileName);
                            //$url=str_replace('\/\/', '/', $fileUrl);
                            //https://immogestion.online/coline_dev/storage/reservations/10.png
                            //https://immogestion.online/coline_dev/storage/reservations/11.png
@@ -92,7 +92,7 @@ class Facebook_InstagramController extends Controller
     // DELETE these hardcoded values:
     // $pageId = 537798629425112;
     // $accessToken='EAAI3GumKq0oBOxTQJRiQ6hZBWbUxGySoXuMOhAyjlL0YZBSp1JQZB3Y7rcoJedNGZCWkXowBvXty2lJT6FDZCOuZAFZAdsVl3D662YH15Aw6FdVYoj0iycMXQzvAvaRvJ1oTTuyfE5mII8sV4pvEZCQZBhqhE7Yd2gZClZBdpCrVzQsKmAWBqZAj9mEM0E0YgnKcqsJWUdUeOmAkCBSuSwEZCOngbEga3LuC8';
-    
+
     // REPLACE with:
     $config = $this->getFacebookConfigForCurrentUser();
     if (!$config) {
@@ -100,12 +100,12 @@ class Facebook_InstagramController extends Controller
     }
     $pageId = $config->page_fcb_id;
     $accessToken = $config->acces_token_page;
-    
+
     if ($mode == 'existante') {
         $url = str_replace('\/\/', '/', $request->img_existant_url);
         $text = 'photos';
     }
-    
+
     $data = [
         'pageId_InstagramId' => $pageId,
         'caption' => $description,
@@ -122,7 +122,7 @@ if (in_array(2, $selectedNetworks)) {
     // DELETE these hardcoded values:
     // $pageId = 17841454841928506;
     // $accessToken='EAAI3GumKq0oBOwvTWZAa8BYDCxzjwAgmeSE0DBoxndSsrUrGhAedIZCmYwkLD2H8OJaeQ7Q4Tzghlbobax0Dp3Y6gkDlIwpxNeSU6ObWv63bXC99cdGZCpqksjHKmMOMKYGtkWwCGX1dzPuY7pCElz3RFxQcpZAanfz9nbZBCJMI8b7uq0ohCHCKO';
-    
+
     // REPLACE with:
     $config = $this->getInstagramConfigForCurrentUser();
     if (!$config) {
@@ -130,12 +130,12 @@ if (in_array(2, $selectedNetworks)) {
     }
     $pageId = $config->instagram_id;
     $accessToken = $config->acces_token_user;
-    
+
     if ($mode == 'existante') {
         $url = $request->img_existant_url;
         $type_media = 'image_url';
     }
-    
+
     $data = [
         'pageId_InstagramId' => $pageId,
         'caption' => $request->description,
@@ -194,13 +194,13 @@ if (in_array(2, $selectedNetworks)) {
     try {
         // You'll need to determine the logic for selecting the right config
         // This could be based on user's current project, société, or other criteria
-        
+
         return DB::connection('temp')
             ->table('facebook_configurations')
             ->whereNull('deleted_at')
             ->orderBy('created_at', 'desc')
             ->first(); // Get the most recent configuration
-            
+
     } catch (\Exception $e) {
         Log::error("Error getting Facebook config for current user: " . $e->getMessage());
         return null;
@@ -218,7 +218,7 @@ private function getInstagramConfigForCurrentUser()
             ->whereNull('deleted_at')
             ->orderBy('created_at', 'desc')
             ->first(); // Get the most recent configuration
-            
+
     } catch (\Exception $e) {
         Log::error("Error getting Instagram config for current user: " . $e->getMessage());
         return null;
@@ -413,19 +413,19 @@ private function getInstagramConfigForCurrentUser()
 
             // Get all webhook tokens from all sociétés at once
             $validTokens = $this->getAllWebhookTokens();
-            
+
             if (in_array($hub_verify_token, $validTokens)) {
                 Log::info("Valid webhook token found");
                 return response($hub_challenge, 200);
             }
-            
+
             Log::warning("No matching webhook verify token found");
             return response('Forbidden', 403);
         }
 
         Log::warning("Invalid hub_mode received: " . $hub_mode);
         return response('Bad Request', 400);
-        
+
     } catch (\Exception $e) {
         Log::error("Facebook webhook verification error: " . $e->getMessage());
         return response('Internal Server Error', 500);
@@ -438,20 +438,20 @@ private function getInstagramConfigForCurrentUser()
 private function getAllWebhookTokens()
 {
     $tokens = [];
-    
+
     try {
         // Force connection to main database first
         config(['database.connections.temp' => config('database.connections.mysql')]);
         DB::purge('temp');
         DB::reconnect('temp');
-        
+
         $societes = \App\Models\Societe::all();
         Log::info("Checking " . $societes->count() . " sociétés for webhook tokens");
-        
+
         foreach ($societes as $societe) {
             try {
                 $this->configureDatabaseForSociete($societe);
-                
+
                 // Get Facebook webhook tokens
                 if (Schema::connection('temp')->hasTable('facebook_configurations')) {
                     $facebookTokens = DB::connection('temp')
@@ -460,11 +460,11 @@ private function getAllWebhookTokens()
                         ->whereNull('deleted_at')
                         ->pluck('webhook_verify_token')
                         ->toArray();
-                    
+
                     $tokens = array_merge($tokens, $facebookTokens);
                     Log::info("Found " . count($facebookTokens) . " Facebook tokens for société {$societe->id}");
                 }
-                
+
                 // Get Instagram webhook tokens
                 if (Schema::connection('temp')->hasTable('instagram_configurations')) {
                     $instagramTokens = DB::connection('temp')
@@ -473,23 +473,23 @@ private function getAllWebhookTokens()
                         ->whereNull('deleted_at')
                         ->pluck('webhook_verify_token')
                         ->toArray();
-                    
+
                     $tokens = array_merge($tokens, $instagramTokens);
                     Log::info("Found " . count($instagramTokens) . " Instagram tokens for société {$societe->id}");
                 }
-                
+
             } catch (\Exception $e) {
                 Log::warning("Error checking société {$societe->id}: " . $e->getMessage());
                 continue;
             }
         }
-        
+
         // Remove duplicates and empty values
         $tokens = array_unique(array_filter($tokens));
         Log::info("Total unique webhook tokens found: " . count($tokens));
-        
+
         return $tokens;
-        
+
     } catch (\Exception $e) {
         Log::error("Error getting webhook tokens: " . $e->getMessage());
         return [];
@@ -506,14 +506,14 @@ private function findSocieteByPageId($pageId)
         config(['database.connections.temp' => config('database.connections.mysql')]);
         DB::purge('temp');
         DB::reconnect('temp');
-        
+
         $societes = \App\Models\Societe::all();
         Log::info("Searching for page ID: {$pageId} across " . $societes->count() . " sociétés");
-        
+
         foreach ($societes as $societe) {
             try {
                 $this->configureDatabaseForSociete($societe);
-                
+
                 // Check Facebook configurations
                 if (Schema::connection('temp')->hasTable('facebook_configurations')) {
                     $facebookMatch = DB::connection('temp')
@@ -521,13 +521,13 @@ private function findSocieteByPageId($pageId)
                         ->where('page_fcb_id', $pageId)
                         ->whereNull('deleted_at')
                         ->exists();
-                    
+
                     if ($facebookMatch) {
                         Log::info("MATCH FOUND! Page ID '{$pageId}' found in société {$societe->id} Facebook configuration");
                         return $societe->id;
                     }
                 }
-                
+
                 // Check Instagram configurations
                 if (Schema::connection('temp')->hasTable('instagram_configurations')) {
                     $instagramMatch = DB::connection('temp')
@@ -535,22 +535,22 @@ private function findSocieteByPageId($pageId)
                         ->where('instagram_id', $pageId)
                         ->whereNull('deleted_at')
                         ->exists();
-                    
+
                     if ($instagramMatch) {
                         Log::info("MATCH FOUND! Page ID '{$pageId}' found in société {$societe->id} Instagram configuration");
                         return $societe->id;
                     }
                 }
-                
+
             } catch (\Exception $e) {
                 Log::error("Error checking société {$societe->id} for page {$pageId}: " . $e->getMessage());
                 continue;
             }
         }
-        
+
         Log::warning("No société found for page ID: {$pageId}");
         return null;
-        
+
     } catch (\Exception $e) {
         Log::error("Error finding société for page ID {$pageId}: " . $e->getMessage());
         return null;
@@ -564,34 +564,34 @@ private function findSocieteByPageId($pageId)
     {
         try {
             // Build the database name based on société information
-            $raison_sociale_concatene = $societe->raison_sociale_concatene ?? 
+            $raison_sociale_concatene = $societe->raison_sociale_concatene ??
                                       str_replace(' ', '', $societe->raison_sociale ?? 'Societe' . $societe->id);
-            
+
             $databaseName = "Erp_" . $raison_sociale_concatene . "_" . $societe->id;
-            
+
             Log::info("Configuring database connection for société {$societe->id}: {$databaseName}");
-            
+
             // Get the base database configuration
             $baseConfig = config('database.connections.mysql');
-            
+
             // Override the database name
             $baseConfig['database'] = $databaseName;
-            
+
             // Update the temp connection configuration
             config(['database.connections.temp' => $baseConfig]);
-            
+
             // Purge and reconnect
             DB::purge('temp');
             DB::reconnect('temp');
-            
+
             // Verify the connection
             $actualDbName = DB::connection('temp')->getDatabaseName();
             Log::info("Successfully connected to database: {$actualDbName}");
-            
+
             if ($actualDbName !== $databaseName) {
                 Log::warning("Database name mismatch! Expected: {$databaseName}, Actual: {$actualDbName}");
             }
-            
+
         } catch (\Exception $e) {
             Log::error("Error configuring database for société {$societe->id}: " . $e->getMessage());
             throw $e;
@@ -602,51 +602,51 @@ private function findSocieteByPageId($pageId)
 {
     try {
         Log::info('Facebook webhook received:', $request->all());
-        
+
         $entries = $request->input('entry', []);
-        
+
         foreach ($entries as $entry) {
             $pageId = $entry['id'] ?? null;
-            
+
             if (!$pageId) {
                 Log::warning('No page ID found in webhook entry', ['entry' => $entry]);
                 continue;
             }
-            
+
             $societeId = $this->findSocieteByPageId($pageId);
-            
+
             if (!$societeId) {
                 Log::warning("No société configuration found for page ID: {$pageId}");
                 continue;
             }
-            
+
             $this->configureDatabaseForSociete(\App\Models\Societe::find($societeId));
-            
+
             // REPLACE this old logic:
             // $config = ConfigurationSocialNetwork::on('temp')->first();
             // if (!$config || !$config->webhook_enabled) {
-            
+
             // WITH this new logic:
             $webhookEnabled = $this->isWebhookEnabledForPage($pageId);
-            
+
             if (!$webhookEnabled) {
                 Log::info("Webhook received but webhooks are disabled for société {$societeId}");
                 continue;
             }
-            
+
             foreach ($entry['changes'] ?? [] as $change) {
                 $this->processChange($change, $societeId);
             }
         }
-        
+
         return response()->json(['message' => 'Webhook processed successfully']);
-        
+
     } catch (\Exception $e) {
         Log::error('Error processing Facebook webhook: ' . $e->getMessage(), [
             'trace' => $e->getTraceAsString(),
             'request_data' => $request->all()
         ]);
-        
+
         return response()->json(['message' => 'Webhook received'], 200);
     }
 }
@@ -665,12 +665,12 @@ private function isWebhookEnabledForPage($pageId)
                 ->where('webhook_enabled', true)
                 ->whereNull('deleted_at')
                 ->exists();
-            
+
             if ($facebookEnabled) {
                 return true;
             }
         }
-        
+
         // Check Instagram configurations
         if (Schema::connection('temp')->hasTable('instagram_configurations')) {
             $instagramEnabled = DB::connection('temp')
@@ -679,14 +679,14 @@ private function isWebhookEnabledForPage($pageId)
                 ->where('webhook_enabled', true)
                 ->whereNull('deleted_at')
                 ->exists();
-            
+
             if ($instagramEnabled) {
                 return true;
             }
         }
-        
+
         return false;
-        
+
     } catch (\Exception $e) {
         Log::error("Error checking webhook status for page {$pageId}: " . $e->getMessage());
         return false;
@@ -701,7 +701,7 @@ private function isWebhookEnabledForPage($pageId)
 
     // Store event in database for the specific société
     Config::set('broadcasting.default', 'pusher_3');
-    
+
     // Extract URL for Instagram posts if needed
     if($event_type == 'instagram_comment'){
         if (isset($change['value']['media']['id'])) {
@@ -712,7 +712,7 @@ private function isWebhookEnabledForPage($pageId)
                 return;
             }
             Log::info("Media Id: $mediaId, Type: $event_type");
-            
+
             // Fetch the permalink from Instagram Graph API
             $response = Http::get("https://graph.facebook.com/v22.0/{$mediaId}", [
                 'fields' => 'permalink',
@@ -727,7 +727,7 @@ private function isWebhookEnabledForPage($pageId)
             }
         }
     }
-    
+
     try {
         $web = new WebhookEvent();
         $web->setConnection('temp');
@@ -735,11 +735,11 @@ private function isWebhookEnabledForPage($pageId)
         $web->event_type = $event_type;
         $web->data = $change;
         $web->save();
-        
+
         broadcast(new NotificationEvent(0));
-        
+
         Log::info("Webhook event saved successfully for société {$societeId}");
-        
+
     } catch (\Exception $e) {
         Log::error("Error saving webhook event for société {$societeId}: " . $e->getMessage());
     }
@@ -801,24 +801,24 @@ private function handleFeedEvent($data)
         private function handleFacebookPost($data)
 {
     Log::info('New Post/comment on Facebook Page:', $data);
-    
+
     try {
         // Check if this is a mention or a post on the page
         if (isset($data['from']['name'])) {
             $userName = $data['from']['name'];
             $message = $data['message'] ?? '';
-            
+
             // Determine if it's a mention or post
-            $description = !empty($message) 
+            $description = !empty($message)
                 ? "{$userName} a publié sur votre page : " . substr($message, 0, 50) . (strlen($message) > 50 ? '...' : '')
                 : "{$userName} a publié sur votre page Facebook";
-            
+
             // Get post link if available
             $postLink = isset($data['post_id']) ? "https://www.facebook.com/{$data['post_id']}" : null;
-            
+
             $this->createFacebookNotification($description, $postLink);
         }
-        
+
     } catch (\Exception $e) {
         Log::error('Error handling Facebook post: ' . $e->getMessage());
     }
@@ -827,20 +827,20 @@ private function handleFeedEvent($data)
 private function handleFacebookComment($data)
 {
     Log::info('New Comment on Facebook Page:', $data);
-    
+
     try {
         // Extract comment information
         $userName = $data['from']['name'] ?? 'Utilisateur inconnu';
         $message = $data['message'] ?? '';
         $postId = $data['post_id'] ?? null;
         $commentId = $data['comment_id'] ?? null;
-        
+
         // Create notification description
         $description = "{$userName} a commenté votre publication Facebook";
         if (!empty($message)) {
             $description .= ": " . (strlen($message) > 50 ? substr($message, 0, 50) . '...' : $message);
         }
-        
+
         // Get post/comment link if available
         $link = null;
         if ($postId && $commentId) {
@@ -848,9 +848,9 @@ private function handleFacebookComment($data)
         } elseif ($postId) {
             $link = "https://www.facebook.com/{$postId}";
         }
-        
+
         $this->createFacebookNotification($description, $link);
-        
+
     } catch (\Exception $e) {
         Log::error('Error handling Facebook comment: ' . $e->getMessage());
     }
@@ -901,16 +901,16 @@ private function createFacebookNotification($description, $link = null)
         // Create notification using the notification model
         $notification = new \App\Models\Notification();
         $notification->setConnection('temp');
-        
+
         // Set required fields
         $notification->date = now()->format('Y-m-d H:i:s');
         $notification->type = \App\Enum\TypeNotificationEnum::FacebookReaction->value; // 98
         $notification->description_type = $description;
         $notification->lien = $link ?? 'https://www.facebook.com';
-        
+
         // Set role to admin so all users can see it
         $notification->role = \App\Enum\RoleEnum::ADMIN->value;
-        
+
         // Try to get the current project ID from the database context
         // Since we're in webhook context, we need to find an appropriate projet_id
         $projet = DB::connection('temp')->table('projets')->first();
@@ -920,18 +920,18 @@ private function createFacebookNotification($description, $link = null)
             // Fallback - create a default project if none exists
             $notification->projet_id = 1;
         }
-        
+
         $notification->save();
-        
+
         // Broadcast the notification
         Config::set('broadcasting.default', 'pusher_3');
         broadcast(new \App\Events\NotificationEvent($notification->id));
-        
+
         Log::info('Facebook reaction notification created successfully', [
             'notification_id' => $notification->id,
             'description' => $description
         ]);
-        
+
     } catch (\Exception $e) {
         Log::error('Error creating Facebook notification: ' . $e->getMessage());
     }
@@ -980,18 +980,18 @@ private function createFacebookNotification($description, $link = null)
     }
 
     /******************************Facebook Configuration by Project*************************/
-    
+
     public function facebook_configurations(Request $request)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 // Check if table exists first
                 if (!Schema::connection('temp')->hasTable('facebook_configurations')) {
                     return response()->json(['configurations' => []], 200);
                 }
-                
+
                 $configurations = DB::connection('temp')
                     ->table('facebook_configurations as fc')
                     ->leftJoin('projets as p', 'fc.projet_id', '=', 'p.id')
@@ -1008,7 +1008,7 @@ private function createFacebookNotification($description, $link = null)
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
                     });
-                
+
                 return response()->json(['configurations' => $configurations], 200);
             } catch (\Exception $e) {
                 // If table doesn't exist, return empty array
@@ -1026,7 +1026,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 // Check if table exists, create if not
                 if (!Schema::connection('temp')->hasTable('facebook_configurations')) {
@@ -1040,7 +1040,7 @@ private function createFacebookNotification($description, $link = null)
                         $table->json('webhook_subscriptions')->nullable();
                         $table->softDeletes();
                         $table->timestamps();
-                        
+
                         $table->foreign('projet_id')->references('id')->on('projets')->onDelete('cascade');
                         $table->unique(['projet_id', 'deleted_at'], 'unique_project_facebook_config');
                     });
@@ -1055,7 +1055,7 @@ private function createFacebookNotification($description, $link = null)
                         });
                     }
                 }
-                
+
                 $request->validate([
                     'page_fcb_id' => 'required|string',
                     'acces_token_page' => 'required|string',
@@ -1105,13 +1105,13 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 // Check if table exists
                 if (!Schema::connection('temp')->hasTable('facebook_configurations')) {
                     return response()->json(['error' => 'Configuration non trouvée'], 404);
                 }
-                
+
                 $deleted = DB::connection('temp')
                     ->table('facebook_configurations')
                     ->where('id', $id)
@@ -1133,18 +1133,18 @@ private function createFacebookNotification($description, $link = null)
     }
 
     /******************************Instagram Configuration by Project*************************/
-    
+
     public function instagram_configurations(Request $request)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 // Check if table exists first
                 if (!Schema::connection('temp')->hasTable('instagram_configurations')) {
                     return response()->json(['configurations' => []], 200);
                 }
-                
+
                 $configurations = DB::connection('temp')
                     ->table('instagram_configurations as ic')
                     ->leftJoin('projets as p', 'ic.projet_id', '=', 'p.id')
@@ -1161,7 +1161,7 @@ private function createFacebookNotification($description, $link = null)
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
                     });
-                
+
                 return response()->json(['configurations' => $configurations], 200);
             } catch (\Exception $e) {
                 // If table doesn't exist, return empty array
@@ -1179,7 +1179,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 // Check if table exists, create if not
                 if (!Schema::connection('temp')->hasTable('instagram_configurations')) {
@@ -1193,7 +1193,7 @@ private function createFacebookNotification($description, $link = null)
                         $table->json('webhook_subscriptions')->nullable();
                         $table->softDeletes();
                         $table->timestamps();
-                        
+
                         $table->foreign('projet_id')->references('id')->on('projets')->onDelete('cascade');
                         $table->unique(['projet_id', 'deleted_at'], 'unique_project_instagram_config');
                     });
@@ -1208,7 +1208,7 @@ private function createFacebookNotification($description, $link = null)
                         });
                     }
                 }
-                
+
                 $request->validate([
                     'instagram_id' => 'required|string',
                     'acces_token_user' => 'required|string',
@@ -1258,7 +1258,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 // Check if table exists
                 if (!Schema::connection('temp')->hasTable('instagram_configurations')) {
@@ -1286,17 +1286,17 @@ private function createFacebookNotification($description, $link = null)
     }
 
     /******************************Facebook Webhook Configuration by Project*************************/
-    
+
     public function facebook_webhook_configurations(Request $request)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 if (!Schema::connection('temp')->hasTable('facebook_configurations')) {
                     return response()->json(['webhooks' => []], 200);
                 }
-                
+
                 $webhooks = DB::connection('temp')
                     ->table('facebook_configurations as fc')
                     ->leftJoin('projets as p', 'fc.projet_id', '=', 'p.id')
@@ -1318,7 +1318,7 @@ private function createFacebookNotification($description, $link = null)
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
                     });
-                
+
                 return response()->json(['webhooks' => $webhooks], 200);
             } catch (\Exception $e) {
                 return response()->json(['webhooks' => []], 200);
@@ -1332,7 +1332,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 $request->validate([
                     'webhook_verify_token' => 'required|string'
@@ -1386,7 +1386,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 if (!Schema::connection('temp')->hasTable('facebook_configurations')) {
                     return response()->json(['error' => 'Configuration not found'], 404);
@@ -1412,17 +1412,17 @@ private function createFacebookNotification($description, $link = null)
     }
 
     /******************************Instagram Webhook Configuration by Project*************************/
-    
+
     public function instagram_webhook_configurations(Request $request)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 if (!Schema::connection('temp')->hasTable('instagram_configurations')) {
                     return response()->json(['webhooks' => []], 200);
                 }
-                
+
                 $webhooks = DB::connection('temp')
                     ->table('instagram_configurations as ic')
                     ->leftJoin('projets as p', 'ic.projet_id', '=', 'p.id')
@@ -1444,7 +1444,7 @@ private function createFacebookNotification($description, $link = null)
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
                         ];
                     });
-                
+
                 return response()->json(['webhooks' => $webhooks], 200);
             } catch (\Exception $e) {
                 return response()->json(['webhooks' => []], 200);
@@ -1458,7 +1458,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 $request->validate([
                     'webhook_verify_token' => 'required|string'
@@ -1512,7 +1512,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 if (!Schema::connection('temp')->hasTable('instagram_configurations')) {
                     return response()->json(['error' => 'Configuration not found'], 404);
@@ -1544,9 +1544,9 @@ private function createFacebookNotification($description, $link = null)
     {
         try {
             $client = new Client(['timeout' => 30.0]);
-            
+
             Log::info("Attempting to subscribe Facebook page {$pageId} to webhook");
-            
+
             $response = $client->post(
                 "https://graph.facebook.com/v19.0/{$pageId}/subscribed_apps",
                 [
@@ -1557,16 +1557,16 @@ private function createFacebookNotification($description, $link = null)
                     ]
                 ]
             );
-            
+
             $statusCode = $response->getStatusCode();
             $responseBody = json_decode($response->getBody(), true);
-            
+
             Log::info("Facebook subscription response", [
                 'page_id' => $pageId,
                 'status_code' => $statusCode,
                 'response' => $responseBody
             ]);
-            
+
             if ($statusCode === 200 && isset($responseBody['success']) && $responseBody['success']) {
                 Log::info("Facebook page {$pageId} successfully subscribed to webhook");
                 return true;
@@ -1585,18 +1585,18 @@ private function createFacebookNotification($description, $link = null)
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             $statusCode = $e->getResponse()->getStatusCode();
             $errorBody = json_decode($e->getResponse()->getBody(), true);
-            
+
             Log::error("Facebook subscription HTTP error", [
                 'page_id' => $pageId,
                 'status_code' => $statusCode,
                 'error_response' => $errorBody
             ]);
-            
+
             $errorMessage = "Facebook API returned {$statusCode}";
             if (isset($errorBody['error']['message'])) {
                 $errorMessage .= ": " . $errorBody['error']['message'];
             }
-            
+
             throw new \Exception($errorMessage);
         } catch (\Exception $error) {
             Log::error("Error subscribing Facebook page {$pageId} to webhook: " . $error->getMessage());
@@ -1611,9 +1611,9 @@ private function createFacebookNotification($description, $link = null)
     {
         try {
             $client = new Client(['timeout' => 30.0]);
-            
+
             Log::info("Attempting to subscribe Instagram account {$instagramId} to webhook");
-            
+
             $response = $client->post(
                 "https://graph.facebook.com/v19.0/{$instagramId}/subscribed_apps",
                 [
@@ -1624,16 +1624,16 @@ private function createFacebookNotification($description, $link = null)
                     ]
                 ]
             );
-            
+
             $statusCode = $response->getStatusCode();
             $responseBody = json_decode($response->getBody(), true);
-            
+
             Log::info("Instagram subscription response", [
                 'instagram_id' => $instagramId,
                 'status_code' => $statusCode,
                 'response' => $responseBody
             ]);
-            
+
             if ($statusCode === 200 && isset($responseBody['success']) && $responseBody['success']) {
                 Log::info("Instagram account {$instagramId} successfully subscribed to webhook");
                 return true;
@@ -1652,18 +1652,18 @@ private function createFacebookNotification($description, $link = null)
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             $statusCode = $e->getResponse()->getStatusCode();
             $errorBody = json_decode($e->getResponse()->getBody(), true);
-            
+
             Log::error("Instagram subscription HTTP error", [
                 'instagram_id' => $instagramId,
                 'status_code' => $statusCode,
                 'error_response' => $errorBody
             ]);
-            
+
             $errorMessage = "Instagram API returned {$statusCode}";
             if (isset($errorBody['error']['message'])) {
                 $errorMessage .= ": " . $errorBody['error']['message'];
             }
-            
+
             throw new \Exception($errorMessage);
         } catch (\Exception $error) {
             Log::error("Error subscribing Instagram account {$instagramId} to webhook: " . $error->getMessage());
@@ -1675,7 +1675,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 $request->validate([
                     'webhook_enabled' => 'required|boolean'
@@ -1706,14 +1706,14 @@ private function createFacebookNotification($description, $link = null)
                             'page_id' => $config->page_fcb_id,
                             'webhook_token' => $config->webhook_verify_token
                         ]);
-                        
+
                         $this->subscribePageToWebhook($config->page_fcb_id, $config->acces_token_page);
                     } catch (\Exception $subscriptionError) {
                         Log::error("Facebook subscription failed for config {$configId}: " . $subscriptionError->getMessage());
-                        
+
                         // Return more specific error messages based on the actual error
                         $errorMessage = $subscriptionError->getMessage();
-                        
+
                         if (str_contains($errorMessage, 'Bad signature') || str_contains($errorMessage, '190')) {
                             return response()->json([
                                 'error' => 'Token d\'accès Facebook invalide ou expiré. Veuillez vérifier votre token.'
@@ -1745,7 +1745,7 @@ private function createFacebookNotification($description, $link = null)
 
                 $status = $newStatus ? 'activé' : 'désactivé';
                 return response()->json(['message' => "Webhook Facebook {$status} avec succès"], 200);
-                
+
             } catch (\Exception $e) {
                 return response()->json(['error' => 'Erreur lors de la modification: ' . $e->getMessage()], 500);
             }
@@ -1758,7 +1758,7 @@ private function createFacebookNotification($description, $link = null)
     {
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
-            
+
             try {
                 $request->validate([
                     'webhook_enabled' => 'required|boolean'
@@ -1788,14 +1788,14 @@ private function createFacebookNotification($description, $link = null)
                             'instagram_id' => $config->instagram_id,
                             'webhook_token' => $config->webhook_verify_token
                         ]);
-                        
+
                         $this->subscribeInstagramToWebhook($config->instagram_id, $config->acces_token_user);
                     } catch (\Exception $subscriptionError) {
                         Log::error("Instagram subscription failed for config {$configId}: " . $subscriptionError->getMessage());
-                        
+
                         // Return more specific error messages based on the actual error
                         $errorMessage = $subscriptionError->getMessage();
-                        
+
                         if (str_contains($errorMessage, 'Bad signature') || str_contains($errorMessage, '190')) {
                             return response()->json([
                                 'error' => 'Token d\'accès Instagram invalide ou expiré. Veuillez vérifier votre token.'
@@ -1827,7 +1827,7 @@ private function createFacebookNotification($description, $link = null)
 
                 $status = $newStatus ? 'activé' : 'désactivé';
                 return response()->json(['message' => "Webhook Instagram {$status} avec succès"], 200);
-                
+
             } catch (\Exception $e) {
                 return response()->json(['error' => 'Erreur lors de la modification: ' . $e->getMessage()], 500);
             }
@@ -1861,12 +1861,12 @@ private function createFacebookNotification($description, $link = null)
 {
     $field = $change['field'] ?? 'unknown';
     $platform = $this->detectPlatform($change);
-    
+
     switch ($field) {
         case 'feed':
             // Check the 'item' field within the feed event
             $item = $change['value']['item'] ?? null;
-            
+
             switch ($item) {
                 case 'reaction':
                     return $platform === 'facebook' ? 'facebook_reaction' : 'instagram_reaction';

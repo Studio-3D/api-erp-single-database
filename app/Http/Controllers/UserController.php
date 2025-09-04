@@ -194,7 +194,7 @@ class UserController extends Controller
             if ($user->save()) {
                 if ($request->hasFile('photo')) {
                     $societe = Societe::findOrfail($user->societe_id);
-                    $request->photo->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
+                    $request->photo->move(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
 
                 }
                 $this->createSubUser($request, $user->id, $user->photo);
@@ -306,14 +306,14 @@ class UserController extends Controller
             $photo = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
-                    $image_path = asset('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users' . $user_origin->photo);
-                    //$image_path = public_path('Docs/users/' . $user->photo);
+                    $image_path = asset('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users' . $user_origin->photo);
+                    //$image_path = public_path('docs/users/' . $user->photo);
                     if (file_exists($image_path)) {
                         unlink($image_path);
                     }
                 }
                 $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
-                $request->photo->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
+                $request->photo->move(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
                 $user->photo = $photo;
             }
 
@@ -350,14 +350,14 @@ class UserController extends Controller
             $photo = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
-                    $image_path = public_path('Docs/users/' . $user->photo);
+                    $image_path = public_path('docs/users/' . $user->photo);
                     if (file_exists($image_path)) {
                         unlink($image_path);
                     }
                 }
                 $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $societe = Societe::findOrfail($user->societe_id);
-                $request->photo->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
+                $request->photo->move(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $user->societe_id . '/users'), $photo);
                 $user->photo = $photo;
             }
             if ($user->save()) {
@@ -397,14 +397,14 @@ class UserController extends Controller
             $photo = '';
             if ($request->hasFile('photo')) {
                 if ($user->photo != null) {
-                    $image_path = public_path('Docs/users/' . $user->photo);
+                    $image_path = public_path('docs/users/' . $user->photo);
                     if (file_exists($image_path)) {
                         unlink($image_path);
                     }
                 }
                 $photo = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
                 $societe = Societe::findOrfail($user_societes->societe_id);
-                $request->photo->move(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
+                $request->photo->move(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/users'), $photo);
                 $user->photo = $photo;
             }
 
@@ -441,7 +441,7 @@ class UserController extends Controller
                 $user_societes = User::on('temp')->where('user_id_origin', $user->id);
                 $user_societes->update(['is_actif' => 0]);
                 /* if ($user_societes->photo != null) {
-                $image_path = public_path('Docs/users/' . $user_societes->photo);
+                $image_path = public_path('docs/users/' . $user_societes->photo);
                 if (file_exists($image_path)) {
                 File::delete($image_path);
                 }

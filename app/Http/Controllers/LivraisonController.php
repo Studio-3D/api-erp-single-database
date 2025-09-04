@@ -685,7 +685,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
 
                 // Récupérer le nom du fichier
                 $comp->compromis_signee = $request->file('fichier_scanner')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/compromis_vente');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/compromis_vente');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
 
@@ -826,7 +826,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
 
                 // Récupérer le nom du fichier
                 $comp->piece_jointe = $request->file('fichier_scanner')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/contrat_vente' . '/' . $codeReservation);
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/contrat_vente' . '/' . $codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
 

@@ -189,7 +189,7 @@ class TrancheController extends Controller
         if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $tranche = Tranche::on('temp')->findOrfail($id);
-if ($request->has('nom')) {
+            if ($request->has('nom')) {
 
 
                                 $societe_id = Auth::guard('api')->user()->societe_id;

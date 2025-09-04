@@ -387,7 +387,7 @@ class NotificationController extends Controller
             if(RoleHelper::AdminSup()){
                     // Notifications Webhook Facebook/Instagram/WhatsApp
                $notifs_webhook_fcb_insta_whstp=WebhookEvent::on('temp')->whereIn('platform', $platforms)->withTrashed()->whereDate('created_at', '<=', Carbon::now())->orderBy('id','desc')->get();
-               
+
                // Transform webhook events to include type differentiation
                foreach($notifs_webhook_fcb_insta_whstp as $webhook) {
                    if($webhook->platform === 'facebook') {
@@ -409,9 +409,9 @@ class NotificationController extends Controller
                        }
                    }
                }
-                   
+
                    // Toutes les notifications (filter out type 99)
-               $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien')
+               $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                     ->where(function ($query) {
                         $query->where('role',RoleEnum::ADMIN->value)
                             ->orWhere('user_id',Auth::guard('api')->user()->id)
@@ -439,7 +439,7 @@ class NotificationController extends Controller
                $new_notif_webhook_fcb_inst_whtsp=WebhookEvent::on('temp') ->whereIn('platform', $platforms)->whereDate('created_at', '<=', Carbon::now())->where('deleted_at',null)->orderBy('id','desc')->count();
 
             }else{
-                $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien')
+                $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                     ->where('projet_id',$projet_id)
                     ->where(function($q){
                         $q->where('user_id', Auth::guard('api')->user()->id)

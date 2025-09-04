@@ -122,7 +122,7 @@ class FactureController extends Controller
             $fact->mode_paiement =$request->mode_paiement;
             if ($request->hasFile('piece_jointe')) {
                 $fact->piece_jointe = $request->file('piece_jointe')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('piece_jointe')->move($directory,$request->file('piece_jointe')->getClientOriginalName());
             }
@@ -133,7 +133,7 @@ class FactureController extends Controller
                 $fact->echeance = $request->date_echeance;
                 if ($request->hasFile('pj_paiement')) {
                     $fact->pj_paiement = $request->file('pj_paiement')->getClientOriginalName();;
-                    $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
                     File::makeDirectory($directory, 0755, true, true);
                     $request->file('pj_paiement')->move($directory,$request->file('pj_paiement')->getClientOriginalName());
                 }
@@ -145,7 +145,7 @@ class FactureController extends Controller
                 $fact->banque_id = $request->banque_id;
                 if ($request->hasFile('pj_paiement')) {
                     $fact->pj_paiement = $request->file('pj_paiement')->getClientOriginalName();;
-                    $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
                     File::makeDirectory($directory, 0755, true, true);
                     $request->file('pj_paiement')->move($directory,$request->file('pj_paiement')->getClientOriginalName());
                 }
@@ -190,7 +190,7 @@ class FactureController extends Controller
             $fact->num_facture = $request->num_facture;
             if ($request->hasFile('piece_jointe')) {
                 $fact->piece_jointe = $request->file('piece_jointe')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('piece_jointe')->move($directory,$request->file('piece_jointe')->getClientOriginalName());
             }            $fact->montant = $request->montant;
@@ -209,7 +209,7 @@ class FactureController extends Controller
                 $fact->echeance = $request->date_echeance;
                 if ($request->hasFile('pj_paiement')) {
                     $fact->pj_paiement = $request->file('pj_paiement')->getClientOriginalName();;
-                    $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
                     File::makeDirectory($directory, 0755, true, true);
                     $request->file('pj_paiement')->move($directory,$request->file('pj_paiement')->getClientOriginalName());
                 }
@@ -221,7 +221,7 @@ class FactureController extends Controller
                 $fact->banque_id = $request->banque_id;
                 if ($request->hasFile('pj_paiement')) {
                     $fact->pj_paiement = $request->file('pj_paiement')->getClientOriginalName();;
-                    $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/factures/paiements');
                     File::makeDirectory($directory, 0755, true, true);
                     $request->file('pj_paiement')->move($directory,$request->file('pj_paiement')->getClientOriginalName());
                 }

@@ -100,7 +100,7 @@ class CpsController extends Controller
             $cps->user_id=$userAuth->value('id');
             if ($request->hasFile('piece_jointe')) {
                 $cps->piece_jointe = $request->file('piece_jointe')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/cps');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/cps');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('piece_jointe')->move($directory,$request->file('piece_jointe')->getClientOriginalName());
             }
@@ -154,7 +154,7 @@ class CpsController extends Controller
             $cps->user_id=$userAuth->value('id');
             if ($request->hasFile('piece_jointe')) {
                 $cps->piece_jointe = $request->file('piece_jointe')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/cps');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/cps');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('piece_jointe')->move($directory,$request->file('piece_jointe')->getClientOriginalName());
             }

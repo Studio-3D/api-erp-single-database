@@ -166,7 +166,7 @@ class ReclamationSavController extends Controller
 
                         // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations');
+                        $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations');
                         File::makeDirectory($directory, 0755, true, true);
                         $file->move($directory, $fileName);
                         $fileType = $file->getClientOriginalExtension();
@@ -306,7 +306,7 @@ class ReclamationSavController extends Controller
 
                         // Récupérer le nom du fichier
                         $fileName = $file->getClientOriginalName();
-                        $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations');
+                        $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations');
                         File::makeDirectory($directory, 0755, true, true);
                         $file->move($directory, $fileName);
                         $fileType = $file->getClientOriginalExtension();

@@ -216,14 +216,14 @@ class RemboursementController extends Controller
 
             if ($request->hasFile('fichier_autorisation')) {
                 $remboursement->fichier_autorisation =$request->file('fichier_autorisation')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisations/' .$codeReservation);
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/fichiers_autorisations/' .$codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_autorisation')->move($directory,$request->file('fichier_autorisation')->getClientOriginalName());
             }
             if ($request->hasFile('cheque_recu')) {
                 $remboursement->cheque =$request->file('cheque_recu')->getClientOriginalName();
                 $remboursement->cheque_client_signe =$request->file('cheque_recu')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus/'.$codeReservation);
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus/'.$codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('cheque_recu')->move($directory,$request->file('cheque_recu')->getClientOriginalName());
             }
@@ -266,7 +266,7 @@ class RemboursementController extends Controller
             $remboursement->user_id_remis=$userAuth->value('id');
             if ($request->hasFile('cheque_client_signe')) {
                 $remboursement->cheque_client_signe=$request->file('cheque_client_signe')->getClientOriginalName();
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus/' .$codeReservation);
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/remboursements/cheques_reçus/' .$codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('cheque_client_signe')->move($directory,$request->file('cheque_client_signe')->getClientOriginalName());
             }

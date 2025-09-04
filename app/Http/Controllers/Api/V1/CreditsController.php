@@ -108,7 +108,7 @@ class CreditsController extends Controller
 
            if ($request->hasFile('piece_jointe')) {
                 $cr->piece_jointe = $request->file('piece_jointe')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/credits');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/credits');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('piece_jointe')->move($directory,$request->file('piece_jointe')->getClientOriginalName());
             }
@@ -170,7 +170,7 @@ class CreditsController extends Controller
 
            if ($request->hasFile('piece_jointe')) {
                 $cr->piece_jointe = $request->file('piece_jointe')->getClientOriginalName();;
-                $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/credits');
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/credits');
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('piece_jointe')->move($directory,$request->file('piece_jointe')->getClientOriginalName());
             }

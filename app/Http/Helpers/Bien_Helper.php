@@ -39,16 +39,22 @@ class Bien_Helper
             // 1. Champs requis avec messages personnalisés
             $requiredFields = [
                 "Numero" => "Numéro du bien manquant",
-                "Etage" => "Niveau (étage) manquant",
+                //"Etage" => "Niveau (étage) manquant",
                 //"conventionne" => "Champ 'conventionné' manquant",
                 "Type bien" => "Type de bien manquant",
             ];
+             // Ajouter "Etage" aux champs requis si un des IDs parent est présent
+            if ($bloc_id || $tranche_id || $immeuble_id) {
+                $requiredFields["Etage"] = "Niveau (étage) manquant";
+            }
+            // Vérification des champs requis
 
             foreach ($requiredFields as $key => $message) {
                 if (!array_key_exists($key, $row) || $row[$key] === null || $row[$key] === '') {
                     throw new \Exception($message);
                 }
             }
+        // 2. Vérification des champs numériques
 
            $numericFields = [
             'pu',
@@ -129,27 +135,30 @@ class Bien_Helper
             }
             $bien->numero = $num;
 
-            if (str_contains($row['Etage'], 'er etage')) {
-                $explode_niveau_1 = explode("er etage", $row['Etage']);
-                $nv               = $explode_niveau_1[0];
-            } elseif (str_contains($row['Etage'], 'er étage')) {
-                $explode_niveau_5 = explode("er étage", $row['Etage']);
-                $nv               = $explode_niveau_5[0];
-            } elseif (str_contains($row['Etage'], 'eme etage')) {
-                $explode_niveau_2 = explode("eme etage", $row['Etage']);
-                $nv               = $explode_niveau_2[0];
+            if (array_key_exists("Etage", $row)) {
+                    if (str_contains($row['Etage'], 'er etage')) {
+                    $explode_niveau_1 = explode("er etage", $row['Etage']);
+                    $nv               = $explode_niveau_1[0];
+                } elseif (str_contains($row['Etage'], 'er étage')) {
+                    $explode_niveau_5 = explode("er étage", $row['Etage']);
+                    $nv               = $explode_niveau_5[0];
+                } elseif (str_contains($row['Etage'], 'eme etage')) {
+                    $explode_niveau_2 = explode("eme etage", $row['Etage']);
+                    $nv               = $explode_niveau_2[0];
 
-            } elseif (str_contains($row['Etage'], 'ème etage')) {
-                $explode_niveau_3 = explode("ème etage", $row['Etage']);
-                $nv               = $explode_niveau_3[0];
-            } elseif (str_contains($row['Etage'], 'ème étage')) {
-                $explode_niveau_4 = explode("ème étage", $row['Etage']);
-                $nv               = $explode_niveau_4[0];
-            } elseif (str_contains($row['Etage'], 'RDC')) {
-                $nv = 0;
+                } elseif (str_contains($row['Etage'], 'ème etage')) {
+                    $explode_niveau_3 = explode("ème etage", $row['Etage']);
+                    $nv               = $explode_niveau_3[0];
+                } elseif (str_contains($row['Etage'], 'ème étage')) {
+                    $explode_niveau_4 = explode("ème étage", $row['Etage']);
+                    $nv               = $explode_niveau_4[0];
+                } elseif (str_contains($row['Etage'], 'RDC')) {
+                    $nv = 0;
+                }
             } else {
-                $nv = 0;
+                $nv=NULL;
             }
+
             $bien->niveau = $nv;
 
             if (array_key_exists("Type bien", $row) && $row['Type bien'] != null) {
@@ -194,7 +203,7 @@ class Bien_Helper
                 }
             }
 
-            
+
             if (array_key_exists("Terrasse", $row) && $row['Terrasse'] != null) {
                 $bien->superficie_terrasse          = $row['Terrasse'];
                 $bien->superficie_terrasse_calculer = $row['Terrasse'];

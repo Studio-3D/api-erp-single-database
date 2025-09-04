@@ -213,8 +213,8 @@ class PiecesJointeController extends Controller
             $pj = PiecesJointe::on('temp')->where('reservation_id', $reservation_id)->get();
             foreach ($pj as $p) {
 
-                if (File::exists(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations'.'/'.$code_reservation.'/'.$p->fichier))) {
-                    File::delete(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations'.'/'.$code_reservation.'/'.$p->fichier));
+                if (File::exists(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations'.'/'.$code_reservation.'/'.$p->fichier))) {
+                    File::delete(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations'.'/'.$code_reservation.'/'.$p->fichier));
                 }
                 $p->delete();
             }
@@ -231,8 +231,8 @@ class PiecesJointeController extends Controller
             $pj = PiecesJointe::on('temp')->where('avance_id', $avance_id)->get();
             foreach ($pj as $p) {
 
-                if (File::exists(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements'.'/'.$avance->reservation->code_reservation.'/'.$p->fichier))) {
-                    File::delete(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements'.'/'.$avance->reservation->code_reservation.'/'.$p->fichier));
+                if (File::exists(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements'.'/'.$avance->reservation->code_reservation.'/'.$p->fichier))) {
+                    File::delete(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements'.'/'.$avance->reservation->code_reservation.'/'.$p->fichier));
                 }
                 $p->delete();
             }
@@ -248,8 +248,8 @@ class PiecesJointeController extends Controller
             $pj = PiecesJointe::on('temp')->where('reclamation_id', $rec_id)->get();
             foreach ($pj as $p) {
 
-                if (File::exists(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations'.'/'.$p->fichier))) {
-                    File::delete(public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations'.'/'.$p->fichier));
+                if (File::exists(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations'.'/'.$p->fichier))) {
+                    File::delete(public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations'.'/'.$p->fichier));
                 }
                 $p->delete();
             }
@@ -274,7 +274,7 @@ class PiecesJointeController extends Controller
 
                     // Récupérer le nom du fichier
                     $avance->recu_scanne = $request->file('fichier_scanner')->getClientOriginalName();
-                    $directory = public_path('Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements/'.$avance->reservation->code_reservation);
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements/'.$avance->reservation->code_reservation);
                     File::makeDirectory($directory, 0755, true, true);
                     $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
 
@@ -303,7 +303,7 @@ class PiecesJointeController extends Controller
         $subdirectory = $doss == 'rsv' ? 'reservations' : ($doss == 'avc' ? 'paiements' : ($doss == 'plt' ? 'penalites' : 'desistement'));
 
         // Chemin complet vers le dossier
-        $directory = $publicPath . '/Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/' . $subdirectory;
+        $directory = $publicPath . '/docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/' . $subdirectory;
 
         // Vérifier si le dossier existe
         if (!is_dir($directory)) {
@@ -335,7 +335,7 @@ class PiecesJointeController extends Controller
         $subdirectory = $doss == 'rsv' ? 'reservations' : ($doss == 'avc' ? 'paiements' : ($doss == 'plt' ? 'penalites' : 'desistement'));
 
         // Chemin complet vers le dossier
-        $directory = $publicPath . '/Docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/' . $subdirectory.'/'.$code;
+        $directory = $publicPath . '/docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/' . $subdirectory.'/'.$code;
 
         // Vérifier si le dossier existe
         if (!is_dir($directory)) {
