@@ -592,59 +592,135 @@ class DatabaseHelper
             //
 
             if (Schema::connection('temp')->hasTable('imports')) {
-                $imports=Import::on('temp')->where('statut','0')->get();
+                $imports=Import::on('temp')->whereIn('statut',['0','1'])->get();
                 \Log::info("import des fichiers  du base de donne'. $databaseName.");
 
                 foreach($imports as $imp){
                     $store=0;
-                    $projet = Projet::on('temp')->findOrfail($imp->projet_id);
-                    if($projet->nbre_tranches>0 && $projet->nbre_blocs>0 && $projet->nbre_immeubles>0){
-                        \Log::info("enter in projet '. $imp->projet_id.");
-                        ImportExcelHelper::ImportStockByProjet(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
-                    }elseif($projet->nbre_tranches==0 && $projet->nbre_blocs==0 && $projet->nbre_immeubles==0){
-                        ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBlocAndImmeuble(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
 
-                    }elseif($projet->nbre_blocs==0 && $projet->nbre_tranches==0 && $projet->nbre_immeubles>0){
-                        ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBloc(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
-                    }
-                    elseif($projet->nbre_tranches==0 && $projet->nbre_immeubles==0 && $projet->nbre_blocs>0){
-                        ImportExcelHelper::ImportStockByProjetWithoutTrancheAndImmeuble(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
-                    }
-                    elseif($projet->nbre_tranches==0 && $projet->nbre_blocs>0 && $projet->nbre_immeubles>0){
-                        ImportExcelHelper::ImportStockByProjetWithoutTranche(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
-                    }
-                    elseif($projet->nbre_blocs==0 && $projet->nbre_immeubles==0 && $projet->nbre_tranches>0){
-                        ImportExcelHelper::ImportStockByProjetWithoutBlocAndImmeuble(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
-                    }
-                    elseif($projet->nbre_blocs==0 && $projet->nbre_tranches>0 && $projet->nbre_immeubles>0){
-                        ImportExcelHelper::ImportStockByProjetWithoutBloc(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
-                    }
-                    elseif($projet->nbre_immeubles==0 && $projet->nbre_tranches>0 && $projet->nbre_blocs>0){
-                        ImportExcelHelper::ImportStockByProjetWithoutImmeuble(null,$imp->data,$imp->projet_id,1);
-                        $store=1;
+                    // Skip if already processed (status 2 or 3)
+                    if($imp->statut == 2 || $imp->statut == 3) {
+                        \Log::info("Skipping import {$imp->id} - already processed (status {$imp->statut})");
+                        continue;
                     }
 
-                    if($store==1){
-                        $imp->setConnection('temp');
-                        //$imp->statut='1';
-                        //$imp->save();
-                        \Log::info("sort projet_id '. $imp->projet_id.");
+                    // Set import status to "en_cours" (1) only if it's not already
+                    if($imp->statut != '1') {
+                        $imp->statut = '1';
+                        $imp->save();
+                    }
+
+                    try {
+                        $projet = Projet::on('temp')->findOrfail($imp->projet_id);
+                        if($projet->nbre_tranches>0 && $projet->nbre_blocs>0 && $projet->nbre_immeubles>0){
+                            ImportExcelHelper::ImportStockByProjet(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+
+                        }elseif($projet->nbre_tranches==0 && $projet->nbre_blocs==0 && $projet->nbre_immeubles==0){
+                            ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBlocAndImmeuble(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+
+                        }elseif($projet->nbre_blocs==0 && $projet->nbre_tranches==0 && $projet->nbre_immeubles>0){
+                            ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBloc(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+                        }
+                        elseif($projet->nbre_tranches==0 && $projet->nbre_immeubles==0 && $projet->nbre_blocs>0){
+                            ImportExcelHelper::ImportStockByProjetWithoutTrancheAndImmeuble(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+                        }
+                        elseif($projet->nbre_tranches==0 && $projet->nbre_blocs>0 && $projet->nbre_immeubles>0){
+                            ImportExcelHelper::ImportStockByProjetWithoutTranche(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+                        }
+
+                        elseif($projet->nbre_blocs==0 && $projet->nbre_immeubles==0 && $projet->nbre_tranches>0){
+                            ImportExcelHelper::ImportStockByProjetWithoutBlocAndImmeuble(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+                        }
+                        elseif($projet->nbre_blocs==0 && $projet->nbre_tranches>0 && $projet->nbre_immeubles>0){
+                            ImportExcelHelper::ImportStockByProjetWithoutBloc(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+                        }
+                        elseif($projet->nbre_immeubles==0 && $projet->nbre_tranches>0 && $projet->nbre_blocs>0){
+                            ImportExcelHelper::ImportStockByProjetWithoutImmeuble(null,$imp->data,$imp->projet_id,1);
+                            $store=1;
+                            // Update status immediately after successful import
+                            $imp->setConnection('temp');
+                            $imp->statut = '2';
+                            $imp->save();
+                        }
+
+                        // Send notification for successful import if store = 1
+                        if($store == 1) {
+                            \Log::info("Import completed for projet_id: {$imp->projet_id}, import_id: {$imp->id}");
+                            Config::set('broadcasting.default', 'pusher_3');
+
+                            // Load user relationship to avoid undefined issues
+                            $imp->load('user');
+
+                            $data_notif = [
+                                'lien' => '/histo-importation/' . $imp->id,
+                                'date' => Carbon::now(),
+                                'type' => 29,
+                                'description' => 'Fichier des Biens Importé ',
+                                'user_id' => $imp->user ? $imp->user->user_id_origin : null,
+                                'projet_id' => $imp->projet_id,
+                            ];
+                            $notif_helper = new NotificationHelper();
+                            $req=new \Illuminate\Http\Request();
+                            $notif_helper->storeNotification($req->merge($data_notif));
+                        }
+
+                    } catch (\Exception $e) {
+                        // If import failed, set status to "echoue" (3)
+
+                        $imp->statut = '3';
+                        $imp->message_echou = $e->getMessage();
+                        $imp->date_echou = now();
+                        $imp->save();
+                        \Log::error("Import failed for projet {$imp->projet_id}: " . $e->getMessage());
+
+                        // Send notification for failed import
                         Config::set('broadcasting.default', 'pusher_3');
+
+                        // Load user relationship to avoid undefined issues
+                        $imp->load('user');
+
                         $data_notif = [
-                            'lien' => '/Projets/' . $imp->projet_id,
+                            'lien' => '/histo-importation/' . $imp->id,
                             'date' => Carbon::now(),
                             'type' => 29,
-                            'description' => 'Fichier des Biens Importé ',
-                            'user_id' => $imp->user->user_id_origin,
+                            'description' => 'Échec d\'importation du fichier',
+                            'user_id' => $imp->user ? $imp->user->user_id_origin : null,
                             'projet_id' => $imp->projet_id,
-
                         ];
                         $notif_helper = new NotificationHelper();
                         $req=new \Illuminate\Http\Request();

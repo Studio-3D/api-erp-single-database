@@ -45,15 +45,26 @@ class ImportExcelHelper
         $imp->save();
     }
 
-    public static function importerDonnees($data, $projet_id, callable $callback)
+    public static function importerDonnees($data, $projet_id, callable $callback, $manageStatus = true)
 {
-    $import = Import::on('temp')->where('projet_id', $projet_id)
-                                ->where('statut', '0')
-                                ->orderBy('created_at', 'desc')
-                                ->first();
+    $import = null;
 
-    if (!$import) {
-        throw new \Exception("Import introuvable ou déjà traité.");
+    if ($manageStatus) {
+        // Only find and manage import status when called from web (not from cron)
+        $import = Import::on('temp')->where('projet_id', $projet_id)
+                                    ->whereIn('statut', ['0', '1'])
+                                    ->orderBy('created_at', 'desc')
+                                    ->first();
+
+        if (!$import) {
+            throw new \Exception("Import introuvable ou déjà traité.");
+        }
+
+        // Set status to "en_cours" (1) when starting the import (if not already)
+        if ($import->statut == '0') {
+            $import->statut = '1';
+            $import->save();
+        }
     }
 
     $hasError = false;
@@ -65,28 +76,27 @@ class ImportExcelHelper
         } catch (\Exception $e) {
             $hasError = true;
 
-            // Recharge l'objet depuis la BDD pour éviter les valeurs obsolètes
-            $import = Import::on('temp')->find($import->id);
-            $import->statut = 3;//statut = 2 cest 2 dans bdd
-            $import->message_echou = "Erreur ligne " . ($index + 1) . " : " . $e->getMessage();
-            $import->ligne_echou = $index + 1;
-            $import->date_echou = now();
-            $import->save();
+            if ($manageStatus && $import) {
+                // Only update status if we're managing it (web calls)
+                $import = Import::on('temp')->find($import->id);
+                $import->statut = '3';
+                $import->message_echou = "Erreur ligne " . ($index + 1) . " : " . $e->getMessage();
+                $import->ligne_echou = $index + 1;
+                $import->date_echou = now();
+                $import->save();
+            }
 
-            // Si tu veux stopper à la 1ère erreur :
-            break;
-
-            //continue;
+            // Re-throw the exception so DatabaseHelper can catch it
+            throw $e;
         }
     }
 
-    if (!$hasError) {
-        $import = Import::on('temp')->find($import->id); // recharge proprement
-        $import->statut = 2; // succès cest statut = 2 cest 1 dans bdd
+    if (!$hasError && $manageStatus && $import) {
+        // Only update status if we're managing it (web calls)
+        $import = Import::on('temp')->find($import->id);
+        $import->statut = '2';
         $import->save();
     }
-
-    // sinon, ne rien faire → statut = 2 a déjà été enregistré dans le catch
 }
 
 
@@ -118,7 +128,7 @@ class ImportExcelHelper
             return self::importerDonnees($data, $projet_id, function ($row, $projet_id) {
                 // Pas de tranche, bloc, immeuble dans ce cas
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, null, null, null, $row);
-            });
+            }, false);
         }
     }
 
@@ -160,7 +170,7 @@ class ImportExcelHelper
                 }
 
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, null, null, $immeuble->id, $row);
-            });
+            }, false);
         }
     }
 
@@ -201,7 +211,7 @@ class ImportExcelHelper
                 }
 
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, null, $bloc->id, null, $row);
-            });
+            }, false);
         }
     }
 
@@ -258,7 +268,7 @@ class ImportExcelHelper
                 }
 
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, null, $bloc->id, $immeuble->id, $row);
-            });
+            }, false);
         }
     }
 
@@ -303,7 +313,7 @@ class ImportExcelHelper
                 }
 
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, $tranche->id, null, null, $row);
-            });
+            }, false);
         }
     }
 
@@ -362,7 +372,7 @@ class ImportExcelHelper
                 }
 
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, $tranche->id, null, $immeuble->id, $row);
-            });
+            }, false);
         }
     }
 
@@ -421,7 +431,7 @@ class ImportExcelHelper
                 }
 
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, $tranche->id, $bloc->id, null, $row);
-            });
+            }, false);
         }
     }
 
@@ -498,7 +508,7 @@ class ImportExcelHelper
                 }
 
                 Bien_Helper::checkAndCreateBienByExcel($projet_id, $tranche->id, $bloc->id, $immeuble->id, $row);
-            });
+            }, false);
         }
     }
 
