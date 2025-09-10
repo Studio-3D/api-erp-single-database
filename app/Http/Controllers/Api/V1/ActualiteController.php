@@ -26,7 +26,284 @@ class ActualiteController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request, $projet_id,$user_id,$de_date,$a_date)
+
+         public function index(Request $request, $projet_id, $user_id, $de_date, $a_date)
+            {
+                DatabaseHelper::Config();
+
+                // Gestion des dates
+                [$dt, $a_dt] = $this->getDateRange($de_date, $a_date);
+
+                if (RoleHelper::Com() || ($user_id != 'tous' && $user_id != 'tout')) {
+                    // Mode commercial
+                    $us_id = $this->getUserId($user_id);
+
+                    $results = $this->getCommercialData($request, $projet_id, $us_id, $dt, $a_dt);
+
+                    return response()->json(array_merge(['admin' => 0], $results), 200);
+                } else {
+                    // Mode admin
+                    $results = $this->getAdminData($request, $projet_id, $dt, $a_dt);
+
+                    return response()->json(array_merge(['admin' => 1], $results), 200);
+                }
+            }
+
+// Méthodes auxiliaires pour simplifier le code principal
+
+        private function getDateRange($de_date, $a_date)
+        {
+            if ($de_date == 'null' && $a_date == 'null') {
+                $dt_now = date('Y-m-d');
+                return [
+                    Carbon::createFromFormat('Y-m-d', $dt_now)->startOfDay(),
+                    Carbon::createFromFormat('Y-m-d', $dt_now)->endOfDay()
+                ];
+            }
+
+            return [
+                Carbon::createFromFormat('Y-m-d', $de_date)->startOfDay(),
+                Carbon::createFromFormat('Y-m-d', $a_date)->endOfDay()
+            ];
+}
+
+        private function getUserId($user_id)
+        {
+            if ($user_id != 'tous') {
+                if (RoleHelper::Com()) {
+                    $userAuth = User::on('temp')->where('user_id_origin', $user_id)->first();
+                    return $userAuth->id;
+                }
+                return $user_id;
+            }
+            //else
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+            return $userAuth->id ?? $user->getAuthIdentifier();
+        }
+
+        private function getVisitesData(Request $request, $projet_id, $user_id, $dt, $a_dt, $isCommercial = false)
+        {
+            $types = [
+                ['statut' => null, 'interet' => InteretEnum::Réceptif->value, 'order' => null],
+                ['statut' => StatutVisiteEnum::Pré_Réservation->value, 'interet' => InteretEnum::Intéressé->value],
+                ['statut' => StatutVisiteEnum::Pré_Réservation_Perdu->value, 'interet' => InteretEnum::Intéressé->value],
+                ['statut' => StatutVisiteEnum::Pré_Réservation_Vendu->value, 'interet' => InteretEnum::Intéressé->value],
+                ['statut' => StatutVisiteEnum::Vendu->value, 'interet' => InteretEnum::Intéressé->value, 'order' => 1],
+                ['statut' => StatutVisiteEnum::Vendu->value, 'interet' => InteretEnum::Intéressé->value],
+                ['statut' => StatutVisiteEnum::Réservation_Perdu->value, 'interet' => InteretEnum::Intéressé->value],
+                ['statut' => null, 'interet' => InteretEnum::Perdu->value, 'order' => null]
+            ];
+
+            $Array_visite = [];
+
+            foreach ($types as $type) {
+                $data = array_merge([
+                    'de_date' => $dt,
+                    'a_date' => $a_dt,
+                    'projet_id' => $projet_id,
+                    'par_commercial' => $isCommercial ? 1 : 0,
+                    'user_id' => $isCommercial ? $user_id : null
+                ], $type);
+
+                array_push($Array_visite, $this->get_visites($request->merge($data))->original['nb_v']);
+            }
+
+            return [
+                'visites' => $Array_visite,
+                'sum_visites' => array_sum($Array_visite)
+            ];
+        }
+
+        private function getCommercialData(Request $request, $projet_id, $user_id, $dt, $a_dt)
+        {
+            $visitesData = $this->getVisitesData($request, $projet_id, $user_id, $dt, $a_dt, true);
+
+            $rdv_relances = Relance_Rdv_Visite::on('temp')
+                ->join('visites', 'visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->whereBetween('relances_rdv_visites.date_traitement', [$dt, $a_dt])
+                ->whereIn('relances_rdv_visites.type_traitement', [2, 3])
+                ->where('relances_rdv_visites.user_id', $user_id)
+                ->where('visites.projet_id', $projet_id)
+                ->get();
+
+            $nb_visite_last_5_days = Visite::on('temp')
+                ->whereBetween('created_at', [Carbon::parse($dt)->subDays(5), Carbon::parse($a_dt)->subDays(5)])
+                ->where('projet_id', $projet_id)
+                ->where('user_id', $user_id)
+                ->count();
+
+            $avancesData = $this->getAvancesData($projet_id, $user_id, $dt, $a_dt);
+            $remboursementsData = $this->getRemboursementsData($projet_id, $user_id, $dt, $a_dt);
+            $desistementsData = $this->getDesistementsData($projet_id, $user_id, $dt, $a_dt);
+
+            $avances_bien_last_days = Avance::on('temp')
+                ->join('reservations', 'reservations.id', '=', 'avances.reservation_id')
+                ->join('biens', 'biens.id', '=', 'reservations.bien_id')
+                ->where('avances.user_id', $user_id)
+                ->where('reservations.projet_id', $projet_id)
+                ->whereBetween('avances.date_reglement', [Carbon::parse($dt)->subDays(5), Carbon::parse($a_dt)->subDays(5)])
+                ->sum('avances.montant');
+
+            return array_merge($visitesData, [
+                'rdv_relances' => $rdv_relances,
+                'nb_visite_last_5_days' => $nb_visite_last_5_days,
+                'avances_last_5_days' => $avances_bien_last_days,
+                'avances_bien' => $avancesData['avances'],
+                'sum_avances' => $avancesData['sum'],
+                'remboursements' => $remboursementsData['remboursements'],
+                'sum_remb' => $remboursementsData['sum'],
+                'desistements' => $desistementsData['desistements'],
+                'sum_penalites' => $desistementsData['sum_penalites'],
+                'sum_mont_a_ajouter' => $desistementsData['sum_mont_a_ajouter']
+            ]);
+        }
+
+        private function getAdminData(Request $request, $projet_id, $dt, $a_dt)
+        {
+            $visitesData = $this->getVisitesData($request, $projet_id, null, $dt, $a_dt, false);
+
+            $rdv_relances = Relance_Rdv_Visite::on('temp')
+                ->join('visites', 'visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->whereBetween('relances_rdv_visites.created_at', [$dt, $a_dt])
+                ->whereIn('relances_rdv_visites.type_traitement', [2, 3])
+                ->where('visites.projet_id', $projet_id)
+                ->get();
+
+            $nb_visite_last_5_days = Visite::on('temp')
+                ->whereBetween('created_at', [Carbon::parse($dt)->subDays(5), Carbon::parse($a_dt)->subDays(5)])
+                ->where('projet_id', $projet_id)
+                ->count();
+
+            $avancesData = $this->getAvancesData($projet_id, null, $dt, $a_dt);
+            $remboursementsData = $this->getRemboursementsData($projet_id, null, $dt, $a_dt);
+            $desistementsData = $this->getDesistementsData($projet_id, null, $dt, $a_dt);
+
+            $avances_bien_last_days = Avance::on('temp')
+                ->join('reservations', 'reservations.id', '=', 'avances.reservation_id')
+                ->join('biens', 'biens.id', '=', 'reservations.bien_id')
+                ->where('reservations.projet_id', $projet_id)
+                ->whereBetween('avances.date_reglement', [Carbon::parse($dt)->subDays(5), Carbon::parse($a_dt)->subDays(5)])
+                ->sum('avances.montant');
+
+            return array_merge($visitesData, [
+                'rdv_relances' => $rdv_relances,
+                'nb_visite_last_5_days' => $nb_visite_last_5_days,
+                'avances_last_5_days' => $avances_bien_last_days,
+                'avances_bien' => $avancesData['avances'],
+                'sum_avances' => $avancesData['sum'],
+                'remboursements' => $remboursementsData['remboursements'],
+                'sum_remb' => $remboursementsData['sum'],
+                'desistements' => $desistementsData['desistements'],
+                'sum_penalites' => $desistementsData['sum_penalites'],
+                'sum_mont_a_ajouter' => $desistementsData['sum_mont_a_ajouter'],
+                'de_date' => $dt,
+                'a_date' => $a_dt
+            ]);
+        }
+
+        private function getAvancesData($projet_id, $user_id, $dt, $a_dt)
+        {
+            $query = Avance::on('temp')
+                ->join('reservations', 'reservations.id', '=', 'avances.reservation_id')
+                ->join('biens', 'biens.id', '=', 'reservations.bien_id')
+                ->leftjoin('tranches', 'tranches.id', '=', 'biens.tranche_id')
+                ->leftjoin('blocs', 'blocs.id', '=', 'biens.bloc_id')
+                ->leftjoin('immeubles', 'immeubles.id', '=', 'biens.immeuble_id')
+                ->select('avances.montant', 'biens.propriete_dite_bien', 'tranches.nom as tranche_nom', 'blocs.nom as bloc_nom', 'immeubles.nom as immeuble_nom')
+                ->where('reservations.projet_id', $projet_id)
+                ->whereBetween('avances.date_reglement', [$dt, $a_dt]);
+
+            if ($user_id) {
+                $query->where('avances.user_id', $user_id);
+            }
+
+            $avances = $query->get();
+            $sum = $avances->sum('montant');
+
+            return ['avances' => $avances, 'sum' => $sum];
+        }
+
+        private function getRemboursementsData($projet_id, $user_id, $dt, $a_dt)
+        {
+            $query = Remboursement::on('temp')
+                ->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
+                ->join('reservations', 'reservations.id', '=', 'remboursements.reservation_id')
+                ->join('biens', 'biens.id', '=', 'reservations.bien_id')
+                ->leftjoin('tranches', 'tranches.id', '=', 'biens.tranche_id')
+                ->leftjoin('blocs', 'blocs.id', '=', 'biens.bloc_id')
+                ->leftjoin('immeubles', 'immeubles.id', '=', 'biens.immeuble_id')
+                ->select('biens.propriete_dite_bien', 'remboursements.montant_a_rembourser', 'tranches.nom as tranche_nom', 'blocs.nom as bloc_nom', 'immeubles.nom as immeuble_nom')
+                ->where('reservations.projet_id', $projet_id)
+                ->whereIn('remboursements.statut', [1, 3])
+                ->whereBetween('remboursements.date_rembourse', [$dt, $a_dt]);
+
+            if ($user_id) {
+                $query->where('desistements.user_id', $user_id);
+            }
+
+            $remboursements = $query->get();
+            $sum = $remboursements->sum('montant_a_rembourser');
+
+            return ['remboursements' => $remboursements, 'sum' => $sum];
+        }
+
+        private function getDesistementsData($projet_id, $user_id, $dt, $a_dt)
+        {
+            $query = Desistement::on('temp')
+                ->join('biens', 'biens.id', '=', 'desistements.bien_id_ancien')
+                ->leftJoin('biens as new_biens', 'new_biens.id', '=', 'desistements.bien_id_new')
+                ->join('reservations', 'reservations.id', '=', 'desistements.reservation_id')
+                ->leftJoin('penalites_desistements', 'penalites_desistements.desistement_id', 'desistements.id')
+                ->select('desistements.id', 'biens.propriete_dite_bien as bien', 'reservations.code_reservation', 'desistements.motif', 'penalites_desistements.montant as penalite', 'desistements.lien_parente', 'new_biens.propriete_dite_bien as new_bien', 'desistements.montant_a_ajouter', 'desistements.type', 'desistements.type_dp')
+                ->where('desistements.projet_id', $projet_id)
+                ->whereBetween('desistements.created_at', [$dt, $a_dt]);
+
+            if ($user_id) {
+                $query->where('desistements.user_id', $user_id);
+            }
+
+            $desistements = $query->get();
+
+            return [
+                'desistements' => $desistements,
+                'sum_penalites' => $desistements->sum('penalite'),
+                'sum_mont_a_ajouter' => $desistements->sum('montant_a_ajouter')
+            ];
+        }
+
+        public function get_visites(Request $request)
+        {
+            DatabaseHelper::Config();
+
+            $query = Visite::on('temp')
+                ->where('etat', 1)
+                ->where('interet', $request->interet)
+                ->where('statut', $request->statut)
+                ->where('projet_id', $request->projet_id);
+
+            // Filtre par utilisateur pour les commerciaux
+            if (RoleHelper::Com() || $request->par_commercial == 1) {
+                $query->where('user_id', $request->user_id);
+            }
+
+            // Gestion de la date et de l'ordre
+            if ($request->order == 1) {
+                $query->where('old_v_id', null)
+                    ->whereBetween('created_at', [$request->de_date, $request->a_date]);
+            } else {
+                if ($request->statut <= 2) {
+                    $query->whereBetween('created_at', [$request->de_date, $request->a_date]);
+                } else {
+                    $query->whereBetween('updated_at', [$request->de_date, $request->a_date]);
+                }
+            }
+
+            $nb_visite = $query->count();
+
+            return response()->json(['nb_v' => $nb_visite], 200);
+        }
+   /* public function index(Request $request, $projet_id,$user_id,$de_date,$a_date)
     {
         DatabaseHelper::Config();
         if($de_date=='null' && $a_date=='null' ){
@@ -44,7 +321,12 @@ class ActualiteController extends Controller
         if (RoleHelper::Com()||($user_id!='tous'&&$user_id!='tout')) {
 
             if($user_id!='tous'){
-                $us_id=$user_id;
+                if(RoleHelper::Com()){
+                 $userAuth = User::on('temp')->where('user_id_origin', $user_id)->get();
+                $us_id=$userAuth->value('id');
+                }else{
+                 $us_id=$user_id;
+                }
             }else{
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -439,7 +721,7 @@ class ActualiteController extends Controller
                 //first visite
                 $nb_visite = Visite::on('temp')
                 /*->whereDate('created_at','<=',$request->de_date)
-                ->whereDate('created_at','>=',$request->a_date)*/
+                ->whereDate('created_at','>=',$request->a_date)*
                 ->whereBetween('created_at', [$request->de_date, $request->a_date])
                 ->where('etat',1)
                 ->where('old_v_id',null)
@@ -451,7 +733,7 @@ class ActualiteController extends Controller
                     //pre reserve ou vendu
                     $nb_visite = Visite::on('temp')
                    /* ->whereDate('created_at','<=',$request->de_date)
-                     ->whereDate('created_at','>=',$request->a_date)*/
+                     ->whereDate('created_at','>=',$request->a_date)*
                    ->whereBetween('created_at', [$request->de_date, $request->a_date])
                     ->where('etat',1)
                     ->where('interet',$request->interet)
@@ -460,7 +742,7 @@ class ActualiteController extends Controller
                 }else{
                     $nb_visite = Visite::on('temp')
                   /*  ->whereDate('updated_at','<=',$request->de_date)
-                ->whereDate('updated_at','>=',$request->a_date)*/
+                ->whereDate('updated_at','>=',$request->a_date)*
                     ->whereBetween('updated_at', [$request->de_date, $request->a_date])
                     ->where('etat',1)
                     ->where('interet',$request->interet)
@@ -472,7 +754,7 @@ class ActualiteController extends Controller
             return response()->json(['nb_v' => $nb_visite], 200);
         }
 
-    }
+    }*/
 
     public function get_historique($date,$id,$type)
     {

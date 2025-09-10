@@ -18,6 +18,7 @@ return new class extends Migration
             $table->id();
             $table->string('propriete_dite_bien');
             $table->string('numero');
+            $table->string('description')->nullable();
             $table->integer('niveau')->nullable();
             $table->enum('orientation', [OrientationEnum::N->name, OrientationEnum::E->name, OrientationEnum::S->name, OrientationEnum::O->name, OrientationEnum::N_E->name, OrientationEnum::N_O->name,OrientationEnum::S_E->name, OrientationEnum::S_O->name]);
             $table->boolean('conventionne')->default(false);
