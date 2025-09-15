@@ -93,22 +93,22 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/configurations_social_network', [Facebook_InstagramController::class, 'configurations_social_network']);
         Route::post('store_configurations_social_network', [Facebook_InstagramController::class, 'store_configurations_social_network'])->name('');
 
-        
+
         // Facebook configurations by project
         Route::get('/facebook-configurations', [Facebook_InstagramController::class, 'facebook_configurations']);
         Route::post('/facebook-configurations', [Facebook_InstagramController::class, 'store_facebook_configuration']);
         Route::delete('/facebook-configurations/{id}', [Facebook_InstagramController::class, 'delete_facebook_configuration']);
-        
+
         // Facebook webhook configurations
         Route::get('/facebook-webhooks', [Facebook_InstagramController::class, 'facebook_webhook_configurations']);
         Route::post('/facebook-configurations/{id}/webhook', [Facebook_InstagramController::class, 'store_facebook_webhook']);
         Route::delete('/facebook-configurations/{id}/webhook', [Facebook_InstagramController::class, 'delete_facebook_webhook']);
-        
+
         // Instagram configurations by project
         Route::get('/instagram-configurations', [Facebook_InstagramController::class, 'instagram_configurations']);
         Route::post('/instagram-configurations', [Facebook_InstagramController::class, 'store_instagram_configuration']);
         Route::delete('/instagram-configurations/{id}', [Facebook_InstagramController::class, 'delete_instagram_configuration']);
-        
+
         // Instagram webhook configurations
         Route::get('/instagram-webhooks', [Facebook_InstagramController::class, 'instagram_webhook_configurations']);
         Route::post('/instagram-configurations/{id}/webhook', [Facebook_InstagramController::class, 'store_instagram_webhook']);
@@ -218,6 +218,7 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API visite
         Route::resource('visites', V1VisiteController::class);
+        Route::get('edit_visite/{id}', [V1VisiteController::class, 'edit_visite']);
         Route::get('projets/{idprojet}/visites', [V1VisiteController::class, 'indexByProjet']);
         Route::put('update_visite_bien_pre_reserve/{origin_id}', [V1VisiteController::class, 'update_visite_bien_pre_reserve'])->name('');
         Route::post('store_n_visite/{id}', [V1VisiteController::class, 'store_n_visite'])->name('store_n_visite');
@@ -457,7 +458,7 @@ Route::middleware('auth:api')->group(function () {
         // LinkedIn auth endpoints
         Route::get('/linkedin-config/auth-url', [LinkedInController::class, 'getAuthUrl']);
         Route::post('/linkedin-config/callback', [LinkedInController::class, 'handleCallback']);
-        
+
         // Add the missing webhook toggle routes inside the v1 prefix
         Route::put('/facebook-configurations/{configId}/webhook/toggle', [Facebook_InstagramController::class, 'toggle_facebook_webhook']);
         Route::put('/instagram-configurations/{configId}/webhook/toggle', [Facebook_InstagramController::class, 'toggle_instagram_webhook']);
