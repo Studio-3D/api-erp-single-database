@@ -7,6 +7,8 @@ use App\Models\Encaissement;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\User;
+use App\Http\Helpers\RoleHelper;
 
 class EncaissementController extends Controller
 {
@@ -86,6 +88,21 @@ class EncaissementController extends Controller
         if ($request->filled('a')) {
             $end = Carbon::parse($request->input('a'));
             $query->whereDate('date_encaissement', '<=', $end);
+        }
+        //actualite filter part type avance
+         if ($request->filled('user_id')) {
+             if (RoleHelper::Com()){
+                $userAuth = User::on('temp')->where('user_id_origin', $request->input('user_id'))->first();
+              $id=$userAuth->id;
+             }else{
+                $id=$request->input('user_id');
+             }
+
+             $query->where(function($q) use ($id) {
+                $q->whereHas('avance', function ($q) use ($id) {
+                    $q->where('user_id', $id);
+                });
+            });
         }
 
         if ($request->filled('client')) {
