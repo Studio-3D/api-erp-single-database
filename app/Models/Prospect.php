@@ -15,12 +15,12 @@ class Prospect extends Model
      */
     protected $table='prospects';
     protected $dates=['deleted_at'];
-    protected $with=['source','partenaire','commercial_affecte','affecte_par_admin','traite_par_user'];
+    protected $with=['source','partenaire','affecte_par_admin','traite_par_user','commercial_affecte'];
 
     protected $fillable = [
         'cin', 'nom', 'prenom', 'telephone', 'telephone_num2', 'email',
         'origin', 'notifie', 'source', 'partenaire_id', 'message', 'ville',
-        'projet_id', 'commercial_affecte', 'affecte_par_admin_id',
+        'projet_id','commercial_affecte' , 'affecte_par_admin_id',
         'traite_par_user_id', 'date_affectation', 'date_traitement'
     ];
 
