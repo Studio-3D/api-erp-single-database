@@ -268,7 +268,7 @@ class UserController extends Controller
         } else if (RoleHelper::Admin() || (RoleHelper::Superadmin() && $userAuth->societe_id != 1)) {
             DatabaseHelper::Config();
             $user = User::on('temp')
-                ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+               // ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
                 ->where('user_id_origin', $id)
                 ->first();
         } else {

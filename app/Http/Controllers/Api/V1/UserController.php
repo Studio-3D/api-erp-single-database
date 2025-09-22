@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use App\Models\Projet;
 
 
 class UserController extends Controller
@@ -260,13 +261,17 @@ class UserController extends Controller
         if (RoleHelper::Superadmin() && $userAuth->societe_id == 1) {
             // Récupérer l'utilisateur et compter ses relations
             $user = User::find($id);
+            $projets=[];
+            $projets_de_user=[];
         } else if (RoleHelper::Admin() || (RoleHelper::Superadmin() && $userAuth->societe_id != 1)) {
             DatabaseHelper::Config();
             $user = User::on('temp')
-                ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
-                ->withCount(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+               // ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+               // ->withCount(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
                 ->where('user_id_origin', $id)
                 ->first();
+            $projets=Projet::on('temp')->without('typeProjet','userProjet','societe')->get();
+            $projets_de_user=userProjet::on('temp')->with('projet')->where('user_id',$user->id)->get()->pluck('projet');
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -277,13 +282,17 @@ class UserController extends Controller
 
         return response()->json([
             'user' => $user,
+            'projets'=>$projets,
+            'projets_de_user'=>$projets_de_user,
         ], 200);
     }
 
     public function update(UpdateUserRequest $request, $id)
     {
 
-       /* $user = User::findOrFail($id);
+
+
+        $user = User::findOrFail($id);
         if ($request->has('cin')) {
             $request->validate([
                 'cin' => [
@@ -297,7 +306,7 @@ class UserController extends Controller
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],
             ]);
-        }*/
+        }
         DB::connection()->beginTransaction();
         try{
             if ($request->is_profil) {
@@ -446,25 +455,24 @@ class UserController extends Controller
                     $user->solde_conge     = $request->solde_conge;
                     $user->save();
 
-                    if (RoleHelper::Admin()) {
+                    if (RoleHelper::AdminSup()) {
                         //modifier user projet
                         $user_projets = UserProjet::on('temp')->where('user_id', $user_societes->id)->delete();
-                        // par id du prjet
-                        if ($request->user_has_already_projets == '1') {
+
                             if (! empty($request->selectedProjets)) {
                                 $projets_array = explode(',', $request->selectedProjets); // $projets_array sera ['5', '2']
                                 foreach ($projets_array as $id_projet) {
                                     UserProjetHelper::createUserProjet($id_projet, $user_societes->id);
                                 }
                             }
-                        } else {
+                       /* } else {
                             //par projet global
                             //[{'projet_values'],{'prjet_2_value}]
                             $dataArray_projets = json_decode($request->input('selectedProjets', '[]'), true);
                             foreach ($dataArray_projets as $valeur) {
                                 UserProjetHelper::createUserProjet($valeur['id'], $user_societes->id);
                             }
-                        }
+                        }*/
                     }
 
                     if ($old_email != $request->email) {

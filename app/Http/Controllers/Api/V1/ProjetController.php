@@ -88,81 +88,81 @@ class ProjetController extends Controller
         }
     }
 
-    public function index(Request $request)
+  
+   public function index(Request $request)
     {
-        if (! RoleHelper::AdminSup() && ! RoleHelper::Com()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-        $size = $request->input('size', null);
-        $page = $request->input('page', null);
-        DatabaseHelper::Config();
-
-        // Démarrer la requête
-        $query = Projet::on('temp')->with('typesBien');
-
-        // Appliquer les filtres
-        if ($request->filled('nom')) {
-            $query->where('nom', 'like', '%' . $request->input('nom') . '%');
-        }
-        if ($request->filled('adresse')) {
-            $query->where('adresse', 'like', '%' . $request->input('adresse') . '%');
-        }
-        if ($request->filled('code')) {
-            $query->where('code', 'like', '%' . $request->input('code') . '%');
-        }
-        if ($request->filled('type')) {
-            $query->where('type_id', 'like', '%' . $request->input('type') . '%');
-        }
-        if ($request->filled('date')) {
-            $query->whereDate('created_at', $request->input('date'));
-        }
-
-        // Restriction par rôle
-        if (RoleHelper::Com()) {
-            // Commercial connecté : voir uniquement ses projets
-            $id_auth = Auth::guard('api')->user()->id;
-            $user_id = User::on('temp')->where('user_id_origin', $id_auth)->pluck('id');
-
-            $query->join('user_projets', 'user_projets.projet_id', '=', 'projets.id')
-                ->whereIn('user_projets.user_id', $user_id)
-                ->whereNull('user_projets.deleted_at')
-                ->select('projets.*');
-        } elseif (RoleHelper::AdminSup() && $request->filled('user_id')) {
-            // Récupération de l'ID réel du user à partir du user_id_origin
-            $user_ = User::on('temp')->where('user_id_origin', $request->user_id)->pluck('id');
-
-            if ($user_) {
-                $query->join('user_projets', 'user_projets.projet_id', '=', 'projets.id')
-                    ->where('user_projets.user_id', 19)
-                    ->select('projets.*'); // évite les doublons/erreurs de colonnes
-
-            } else {
-                // Aucun user trouvé : renvoyer 0 résultat
-                $query->whereRaw('1                                                                                                                                                                                                                                                                                                         = 0');
+            if (! RoleHelper::AdminSup() && ! RoleHelper::Com()) {
+                return response()->json(['error' => 'Unauthorized'], 401);
             }
-        }
-        // sinon : Admin sans user_id -> voit tout (pas de restriction)
 
-        // Pagination
-        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-            $projetsPaginated = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+            DatabaseHelper::Config();
 
-            return response()->json([
-                'projets'    => $projetsPaginated->items(),
-                'pagination' => [
-                    'currentPage' => $projetsPaginated->currentPage(),
-                    'totalItems'  => $projetsPaginated->total(),
-                    'totalPages'  => $projetsPaginated->lastPage(),
-                ],
-            ]);
-        } else {
-            // Sans pagination
-            $projets = $query->orderBy('created_at', 'desc')->get();
-            return response()->json(['projets' => $projets]);
+            // Démarrer la requête
+            $query = Projet::on('temp')->with('typesBien','userProjet');
+
+            // Appliquer les filtres
+            if ($request->filled('nom')) {
+                $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+            }
+            if ($request->filled('adresse')) {
+                $query->where('adresse', 'like', '%' . $request->input('adresse') . '%');
+            }
+            if ($request->filled('code')) {
+                $query->where('code', 'like', '%' . $request->input('code') . '%');
+            }
+            if ($request->filled('type')) {
+                $query->where('type_id', 'like', '%' . $request->input('type') . '%');
+            }
+            if ($request->filled('date')) {
+                $query->whereDate('created_at', $request->input('date'));
+            }
+
+             // Restriction par rôle
+            if (RoleHelper::Com()) {
+                // Commercial connecté : voir uniquement ses projets
+                $id_auth = Auth::guard('api')->user()->id;
+                $user = User::on('temp')->where('user_id_origin', $id_auth)->first();
+
+
+                if ($user) {
+                     $query->whereHas('userProjet', function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                  });
+                }
+            } elseif (RoleHelper::AdminSup() && $request->filled('user_id')) {
+                // Récupération de l'ID réel du user à partir du user_id_origin
+                $user = User::on('temp')->where('user_id_origin', $request->user_id)->first();
+                if ($user) {
+                     $query->whereHas('userProjet', function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                  });
+
+                }
+
         }
+    // sinon : Admin sans user_id -> voit tout (pas de restriction)
+
+    // Pagination
+    if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+        $projetsPaginated = $query->orderBy('created_at', 'desc')
+            ->paginate($size, ['*'], 'page', $page);
+
+        return response()->json([
+            'projets'    => $projetsPaginated->items(),
+            'pagination' => [
+                'currentPage' => $projetsPaginated->currentPage(),
+                'totalItems'  => $projetsPaginated->total(),
+                'totalPages'  => $projetsPaginated->lastPage(),
+            ],
+        ]);
+    } else {
+        // Sans pagination
+        $projets = $query->orderBy('created_at', 'desc')->get();
+        return response()->json(['projets' => $projets]);
     }
+}
 
     /**
      * Show the form for creating a new resource.

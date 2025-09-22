@@ -69,7 +69,7 @@ class User extends Authenticatable
         return $this->belongsTo(Societe::class, 'societe_id');
     }
 
-    public function projet()
+  /*  public function projet()
     {
         return $this->belongsToMany(Projet::class);
     }
@@ -91,7 +91,7 @@ class User extends Authenticatable
 
     public function visites()
     {
-        return $this->hasMany(Visite::class, 'user_id');
+        return $this->hasMany(Visite::class, 'user_id')->where('etat',1);
     }
 
     public function avances()
@@ -109,7 +109,7 @@ class User extends Authenticatable
     public function traitement_appels()
     {
         return $this->hasMany(TraitementAppel::class, 'user_id');
-    }
-    
+    }*/
+
 
 }
