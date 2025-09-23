@@ -32,7 +32,7 @@ class UpdateBienRequest extends FormRequest
 
         // Règles de base
         $rules = [
-            'numero' => ['integer', Rule::unique('temp.' . $DatabaseName . '.biens', 'numero')->whereNull('deleted_at')->where(function ($query) {
+            'numero' => ['numeric', Rule::unique('temp.' . $DatabaseName . '.biens', 'numero')->whereNull('deleted_at')->where(function ($query) {
                 if ($this->immeuble_id == null) {
                     if ($this->bloc_id == null) {
                         if ($this->tranche_id == null) {
