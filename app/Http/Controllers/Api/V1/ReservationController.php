@@ -797,7 +797,7 @@ class ReservationController extends Controller
                     $request->validate([
                                 'code_reservation' => [
                                     Rule::unique('temp.'.$DatabaseName.'.reservations')
-                                                                ->where('etat', 1)->whereNull('deleted_at'),
+                                                                ->where('etat', 1)->whereNull('deleted_at')->ignore($id),
                                 ],
                             ]);
             }
