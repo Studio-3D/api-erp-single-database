@@ -20,7 +20,7 @@ class WhatsAppController extends Controller
      {
           // Log incoming messages for debugging
          Log::info('UltraMsg Webhook Received:', $request->all());
-         DatabaseHelper::Config(10);
+         DatabaseHelper::Config(44);
          Config::set('broadcasting.default', 'pusher_3');
          // Extraire les données du webhook
          $data = $request->input('data');
@@ -52,7 +52,7 @@ class WhatsAppController extends Controller
          $web=new WebhookEvent();
          $web->setConnection('temp');
          $web->platform='whatsapp';
-         $web->event_type=$type;
+         $web->type=$type;
          $web->data=$request->all();
          $web->save();
          broadcast(new NotificationEvent(0));

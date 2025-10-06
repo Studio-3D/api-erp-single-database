@@ -346,38 +346,21 @@ class NotificationController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
          }
     }
-    public function get_nb_frein_client_visite(Request $request,$projet_id)
-    {
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
-
-            DatabaseHelper::Config();
-            if(RoleHelper::AdminSup()){
-                $rel_client_freins=0;
-                $frein=new FreinController();
-                $data_get=$frein->get_clients_freins($request,$projet_id);
-                foreach($data_get->original as $key => $v){
-                    if($key=='count_clients'){
-                        $rel_client_freins = $v;
-                    }
-
-                }
-            }else{
-
-             $rel_client_freins=0;
-                $frein=new FreinController();
-                $data_get=$frein->get_clients_freins($request,$projet_id);
-                foreach($data_get->original as $key => $v){
-                    if($key=='count_clients'){
-                        $rel_client_freins = $v;
-                    }
-                }
-            }
-           return response()->json(['nb' => $rel_client_freins]);
-        }
-         else{
-            return response()->json(['error' => 'Unauthorized'], 401);
-         }
+   public function get_nb_frein_client_visite(Request $request, $projet_id)
+{
+    if (!Auth::guard('api')->check() || !RoleHelper::ACSup()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+    DatabaseHelper::Config();
+
+    $frein = new FreinController();
+    $data_get = $frein->get_clients_freins($request, $projet_id);
+
+    $rel_client_freins = $data_get->original['count_clients'] ?? 0;
+
+    return response()->json(['nb' => $rel_client_freins]);
+}
 
     public function get_notifications(Request $request, $projet_id){
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
@@ -386,7 +369,7 @@ class NotificationController extends Controller
             $platforms = ['facebook', 'instagram'];
             if(RoleHelper::AdminSup()){
                     // Notifications Webhook Facebook/Instagram/WhatsApp
-               $notifs_webhook_fcb_insta_whstp=WebhookEvent::on('temp')->whereIn('platform', $platforms)->withTrashed()->whereDate('created_at', '<=', Carbon::now())->orderBy('id','desc')->get();
+               /*$notifs_webhook_fcb_insta_whstp=WebhookEvent::on('temp')->whereIn('platform', $platforms)->withTrashed()->whereDate('created_at', '<=', Carbon::now())->orderBy('id','desc')->get();
 
                // Transform webhook events to include type differentiation
                foreach($notifs_webhook_fcb_insta_whstp as $webhook) {
@@ -408,7 +391,7 @@ class NotificationController extends Controller
                            $webhook->type = 97;
                        }
                    }
-               }
+               }*/
 
                    // Toutes les notifications (filter out type 99)
                $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
@@ -436,7 +419,7 @@ class NotificationController extends Controller
                     })
                     ->count();
                   // Nombre de nouvelles notifications Webhook
-               $new_notif_webhook_fcb_inst_whtsp=WebhookEvent::on('temp') ->whereIn('platform', $platforms)->whereDate('created_at', '<=', Carbon::now())->where('deleted_at',null)->orderBy('id','desc')->count();
+              // $new_notif_webhook_fcb_inst_whtsp=WebhookEvent::on('temp') ->whereIn('platform', $platforms)->whereDate('created_at', '<=', Carbon::now())->where('deleted_at',null)->orderBy('id','desc')->count();
 
             }else{
                 $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
@@ -460,13 +443,13 @@ class NotificationController extends Controller
                           ->orWhereNull('user_id');
                     })
                     ->count();
-                $notifs_webhook_fcb_insta_whstp=[];
-                $new_notif_webhook_fcb_inst_whtsp=0;
+              //  $notifs_webhook_fcb_insta_whstp=[];
+              //  $new_notif_webhook_fcb_inst_whtsp=0;
             }
            return response()->json([
                 'all_notifications' => $all_notifications,
-                'notifs_webhook_fcb_insta_whstp'=>$notifs_webhook_fcb_insta_whstp,
-                'new_notifications_count'=>$new_notifications_count+$new_notif_webhook_fcb_inst_whtsp
+               // 'notifs_webhook_fcb_insta_whstp'=>$notifs_webhook_fcb_insta_whstp,
+                'new_notifications_count'=>$new_notifications_count//+$new_notif_webhook_fcb_inst_whtsp
             ]);
         }
          else{

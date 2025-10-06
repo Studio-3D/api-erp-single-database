@@ -663,3 +663,5 @@ class WhatsAppBusinessController extends Controller
         }
     }
 }
+
+//1269697291014076?fields=name,phone_numbers,message_templates    827760573749958"
