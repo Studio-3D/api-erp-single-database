@@ -137,6 +137,15 @@ class AppelController extends Controller
                      //store relance to table
 
     public function store_trait_appel(Request $request){
+        // In store_trait_appel method, before calling FreinController
+        \Log::info('Frein Request Data:', [
+            'freins' => $request->freins,
+            'etages' => $request->etages,
+            'selectedEtages' => ($request->etages == "0") ? -100 : (str_contains($request->freins, 'etage') ? $request->etages : ""),
+            'contains_etage' => str_contains($request->freins, 'etage')
+        ]);
+
+
         DatabaseHelper::Config();
         $trait=new TraitementAppel();
         $trait->setConnection('temp');
@@ -181,7 +190,7 @@ class AppelController extends Controller
             }
             elseif($request->interet==InteretEnumAppel::Perdu->value){
                         //stoore freeein
-
+                        $freinRequest['freins']  = $request->freins;
                         $freinRequest['traite_appel_id']=$trait->id;
                         $freinRequest['prix_min']=$request->prix_min;
                         $freinRequest['prix_max']=$request->prix_max;
@@ -190,11 +199,16 @@ class AppelController extends Controller
                         $freinRequest['etat']=1;
                         $freinRequest['avance']=$request->avance;
                         $freinRequest['selectedTranches']=$request->tranches_id;
-                             //-1 for 0 si on selection just le 0
-                        $freinRequest['selectedEtages'] = ($request->etages == "0") ? -100 : $request->etages;
+                          //-1 for 0 si on selection just le 0
+                          if (str_contains($request->freins, 'etage')) {
+                            $freinRequest['selectedEtages'] = ($request->etages == "0") ? "-100" : $request->etages;
+                        } else {
+                            $freinRequest['selectedEtages'] = "";
+                        }
                         $freinRequest['selectedOrientations']=$request->orientations;
                         $freinRequest['selectedTypologies']=$request->typologies;
                         $freinRequest['selectedVues']=$request->vues;
+                        $freinRequest['description_autre'] = $request->description_autre;
                         $freinController = new FreinController();
                         $freinController->store(new StoreFreinRequest($freinRequest));
 
@@ -283,6 +297,7 @@ class AppelController extends Controller
 
     public function store(StoreAppelRequest $request)
     {
+
             if(RoleHelper::ACSup()){
 
                 $user = Auth::user();
@@ -422,10 +437,10 @@ class AppelController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
             $tr_appel = TraitementAppel::on('temp')->with('frein','relance','rdv','tranche','bloc','immeuble','type_biens')->findOrfail($id);
-            $frein=new FreinController();
+           /* $frein=new FreinController();
             if($tr_appel->interet==InteretEnumAppel::Perdu->value) {
                 $tr_appel['frein']=$frein->searchFreinByAppelId($id,'without_row_deleted');
-            }
+            }*/
             return response()->json(['tr_appel' => $tr_appel,'frein'=>$tr_appel['frein']], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -620,10 +635,9 @@ class AppelController extends Controller
 
 
                         }
-                        elseif ($traite_appel->interet == InteretEnumAppel::Perdu->value) {
+                        elseif ($request->interet == InteretEnumAppel::Perdu->value) {
                             $frein_id=Frein::on('temp')->where('traite_appel_id', $id)->get();
                             $freinRequest['traite_appel_id']=$id;
-                            $freinRequest['prix_min']=$request->prix_min;
                             $freinRequest['prix_min']=$request->prix_min;
                             $freinRequest['freins']=$request->freins;
                             $freinRequest['prix_max']=$request->prix_max;
@@ -632,10 +646,16 @@ class AppelController extends Controller
                             $freinRequest['etat']=1;
                             $freinRequest['avance']=$request->avance;
                             $freinRequest['selectedTranches']=$request->tranches_id;
-                            $freinRequest['selectedEtages']=$request->etages;
+
+                            if (str_contains(strtolower($request->freins), 'etage')) { // ADDED strtolower for consistency
+                                $freinRequest['selectedEtages'] = ($request->etages == "0") ? "-100" : $request->etages;
+                            } else {
+                                $freinRequest['selectedEtages'] = "";
+                            }
                             $freinRequest['selectedOrientations']=$request->orientations;
                             $freinRequest['selectedTypologies']=$request->typologies;
                             $freinRequest['selectedVues']=$request->vues;
+                            $freinRequest['description_autre'] = $request->description_autre;
 
                             $freinController = new FreinController();
                             if(!$frein_id->isEmpty()){

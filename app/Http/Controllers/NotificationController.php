@@ -365,43 +365,15 @@ class NotificationController extends Controller
     public function get_notifications(Request $request, $projet_id){
         if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
             DatabaseHelper::Config();
-            $i=0;
-            $platforms = ['facebook', 'instagram'];
             if(RoleHelper::AdminSup()){
-                    // Notifications Webhook Facebook/Instagram/WhatsApp
-               /*$notifs_webhook_fcb_insta_whstp=WebhookEvent::on('temp')->whereIn('platform', $platforms)->withTrashed()->whereDate('created_at', '<=', Carbon::now())->orderBy('id','desc')->get();
-
-               // Transform webhook events to include type differentiation
-               foreach($notifs_webhook_fcb_insta_whstp as $webhook) {
-                   if($webhook->platform === 'facebook') {
-                       // Check if it's a publication (post) or reaction
-                       $eventData = $webhook->data;
-                       if(isset($eventData['verb']) && $eventData['verb'] === 'add' && isset($eventData['item']) && $eventData['item'] === 'post') {
-                           $webhook->notification_type = 'publication';
-                           $webhook->type = 96; // New type for publications
-                       } else {
-                           $webhook->notification_type = 'reaction';
-                           $webhook->type = 98; // Existing type for reactions
-                       }
-                   } elseif($webhook->platform === 'instagram') {
-                       // Similar logic for Instagram
-                       $eventData = $webhook->data;
-                       if(isset($eventData['object']) && $eventData['object'] === 'instagram' && isset($eventData['entry'][0]['changes'][0]['field']) && $eventData['entry'][0]['changes'][0]['field'] === 'comments') {
-                           $webhook->notification_type = 'comment';
-                           $webhook->type = 97;
-                       }
-                   }
-               }*/
-
                    // Toutes les notifications (filter out type 99)
                $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                     ->where(function ($query) {
                         $query->where('role',RoleEnum::ADMIN->value)
                             ->orWhere('user_id',Auth::guard('api')->user()->id)
-                            ->orWhereNull('user_id');
+                            ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
                     })
                     ->where('projet_id',$projet_id)
-                    ->where('type', '!=', 99)
                     ->withTrashed()
                     ->whereDate('date', '<=', Carbon::now())
                     ->orderBy('id','desc')
@@ -409,47 +381,42 @@ class NotificationController extends Controller
                   // Nombre de nouvelles notifications (not seen)
                $new_notifications_count=Notification::on('temp')
                     ->where('projet_id',$projet_id)
-                    ->where('type', '!=', 99)
+
                     ->whereNull('deleted_at')
                     ->where('seen', false)
                     ->where(function($q){
                         $q->where('role', RoleEnum::ADMIN->value)
                           ->orWhere('user_id', Auth::guard('api')->user()->id)
-                          ->orWhereNull('user_id');
+                          ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
                     })
                     ->count();
-                  // Nombre de nouvelles notifications Webhook
-              // $new_notif_webhook_fcb_inst_whtsp=WebhookEvent::on('temp') ->whereIn('platform', $platforms)->whereDate('created_at', '<=', Carbon::now())->where('deleted_at',null)->orderBy('id','desc')->count();
-
             }else{
                 $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                     ->where('projet_id',$projet_id)
                     ->where(function($q){
                         $q->where('user_id', Auth::guard('api')->user()->id)
-                          ->orWhereNull('user_id');
+                         ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
                     })
-                    ->where('type', '!=', 99)
+
                     ->withTrashed()
                     ->whereDate('date', '<=', Carbon::now())
                     ->orderBy('date','desc')
                     ->get();
                 $new_notifications_count=Notification::on('temp')
                     ->where('projet_id',$projet_id)
-                    ->where('type', '!=', 99)
+
                     ->whereNull('deleted_at')
                     ->where('seen', false)
                     ->where(function($q){
                         $q->where('user_id', Auth::guard('api')->user()->id)
-                          ->orWhereNull('user_id');
+                        ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
                     })
                     ->count();
-              //  $notifs_webhook_fcb_insta_whstp=[];
-              //  $new_notif_webhook_fcb_inst_whtsp=0;
+
             }
            return response()->json([
                 'all_notifications' => $all_notifications,
-               // 'notifs_webhook_fcb_insta_whstp'=>$notifs_webhook_fcb_insta_whstp,
-                'new_notifications_count'=>$new_notifications_count//+$new_notif_webhook_fcb_inst_whtsp
+                'new_notifications_count'=>$new_notifications_count
             ]);
         }
          else{

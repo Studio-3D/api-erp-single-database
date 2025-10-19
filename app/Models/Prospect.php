@@ -48,6 +48,11 @@ class Prospect extends Model
     {
         return $this->hasMany(Visite::class,'prospect_id')->orderby('created_at','asc');
     }
+    public function visite_first()
+{
+    return $this->hasOne(Visite::class, 'prospect_id')->orderBy('created_at', 'asc');
+}
+
     public function appels()
     {
         return $this->hasOne(Appel::class,'prospect_id')->latest();

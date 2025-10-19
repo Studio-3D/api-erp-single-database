@@ -68,15 +68,14 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Societe::class, 'societe_id');
     }
+     public function projets()
+    {
+        return $this->belongsToMany(Projet::class, 'user_projets', 'user_id', 'projet_id');
+    }
 
   /*  public function projet()
     {
         return $this->belongsToMany(Projet::class);
-    }
-
-    public function projets()
-    {
-        return $this->belongsToMany(Projet::class, 'user_projets', 'user_id', 'projet_id');
     }
 
     public function reservations()
