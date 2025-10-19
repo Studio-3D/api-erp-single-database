@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 //composer require guzzlehttp/guzzle===>required
-
+use App\Http\Helpers\NotificationHelper;
+use Carbon\Carbon;
 use GuzzleHttp\Client;
 use App\Models\FacebookMessage;
 use App\Http\Helpers\DatabaseHelper;
@@ -729,18 +730,21 @@ class Facebook_InstagramController extends Controller
                         foreach ($entry['messaging'] as $messaging) {
                             if ($objectType === 'instagram') {
                                 // Instagram messaging (direct messages)
-                                $this->handleInstagramMessaging($messaging, $societeId, $pageId);
+                                $projet_id=$this->getProjet_id_from_page_id($pageId,'instagram');
+                                $this->handleInstagramMessaging($messaging, $societeId, $pageId,$projet_id);
                             } else if ($objectType === 'page') {
                                 // Facebook messaging (direct messages)
-                                $this->handleFacebookMessages($messaging, $societeId, $pageId);
+                                $projet_id=$this->getProjet_id_from_page_id($pageId,'facebook');
+                                $this->handleFacebookMessages($messaging, $societeId, $pageId,$projet_id);
                             }
                         }
+                    }else{
+                        // Handle changes events (comments, mentions, posts)
+                        foreach ($entry['changes'] ?? [] as $change) {
+                            $this->processChange($change, $societeId,$pageId);
+                        }
                     }
-                    // Handle changes events (comments, mentions, posts)
 
-                    foreach ($entry['changes'] ?? [] as $change) {
-                        $this->processChange($change, $societeId,$pageId);
-                    }
                 }
 
                 return response()->json(['message' => 'Webhook processed successfully']);
@@ -796,6 +800,48 @@ class Facebook_InstagramController extends Controller
                 return false;
             }
         }
+          private function getProjet_id_from_page_id($pageId,$platform)
+        {
+            try {
+                // Check Facebook configurations
+                if($platform=='facebook'){
+                    if (Schema::connection('temp')->hasTable('facebook_configurations')) {
+                        $facebook = DB::connection('temp')
+                            ->table('facebook_configurations')
+                            ->where('page_fcb_id', $pageId)
+                            ->where('webhook_enabled', true)
+                            ->whereNull('deleted_at')
+                            ->first();
+
+                        if ($facebook!=null) {
+                            return $facebook->projet_id;
+                        }
+                     }
+                }else{
+                    // Check Instagram configurations
+                                    if (Schema::connection('temp')->hasTable('instagram_configurations')) {
+                                        $instagram = DB::connection('temp')
+                                            ->table('instagram_configurations')
+                                            ->where('instagram_id', $pageId)
+                                            ->where('webhook_enabled', true)
+                                            ->whereNull('deleted_at')
+                                            ->first();
+
+                                        if ($instagram) {
+                                            return $instagram->projet_id;
+                                        }
+                                    }
+                }
+
+
+
+
+
+            } catch (\Exception $e) {
+                Log::error("Error checking webhook status for projet {$projet_id}: " . $e->getMessage());
+                return false;
+            }
+        }
 
         private function processChange($change, $societeId,$pageId)
         {
@@ -803,7 +849,7 @@ class Facebook_InstagramController extends Controller
             $type = $this->getEventType($change);
             $field = $change['field'] ?? null;
 
-            Log::info("Processing Event - Platform: $platform, Type: $type, Field: $field, Société: $societeId");
+            Log::info("Processing Event - Platform: $platform, Type: $type, Field: $field, Société: $societeId,pageId: $pageId");
 
             // Store event in database for the specific société
             Config::set('broadcasting.default', 'pusher_3');
@@ -822,8 +868,9 @@ class Facebook_InstagramController extends Controller
             } catch (\Exception $e) {
                 Log::error("Error saving webhook event for société {$societeId}: " . $e->getMessage());
             }
-
-            // Direct routing for Instagram comments
+            //store prospect get projet_id
+               $projet_id=$this->getProjet_id_from_page_id($pageId,$platform);
+            //Direct routing for Instagram comments
             if ($field == 'comments' && $platform === 'instagram') {
                 Log::info('Direct routing Instagram comment');
                 $this->handleInstagramComment($change,$pageId);
@@ -833,22 +880,21 @@ class Facebook_InstagramController extends Controller
             switch ($field) {
 
                 case 'feed':
-                    $this->handleFeedEvent($change['value'] ?? $change);
+                    $this->handleFeedEvent($change['value'] ?? $change,$projet_id);
                     break;
                 case 'mentions':
-                    $this->handleInstagramMention($change['value']);
+                    $this->handleInstagramMention($change['value'],$projet_id);
                     break;
                 case 'mention':
-                    $this->handleFacebookMention($change['value']);
+                    $this->handleFacebookMention($change['value'],$projet_id);
                     break;
-               /* case 'messages':
-                    $this->handleFacebookMessages($change['value']);
-                    break;*/
+
                 default:
                     Log::warning('Unhandled Webhook Event: ' . $field);
             }
+             //store new Prospect
         }
-        private function handleFeedEvent($data)
+        private function handleFeedEvent($data,$projet_id)
         {
             Log::info('Processing feed event:', $data);
 
@@ -862,13 +908,13 @@ class Facebook_InstagramController extends Controller
                         Log::info('Ignoring reaction removal event:', $data);
                         return;
                     }
-                    $this->handleFacebookReaction($data);
+                    $this->handleFacebookReaction($data,$projet_id);
                     break;
 
                 case 'comment':
                     // ONLY handle comments here, ignore posts when it's actually a comment
                     if (isset($data['comment_id']) && $verb === 'add') {
-                        $this->handleFacebookComment($data);
+                        $this->handleFacebookComment($data,$projet_id);
                     }
                     break;
 
@@ -883,15 +929,16 @@ class Facebook_InstagramController extends Controller
                     if (isset($data['post_id']) && $verb === 'add') {
                         // Additional check to ensure it's really a post and not a comment
                         if (!isset($data['comment_id']) && !isset($data['parent_id'])) {
-                            $this->handleFacebookPost($data);
+                            $this->handleFacebookPost($data,$projet_id);
                         }
                     } else {
-                        $this->handleInstagramPost($data);
+                        $this->handleInstagramPost($data,$projet_id);
                     }
                     break;
 
                 default:
-                    // Handle cases where the structure might be different
+                 Log::info('Unknown feed event type:', $data);
+                    /* Handle cases where the structure might be different
                     if (isset($data['comment_id']) && $verb === 'add') {
                         // This is definitely a comment
                         $this->handleFacebookComment($data);
@@ -904,11 +951,11 @@ class Facebook_InstagramController extends Controller
                         $this->handleFacebookReaction($data);
                     } else {
                         Log::info('Unknown feed event type:', $data);
-                    }
+                    }*/
             }
         }
 
-        private function handleFacebookPost($data)
+        private function handleFacebookPost($data,$projet_id)
         {
             Log::info('New Post/comment on Facebook Page:', $data);
 
@@ -926,7 +973,7 @@ class Facebook_InstagramController extends Controller
                     // Get post link if available
                     $postLink = isset($data['post_id']) ? "https://www.facebook.com/{$data['post_id']}" : null;
 
-                    $this->createFacebookNotification($description, $postLink, \App\Enum\TypeNotificationEnum::FacebookPublication->value);
+                    $this->createFacebookNotification($description, $postLink, \App\Enum\TypeNotificationEnum::FacebookPublication->value,$projet_id);
 
                 }
 
@@ -935,7 +982,7 @@ class Facebook_InstagramController extends Controller
             }
         }
 
-        private function handleFacebookComment($data)
+        private function handleFacebookComment($data,$projet_id)
         {
             Log::info('New Comment on Facebook Page:', $data);
 
@@ -961,14 +1008,14 @@ class Facebook_InstagramController extends Controller
                 }
 
 
-                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookComment->value);
+                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookComment->value,$projet_id);
 
             } catch (\Exception $e) {
                 Log::error('Error handling Facebook comment: ' . $e->getMessage());
             }
         }
 
-        private function handleFacebookReaction($data)
+        private function handleFacebookReaction($data,$projet_id)
         {
             Log::info('New Reaction on Facebook Page:', $data);
 
@@ -996,7 +1043,7 @@ class Facebook_InstagramController extends Controller
                     // Get post link if available
                     $postLink = $postId ? "https://www.facebook.com/{$postId}" : null;
 
-                    $this->createFacebookNotification($description, $postLink);
+                    $this->createFacebookNotification($description, $postLink,null,$projet_id);
                 } else {
                     Log::info("Reaction removed by {$userName}, not creating notification");
                 }
@@ -1007,7 +1054,7 @@ class Facebook_InstagramController extends Controller
         }
 
         // Add a new method to create Facebook notifications
-        private function createFacebookNotification($description, $link = null, $type = null)
+        private function createFacebookNotification($description, $link = null, $type = null,$projet_id)
         {
             try {
                 Log::info('Creating Facebook notification:', [
@@ -1026,18 +1073,8 @@ class Facebook_InstagramController extends Controller
                 $notification->lien = $link ?? 'https://www.facebook.com';
 
                 // Set role to admin so all users can see it
-                $notification->role = \App\Enum\RoleEnum::ADMIN->value;
-
-                // Try to get the current project ID from the database context
-                // Since we're in webhook context, we need to find an appropriate projet_id
-                $projet = DB::connection('temp')->table('projets')->first();
-                if ($projet) {
-                    $notification->projet_id = $projet->id;
-                } else {
-                    // Fallback - create a default project if none exists
-                    $notification->projet_id = 1;
-                }
-
+                $notification->role = \App\Enum\RoleEnum::ADMIN_COMMERCIAL->value;
+                $notification->projet_id = $projet_id;
                 $notification->save();
 
                 // Broadcast the notification
@@ -1100,7 +1137,7 @@ class Facebook_InstagramController extends Controller
 
                                 if ($response->successful()) {
                                     $permalink = $response->json()['permalink'] ?? null;
-                                    $this->createFacebookNotification($description, $permalink, \App\Enum\TypeNotificationEnum::InstagramComment->value);
+                                    $this->createFacebookNotification($description, $permalink, \App\Enum\TypeNotificationEnum::InstagramComment->value,$projet_id);
                                 }
                 Log::info('Instagram comment notification created successfully');
 
@@ -1111,7 +1148,7 @@ class Facebook_InstagramController extends Controller
         }
 
         // Handle Instagram posts/publications
-        private function handleInstagramPost($data)
+        private function handleInstagramPost($data,$projet_id)
         {
             Log::info('Processing Instagram post:', $data);
 
@@ -1127,7 +1164,7 @@ class Facebook_InstagramController extends Controller
                     $link = "https://www.instagram.com/p/{$mediaId}";
                 }
 
-                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::InstagramPublication->value);
+                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::InstagramPublication->value,$projet_id);
 
             } catch (\Exception $e) {
                 Log::error('Error handling Instagram post: ' . $e->getMessage());
@@ -1167,7 +1204,7 @@ class Facebook_InstagramController extends Controller
         }
 
         // Handle Instagram mentions
-        private function handleInstagramMention($data)
+        private function handleInstagramMention($data,$projet_id)
         {
             Log::info('Processing Instagram mention:', $data);
 
@@ -1185,7 +1222,7 @@ class Facebook_InstagramController extends Controller
                     $link = $mediaId ? "https://www.instagram.com/p/{$mediaId}" : 'https://www.instagram.com';
                 }
 
-                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::InstagramMention->value);
+                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::InstagramMention->value,$projet_id);
 
             } catch (\Exception $e) {
                 Log::error('Error handling Instagram mention: ' . $e->getMessage());
@@ -1193,7 +1230,7 @@ class Facebook_InstagramController extends Controller
         }
 
         // Handle Facebook mentions
-        private function handleFacebookMention($data)
+        private function handleFacebookMention($data,$projet_id)
         {
             Log::info('Processing Facebook mention:', $data);
 
@@ -1216,15 +1253,25 @@ class Facebook_InstagramController extends Controller
                     $link = "https://www.facebook.com/{$postId}";
                 }
 
-                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookMention->value);
+                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookMention->value,$projet_id);
 
             } catch (\Exception $e) {
                 Log::error('Error handling Facebook mention: ' . $e->getMessage());
             }
         }
 
-        // Handle Facebook messages
-      /* private function handleFacebookMessages($messaging, $societeId = null, $pageId = null)
+
+
+
+
+            /**
+             * Send Facebook message from page to user
+             */
+            /*/When user sends first message: auto-ask for phone number.
+            If phone exists: notify commercial "ancien prospect vous a contacté".
+            Else: store number and confirm.
+            If no phone in message: keep asking every time. and send notif to commercial / when he writes it then the message of write your number not showing again */
+        private function handleFacebookMessages($messaging, $societeId = null, $pageId = null, $projet_id)
         {
             Log::info('Processing Facebook direct message:', ['messaging' => $messaging]);
 
@@ -1242,11 +1289,16 @@ class Facebook_InstagramController extends Controller
 
                 broadcast(new NotificationEvent(0));
 
-                $senderName = $messaging['sender']['name'] ?? 'Utilisateur inconnu';
                 $senderId = $messaging['sender']['id'] ?? null;
                 $message = $messaging['message']['text'] ?? '';
                 $timestamp = $messaging['timestamp'] ?? null;
                 $messageId = $messaging['mid'] ?? null;
+
+                // Get sender name using Graph API
+                $senderName = 'Utilisateur inconnu';
+                if ($senderId && $pageId) {
+                    $senderName = $this->getFacebookUserName($senderId, $pageId);
+                }
 
                 Log::info('Extracted Facebook message details:', [
                     'senderName' => $senderName,
@@ -1255,6 +1307,90 @@ class Facebook_InstagramController extends Controller
                     'messageId' => $messageId,
                     'timestamp' => $timestamp
                 ]);
+
+                // Check if message contains a phone number
+                $phoneNumber = $this->extractPhoneNumber($message);
+
+                if ($senderId && $pageId) {
+                    if ($phoneNumber) {
+                        // Check if phone number already exists for another prospect
+                        $Duplicate_Prospect= $this->isPhoneNumberDuplicate($phoneNumber, $senderId,$projet_id);
+
+                                if ($Duplicate_Prospect!=null) {
+                                    // Phone number exists - ask for different number
+                                    Log::info("Duplicate phone number detected", [
+                                        'sender_id' => $senderId,
+                                        'phone_number' => $phoneNumber,
+                                        'prospect_id'=>$Duplicate_Prospect->id
+                                    ]);
+                                    $notif_helper = new NotificationHelper();
+                                    $req = new \Illuminate\Http\Request();
+
+                                    $notif_helper->storeNotification($req->merge([
+                                        'lien'        => '/crm/prospects/' . $Duplicate_Prospect->id,
+                                        'date'        => Carbon::now(),
+                                        'type'        => 102,
+                                        'description'        => 'le Propect '.$Duplicate_Prospect->nom.' vous avez contacté sur Facebook',
+                                        'user_id'     => null,
+                                        'role'        =>  \App\Enum\RoleEnum::ADMIN_COMMERCIAL->value,
+                                        'prospect_id' => $Duplicate_Prospect->id,
+                                        'projet_id'   => $projet_id,
+                                    ]));
+                                }
+                            // User sent a valid and unique phone number - update prospect
+                            $updateSuccess = $this->updateProspectWithPhoneNumber($senderName, $phoneNumber, $societeId, $projet_id, $senderId);
+
+                            if ($updateSuccess) {
+                                // Send confirmation message
+                                $confirmationMessage = "✅ Merci ! Votre numéro de téléphone {$phoneNumber} a été enregistré avec succès. Nous vous contacterons bientôt !";
+                                $this->sendFacebookMessageFromPage($senderId, $confirmationMessage, $pageId);
+                            } else {
+                                // Error updating prospect
+                                $errorMessage = "❌ Désolé, une erreur s'est produite lors de l'enregistrement de votre numéro. Veuillez réessayer.";
+                                $this->sendFacebookMessageFromPage($senderId, $errorMessage, $pageId);
+                            }
+                        //}
+
+                    } else {
+                        // Check if we already asked for phone number (to avoid infinite loop)
+                       // $alreadyAsked = $this->hasAskedForPhoneRecently($senderId);
+                        //!alreadyAsked
+                    if ($this->isFirstMessageFromUser($senderId)) {
+                            // First message from user - ask for phone number
+                            $welcomeMessage = "Bonjour {$senderName} ! 👋\n\nMerci de nous avoir contactés. Pour mieux vous assister, pourriez-vous nous partager votre numéro de téléphone ?\n\n📱 Format accepté: 06XXXXXXXX ou +2126XXXXXXXX";
+
+                            $messageSent = $this->sendFacebookMessageFromPage($senderId, $welcomeMessage, $pageId);
+
+                            if ($messageSent) {
+                              //  $this->markAsAskedForPhone($senderId);
+                              //send notif to commercial
+                                $description = "Le prospect {$senderName} n'a pas fourni son numéro de téléphone sur Facebook. Contactez-le pour obtenir ses coordonnées.";
+
+                                $notification = new \App\Models\Notification();
+                                $notification->setConnection('temp');
+
+                                // Set required fields
+                                $notification->date = now()->format('Y-m-d H:i:s');
+                                $notification->type = \App\Enum\TypeNotificationEnum::FacebookMessage->value;
+                                $notification->description_type = $description;
+                                $notification->lien = "https://www.facebook.com/$pageId";
+
+                                // Set role to commercial (adjust role value as needed)
+                                $notification->role = \App\Enum\RoleEnum::ADMIN_COMMERCIAL->value; // Assuming 3 is commercial role
+                                $notification->projet_id = $projet_id;
+                                $notification->save();
+
+                                // Broadcast the notification
+                                Config::set('broadcasting.default', 'pusher_3');
+                                broadcast(new \App\Events\NotificationEvent($notification->id));
+                                Log::info("fadwaa {$senderId}");
+                            } else {
+                                Log::error("Failed to send phone request to user {$senderId}");
+                            }
+                      }
+
+                    }
+                }
 
                 // Create notification description
                 $description = "Nouveau message Facebook de {$senderName}";
@@ -1265,81 +1401,268 @@ class Facebook_InstagramController extends Controller
                 // Generate Facebook message link
                 $link = null;
                 if ($senderId) {
-                    $link = "https://www.facebook.com/messages/t/{$senderId}";
+                    $link = "https://www.facebook.com/{$pageId}";
                 }
 
-                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookMessage->value);
+                $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookMessage->value, $projet_id);
 
-                Log::info('Facebook message notification created successfully');
+
+                Log::info('Facebook message processing completed');
 
             } catch (\Exception $e) {
                 Log::error('Error handling Facebook message: ' . $e->getMessage());
                 Log::error('Stack trace: ' . $e->getTraceAsString());
             }
+        }
+        /**
+         * Extract phone number from message text
+         */
+        private function extractPhoneNumber($message)
+        {
+            // Remove all non-digit characters except + sign
+            $cleaned = preg_replace('/[^\d+]/', '', $message);
+
+            // Moroccan phone number patterns
+            $patterns = [
+                '/^(?:\+212|0)([5-7]\d{8})$/', // Moroccan format: +2126xxxxxxxx or 06xxxxxxxx
+                '/^[5-7]\d{8}$/', // Just the 10 digits starting with 5,6,7
+                '/^0[5-7]\d{8}$/', // Starting with 0
+                '/^\+212[5-7]\d{8}$/', // Starting with +212
+                '/^00212[5-7]\d{8}$/', // Starting with 00212
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $cleaned)) {
+                    // Format to standard Moroccan format: +2126xxxxxxxx
+                    if (strlen($cleaned) === 10 && in_array($cleaned[0], ['5', '6', '7'])) {
+                        return '+212' . $cleaned;
+                    } elseif (strlen($cleaned) === 9 && in_array($cleaned[0], ['5', '6', '7'])) {
+                        return '+212' . $cleaned;
+                    } elseif (str_starts_with($cleaned, '0') && strlen($cleaned) === 10) {
+                        return '+212' . substr($cleaned, 1);
+                    } elseif (str_starts_with($cleaned, '00212')) {
+                        return '+' . substr($cleaned, 2);
+                    }
+                    return $cleaned;
+                }
+            }
+
+            return null;
+        }
+        /**
+         * Check if phone number already exists for another user
+         */
+        private function isPhoneNumberDuplicate($phoneNumber, $currentSenderId,$projet_id)
+        {
+            try {
+                // Normalize phone number for comparison
+                $normalizedPhone = $this->normalizePhoneNumber($phoneNumber);
+
+                // Check if phone number exists for any other prospect (excluding current user)
+                $existingProspect = \App\Models\Prospect::on('temp')
+                ->where('projet_id', $projet_id)
+                    ->where('telephone', '!=', '')
+                    ->whereNotNull('telephone')
+                    ->where(function($query) use ($normalizedPhone) {
+                        $query->where('telephone', $normalizedPhone)
+                            ->orWhere('telephone', 'LIKE', '%' . substr($normalizedPhone, -9) . '%')
+                            ->orWhere('telephone_num2', 'like', '%' . substr($normalizedPhone, -9) . '%');; // Last 9 digits
+                    })
+                    //->where('facebook_id', '!=', $currentSenderId)
+                    ->first();
+
+                if ($existingProspect) {
+                    Log::warning("Duplicate phone number found", [
+                        'phone_number' => $phoneNumber,
+                        'normalized' => $normalizedPhone,
+                        'existing_prospect_id' => $existingProspect->id,
+                        'existing_prospect_name' => $existingProspect->nom,
+                        'current_sender_id' => $currentSenderId
+                    ]);
+
+                    return $existingProspect;
+                }
+
+                return null;
+
+            } catch (\Exception $e) {
+                Log::error("Error checking phone number duplicate: " . $e->getMessage());
+                return false; // On error, assume not duplicate to avoid blocking legitimate users
+            }
+        }
+
+        /**
+         * Normalize phone number for consistent comparison
+         */
+        private function normalizePhoneNumber($phoneNumber)
+        {
+            // Remove all non-digit characters except +
+            $cleaned = preg_replace('/[^\d+]/', '', $phoneNumber);
+
+            // Convert to standard Moroccan format
+            if (str_starts_with($cleaned, '0') && strlen($cleaned) === 10) {
+                return '+212' . substr($cleaned, 1);
+            } elseif (str_starts_with($cleaned, '00212')) {
+                return '+' . substr($cleaned, 2);
+            } elseif (strlen($cleaned) === 9 && in_array($cleaned[0], ['5', '6', '7'])) {
+                return '+212' . $cleaned;
+            } elseif (strlen($cleaned) === 10 && in_array($cleaned[0], ['5', '6', '7'])) {
+                return '+212' . $cleaned;
+            }
+
+            return $cleaned;
+        }
+
+
+        private function updateProspectWithPhoneNumber($senderName, $phoneNumber, $societeId, $projet_id, $senderId)
+        {
+            try {
+                // Normalize phone number before storing
+                $normalizedPhone = $this->normalizePhoneNumber($phoneNumber);
+
+                // Find prospect by Facebook ID or name
+                $prospect = \App\Models\Prospect::on('temp')
+                    //->where('facebook_id', $senderId)
+                    ->Where('nom', $senderName)
+                    ->Where('projet_id', $projet_id)
+                    ->first();
+
+                if ($prospect) {
+                    // Update existing prospefct
+                    $prospect->telephone = $normalizedPhone;
+                    $prospect->facebook_id = $senderId;
+                    $prospect->save();
+
+                    Log::info("Prospect phone number updated", [
+                        'prospect_id' => $prospect->id,
+                        'phone_number' => $normalizedPhone,
+                        'facebook_id' => $senderId
+                    ]);
+                } else {
+                    // Create new prospect with phone number
+                    \App\Http\Controllers\Api\V1\ProspectController::Store_fcb_instagram(
+                        "Nouveau prospect Facebook avec numéro: {$normalizedPhone}",
+                        $senderName,
+                        'facebook',
+                        $societeId,
+                        $projet_id,
+                        $normalizedPhone,
+                        $senderId
+                    );
+
+                    Log::info("New prospect created with phone number", [
+                        'name' => $senderName,
+                        'phone_number' => $normalizedPhone,
+                        'facebook_id' => $senderId
+                    ]);
+                }
+
+                return true;
+
+            } catch (\Exception $e) {
+                Log::error("Error updating prospect with phone number: " . $e->getMessage());
+                return false;
+            }
+        }
+
+        /*
+          Check if we recently asked this user for phone number
+
+        private function hasAskedForPhoneRecently($senderId)
+        {
+            try {
+                // You might want to create a table to track this, or use cache
+                // For simplicity, using cache with 1-hour expiration
+                return cache()->has("asked_phone_{$senderId}");
+
+            } catch (\Exception $e) {
+                Log::error("Error checking if asked for phone: " . $e->getMessage());
+                return false;
+            }
         }*/
 
-            private function handleFacebookMessages($messaging, $societeId = null, $pageId = null)
-{
-    Log::info('Processing Facebook direct message:', ['messaging' => $messaging]);
+    /*
+      Mark that we asked this user for phone number
 
-    try {
-        // Store webhook event
-        $web = new WebhookEvent();
-        $web->setConnection('temp');
-        $web->platform = 'facebook';
-        $web->type = 'facebook_messaging';
-        $web->data = $messaging;
-        if ($pageId) {
-            $web->page_id = $pageId;
+        private function markAsAskedForPhone($senderId)
+        {
+            try {
+                // Store in cache for 1 hour
+                cache()->put("asked_phone_{$senderId}", true, 3600);
+
+            } catch (\Exception $e) {
+                Log::error("Error marking asked for phone: " . $e->getMessage());
+            }
+        }*/
+
+
+     /* Check if this is the first message from user
+     * You might need to implement more sophisticated logic based on your message history
+     */
+        private function isFirstMessageFromUser($senderId)
+        {
+            // For now, assume it's first message if we haven't stored their phone number
+            // You can enhance this by checking your message history database
+            $prospect = \App\Models\Prospect::on('temp')
+                ->where('facebook_id', $senderId)
+                ->orWhere(function($query) use ($senderId) {
+                    $query->where('telephone', 'LIKE', '%' . substr($senderId, -6) . '%');
+                })
+                ->first();
+
+            return !$prospect || empty($prospect->telephone);
         }
-        $web->save();
+        private function sendFacebookMessageFromPage($recipientId, $message, $pageId)
+        {
+            try {
+                $accessToken = $this->getAccessTokenForPage($pageId);
 
-        broadcast(new NotificationEvent(0));
+                if (!$accessToken) {
+                    Log::error("No access token found for page ID: {$pageId}");
+                    return false;
+                }
 
-        $senderId = $messaging['sender']['id'] ?? null;
-        $message = $messaging['message']['text'] ?? '';
-        $timestamp = $messaging['timestamp'] ?? null;
-        $messageId = $messaging['mid'] ?? null;
+                $client = new Client(['timeout' => 30.0]);
 
-        // Get sender name using Graph API
-        $senderName = 'Utilisateur inconnu';
-        if ($senderId && $pageId) {
-            $senderName = $this->getFacebookUserName($senderId, $pageId);
+                // Use the page ID in the URL and page access token
+                $response = $client->post("https://graph.facebook.com/v22.0/{$pageId}/messages", [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                    ],
+                    'json' => [
+                        'recipient' => ['id' => $recipientId],
+                        'message' => ['text' => $message],
+                        'messaging_type' => 'RESPONSE'
+                    ],
+                    'query' => [
+                        'access_token' => $accessToken
+                    ]
+                ]);
+
+                $responseBody = json_decode($response->getBody(), true);
+
+                if (isset($responseBody['message_id'])) {
+                    Log::info("Facebook message sent successfully from page", [
+                        'page_id' => $pageId,
+                        'recipient_id' => $recipientId,
+                        'message_id' => $responseBody['message_id']
+                    ]);
+                    return true;
+                } else {
+                    Log::error("Failed to send Facebook message from page", $responseBody);
+                    return false;
+                }
+
+            } catch (\Exception $e) {
+                Log::error("Error sending Facebook message from page {$pageId} to {$recipientId}: " . $e->getMessage());
+                return false;
+            }
         }
 
-        Log::info('Extracted Facebook message details:', [
-            'senderName' => $senderName,
-            'senderId' => $senderId,
-            'message' => $message,
-            'messageId' => $messageId,
-            'timestamp' => $timestamp
-        ]);
 
-        // Create notification description
-        $description = "Nouveau message Facebook de {$senderName}";
-        if (!empty($message)) {
-            $description .= ": " . (strlen($message) > 50 ? substr($message, 0, 50) . '...' : $message);
-        }
-
-        // Generate Facebook message link
-        $link = null;
-        if ($senderId) {
-            $link = "https://www.facebook.com/messages/t/{$senderId}";
-        }
-
-        $this->createFacebookNotification($description, $link, \App\Enum\TypeNotificationEnum::FacebookMessage->value);
-
-        Log::info('Facebook message notification created successfully');
-
-    } catch (\Exception $e) {
-        Log::error('Error handling Facebook message: ' . $e->getMessage());
-        Log::error('Stack trace: ' . $e->getTraceAsString());
-    }
-}
-
-/**
- * Get Facebook user name using Graph API
- */
+        /**
+         * Get Facebook user name using Graph API
+         */
         private function getFacebookUserName($senderId, $pageId)
         {
             try {
@@ -1376,8 +1699,9 @@ class Facebook_InstagramController extends Controller
             }
         }
 
+        /***********************************************Instagram Messaging ************************************* */
         // Fix the parameter name and variable usage
-        private function handleInstagramMessaging($messaging, $societeId = null, $pageId = null)
+        private function handleInstagramMessaging($messaging, $societeId = null, $pageId = null,$projet_id)
         {
             Log::info('Processing Instagram direct message:', ['messaging' => $messaging]);
 
@@ -1425,13 +1749,18 @@ class Facebook_InstagramController extends Controller
                 if (!empty($messageText)) {
                     $description .= ": " . (strlen($messageText) > 50 ? substr($messageText, 0, 50) . '...' : $messageText);
                 }
+                $this->createFacebookNotification($description, 'https://www.instagram.com/direct/inbox/', \App\Enum\TypeNotificationEnum::InstagramMessage->value,$projet_id);
+                //create Prospect
+                 $existingProspect = \App\Models\Prospect::on('temp')
+                ->where('nom', $username)
+                ->where('projet_id', $projet_id)
+                ->first();
 
+                if (!$existingProspect) {
 
-
-                $this->createFacebookNotification($description, 'https://www.instagram.com/direct/inbox/', \App\Enum\TypeNotificationEnum::InstagramMessage->value);
-
-                Log::info('Instagram message notification created successfully');
-
+                    \App\Http\Controllers\Api\V1\ProspectController::Store_fcb_instagram($description, $username,'instagram', $societeId,$projet_id);
+                    Log::info('Instagram message notification created successfully');
+                }
             } catch (\Exception $e) {
                 Log::error('Error handling Instagram message: ' . $e->getMessage());
                 Log::error('Stack trace: ' . $e->getTraceAsString());

@@ -29,6 +29,10 @@ class Kernel extends ConsoleKernel
                  ->everyFiveMinutes()
                  ->withoutOverlapping()
                  ->runInBackground();
+        $schedule->call(function () {
+        app()->make(\App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController::class)->checkExpiredPhoneReminders();
+        })->everyMinute(); // or ->everyFiveMinutes() depending on your needs
+
     }
 
     /**

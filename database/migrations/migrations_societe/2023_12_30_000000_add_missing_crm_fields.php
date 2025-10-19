@@ -27,6 +27,9 @@ return new class extends Migration
             if (!Schema::hasColumn('prospects', 'date_traitement')) {
                 $table->timestamp('date_traitement')->nullable()->after('date_affectation');
             }
+             if (!Schema::hasColumn('prospects', 'facebook_id')) {
+                $table->string('facebook_id')->nullable()->after('date_traitement');
+            }
         });
 
         Schema::table('users', function (Blueprint $table) {
@@ -56,6 +59,9 @@ return new class extends Migration
             }
             if (Schema::hasColumn('prospects', 'date_traitement')) {
                 $table->dropColumn('date_traitement');
+            }
+             if (Schema::hasColumn('prospects', 'facebook_id')) {
+                $table->string('facebook_id');
             }
         });
 

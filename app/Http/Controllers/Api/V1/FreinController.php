@@ -66,11 +66,20 @@ class FreinController extends Controller
      */
     public function store(StoreFreinRequest $request)
     {
+
+        // In FreinController store method
+        \Log::info('Processing Frein:', [
+            'freins' => $request->freins,
+            'selectedEtages' => $request->selectedEtages,
+            'contains_ETAGE' => str_contains(strtoupper($request->freins), 'ETAGE'),
+            'has_selectedEtages' => $request->has('selectedEtages'),
+            'selectedEtages_value' => $request->selectedEtages
+        ]);
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $frein = new Frein();
             $frein->setConnection('temp');
-            if (str_contains($request->freins, 'AUTRE')==true||str_contains($request->freins, 'autre')) {
+            if (str_contains($request->freins, 'AUTRE')==true||str_contains($request->freins, 'autre')==true) {
                 $frein->description_autre = $request->description_autre;
             }else{
                 $frein->description_autre = null;
@@ -97,20 +106,19 @@ class FreinController extends Controller
                 }
 
 
-            if (str_contains(strtoupper($request->freins), 'ETAGE')) {
-                    if ($request->has('selectedEtages') && $request->selectedEtages !== '') {
-                        $array_etage = explode(',', $request->selectedEtages);
-                        foreach ($array_etage as $valeur) {
-                            // Convert to integer first
-                            $intValue = (int)$valeur;
-                            if (is_numeric($valeur)) {
-                                // EXPLICIT conversion of -100 to 0
-                                $valueToStore = ($intValue === -100) ? 0 : $intValue;
-                                FreinEtageHelper::createFreinEtage($valueToStore, $frein->id);
+                                // Use this simpler condition:
+                    if (!empty($request->selectedEtages)) {
+                        if ($request->has('selectedEtages') && $request->selectedEtages !== '') {
+                            $array_etage = explode(',', $request->selectedEtages);
+                            foreach ($array_etage as $valeur) {
+                                $intValue = (int)$valeur;
+                                if (is_numeric($valeur)) {
+                                    $valueToStore = ($intValue === -100) ? 0 : $intValue;
+                                    FreinEtageHelper::createFreinEtage($valueToStore, $frein->id);
+                                }
                             }
                         }
                     }
-                }
 
 
                 if (!empty($request->selectedOrientations)) {
@@ -192,7 +200,7 @@ class FreinController extends Controller
         if(RoleHelper::ACSup()){
             DatabaseHelper::Config();
             $frein=Frein::on('temp')->findOrFail($id);
-            if (str_contains($request->freins, 'AUTRE')==true) {
+            if (str_contains($request->freins, 'AUTRE')==true||str_contains($request->freins, 'autre')==true) {
                 $frein->description_autre = $request->description_autre;
             }else{
                 $frein->description_autre = null;
@@ -235,22 +243,24 @@ class FreinController extends Controller
             }
 
 
-            if (str_contains(strtoupper($request->freins), 'ETAGE')) {
+
                     FreinEtageHelper::destroyFreinEtage($frein->id);
 
-                    if ($request->has('selectedEtages') && $request->selectedEtages !== '') {
-                        $array_etage = explode(',', $request->selectedEtages);
-                        foreach ($array_etage as $valeur) {
-                            // Convert to integer first
-                            $intValue = (int)$valeur;
-                            if (is_numeric($valeur)) {
-                                // EXPLICIT conversion of -100 to 0
-                                $valueToStore = ($intValue === -100) ? 0 : $intValue;
-                                FreinEtageHelper::createFreinEtage($valueToStore, $frein->id);
+
+
+                     if (!empty($request->selectedEtages)) {
+                        if ($request->has('selectedEtages') && $request->selectedEtages !== '') {
+                            $array_etage = explode(',', $request->selectedEtages);
+                            foreach ($array_etage as $valeur) {
+                                $intValue = (int)$valeur;
+                                if (is_numeric($valeur)) {
+                                    $valueToStore = ($intValue === -100) ? 0 : $intValue;
+                                    FreinEtageHelper::createFreinEtage($valueToStore, $frein->id);
+                                }
                             }
                         }
                     }
-                }
+
 
             FreinOrientationHelper::destroyFreinOrientation($frein->id);
             if (!empty($request->selectedOrientations)&& str_contains($request->freins, 'ORIENTATION')) {
@@ -455,11 +465,11 @@ class FreinController extends Controller
             $q->where('projet_id', $projet_id)->where('etat', 1);
         });
 
-    if(!RoleHelper::AdminSup()) {
+    /*if(!RoleHelper::AdminSup()) {
         $query->whereHas('visite', function ($q) use ($userAuth) {
             $q->where('user_id', $userAuth->value('id'));
         });
-    }
+    }*/
 
     // Your existing filter conditions...
     if ($request->filled('nom_prenom')) {
