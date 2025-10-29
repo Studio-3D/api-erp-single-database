@@ -6,6 +6,8 @@ use App\Enum\RoleEnum;
 use App\Enum\StatutReservationEnum;
 use App\Events\NotificationEvent;
 use App\Events\NotifMenuEvent;
+use App\Events\AvancesEvent;
+
 use App\Http\Controllers\Controller;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\NotificationHelper;
@@ -388,6 +390,12 @@ class AvanceController extends Controller
                 $st_av->user_id_valider = $userAuth->value('id');
                 $st_av->date_validation = Carbon::now();
                 $st_av->save();
+
+                 //actualiser avances
+                Config::set('broadcasting.default', 'pusher_7');
+                $reservationId = $avance->reservation_id;
+                // Broadcast event to all users subscribed to this reservation
+                broadcast(new AvancesEvent($reservationId));
             }
 
             if ($request->etat == 1) {
@@ -475,6 +483,7 @@ class AvanceController extends Controller
                 }
 
             }
+
 
             return response()->json(['message' => 'données enregistrés avec succès.'], 200);
 
@@ -740,10 +749,15 @@ class AvanceController extends Controller
                     //store commission a voir
                 }
             }
-            //actualiser menu validation avance
-            Config::set('broadcasting.default', 'pusher_5');
-            broadcast(new NotifMenuEvent(2));
-            }
+                //actualiser avances
+              Config::set('broadcasting.default', 'pusher_7');
+                $reservationId = $request->reservation_id;
+                // Broadcast event to all users subscribed to this reservation
+                broadcast(new AvancesEvent($reservationId));
+                //actualiser menu validation avance
+                Config::set('broadcasting.default', 'pusher_5');
+                broadcast(new NotifMenuEvent(2));
+              }
             return response()->json(['avance' => $avance], 200);
 
         }
@@ -1126,29 +1140,9 @@ class AvanceController extends Controller
 
                     }
                     //si commercial==> demande validation du paiement
-                    if (RoleHelper::Com()) {
-                        $data_notif = [
-                            'lien' => '/ventes/reservations/' . $avance->reservation_id,
-                            'date' => Carbon::now(),
-                            'type' => 7,
-                            'user_id'=>null,
-                            'description' => 'Validation paiement',
-                            'role'=>RoleEnum::ADMIN->value,
-                            'projet_id'=>$avance->reservation->projet_id,
-                            'avance_id'=>$avance->id,
-                            'reservation_id'=>$avance->reservation_id
-
-                        ];
-                        $notif_helper = new NotificationHelper();
-                        $notif_helper->storeNotification($request->merge($data_notif));
-                        broadcast(new NotificationEvent($id));
-                    }
-                    if($avance->reservation->statut==StatutReservationEnum::Validé->value){
-                        if (RoleHelper::Com() && $request->montant>0 ) {
-                            Config::set('broadcasting.default', 'pusher_3');
+                        if (RoleHelper::Com()) {
                             $data_notif = [
-                               // 'lien' => '/reservations/show/'.$avance->reservation_id,
-                                'lien'=>'/ventes/reservations/'.$id,
+                                'lien' => '/ventes/reservations/' . $avance->reservation_id,
                                 'date' => Carbon::now(),
                                 'type' => 7,
                                 'user_id'=>null,
@@ -1156,26 +1150,49 @@ class AvanceController extends Controller
                                 'role'=>RoleEnum::ADMIN->value,
                                 'projet_id'=>$avance->reservation->projet_id,
                                 'avance_id'=>$avance->id,
-                                'reservation_id'=>$request->reservation_id
+                                'reservation_id'=>$avance->reservation_id
 
                             ];
                             $notif_helper = new NotificationHelper();
                             $notif_helper->storeNotification($request->merge($data_notif));
-                                                    broadcast(new NotificationEvent($id));
-
-                            Config::set('broadcasting.default', 'pusher_5');
-                            //2 traitement avance
-                            broadcast(new NotifMenuEvent(2));
+                            broadcast(new NotificationEvent($id));
                         }
+                        if($avance->reservation->statut==StatutReservationEnum::Validé->value){
+                            if (RoleHelper::Com() && $request->montant>0 ) {
+                                Config::set('broadcasting.default', 'pusher_3');
+                                $data_notif = [
+                                // 'lien' => '/reservations/show/'.$avance->reservation_id,
+                                    'lien'=>'/ventes/reservations/'.$id,
+                                    'date' => Carbon::now(),
+                                    'type' => 7,
+                                    'user_id'=>null,
+                                    'description' => 'Validation paiement',
+                                    'role'=>RoleEnum::ADMIN->value,
+                                    'projet_id'=>$avance->reservation->projet_id,
+                                    'avance_id'=>$avance->id,
+                                    'reservation_id'=>$request->reservation_id
+
+                                ];
+                                $notif_helper = new NotificationHelper();
+                                $notif_helper->storeNotification($request->merge($data_notif));
+                                                        broadcast(new NotificationEvent($id));
+
+                                Config::set('broadcasting.default', 'pusher_5');
+                                //2 traitement avance
+                                broadcast(new NotifMenuEvent(2));
+                            }
+                        }
+                        Config::set('broadcasting.default', 'pusher_7');
+                        $reservationId = $request->reservation_id;
+                        // Broadcast event to all users subscribed to this reservation
+                        broadcast(new AvancesEvent($reservationId));
                     }
+                            }
 
-                }
-            }
-
-            return response()->json(['avance' => $avance], 200);
-        }
-        return response()->json(['error', 'Unauthorized'], 401);
-    }
+                            return response()->json(['avance' => $avance], 200);
+                        }
+                        return response()->json(['error', 'Unauthorized'], 401);
+                    }
     /**
      * Remove the specified resource from storage.
      */
@@ -1184,6 +1201,7 @@ class AvanceController extends Controller
         if (RoleHelper::ACSup()) {
             DatabaseHelper::config();
             $avance = Avance::on('temp')->findOrFail($id);
+            $dd=$avance;
             if(count($avance->all_piece_jointe)>0){
                 foreach($avance->all_piece_jointe as $all_p){
                     $all_p->delete();
@@ -1219,6 +1237,11 @@ class AvanceController extends Controller
             $notif->destory_force_by_column_id('avance', $id);
 
             if ($avance->forceDelete()) {
+                 Config::set('broadcasting.default', 'pusher_7');
+                $reservationId = $avance->reservation_id;
+                // Broadcast event to all users subscribed to this reservation
+                broadcast(new AvancesEvent($reservationId));
+
                 return response()->json(['message' => 'avance deleted succesfully'], 200);
             } else {
                 return response()->json(['message' => 'avance non deleted']);

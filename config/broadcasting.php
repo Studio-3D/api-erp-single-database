@@ -15,7 +15,8 @@ return [
     */
 
     'default' => env('BROADCAST_DRIVER', 'null'),
-   'default' => env('BROADCAST_CONNECTION', 'pusher_6'),
+
+
 
     /*
     |--------------------------------------------------------------------------
@@ -128,8 +129,64 @@ return [
             'port' => 443,
             'scheme' => 'https',
         ],
-        ],
 
+        ],
+        'pusher_7' => [
+            'driver' => 'pusher',
+            'key' => env('PUSHER_APP_KEY_7'),
+            'secret' => env('PUSHER_APP_SECRET_7'),
+            'app_id' => env('PUSHER_APP_ID_7'),
+            'options' => [
+            'cluster' => env('PUSHER_APP_CLUSTER_7'),
+            'encrypted' => true,
+            'useTLS' => true,
+            'host' => 'api-eu.pusher.com',
+            'port' => 443,
+            'scheme' => 'https',
+            ],
+        ],
+        'pusher_8' => [
+            'driver' => 'pusher',
+            'key' => env('PUSHER_APP_KEY_8'),
+            'secret' => env('PUSHER_APP_SECRET_8'),
+            'app_id' => env('PUSHER_APP_ID_8'),
+            'options' => [
+            'cluster' => env('PUSHER_APP_CLUSTER_8'),
+            'encrypted' => true,
+            'useTLS' => true,
+            'host' => 'api-eu.pusher.com',
+            'port' => 443,
+            'scheme' => 'https',
+            ],
+        ],
+         'pusher_9' => [
+            'driver' => 'pusher',
+            'key' => env('PUSHER_APP_KEY_9'),
+            'secret' => env('PUSHER_APP_SECRET_9'),
+            'app_id' => env('PUSHER_APP_ID_9'),
+            'options' => [
+            'cluster' => env('PUSHER_APP_CLUSTER_9'),
+            'encrypted' => true,
+            'useTLS' => true,
+            'host' => 'api-eu.pusher.com',
+            'port' => 443,
+            'scheme' => 'https',
+            ],
+        ],
+         'pusher_10' => [
+            'driver' => 'pusher',
+            'key' => env('PUSHER_APP_KEY_10'),
+            'secret' => env('PUSHER_APP_SECRET_10'),
+            'app_id' => env('PUSHER_APP_ID_10'),
+            'options' => [
+            'cluster' => env('PUSHER_APP_CLUSTER_10'),
+            'encrypted' => true,
+            'useTLS' => true,
+            'host' => 'api-eu.pusher.com',
+            'port' => 443,
+            'scheme' => 'https',
+            ],
+        ],
 
         'ably' => [
             'driver' => 'ably',

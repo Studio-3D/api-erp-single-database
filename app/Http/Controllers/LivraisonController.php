@@ -28,6 +28,10 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Models\CreneauxOccupes;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Events\RdvEvent;
+use App\Events\AttestationVenteEvent;
+use App\Events\ContratVenteEvent;
+
 
 use DB;
 
@@ -157,6 +161,10 @@ public function store_rdv_reservation($id, Request $request)
             $cren->disponible = false;
             $cren->save();
         });
+                //actualiser avances
+                Config::set('broadcasting.default', 'pusher_8');
+                // Broadcast event to all users subscribed to this reservation
+                broadcast(new RdvEvent($id));
 
         return response()->json(['message' => 'Rendez-vous enregistré avec succès'], 201);
     }
@@ -366,15 +374,26 @@ public function updateReservationCreneau($reservation_id, Request $request)
         if (RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $rdv = Rendez_vous::on('temp')->findorfail($rdv_id);
-
+            $dateDebut=$rdv->rdv;
+            $res_id=$rdv->reservation_id;
             if ($rdv->delete()) {
+                //destroy creneau occupes
+            $cren_prop=CreneauxOccupes::on('temp')->where('debut',$dateDebut)->where('reservation_id',$res_id)->first();
+                        if($cren_prop!=null){
+                            $cren_prop->forceDelete();
+                        }
                 $notification = Notification::on('temp')->where('reservation_id', $rdv->reservation_id)->where('type', 22)->orderBy('created_at', 'DESC')->get();
                 if (count($notification) > 0) {
                     foreach ($notification as $nt) {
                         $nt->delete();
                     }
                 }
+                  //actualiser avances
+                Config::set('broadcasting.default', 'pusher_8');
+                // Broadcast event to all users subscribed to this reservation
+                broadcast(new RdvEvent($res_id));
             }
+
             return response()->json(['message' => 'rdv deleted'], 200);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -502,7 +521,15 @@ public function updateReservationCreneau($reservation_id, Request $request)
                     $notif_helper = new NotificationHelper();
                     $notif_helper->storeNotification($request->merge($data_notif));
                     broadcast(new NotificationEvent($comp->id));
+
+
                 }
+                 //pusher attestation de vente
+
+                        //actualiser compromise de reservation
+                    Config::set('broadcasting.default', 'pusher_9');
+                    // Broadcast event to all users subscribed to this reservation
+                    broadcast(new AttestationVenteEvent($id));
                 return response()->json(['comp_id' => $comp->id], 200);
 
             } else {
@@ -587,6 +614,10 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 ];
                 $xx = $this->store_compromis_vente($comp->reservation_id, $request->merge($data));
                 $comp->delete();
+                 // Set the correct broadcasting connection for comporomis de vente
+                config(['broadcasting.default' => 'pusher_9']);
+                // Broadcast event
+                broadcast(new AttestationVenteEvent($comp->reservation_id));
                 return response()->json($xx);
 
             } else {
@@ -625,6 +656,9 @@ public function updateReservationCreneau($reservation_id, Request $request)
                     $notif_helper->storeNotification($request->merge($data_notif));
                     broadcast(new NotificationEvent($comp->id));
                     }*/
+                    config(['broadcasting.default' => 'pusher_9']);
+                    // Broadcast event
+                    broadcast(new AttestationVenteEvent($comp->reservation_id));
                     return response()->json(['comp_id' => $comp->id], 200);
 
                 }
@@ -689,6 +723,10 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
 
+                      //actualiser compromise de reservation
+                    Config::set('broadcasting.default', 'pusher_9');
+                    // Broadcast event to all users subscribed to this reservation
+                    broadcast(new AttestationVenteEvent($comp->reservation_id));
                 if (!$comp->save()) {
                     return response()->json(['error' => 'Échec de scanner les fichiers'], 500);
                 }
@@ -741,7 +779,10 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 $cont->commentaire = $request->commentaire;
             }
             if ($cont->save()) {
-
+                //actualiser contrat de vente
+                    Config::set('broadcasting.default', 'pusher_10');
+                    // Broadcast event to all users subscribed to this reservation
+                    broadcast(new ContratVenteEvent($id));
                 return response()->json(['contrat' => $cont], 200);
 
             } else {
@@ -792,14 +833,17 @@ public function updateReservationCreneau($reservation_id, Request $request)
             $comp->date_sign_client = $request->date_sign_client;
             $comp->date_sign_mo = $request->date_sign_mo;
             $comp->date_enreg = $request->date_enreg;
-            if ($request->commentaire == "null") {
+            if ($request->commentaire == "") {
                 $comp->commentaire = null;
             } else {
                 $comp->commentaire = $request->comment;
             }
             $comp->user_id = $userAuth->value('id');
             if ($comp->save()) {
-
+       //actualiser contrat de vente
+                    Config::set('broadcasting.default', 'pusher_10');
+                    // Broadcast event to all users subscribed to this reservation
+                    broadcast(new ContratVenteEvent($comp->reservation_id));
                 return response()->json(['contrar_id' => $comp->id], 200);
 
             }
@@ -829,7 +873,10 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/contrat_vente' . '/' . $codeReservation);
                 File::makeDirectory($directory, 0755, true, true);
                 $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
-
+                    //actualiser contrat de vente
+                    Config::set('broadcasting.default', 'pusher_10');
+                    // Broadcast event to all users subscribed to this reservation
+                    broadcast(new ContratVenteEvent($comp->reservation_id));
                 if (!$comp->save()) {
                     return response()->json(['error' => 'Échec de scanner les fichiers'], 500);
                 }
