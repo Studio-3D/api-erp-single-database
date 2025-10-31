@@ -391,11 +391,22 @@ class AvanceController extends Controller
                 $st_av->date_validation = Carbon::now();
                 $st_av->save();
 
-                 //actualiser avances
+
+
+
+
                 Config::set('broadcasting.default', 'pusher_7');
                 $reservationId = $avance->reservation_id;
                 // Broadcast event to all users subscribed to this reservation
-                broadcast(new AvancesEvent($reservationId));
+                broadcast(new AvancesEvent($reservationId,null));
+                // Get all users who should receive this update (admins, managers, etc.)
+                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                    ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                    ->get();
+                    // Broadcast to each user's specific channel
+                foreach ($usersToNotify as $user) {
+                  event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
             }
 
             if ($request->etat == 1) {
@@ -750,10 +761,19 @@ class AvanceController extends Controller
                 }
             }
                 //actualiser avances
-              Config::set('broadcasting.default', 'pusher_7');
+                 Config::set('broadcasting.default', 'pusher_7');
                 $reservationId = $request->reservation_id;
                 // Broadcast event to all users subscribed to this reservation
-                broadcast(new AvancesEvent($reservationId));
+                broadcast(new AvancesEvent($reservationId,null));
+                // Get all users who should receive this update (admins, managers, etc.)
+                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                    ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                    ->get();
+                    // Broadcast to each user's specific channel
+                foreach ($usersToNotify as $user) {
+                  event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
+
                 //actualiser menu validation avance
                 Config::set('broadcasting.default', 'pusher_5');
                 broadcast(new NotifMenuEvent(2));
@@ -1182,10 +1202,21 @@ class AvanceController extends Controller
                                 broadcast(new NotifMenuEvent(2));
                             }
                         }
-                        Config::set('broadcasting.default', 'pusher_7');
-                        $reservationId = $request->reservation_id;
-                        // Broadcast event to all users subscribed to this reservation
-                        broadcast(new AvancesEvent($reservationId));
+
+
+                            //actualiser avances
+                         Config::set('broadcasting.default', 'pusher_7');
+                            $reservationId = $request->reservation_id;
+                            // Broadcast event to all users subscribed to this reservation
+                            broadcast(new AvancesEvent($reservationId,null));
+                            // Get all users who should receive this update (admins, managers, etc.)
+                            $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                                ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                                ->get();
+                                // Broadcast to each user's specific channel
+                            foreach ($usersToNotify as $user) {
+                            event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
                     }
                             }
 
@@ -1237,10 +1268,21 @@ class AvanceController extends Controller
             $notif->destory_force_by_column_id('avance', $id);
 
             if ($avance->forceDelete()) {
-                 Config::set('broadcasting.default', 'pusher_7');
+            Config::set('broadcasting.default', 'pusher_7');
                 $reservationId = $avance->reservation_id;
                 // Broadcast event to all users subscribed to this reservation
-                broadcast(new AvancesEvent($reservationId));
+                broadcast(new AvancesEvent($reservationId,null));
+                // Get all users who should receive this update (admins, managers, etc.)
+
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                    ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                    ->get();
+                    // Broadcast to each user's specific channel
+                foreach ($usersToNotify as $user) {
+                  event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
 
                 return response()->json(['message' => 'avance deleted succesfully'], 200);
             } else {
