@@ -391,11 +391,22 @@ class AvanceController extends Controller
                 $st_av->date_validation = Carbon::now();
                 $st_av->save();
 
-                 //actualiser avances
+
+
+
+
                 Config::set('broadcasting.default', 'pusher_7');
                 $reservationId = $avance->reservation_id;
                 // Broadcast event to all users subscribed to this reservation
-                broadcast(new AvancesEvent($reservationId));
+                broadcast(new AvancesEvent($reservationId,null));
+                // Get all users who should receive this update (admins, managers, etc.)
+                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                    ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                    ->get();
+                    // Broadcast to each user's specific channel
+                foreach ($usersToNotify as $user) {
+                  event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
             }
 
             if ($request->etat == 1) {
@@ -594,35 +605,53 @@ class AvanceController extends Controller
 
                 ////storer les pieces jointe de paiement
 
-                {if ($request->files_avance) {
+                 if ($request->has('processed_files') && !empty($request->processed_files)) {
+                                $piecesJointeController = new PiecesJointeController();
 
-                    foreach ($request->files_avance as $file) {
+                                foreach ($request->processed_files as $fileInfo) {
+                                    $pieceJointeRequest = new StorePiecesJointeRequest();
+
+                                    $datapieceJointe = [
+                                        'fichier' => $fileInfo['file_name'],
+                                        'type' => $fileInfo['file_type'],
+                                        'avance_id' => $avance->id,
+                                        'active' => 1,
+                                    ];
+
+                                    $pieceJointeRequest->merge($datapieceJointe);
+                                    $piecesJointeController->store($pieceJointeRequest);
+                                }
+                            }
+
+                            else if ($request->files_avance) {
+
+                                foreach ($request->files_avance as $file) {
 
 
-                        $piecesJointeController = new PiecesJointeController();
-                        $pieceJointeRequest = new StorePiecesJointeRequest();
-                        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-                        $user_connecter = $userAuth->value('user_id_origin');
-                        $user_societes = User::where('id', $user_connecter)->first();
-                        $societe = Societe::findOrfail($user_societes->societe_id);
+                                    $piecesJointeController = new PiecesJointeController();
+                                    $pieceJointeRequest = new StorePiecesJointeRequest();
+                                    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                                    $user_connecter = $userAuth->value('user_id_origin');
+                                    $user_societes = User::where('id', $user_connecter)->first();
+                                    $societe = Societe::findOrfail($user_societes->societe_id);
 
-                        // Récupérer le nom du fichier
-                        $fileName = $file->getClientOriginalName();
-                        $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements' . '/' . $reservation->code_reservation);
-                        File::makeDirectory($directory, 0755, true, true);
-                        $file->move($directory, $fileName);
-                        $fileType = $file->getClientOriginalExtension();
-                        $datapieceJointe = [
-                            'fichier' => $fileName,
-                            'type' => $fileType,
-                            'avance_id' => $avance->id,
-                            'active' => 1,
-                        ];
+                                    // Récupérer le nom du fichier
+                                    $fileName = $file->getClientOriginalName();
+                                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements' . '/' . $reservation->code_reservation);
+                                    File::makeDirectory($directory, 0755, true, true);
+                                    $file->move($directory, $fileName);
+                                    $fileType = $file->getClientOriginalExtension();
+                                    $datapieceJointe = [
+                                        'fichier' => $fileName,
+                                        'type' => $fileType,
+                                        'avance_id' => $avance->id,
+                                        'active' => 1,
+                                    ];
 
-                        $pieceJointeRequest->merge($datapieceJointe);
-                        $piecesJointeController->store($pieceJointeRequest);
-                    }
-                }
+                                    $pieceJointeRequest->merge($datapieceJointe);
+                                    $piecesJointeController->store($pieceJointeRequest);
+                                }
+                            }
                 //send notification d'echeance
                 if ($avance->echeance != null) {
                     Config::set('broadcasting.default', 'pusher_3');
@@ -750,17 +779,26 @@ class AvanceController extends Controller
                 }
             }
                 //actualiser avances
-              Config::set('broadcasting.default', 'pusher_7');
+                 Config::set('broadcasting.default', 'pusher_7');
                 $reservationId = $request->reservation_id;
                 // Broadcast event to all users subscribed to this reservation
-                broadcast(new AvancesEvent($reservationId));
+                broadcast(new AvancesEvent($reservationId,null));
+                // Get all users who should receive this update (admins, managers, etc.)
+                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                    ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                    ->get();
+                    // Broadcast to each user's specific channel
+                foreach ($usersToNotify as $user) {
+                  event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
+
                 //actualiser menu validation avance
                 Config::set('broadcasting.default', 'pusher_5');
                 broadcast(new NotifMenuEvent(2));
               }
             return response()->json(['avance' => $avance], 200);
 
-        }
+
         return response()->json(['error' => 'Unauthorized'], 201);
     }
 
@@ -907,38 +945,38 @@ class AvanceController extends Controller
                    $pjController->destoryFileUsingAvanceId($id,$societe);
 
                }
-               if ($request->file('files_avance')) {
+                           if ($request->file('files_avance')) {
 
-                   //****delete old piece jointe***
+                                //****delete old piece jointe***
 
-                   $pjController = new PiecesJointeController();
-                   $pjController->destoryFileUsingAvanceId($id,$societe);
+                                $pjController = new PiecesJointeController();
+                                $pjController->destoryFileUsingAvanceId($id,$societe);
 
-                   foreach ($request->file('files_avance') as $file) {
+                                foreach ($request->file('files_avance') as $file) {
 
-                       $piecesJointeController = new PiecesJointeController();
-                       $pieceJointeRequest = new StorePiecesJointeRequest();
+                                    $piecesJointeController = new PiecesJointeController();
+                                    $pieceJointeRequest = new StorePiecesJointeRequest();
 
-                       // Récupérer le nom du fichier
-                       $Myfile = $file->getClientOriginalName();
+                                    // Récupérer le nom du fichier
+                                    $Myfile = $file->getClientOriginalName();
 
-                       $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
-                       File::makeDirectory($directory, 0755, true, true);
-                       $file->move($directory, $Myfile);
-                       $fileType = $file->getClientOriginalExtension();
-                       $datapieceJointe = [
-                           'fichier' => $Myfile,
-                           'type' => $fileType,
-                           'avance_id' => $avance->id,
-                           'active' => 1,
+                                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id  . '/paiements' . '/' . $reservation->code_reservation);
+                                    File::makeDirectory($directory, 0755, true, true);
+                                    $file->move($directory, $Myfile);
+                                    $fileType = $file->getClientOriginalExtension();
+                                    $datapieceJointe = [
+                                        'fichier' => $Myfile,
+                                        'type' => $fileType,
+                                        'avance_id' => $avance->id,
+                                        'active' => 1,
 
-                       ];
+                                    ];
 
-                       $pieceJointeRequest->merge($datapieceJointe);
-                       $piecesJointeController->store($pieceJointeRequest);
+                                    $pieceJointeRequest->merge($datapieceJointe);
+                                    $piecesJointeController->store($pieceJointeRequest);
 
-                   }
-               }
+                                }
+                            }
                 if($request->sr=='0'){
                     $avance->sr=0;
                 }
@@ -1182,10 +1220,21 @@ class AvanceController extends Controller
                                 broadcast(new NotifMenuEvent(2));
                             }
                         }
-                        Config::set('broadcasting.default', 'pusher_7');
-                        $reservationId = $request->reservation_id;
-                        // Broadcast event to all users subscribed to this reservation
-                        broadcast(new AvancesEvent($reservationId));
+
+
+                            //actualiser avances
+                         Config::set('broadcasting.default', 'pusher_7');
+                            $reservationId = $request->reservation_id;
+                            // Broadcast event to all users subscribed to this reservation
+                            broadcast(new AvancesEvent($reservationId,null));
+                            // Get all users who should receive this update (admins, managers, etc.)
+                            $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                                ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                                ->get();
+                                // Broadcast to each user's specific channel
+                            foreach ($usersToNotify as $user) {
+                            event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
                     }
                             }
 
@@ -1237,10 +1286,21 @@ class AvanceController extends Controller
             $notif->destory_force_by_column_id('avance', $id);
 
             if ($avance->forceDelete()) {
-                 Config::set('broadcasting.default', 'pusher_7');
+            Config::set('broadcasting.default', 'pusher_7');
                 $reservationId = $avance->reservation_id;
                 // Broadcast event to all users subscribed to this reservation
-                broadcast(new AvancesEvent($reservationId));
+                broadcast(new AvancesEvent($reservationId,null));
+                // Get all users who should receive this update (admins, managers, etc.)
+
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                    ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                    ->get();
+                    // Broadcast to each user's specific channel
+                foreach ($usersToNotify as $user) {
+                  event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
+
 
                 return response()->json(['message' => 'avance deleted succesfully'], 200);
             } else {

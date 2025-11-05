@@ -13,10 +13,12 @@ class AvancesEvent implements ShouldBroadcast
 
    // public $avanceData;
     public $reservationId;
+    public $userId;
 
-    public function __construct($reservationId)
+    public function __construct($reservationId,$userId=null)
     {
         $this->reservationId = $reservationId;
+        $this->userId = $userId;
                config(['broadcasting.default' => 'pusher_7']);
 
     }
@@ -24,7 +26,13 @@ class AvancesEvent implements ShouldBroadcast
     public function broadcastOn()
     {
         // Broadcast to reservation-specific channel
-        return new Channel('avances-updates-' . $this->reservationId);
+       if ($this->userId) {
+            // User-specific channel
+            return new Channel("res-show-user-{$this->userId}");
+        } else {
+            // Fallback to reservation-specific channel
+            return new Channel("avances-updates-{$this->reservationId}");
+        }
     }
 
     // Specify the connection to use
@@ -43,6 +51,7 @@ class AvancesEvent implements ShouldBroadcast
         // Fix: Access specific array elements, not the entire array
         return [
             'reservationId' => $this->reservationId,
+            'userId' => $this->userId,
             'timestamp' => now()->toISOString()
         ];
     }

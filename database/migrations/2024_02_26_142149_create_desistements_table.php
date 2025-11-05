@@ -40,6 +40,7 @@ return new class extends Migration
         $table->integer('bien_id_new')->nullable();
         $table->double('montant_a_ajouter')->nullable();
         $table->string('montant_a_ajouter_par_lettre')->nullable();
+        $table->string('type_remb')->nullable();
 
         $table->boolean('sr')->default(0);
         $table->foreignId('banque_id')->nullable()->constrained('banques')->onDelete('cascade');

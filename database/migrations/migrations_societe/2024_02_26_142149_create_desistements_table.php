@@ -35,6 +35,7 @@ return new class extends Migration
         MotifDesistement::Autre_investissement->value,
         MotifDesistement::Probléme_de_santé->value,
         ])->nullable()->comment('1=>Incapacité_Financière 2=>Décès 3=>Problème_familier 4=>Mutation 5=>Licenciement 6=>Insatisfaction 7=>Echange 8=>Credit Bancaire non accepte 9=>Client Imposé 10=>Autre Investissement  11=>Probleme de sante');
+        $table->string('type_remb')->nullable();
 
         $table->enum('lien_parente',[LienParente::Parents->value,LienParente::Fils->value,LienParente::Fréres->value,LienParente::Soeurs->value,LienParente::Autre->value])->nullable()->comment('1=>parent 2=>fils 3=>frere 4=>soeur 5=>autre');
         $table->foreignId('bien_id_ancien')->nullable()->constrained('biens')->onDelete('cascade');

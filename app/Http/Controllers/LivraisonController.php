@@ -51,10 +51,11 @@ class LivraisonController extends Controller
             $data = Rendez_vous::on('temp')
                 ->where('reservation_id', $reservation_id)
                 ->select('rendez_vous.*')->orderBy('created_at', 'desc')->get();
-            $last_rdv = $data->take(1);
-            $data_p = PaginationHelper::paginate_array(array_slice($data->toArray(), 1), $perPage, $page, $request->url());
-            $reservation = Reservation::on('temp')->findorfail($reservation_id);
-            return response()->json(['last_rdv' => $last_rdv,'rdv'=>$data, 'historiques' => $data_p, 'etat_res' => $reservation->etat, 'contrat_vente' => $reservation->contrat_vente], 200);
+           // $last_rdv = $data->take(1);
+            //$data_p = PaginationHelper::paginate_array(array_slice($data->toArray(), 1), $perPage, $page, $request->url());
+            //'historiques' => $data_p
+            //'last_rdv' => $last_rdv,
+            return response()->json(['rdv'=>$data], 200);
 
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -526,10 +527,10 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 }
                  //pusher attestation de vente
 
-                        //actualiser compromise de reservation
+                       /* //actualiser compromise de reservation
                     Config::set('broadcasting.default', 'pusher_9');
                     // Broadcast event to all users subscribed to this reservation
-                    broadcast(new AttestationVenteEvent($id));
+                    broadcast(new AttestationVenteEvent($id));*/
                 return response()->json(['comp_id' => $comp->id], 200);
 
             } else {
@@ -614,10 +615,10 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 ];
                 $xx = $this->store_compromis_vente($comp->reservation_id, $request->merge($data));
                 $comp->delete();
-                 // Set the correct broadcasting connection for comporomis de vente
+                /* // Set the correct broadcasting connection for comporomis de vente
                 config(['broadcasting.default' => 'pusher_9']);
                 // Broadcast event
-                broadcast(new AttestationVenteEvent($comp->reservation_id));
+                broadcast(new AttestationVenteEvent($comp->reservation_id));*/
                 return response()->json($xx);
 
             } else {
@@ -656,9 +657,9 @@ public function updateReservationCreneau($reservation_id, Request $request)
                     $notif_helper->storeNotification($request->merge($data_notif));
                     broadcast(new NotificationEvent($comp->id));
                     }*/
-                    config(['broadcasting.default' => 'pusher_9']);
+                   /* config(['broadcasting.default' => 'pusher_9']);
                     // Broadcast event
-                    broadcast(new AttestationVenteEvent($comp->reservation_id));
+                    broadcast(new AttestationVenteEvent($comp->reservation_id));*/
                     return response()->json(['comp_id' => $comp->id], 200);
 
                 }
@@ -677,7 +678,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
 
-            $compromis = Compromis_vente::on('temp')->where('reservation_id', $id)->orderby('created_at', 'desc')->first();
+            $compromis = Compromis_vente::on('temp')->without('reservation')->where('reservation_id', $id)->orderby('created_at', 'desc')->first();
             if ($compromis != null) {
                 $compromis_annule_count = Compromis_vente::on('temp')->where('reservation_id', $compromis->reservation_id)->onlyTrashed()->orderby('created_at', 'desc')->count();
 
@@ -685,8 +686,8 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 $compromis_annule_count = 0;
             }
             $res = new ReservationController();
-            $reservation = $res->show($id);
-            return response()->json(['compromis' => $compromis, 'compromis_annule_count' => $compromis_annule_count, 'reservation' => $reservation], 200);
+          //  $reservation = $res->show($id);
+            return response()->json(['compromis' => $compromis, 'compromis_annule_count' => $compromis_annule_count], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -742,17 +743,17 @@ public function updateReservationCreneau($reservation_id, Request $request)
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $contrat = Contrat_vente::on('temp')->where('reservation_id', $id)->orderby('created_at', 'desc')->first();
+            $contrat = Contrat_vente::on('temp')->where('reservation_id', $id)->without('reservation')->orderby('created_at', 'desc')->first();
             $res = new ReservationController();
-            $reservation = $res->show($id);
-            return response()->json(['contrat' => $contrat, 'reservation' => $reservation], 200);
+            //$reservation = $res->show($id);
+            //'reservation' => $reservation
+            return response()->json(['contrat' => $contrat ], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
     public function store_contrat_vente($id, Request $request)
     {
-
         if (RoleHelper::ACSup()) {
 
             $user = Auth::user();
@@ -773,18 +774,17 @@ public function updateReservationCreneau($reservation_id, Request $request)
             $cont->date_sign_mo = $request->date_sign_mo;
             $cont->date_enreg = $request->date_enreg;
             $cont->user_id = $userAuth->value('id');
-            if ($request->commentaire == "null") {
+                if ($request->commentaire == "" || $request->commentaire == "null") {
                 $cont->commentaire = null;
             } else {
                 $cont->commentaire = $request->commentaire;
             }
             if ($cont->save()) {
-                //actualiser contrat de vente
+                 /*/actualiser contrat de vente
                     Config::set('broadcasting.default', 'pusher_10');
                     // Broadcast event to all users subscribed to this reservation
-                    broadcast(new ContratVenteEvent($id));
+                    broadcast(new ContratVenteEvent($id));*/
                 return response()->json(['contrat' => $cont], 200);
-
             } else {
                 return response()->json(['error' => 'Unauthorized'], 401);
             }
@@ -833,17 +833,18 @@ public function updateReservationCreneau($reservation_id, Request $request)
             $comp->date_sign_client = $request->date_sign_client;
             $comp->date_sign_mo = $request->date_sign_mo;
             $comp->date_enreg = $request->date_enreg;
-            if ($request->commentaire == "") {
-                $comp->commentaire = null;
-            } else {
-                $comp->commentaire = $request->comment;
-            }
+            // Fix: Use consistent field name
+        if ($request->comment == "" || $request->comment == "null") {
+            $comp->commentaire = null;
+        } else {
+            $comp->commentaire = $request->comment;
+        }
             $comp->user_id = $userAuth->value('id');
             if ($comp->save()) {
-       //actualiser contrat de vente
+       /*//actualiser contrat de vente
                     Config::set('broadcasting.default', 'pusher_10');
                     // Broadcast event to all users subscribed to this reservation
-                    broadcast(new ContratVenteEvent($comp->reservation_id));
+                    broadcast(new ContratVenteEvent($comp->reservation_id));*/
                 return response()->json(['contrar_id' => $comp->id], 200);
 
             }

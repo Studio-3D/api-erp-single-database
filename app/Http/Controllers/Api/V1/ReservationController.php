@@ -262,79 +262,190 @@ class ReservationController extends Controller
      * Store a newly created resource in storage.
      */
 
+    public function store(StoreReservationRequest $request)
+{
+    $user = Auth::user();
+    if (!RoleHelper::ACSup()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
 
-            public function store(StoreReservationRequest $request)
-            {
+    DatabaseHelper::Config();
+    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+    $societe_id = Auth::guard('api')->user()->societe_id;
+    $societe = Societe::findOrfail($societe_id);
+    $DatabaseName = 'Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
+    $reservation = null;
 
-                    $user = Auth::user();
-                    if (!RoleHelper::ACSup()) {
-                        return response()->json(['error' => 'Unauthorized'], 401);
-                    }
+    DB::connection('temp')->beginTransaction();
 
-                    DatabaseHelper::Config();
-                    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
-                    $societe_id = Auth::guard('api')->user()->societe_id;
-                    $societe=Societe::findOrfail( $societe_id);
-                    $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
-                    // Declare $reservation before try block
-                    $reservation = null;
-
-                    // Start database transaction
-                    DB::connection('temp')->beginTransaction();
-
-                    try {
-                        // Validate bien status if provided
-                        if ($request->bien_id) {
-                            $bien_prop = Bien::on('temp')->findOrFail($request->bien_id);
-                            if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' &&
-                                $bien_prop->is_proposed->user_id != $userAuth->user_id_origin) {
-                                return response()->json([
-                                    'error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien .
-                                    ' est en cours de proposition par : ' .
-                                    $bien_prop->is_proposed->user->name . ' ' .
-                                    $bien_prop->is_proposed->user->prenom
-                                ], 333);
-                            }
-                        }
-
-
-                        // Validate unique code if provided
-                        if ($request->has('code_reservation')) {
-                            $request->validate([
-                                'code_reservation' => [
-                                    Rule::unique('temp.'.$DatabaseName.'.reservations')
-                                                                ->where('etat', 1)->whereNull('deleted_at'),
-                                ],
-                            ]);
-                        }
-
-                        // Create temporary reservation with minimal data
-                        $reservation = $this->createTemporaryReservation($request, $userAuth);
-
-                        // Process all dependent operations
-                        $this->processDependencies($reservation, $request, $userAuth);
-
-                        // Finalize the reservation
-                        $this->finalizeReservation($reservation, $userAuth);
-
-                        // Commit transaction
-                        DB::connection('temp')->commit();
-
-                        return response()->json(['reservation' => $reservation], 200);
-
-                    } catch (\Exception $e) {
-                        // First rollback the transaction
-                        DB::connection('temp')->rollBack();
-
-                        // Then clean up if reservation was created
-                        if ($reservation !== null) {
-                            $this->rollbackReservationCreation($reservation);
-                        }
-
-                        \Log::error("Reservation creation failed: " . $e->getMessage());
-                        return response()->json(['error' => 'Reservation creation failed: ' . $e->getMessage()], 500);
-                    }
+    try {
+        // Validate bien status if provided
+        if ($request->bien_id) {
+            $bien_prop = Bien::on('temp')->findOrFail($request->bien_id);
+            if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' &&
+                $bien_prop->is_proposed->user_id != $userAuth->user_id_origin) {
+                return response()->json([
+                    'error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien .
+                    ' est en cours de proposition par : ' .
+                    $bien_prop->is_proposed->user->name . ' ' .
+                    $bien_prop->is_proposed->user->prenom
+                ], 333);
             }
+        }
+
+        // Validate unique code if provided
+        if ($request->has('code_reservation')) {
+            $request->validate([
+                'code_reservation' => [
+                    Rule::unique('temp.'.$DatabaseName.'.reservations')
+                                        ->where('etat', 1)->whereNull('deleted_at'),
+                ],
+            ]);
+        }
+
+        // Create temporary reservation with minimal data
+        $reservation = $this->createTemporaryReservation($request, $userAuth);
+
+        // PROCESS FILES IMMEDIATELY AFTER CREATING RESERVATION
+        $this->processReservationFiles($reservation, $request, $societe);
+
+        // Process all dependent operations
+        $this->processDependencies($reservation, $request, $userAuth);
+
+        // Finalize the reservation
+        $this->finalizeReservation($reservation, $userAuth);
+
+        // Commit transaction
+        DB::connection('temp')->commit();
+
+        return response()->json(['reservation' => $reservation], 200);
+
+    } catch (\Exception $e) {
+        DB::connection('temp')->rollBack();
+
+        if ($reservation !== null) {
+            $this->rollbackReservationCreation($reservation);
+        }
+
+        \Log::error("Reservation creation failed: " . $e->getMessage());
+        return response()->json(['error' => 'Reservation creation failed: ' . $e->getMessage()], 500);
+    }
+}
+
+/**
+ * Process reservation files immediately
+ */
+private function processReservationFiles($reservation, $request, $societe)
+{
+    if (!$request->hasFile('files_reservation')) {
+        return;
+    }
+
+    $files = $request->file('files_reservation');
+
+    // Check if files are still valid
+    if (!is_array($files) || empty($files)) {
+        \Log::warning('No valid files found in request');
+        return;
+    }
+
+    foreach ($files as $file) {
+        if (!$file->isValid()) {
+            \Log::error('File upload error: ' . $file->getError());
+            continue;
+        }
+
+        try {
+            $piecesJointeController = new PiecesJointeController();
+            $pieceJointeRequest = new StorePiecesJointeRequest();
+
+            // Get file name and type
+            $fileName = $file->getClientOriginalName();
+            $fileType = $file->getClientOriginalExtension();
+
+            // Create directory
+            $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/'.$reservation->code_reservation);
+
+            if (!File::exists($directory)) {
+                File::makeDirectory($directory, 0755, true, true);
+            }
+
+            // Move file with error handling
+            $filePath = $directory . '/' . $fileName;
+
+            if (!file_exists($file->getPathname())) {
+                throw new \Exception("Temporary file does not exist: " . $file->getPathname());
+            }
+
+            // Copy file instead of move to preserve original
+            if (!copy($file->getPathname(), $filePath)) {
+                throw new \Exception("Failed to copy file to destination: " . $filePath);
+            }
+
+            $datapieceJointe = [
+                'fichier' => $fileName,
+                'type' => $fileType,
+                'reservation_id' => $reservation->id,
+                'active' => 1,
+            ];
+
+            $pieceJointeRequest->merge($datapieceJointe);
+            $piecesJointeController->store($pieceJointeRequest);
+
+            \Log::info('File processed successfully: ' . $fileName);
+
+        } catch (\Exception $e) {
+            \Log::error('Error processing file: ' . $e->getMessage());
+            throw $e; // Re-throw to trigger rollback
+        }
+    }
+}
+
+// Update finalizeReservation to remove file processing
+private function finalizeReservation($reservation, $userAuth)
+{
+    // Create status record if validated
+    if ($reservation->statut == StatutReservationEnum::Validé->value) {
+        $res_statut = new statutReservation();
+        $res_statut->setConnection('temp');
+        $res_statut->reservation_id = $reservation->id;
+        $res_statut->statut = StatutReservationEnum::Validé->value;
+        $res_statut->user_id_valider = $userAuth->id;
+        $res_statut->date_validation = Carbon::now();
+        $res_statut->save();
+    }
+
+    $histo = new HistoReservation();
+    $histo->setConnection('temp');
+    $histo->reservation_id = $reservation->id;
+    $histo->user_id = $userAuth->id;
+    $histo->bien_id = request()->bien_id;
+    $histo->action = 2;
+    $histo->description = 'Création du Réservation';
+    $histo->save();
+
+    // Send notifications if needed
+    if (RoleHelper::Com()) {
+        Config::set('broadcasting.default', 'pusher_3');
+
+        $data_notif = [
+            'lien' => '/ventes/reservations/'.$reservation->id,
+            'date' => Carbon::now(),
+            'type' => 6,
+            'role' => RoleEnum::ADMIN->value,
+            'description' => 'DEMANDE VALIDATION RESERVATION',
+            'projet_id' => $reservation->projet_id,
+            'reservation_id' => $reservation->id,
+        ];
+
+        (new NotificationHelper())->storeNotification(request()->merge($data_notif));
+        broadcast(new NotificationEvent($reservation->id));
+
+        Config::set('broadcasting.default', 'pusher_5');
+        broadcast(new NotifMenuEvent(1));
+    }
+}
+
 
 
             private function rollbackReservationCreation($reservation)
@@ -397,7 +508,6 @@ class ReservationController extends Controller
                     if (!$reservation->save()) {
                         throw new \Exception('Failed to create temporary reservation');
                     }
-
                     return $reservation;
                 }
 
@@ -418,12 +528,7 @@ class ReservationController extends Controller
                 if ($request->avance) {
                     $this->processPayment($reservation, $request);
                 }
-
-                // Process files if specified
-                if ($request->file('files_reservation')) {
-                    $this->processFiles($reservation, $request, $userAuth);
-                }
-            }
+}
 
             /**
              * Process client data
@@ -512,6 +617,11 @@ class ReservationController extends Controller
                 $avanceRequest = new StoreAvanceRequest();
                 $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
                 $mnt_lettre = $inWords->format($request->avance);
+                // Process avance files immediately and store file names
+                    $avanceFileNames = [];
+                    if ($request->file('files_avance')) {
+                        $avanceFileNames = $this->processAvanceFiles($reservation, $request);
+                    }
 
                 $dataAvance = [
                     'avance_with_reservation' => true,
@@ -530,7 +640,9 @@ class ReservationController extends Controller
                     'commentaireAvance' => $request->commentaireAvance,
                     'num_remise' => $request->num_remise,
                     'date_encaissement' => $request->date_encaissement,
-                    'files_avance' => $request->file('files_avance'),
+                    //'files_avance' => $request->file('files_avance'),
+                    'processed_files' => $avanceFileNames, // Pass processed file names instead of file objects
+
                 ];
 
                 $avanceRequest->merge($dataAvance);
@@ -540,96 +652,65 @@ class ReservationController extends Controller
             /**
              * Process file uploads
              */
-            private function processFiles($reservation, $request, $userAuth)
-            {
 
-                $user_societes = User::where('id', $userAuth->user_id_origin)->first();
-                $societe = Societe::findOrFail($user_societes->societe_id);
 
-                foreach ($request->file('files_reservation') as $file) {
-                    $piecesJointeController = new PiecesJointeController();
-                    $pieceJointeRequest = new StorePiecesJointeRequest();
-                    $fileName = $file->getClientOriginalName();
-                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reservations/' . $reservation->code_reservation);
+                private function processAvanceFiles($reservation, $request)
+                {
+                    $processedFiles = [];
+                    $societe_id = Auth::guard('api')->user()->societe_id;
+                    $societe = Societe::findOrfail($societe_id);
 
-                    File::makeDirectory($directory, 0755, true, true);
-                    $file->move($directory, $fileName);
+                    foreach ($request->file('files_avance') as $file) {
+                        if (!$file->isValid()) {
+                            \Log::error('Avance file upload error: ' . $file->getError());
+                            continue;
+                        }
 
-                    $datapieceJointe = [
-                        'fichier' => $fileName,
-                        'type' => $file->getClientOriginalExtension(),
-                        'reservation_id' => $reservation->id,
-                        'active' => 1,
-                    ];
+                        try {
+                            // Get file name and type
+                            $fileName = $file->getClientOriginalName();
+                            $fileType = $file->getClientOriginalExtension();
 
-                    $pieceJointeRequest->merge($datapieceJointe);
-                    $piecesJointeController->store($pieceJointeRequest);
+                            // Create directory
+                            $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/paiements/' . $reservation->code_reservation);
+
+                            if (!File::exists($directory)) {
+                                File::makeDirectory($directory, 0755, true, true);
+                            }
+
+                            $filePath = $directory . '/' . $fileName;
+
+                            // Copy file to permanent location
+                            if (!copy($file->getPathname(), $filePath)) {
+                                throw new \Exception("Failed to copy avance file to destination: " . $filePath);
+                            }
+
+                            $processedFiles[] = [
+                                'file_name' => $fileName,
+                                'file_type' => $fileType,
+                                'file_path' => $filePath,
+                            ];
+
+                            \Log::info('Avance file processed successfully: ' . $fileName);
+
+                        } catch (\Exception $e) {
+                            \Log::error('Error processing avance file: ' . $e->getMessage());
+                            throw $e;
+                        }
+                    }
+
+                    return $processedFiles;
                 }
-            }
 
-            /**
-             * Finalize the reservation
-             */
-           private function finalizeReservation($reservation, $userAuth)
-{
-
-
-    // Create status record if validated
-    if ($reservation->statut == StatutReservationEnum::Validé->value) {
-        $res_statut = new statutReservation();
-                $res_statut->setConnection('temp');
-                $res_statut->reservation_id = $reservation->id;
-                $res_statut->statut = StatutReservationEnum::Validé->value;
-                $res_statut->user_id_valider = $userAuth->id;
-                $res_statut->date_validation = Carbon::now();
-                $res_statut->save();
-    }
-
-     $histo = new HistoReservation();
-                        $histo->setConnection('temp');
-                        $histo->reservation_id = $reservation->id;
-                        $histo->user_id = $userAuth->id;
-                        $histo->bien_id = request()->bien_id;
-                        $histo->action=2;
-                        $histo->description = 'Création du Réservation';
-                        $histo->save();
-
-
-    // Send notifications if needed
-    if (RoleHelper::Com()) {
-        Config::set('broadcasting.default', 'pusher_3');
-
-        $data_notif = [
-            'lien' => '/ventes/reservations/'.$id,
-            'date' => Carbon::now(),
-            'type' => 6,
-            'role' => RoleEnum::ADMIN->value,
-            'description' => 'DEMANDE VALIDATION RESERVATION',
-            'projet_id' => $reservation->projet_id,
-            'reservation_id' => $reservation->id,
-        ];
-
-        (new NotificationHelper())->storeNotification(request()->merge($data_notif));
-        broadcast(new NotificationEvent($reservation->id));
-
-        Config::set('broadcasting.default', 'pusher_5');
-        broadcast(new NotifMenuEvent(1));
-    }
-}
-
-    /**
-     * Display the specified resource.
-     */
-
-    public function search_reservation_by_code($code)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $reservation = Reservation::on('temp')->where('code_reservation', $code)->where('etat', 1)
-                ->get()->first();
-            return response()->json(['reservation' => $reservation]);
-        }
-    }
+                public function search_reservation_by_code($code)
+                {
+                    if (RoleHelper::ACSup()) {
+                        DatabaseHelper::Config();
+                        $reservation = Reservation::on('temp')->where('code_reservation', $code)->where('etat', 1)
+                            ->get()->first();
+                        return response()->json(['reservation' => $reservation]);
+                    }
+                }
 
     public function info_reservation($id)
     {
@@ -678,52 +759,124 @@ class ReservationController extends Controller
         }
     }
 
-    public function show($id)
-    {
-        if (RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            $reservation = Reservation::on('temp')->withSum('avances','montant')->with('desistements_ancien','rdv','avances','last_statut','contrat_vente','piece_jointe_desiste','piece_jointe','remboursement_dd_with_transfert','first_avance','desistement_att_validation_rejete')->findOrFail($id);
+public function show($id)
+{
+    if (RoleHelper::ACSup()) {
+        DatabaseHelper::Config();
 
-            //get nom propriete _dite_bien concat
-            $propriete = null;
-            if ($reservation->bien_id != null) {
-                $bien = new VisiteController();
-                $propriete = $bien->get_propriete_bien_concat($reservation->bien_id);
-            }
-            $sum_avances_valides = 0;
-           // $sum_avances = 0;
-            //si dossier desiste
-            if ($reservation->etat > 1) {
-                foreach ($reservation->avances_desist as $av) {
-                    //avance validé
-                    if ($av->statut == StatutReservationEnum::Validé->value) {
-                        $sum_avances_valides += $av->montant;
-                    }
-                    /*//tous les avances !=refuse
-                if($av->statut!=StatutReservationEnum::REFUSER->value){
-                $sum_avances+=$av->montant;
-                }*/
+        $reservation = Reservation::on('temp')
+            ->withSum('avances','montant')
+            ->without('avances_valides')
+            ->with([
+                'historiques' => function($query) {
+                    $query->select('id', 'reservation_id', 'bien_id', 'user_id', 'action', 'description', 'created_at')
+                          ->with([
+                              'user' => function($q) {
+                                  $q->select('id', 'name', 'prenom')->without('societe');
+                              },
+                              'bien' => function($q) {
+                                  $q->select('id', 'propriete_dite_bien', 'tranche_id', 'bloc_id', 'immeuble_id')
+                                 ->without('projet','typologie','vue','compositionBien','typeBien')
+                                    ->with([
+                                        'immeuble' => function($t) {
+                                            $t->select('id', 'nom') ->without(['projet', 'tranche','bloc']);
+                                        },
+                                        'bloc' => function($b) {
+                                            $b->select('id', 'nom')
+                                        ->without(['projet', 'tranche']);
+                                        },
+                                        'tranche' => function($i) {
+                                            $i->select('id', 'nom')
+                                         ->without(['projet']);
+                                        }
+                                    ]);
+                              }
+                          ])
+                          ->orderBy('created_at', 'desc');
+                },
+                'bien' => function($query) {
+                    $query->with([
+                        'immeuble' => function($q) {
+                            $q->select('id', 'nom')
+                              ->without(['projet', 'tranche','bloc']);
+                        },
+                        'bloc' => function($q) {
+                            $q->select('id', 'nom')
+                              ->without(['projet', 'tranche']);
+                        },
+                        'tranche' => function($q) {
+                            $q->select('id', 'nom')
+                              ->without(['projet']);
+                        }
+                    ]);
+                   // $query->without('projet','typologie','vue','compositionBien','typeBien');
+                },
+                'last_statut' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'compromis_vente' => function($query) {
+                    $query-> select('*')->without('reservation','user');
+                },
+                'contrat_vente' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'first_avance' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'projet' => function($query) {
+                    $query->select('id', 'nom', 'adresse')
+                          ->without('user_projet', 'type_projet');
+                },
+
+            ])
+            ->findOrFail($id);
+
+
+        // Hide avances_valides from response
+        $reservation->makeHidden('avances_valides');
+
+        $sum_avances_valides = 0;
+
+        // Conditionally replace aquereurs with aquereurs_ancien if etat > 1
+        if ($reservation->etat > 1) {
+             $reservation->load('remboursement_dd_with_transfert');
+            // Load aquereurs_ancien relationship
+            $reservation->load('aquereurs_ancien');
+            // Replace aquereurs with aquereurs_ancien for the response
+            $reservation->aquereurs = $reservation->aquereurs_ancien;
+            // Hide the original aquereurs_ancien from response if needed
+            $reservation->makeHidden('aquereurs_ancien');
+
+            $reservation->load('desistements_ancien');
+
+            // Load piece_jointe_desiste when etat > 1
+            $reservation->load('piece_jointe_desiste');
+            // Hide piece_jointe from response
+            $reservation->makeHidden('piece_jointe');
+            foreach ($reservation->avances_desist as $av) {
+                if ($av->statut == StatutReservationEnum::Validé->value) {
+                    $sum_avances_valides += $av->montant;
                 }
-               // $count_avances = Avance::on('temp')->where('reservation_id', $id)->onlyTrashed()->count('id');
-
-            } else {
-                foreach ($reservation->avances_valides as $av) {
-                        $sum_avances_valides += $av->montant;
-
-                    /*//tous les avances !=refuse
-                if($av->statut!=StatutReservationEnum::REFUSER->value){
-                $sum_avances+=$av->montant;
-                }*/
-                }
-               // $count_avances = Avance::on('temp')->where('reservation_id', $id)->count('id');
-
             }
-
-            return response()->json(['reservation' => $reservation, 'propriete_dite_bien' => $propriete, 'sum_avances_valides' => $sum_avances_valides], 200);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        } else if($reservation->etat == 1) {
+             // Load piece_jointe when etat == 1
+            $reservation->load('piece_jointe');
+            // Hide piece_jointe_desiste from response
+            $reservation->makeHidden('piece_jointe_desiste');
+            // Load desistement_att_validation_rejete only when etat == 1
+            $reservation->load('desistement_att_validation_rejete');
+             foreach ($reservation->avances_valides as $av) {
+                $sum_avances_valides += $av->montant;
+            }
         }
+        return response()->json([
+            'reservation' => $reservation,
+            'sum_avances_valides' => $sum_avances_valides
+        ], 200);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
 
     public function get_pj_res($id, Request $request)
@@ -1001,10 +1154,10 @@ class ReservationController extends Controller
                 $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
                 $societe = Societe::findOrfail($user_societes->societe_id);
 
-                if (!$request->file('files_reservation')) {
+                /*if (!$request->file('files_reservation')) {
                     $pjController = new PiecesJointeController();
                     $pjController->destoryFileUsingReservationId($id,$reservation->code_reservation,$societe);
-                }
+                }*/
                 if ($request->file('files_reservation')) {
 
                     //*delete old piece jointe**

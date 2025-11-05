@@ -45,6 +45,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
 use \NumberFormatter;
 use App\Models\StatutReservation;
+use Illuminate\Support\Facades\DB;
 
 class DesistementController extends Controller
 {

@@ -14,8 +14,7 @@ class Reservation extends Model
 
     protected $table='reservations';
     protected $dates=['deleted_at'];
-    protected $with = ['bien', 'user', 'projet','aquereurs','aquereurs_ancien','historiques','piece_jointe'];
-
+    protected $with = [ 'user', 'projet','historiques','piece_jointe','bien','aquereurs','aquereurs_ancien'];
 
     public function visite(){
         return $this->belongsTo(Visite::class,'visite_id');
