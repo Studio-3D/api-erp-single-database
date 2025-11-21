@@ -45,6 +45,8 @@ use App\Models\HistoriqueBien;
 use App\Models\PreReservation;
 use App\Models\HistoriqueDesistement;
 use App\Models\Rendez_vous;
+use Mail;
+use Illuminate\Support\Facades\Log;
 
 use App\Models\Compromis_vente;
 use App\Models\Contrat_vente;
@@ -265,74 +267,74 @@ class ReservationController extends Controller
      */
 
     public function store(StoreReservationRequest $request)
-{
-    $user = Auth::user();
-    if (!RoleHelper::ACSup()) {
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
+    {
+        $user = Auth::user();
+        if (!RoleHelper::ACSup()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-    DatabaseHelper::Config();
-    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
-    $societe_id = Auth::guard('api')->user()->societe_id;
-    $societe = Societe::findOrfail($societe_id);
-    $DatabaseName = 'Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
-    $reservation = null;
+        DatabaseHelper::Config();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+        $societe_id = Auth::guard('api')->user()->societe_id;
+        $societe = Societe::findOrfail($societe_id);
+        $DatabaseName = 'Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
+        $reservation = null;
 
-    DB::connection('temp')->beginTransaction();
+        DB::connection('temp')->beginTransaction();
 
-    try {
-        // Validate bien status if provided
-        if ($request->bien_id) {
-            $bien_prop = Bien::on('temp')->findOrFail($request->bien_id);
-            if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' &&
-                $bien_prop->is_proposed->user_id != $userAuth->user_id_origin) {
-                return response()->json([
-                    'error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien .
-                    ' est en cours de proposition par : ' .
-                    $bien_prop->is_proposed->user->name . ' ' .
-                    $bien_prop->is_proposed->user->prenom
-                ], 333);
+        try {
+            // Validate bien status if provided
+            if ($request->bien_id) {
+                $bien_prop = Bien::on('temp')->findOrFail($request->bien_id);
+                if ($bien_prop->etat == 'ENCOURS_DE_PROPOSITION' &&
+                    $bien_prop->is_proposed->user_id != $userAuth->user_id_origin) {
+                    return response()->json([
+                        'error_33' => 'le bien choisi :' . $bien_prop->propriete_dite_bien .
+                        ' est en cours de proposition par : ' .
+                        $bien_prop->is_proposed->user->name . ' ' .
+                        $bien_prop->is_proposed->user->prenom
+                    ], 333);
+                }
             }
+
+            // Validate unique code if provided
+            if ($request->has('code_reservation')) {
+                $request->validate([
+                    'code_reservation' => [
+                        Rule::unique('temp.'.$DatabaseName.'.reservations')
+                                            ->where('etat', 1)->whereNull('deleted_at'),
+                    ],
+                ]);
+            }
+
+            // Create temporary reservation with minimal data
+            $reservation = $this->createTemporaryReservation($request, $userAuth);
+
+            // PROCESS FILES IMMEDIATELY AFTER CREATING RESERVATION
+            $this->processReservationFiles($reservation, $request, $societe);
+
+            // Process all dependent operations
+            $this->processDependencies($reservation, $request, $userAuth);
+
+            // Finalize the reservation
+            $this->finalizeReservation($reservation, $userAuth);
+
+            // Commit transaction
+            DB::connection('temp')->commit();
+
+            return response()->json(['reservation' => $reservation], 200);
+
+        } catch (\Exception $e) {
+            DB::connection('temp')->rollBack();
+
+            if ($reservation !== null) {
+                $this->rollbackReservationCreation($reservation);
+            }
+
+            \Log::error("Reservation creation failed: " . $e->getMessage());
+            return response()->json(['error' => 'Reservation creation failed: ' . $e->getMessage()], 500);
         }
-
-        // Validate unique code if provided
-        if ($request->has('code_reservation')) {
-            $request->validate([
-                'code_reservation' => [
-                    Rule::unique('temp.'.$DatabaseName.'.reservations')
-                                        ->where('etat', 1)->whereNull('deleted_at'),
-                ],
-            ]);
-        }
-
-        // Create temporary reservation with minimal data
-        $reservation = $this->createTemporaryReservation($request, $userAuth);
-
-        // PROCESS FILES IMMEDIATELY AFTER CREATING RESERVATION
-        $this->processReservationFiles($reservation, $request, $societe);
-
-        // Process all dependent operations
-        $this->processDependencies($reservation, $request, $userAuth);
-
-        // Finalize the reservation
-        $this->finalizeReservation($reservation, $userAuth);
-
-        // Commit transaction
-        DB::connection('temp')->commit();
-
-        return response()->json(['reservation' => $reservation], 200);
-
-    } catch (\Exception $e) {
-        DB::connection('temp')->rollBack();
-
-        if ($reservation !== null) {
-            $this->rollbackReservationCreation($reservation);
-        }
-
-        \Log::error("Reservation creation failed: " . $e->getMessage());
-        return response()->json(['error' => 'Reservation creation failed: ' . $e->getMessage()], 500);
     }
-}
 
 /**
  * Process reservation files immediately
@@ -445,6 +447,34 @@ private function finalizeReservation($reservation, $userAuth)
 
         Config::set('broadcasting.default', 'pusher_5');
         broadcast(new NotifMenuEvent(1));
+
+        //send mail to admin avec etat
+        $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+        if($admins->count() > 0){
+            foreach($admins as $admin){
+                try {
+                    $to_email = $admin->email;
+                    $data = [
+                        'adminName' => $admin->name,
+                        'reservationCode' => $reservation->code_reservation,
+                        'validationLink' => 'http://localhost:3000/ventes/reservations/'.$reservation->id,
+                        'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                        'createdBy' => $userAuth->name ?? 'Un commercial'
+                    ];
+
+                    Mail::send('emails.demande_validation_reservation', $data, function ($message) use ($to_email, $reservation) {
+                        $message->to($to_email)
+                            ->subject('Demande Validation Réservation : '.$reservation->code_reservation);
+                        $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                    });
+
+                    Log::info("Email de demande de validation envoyé à l'admin: {$admin->email}");
+
+                } catch (\Exception $e) {
+                    Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                }
+            }
+        }
     }
 }
 

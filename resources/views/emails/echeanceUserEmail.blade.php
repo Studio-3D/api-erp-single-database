@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirmation de Rendez-vous</title>
+    <title>Échéance à venir</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -22,7 +22,7 @@
             overflow: hidden;
         }
         .header {
-            background: linear-gradient(135deg, #2c3e50, #3498db);
+            background: linear-gradient(135deg, #f39c12, #e67e22);
             color: #ffffff;
             padding: 30px 20px;
             text-align: center;
@@ -40,11 +40,18 @@
             margin-top: 0;
         }
         .info-card {
-            background: #f8f9fa;
-            border-left: 4px solid #3498db;
-            padding: 15px;
+            background: #fffaf0;
+            border-left: 4px solid #f39c12;
+            padding: 20px;
             margin: 20px 0;
-            border-radius: 4px;
+            border-radius: 8px;
+        }
+        .amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e74c3c;
+            text-align: center;
+            margin: 15px 0;
         }
         .footer {
             background: #2c3e50;
@@ -53,28 +60,18 @@
             text-align: center;
             font-size: 14px;
         }
-        .btn {
-            display: inline-block;
-            margin: 20px 0;
-            padding: 12px 30px;
-            background: #3498db;
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 Votre Rendez-vous Immobilier</h1>
+            <h1>📅 Échéance à Venir</h1>
         </div>
 
         <div class="content">
             <h2>Bonjour {{ $name }} !</h2>
 
-            <p>Nous sommes ravis de vous confirmer votre rendez-vous pour le projet immobilier suivant :</p>
+            <p>Une échéance importante approche pour le projet suivant :</p>
 
             <div class="info-card">
                 <p><strong>Projet :</strong> {{ $projet ?? 'Non spécifié' }}</p>
@@ -82,14 +79,20 @@
                 <p><strong>Bien concerné :</strong> {{ $bien }}</p>
                 @endif
                 @if($prospectName)
-                <p><strong>Prospect :</strong> {{ $prospectName }}</p>
+                <p><strong>Client :</strong> {{ $prospectName }}</p>
                 @endif
-                <p><strong>Date du rendez-vous :</strong> {{ $date }}</p>
+                <p><strong>Date d'échéance :</strong> {{ $echeance ? \Carbon\Carbon::parse($echeance)->format('d/m/Y') : $date }}</p>
+
+                @if($montant)
+                <div class="amount">
+                    Montant : {{ number_format($montant, 2, ',', ' ') }} €
+                </div>
+                @endif
             </div>
 
-            <p>Nous vous attendons avec impatience pour échanger sur ce projet qui correspond parfaitement à vos attentes.</p>
+            <p>Merci de prendre les dispositions nécessaires pour le suivi de cette échéance.</p>
 
-            <p>Pour toute modification ou question, n'hésitez pas à nous contacter.</p>
+            <p>L'équipe Immobilier</p>
         </div>
 
         <div class="footer">

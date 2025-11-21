@@ -46,7 +46,8 @@ use Illuminate\Support\Facades\File;
 use \NumberFormatter;
 use App\Models\StatutReservation;
 use Illuminate\Support\Facades\DB;
-
+use Mail;
+use Illuminate\Support\Facades\Log;
 class DesistementController extends Controller
 {
     public function create()
@@ -73,6 +74,7 @@ class DesistementController extends Controller
              // Get code desistement - improved logic
             $code_desist_reservation = 0;
             $reservation = Reservation::on('temp')->findOrFail($request->reservation_id);
+            $code_res=$reservation->code_reservation;
 
             // If reservation already has a code, use it
             if (!empty($reservation->code_desistement)) {
@@ -716,23 +718,59 @@ class DesistementController extends Controller
                             $fiche->date = Carbon::now();
                         }
                         if ($fiche->save()) {
-                            //if (RoleHelper::Com()) {
-                            //notifiction to admin de valider penalite
-                            $data_notif = [
-                                'lien' => '/ventes/desistements/penalites/' . $pen->id,
-                                'date' => Carbon::now(),
-                                'type' => 22,
-                                'description' => 'DEMANDE VALIDATION Pénalité',
-                                'role' => RoleEnum::ADMIN->value,
-                                'projet_id' => $desistement->projet_id,
-                                'reservation_id' => $desistement->reservation_id,
+                          if (RoleHelper::Com()) {
+                                //notification to admin de valider penalite
+                                $data_notif = [
+                                    'lien' => '/ventes/desistements/penalites/' . $pen->id,
+                                    'date' => Carbon::now(),
+                                    'type' => 22,
+                                    'description' => 'DEMANDE VALIDATION Pénalité',
+                                    'role' => RoleEnum::ADMIN->value,
+                                    'projet_id' => $desistement->projet_id,
+                                    'reservation_id' => $desistement->reservation_id,
+                                ];
+                                $notif_helper = new NotificationHelper();
+                                $notif_helper->storeNotification($request->merge($data_notif));
 
-                            ];
-                            $notif_helper = new NotificationHelper();
-                            $notif_helper->storeNotification($request->merge($data_notif));
+                                broadcast(new NotificationEvent($pen->id));
 
-                            broadcast(new NotificationEvent($pen->id));
-                            // }
+                                // Configuration broadcasting pour notification menu
+                                Config::set('broadcasting.default', 'pusher_5');
+                                broadcast(new NotifMenuEvent(22)); // Type pour pénalités
+
+                                //send mail to admin pour validation pénalité
+                                $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                                if($admins->count() > 0){
+                                    foreach($admins as $admin){
+                                        try {
+                                            $to_email = $admin->email;
+
+                                            // Eager load the relationships to avoid N+1 queries
+                                            $data = [
+                                                'adminName' => $admin->name,
+                                                'penaliteCode' => $pen->num_recu ?? 'N/A',
+                                                'reservationCode' => $code_res ?? 'N/A',
+                                                'montantPenalite' => number_format($pen->montant, 2, ',', ' ') . ' €',
+                                                'validationLink' => 'http://localhost:3000/ventes/desistements/penalites/'.$pen->id,
+                                                'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                                'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
+                                                'projetName' => $reservation->projet->nom ?? 'Non spécifié'
+                                            ];
+
+                                            Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
+                                                $message->to($to_email)
+                                                    ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res ?? 'N/A'));
+                                                $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                                            });
+
+                                            Log::info("Email de demande de validation pénalité envoyé à l'admin: {$admin->email}");
+
+                                        } catch (\Exception $e) {
+                                            Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                     }
@@ -1526,7 +1564,7 @@ class DesistementController extends Controller
                         'lien' => '/ventes/desistements/show/' . $desistement->id,
                         'date' => Carbon::now(),
                         'type' => 9,
-                        'description' => 'Demance Validation desistement',
+                        'description' => 'Demande Validation desistement',
                         'role' => RoleEnum::ADMIN->value,
                         'projet_id' => $desistement->projet_id,
                         'reservation_id' => $desistement->reservation_id,
@@ -1537,7 +1575,38 @@ class DesistementController extends Controller
 
                     broadcast(new NotificationEvent($desistement->id));
 
-                }
+                                        //send mail to admin avec etat
+                 //send mail to admin avec etat
+                    $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                    if($admins->count() > 0){
+                        foreach($admins as $admin){
+                            try {
+                                $to_email = $admin->email;
+                                // Get the reservation properly
+
+                                $data = [
+                                    'adminName' => $admin->name,
+                                    'reservationCode' => $code_res ?? 'N/A',
+                                    'validationLink' => 'http://localhost:3000/ventes/desistements/show/'.$desistement->id,
+                                    'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                    'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
+                                    'projetName' => $reservation->projet->nom ?? 'Non spécifié',
+                                ];
+
+                                Mail::send('emails.demande_validation_desistement', $data, function ($message) use ($to_email, $code_res) {
+                                    $message->to($to_email)
+                                        ->subject('Demande Validation Désistement - Réservation : '.($code_res ?? 'N/A'));
+                                    $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                                });
+
+                                Log::info("Email de demande de validation désistement envoyé à l'admin: {$admin->email}");
+
+                            } catch (\Exception $e) {
+                                Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                            }
+                        }
+                    }
+                    }
 
             }
 
@@ -3101,7 +3170,7 @@ class DesistementController extends Controller
                     $fiche->date = Carbon::now();
                 }
                 if ($fiche->save()) {
-                    // if (RoleHelper::Com()) {
+                     if (RoleHelper::Com()) {
                     //notifiction to admin de valider penalite
                     $data_notif = [
                         'lien' => '/ventes/desistements/penalites/' . $pen->id,
@@ -3117,7 +3186,44 @@ class DesistementController extends Controller
                     $notif_helper->storeNotification($request->merge($data_notif));
 
                     broadcast(new NotificationEvent($pen->id));
-                    // }
+
+
+                     //send mail to admin pour validation pénalité
+                    $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                    if($admins->count() > 0){
+                        foreach($admins as $admin){
+                            try {
+                                $to_email = $admin->email;
+
+                                // Eager load the relationships to avoid N+1 queries
+                                            $code_res=$pen->desistement->reservation->code_reservation;
+                                            $data = [
+                                                'adminName' => $admin->name,
+                                                'penaliteCode' => $pen->num_recu ?? 'N/A',
+                                                'reservationCode' =>$code_res ?? 'N/A',
+                                                'montantPenalite' => number_format($pen->montant, 2, ',', ' ') . ' €',
+                                                'validationLink' => 'http://localhost:3000/ventes/desistements/penalites/'.$pen->id,
+                                                'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                                'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
+                                                'projetName' => $pen->desistement->projet->nom ?? 'Non spécifié'
+                                            ];
+
+
+                                Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
+                                    $message->to($to_email)
+                                        ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res ?? 'N/A'));
+                                    $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                                });
+
+                                Log::info("Email de demande de validation pénalité envoyé à l'admin: {$admin->email}");
+
+                            } catch (\Exception $e) {
+                                Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                            }
+                        }
+                    }
+
+                     }
                 }
 
             }

@@ -7,7 +7,8 @@ use App\Enum\StatutReservationEnum;
 use App\Events\NotificationEvent;
 use App\Events\NotifMenuEvent;
 use App\Events\AvancesEvent;
-
+use Mail;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\NotificationHelper;
@@ -755,8 +756,41 @@ class AvanceController extends Controller
                 }
                 //si avance est cree without reservaation au depart
                 //si commercial==> demande validation du paiement
-                if($request->avance_with_reservation==false && $avance->reservation->statut==StatutReservationEnum::Validé->value){
+               // && $avance->reservation->statut==StatutReservationEnum::Validé->value
+                if($request->avance_with_reservation==false ){
                     if (RoleHelper::Com() && $request->montant>0 ) {
+                    //send mail to admin avec etat
+                    $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                    if($admins->count() > 0){
+                        foreach($admins as $admin){
+                            try {
+                                $to_email = $admin->email;
+
+                                $data = [
+                                    'adminName' => $admin->name,
+                                    'reservationCode' => $avance->reservation->code_reservation,
+                                    'avanceNumero' => $avance->num_recu,
+                                    'montantAvance' => number_format($request->montant, 2, ',', ' '),
+                                    'validationLink' => 'http://localhost:3000/ventes/reservations/'.$request->reservation_id,
+                                    'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                    'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
+                                    'projetName' => $avance->reservation->projet->nom ?? 'Non spécifié'
+                                ];
+
+                                Mail::send('emails.demande_validation_avance', $data, function ($message) use ($to_email, $avance) {
+                                    $message->to($to_email)
+                                        ->subject('Demande Validation Avance : '.$avance->num_recu.' - Réservation : '.$avance->reservation->code_reservation);
+                                    $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                                });
+
+                                Log::info("Email de demande de validation avance envoyé à l'admin: {$admin->email}");
+
+                            } catch (\Exception $e) {
+                                Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                            }
+                        }
+                    }
+
                         Config::set('broadcasting.default', 'pusher_3');
                         $data_notif = [
                            // 'lien' => '/reservations/show/'.$avance->reservation_id,
@@ -777,6 +811,9 @@ class AvanceController extends Controller
                         Config::set('broadcasting.default', 'pusher_5');
                         //2 traitement avance
                         broadcast(new NotifMenuEvent(2));
+
+
+
                     }
                 }
 
@@ -1252,49 +1289,62 @@ class AvanceController extends Controller
 
                     }
                     //si commercial==> demande validation du paiement
-                        if (RoleHelper::Com()) {
-                            $data_notif = [
-                                'lien' => '/ventes/reservations/' . $avance->reservation_id,
-                                'date' => Carbon::now(),
-                                'type' => 7,
-                                'user_id'=>null,
-                                'description' => 'Validation paiement',
-                                'role'=>RoleEnum::ADMIN->value,
-                                'projet_id'=>$avance->reservation->projet_id,
-                                'avance_id'=>$avance->id,
-                                'reservation_id'=>$avance->reservation_id
-
-                            ];
-                            $notif_helper = new NotificationHelper();
-                            $notif_helper->storeNotification($request->merge($data_notif));
-                            broadcast(new NotificationEvent($id));
-                        }
-                        if($avance->reservation->statut==StatutReservationEnum::Validé->value){
-                            if (RoleHelper::Com() && $request->montant>0 ) {
+                       //if($avance->reservation->statut == StatutReservationEnum::Validé->value){
+                            if (RoleHelper::Com() && $request->montant > 0) {
                                 Config::set('broadcasting.default', 'pusher_3');
                                 $data_notif = [
-                                // 'lien' => '/reservations/show/'.$avance->reservation_id,
-                                    'lien'=>'/ventes/reservations/'.$id,
+                                    'lien' => '/ventes/reservations/'.$id,
                                     'date' => Carbon::now(),
                                     'type' => 7,
-                                    'user_id'=>null,
+                                    'user_id' => null,
                                     'description' => 'Validation paiement',
-                                    'role'=>RoleEnum::ADMIN->value,
-                                    'projet_id'=>$avance->reservation->projet_id,
-                                    'avance_id'=>$avance->id,
-                                    'reservation_id'=>$request->reservation_id
-
+                                    'role' => RoleEnum::ADMIN->value,
+                                    'projet_id' => $avance->reservation->projet_id,
+                                    'avance_id' => $avance->id,
+                                    'reservation_id' => $request->reservation_id
                                 ];
+
                                 $notif_helper = new NotificationHelper();
                                 $notif_helper->storeNotification($request->merge($data_notif));
-                                                        broadcast(new NotificationEvent($id));
+                                broadcast(new NotificationEvent($id));
 
                                 Config::set('broadcasting.default', 'pusher_5');
-                                //2 traitement avance
                                 broadcast(new NotifMenuEvent(2));
-                            }
-                        }
 
+                                //send mail to admin avec etat
+                                                   //send mail to admin avec etat
+                                $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                                if($admins->count() > 0){
+                                    foreach($admins as $admin){
+                                        try {
+                                            $to_email = $admin->email;
+
+                                            $data = [
+                                                'adminName' => $admin->name,
+                                                'reservationCode' => $avance->reservation->code_reservation,
+                                                'avanceNumero' => $avance->num_recu,
+                                                'montantAvance' => number_format($request->montant, 2, ',', ' '),
+                                                'validationLink' => 'http://localhost:3000/ventes/reservations/'.$request->reservation_id,
+                                                'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                                'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
+                                                'projetName' => $avance->reservation->projet->nom ?? 'Non spécifié'
+                                            ];
+
+                                            Mail::send('emails.demande_validation_avance', $data, function ($message) use ($to_email, $avance) {
+                                                $message->to($to_email)
+                                                    ->subject('Demande Validation Avance : '.$avance->num_recu.' - Réservation : '.$avance->reservation->code_reservation);
+                                                $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                                            });
+
+                                            Log::info("Email de demande de validation avance envoyé à l'admin: {$admin->email}");
+
+                                        } catch (\Exception $e) {
+                                            Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                                        }
+                                    }
+                                }
+                            }
+                      //  }
 
                             //actualiser avances
                          Config::set('broadcasting.default', 'pusher_7');
