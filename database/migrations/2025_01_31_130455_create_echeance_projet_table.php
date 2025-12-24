@@ -17,9 +17,11 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('projet_id')->constrained('projets')->onDelete('cascade');
             $table->string('description');
-            $table->date('date_debut');
-            $table->date('date_fin');
-            $table->enum('etat',[0,1,2])->comment('0=>non Commencé 1=>Terminé 2 En cours');
+            $table->date('date_debut')->nullable();
+            $table->date('date_fin')->nullable();
+            $table->date('date_debut_prevu');
+            $table->date('date_fin_prevu');
+            $table->enum('etat', [0,1,2])->default(0)->comment('0=>non Commencé 1=>Terminé 2 En cours');
             $table->softDeletes();
             $table->timestamps();
         });

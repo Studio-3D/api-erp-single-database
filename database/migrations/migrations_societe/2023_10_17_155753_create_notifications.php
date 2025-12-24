@@ -20,7 +20,7 @@ return new class extends Migration
             $table->dateTime('date')->nullable();;
             $table->bigInteger('type');
             $table->string('description_type');
-            $table->enum('role',[RoleEnum::SUPERADMIN->value,RoleEnum::ADMIN->value,RoleEnum::COMMERCIAL->value])->nullable()->comment('1=>superamin 2=>admin 3=>commercial');
+            $table->enum('role',[RoleEnum::SUPERADMIN->value,RoleEnum::ADMIN->value,RoleEnum::COMMERCIAL->value,RoleEnum::ADMIN_COMMERCIAL])->nullable()->comment('1=>superamin 2=>admin 3=>commercial');
             $table->foreignId('user_id')->nullable()->references('user_id_origin')->on('users')->onDelete('cascade');
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->foreignId('projet_id')->nullable()->constrained('projets')->onDelete('cascade');
@@ -29,7 +29,7 @@ return new class extends Migration
             $table->foreignId('reservation_id')->nullable()->constrained('reservations')->onDelete('cascade');
             $table->foreignId('bien_id')->nullable()->constrained('biens')->onDelete('cascade');
             $table->foreignId('traite_appel_id')->nullable()->constrained('traitements_appels')->onDelete('cascade');
-            $table->boolean('seen')->default(false);
+            $table->json('seen')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

@@ -16,6 +16,12 @@ return new class extends Migration
             $table->enum('statut', [0, 1, 2, 3])
                   ->comment('0=>en_attente 1=>en_cours 2=>importe 3=>echoue')
                   ->change();
+
+            // Add type column
+            $table->enum('type', [0, 2])
+                  ->nullable()
+                  ->comment('0=>creer bien ,1=>modif en masse')
+                  ->default('0');
         });
     }
 
@@ -29,6 +35,9 @@ return new class extends Migration
             $table->enum('statut', [0, 1, 2])
                   ->comment('0=>en cours 1=>success 2=>echoué')
                   ->change();
+
+            // Remove the type column in rollback
+            $table->dropColumn('type');
         });
     }
 };

@@ -207,7 +207,11 @@ class ClientController extends Controller
             $client->prospect_id          = $request->prospect_id==''?null:$request->prospect_id;
             $client->code_client          = $request->cin . '_' . $request->nom . '_' . $request->prenom;
             $client->password             = '01020304';
+                    \Log::info('Attempting to save client...');
+
             if ($client->save()) {
+            \Log::info('Client saved successfully with ID: ' . $client->id);
+
                 if ($client->prospect_id != null) {
                     $prospect            = Prospect::on('temp')->findorfail($client->prospect_id);
                     $prospect->client_id = $client->id;
@@ -240,7 +244,12 @@ class ClientController extends Controller
                 } catch (\Throwable $e) {
                     \Log::warning('mysql_client insert failed: ' . $e->getMessage());
                 }
+                 \Log::info('Client===>: ' . $client);
                 return $client;
+            }
+            else {
+            \Log::error('Client save failed');
+            \Log::error('Client errors:', $client->getErrors());
             }
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -254,7 +263,7 @@ class ClientController extends Controller
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
 
-            $client = Client::on('temp')->findOrFail($id);
+            $client = Client::on('temp')->with('prospect','prospect.appels')->findOrFail($id);
             $reservations = $client->reservations()->with([
                 'bien', 'user', 'projet', 'aquereurs.client'
             ])->get();

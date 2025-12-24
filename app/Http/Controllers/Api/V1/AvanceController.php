@@ -493,7 +493,7 @@ class AvanceController extends Controller
                     //5 echeances
                     broadcast(new NotifMenuEvent(5));
                 }
-                if ($avance->reservation->user->role == RoleEnum::COMMERCIAL->value) {
+                if ($avance->user->role == RoleEnum::COMMERCIAL->value) {
                     Config::set('broadcasting.default', 'pusher_3');
 
                     $data_notif = [
@@ -546,7 +546,7 @@ class AvanceController extends Controller
                 //2 traitement avance
                 Config::set('broadcasting.default', 'pusher_5');
                 broadcast(new NotifMenuEvent(2));
-                if ($avance->reservation->user->role == RoleEnum::COMMERCIAL->value) {
+                if ($avance->user->role == RoleEnum::COMMERCIAL->value) {
 
                     //store new notification rejeté
                     Config::set('broadcasting.default', 'pusher_3');
@@ -1293,7 +1293,7 @@ class AvanceController extends Controller
                             if (RoleHelper::Com() && $request->montant > 0) {
                                 Config::set('broadcasting.default', 'pusher_3');
                                 $data_notif = [
-                                    'lien' => '/ventes/reservations/'.$id,
+                                    'lien' => '/ventes/reservations/'. $avance->reservation_id,
                                     'date' => Carbon::now(),
                                     'type' => 7,
                                     'user_id' => null,

@@ -133,7 +133,7 @@ class DesistementController extends Controller
                 }
             }
 
-            $desistement->commentaire = $request->commentaire=="null"?null:$request->commentaire;
+            $desistement->commentaire = $request->commentaire=="null"||$request->commentaire=="undefined"?null:$request->commentaire;
             $desistement->bien_id_ancien = $request->bien_id_ancien;
             $desistement->projet_id = $request->projet_id;
 
@@ -235,11 +235,18 @@ class DesistementController extends Controller
 
                                     if ($cl_remb['type_remb']  == 'transfert_remb') {
                                         $remboursement->dossier_id_transfert = $cl_remb['dossier_id'];
-                                        $remboursement->date_rembourse = $cl_remb['date_rembourse'];
-                                        $remboursement->mode_rembourse_client = $cl_remb['mode_rembourse'];
-                                        $remboursement->pour_le_compte = $cl_remb['pour_le_compte'];
-                                        $remboursement->num_paiement = $cl_remb['num_paiement'];
-                                        $remboursement->montant_transfert =  $cl_remb['montant_transferer'];
+                                                 // Check if date_rembourse is not empty before assigning
+                                                if (!empty($cl_remb['date_rembourse'])) {
+                                                    $remboursement->date_rembourse = $cl_remb['date_rembourse'];
+                                                } else {
+                                                    $remboursement->date_rembourse = null; // Set to NULL instead of empty string
+                                                }
+                                                            // Similarly handle other potentially empty fields
+                                                $remboursement->mode_rembourse_client = !empty($cl_remb['mode_rembourse']) ? $cl_remb['mode_rembourse'] : null;
+                                                $remboursement->pour_le_compte = !empty($cl_remb['pour_le_compte']) ? $cl_remb['pour_le_compte'] : null;
+                                                $remboursement->num_paiement = !empty($cl_remb['num_paiement']) ? $cl_remb['num_paiement'] : null;
+                                                $remboursement->montant_transfert = !empty($cl_remb['montant_transferer']) ? $cl_remb['montant_transferer'] : null;
+
                                         $remboursement->montant_a_rembourser = $mont_a_rembourser;
                                         $remboursement->montant_a_rembourser_par_lettre = $mont_remb_lettre;
 
@@ -2011,7 +2018,7 @@ class DesistementController extends Controller
                                             $avanceRequest = new StoreAvanceRequest();
 
                                             $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-                                            if($remboursement->mode_rembourse=='transfert_rem_direct'||$remboursement->mode_rembourse=='transfert_rem_apres_vente'){
+                                            if($remboursement->mode_rembourse=='transfert_rem_direct'||$remboursement->mode_rembourse=='transfert_rem_apres_vente'||$remboursement->mode_rembourse=='transfert'){
                                                 $montant=$remboursement->montant_transfert;
                                                 $mnt_lettre = $inWords->format($montant);
                                             }else{
@@ -3259,7 +3266,7 @@ class DesistementController extends Controller
                 ->where('statut', $statut)
                 ->where('archive', 0);
                 $query->whereHas('desistement', function ($q) use ($projet_id) {
-                    $q->where('projet_id', $projet_id)->where('archive', 0);
+                    $q->where('projet_id', $projet_id)->where('archive', 0)->where('statut', 1);
                 });
 
                  // Filtrage supplémentaire (cc, code_reservation, penalite, etc.)

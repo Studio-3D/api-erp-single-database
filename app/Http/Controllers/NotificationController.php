@@ -362,67 +362,68 @@ class NotificationController extends Controller
     return response()->json(['nb' => $rel_client_freins]);
 }
 
-    public function get_notifications(Request $request, $projet_id){
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            if(RoleHelper::AdminSup()){
-                   // Toutes les notifications (filter out type 99)
-               $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
-                    ->where(function ($query) {
-                        $query->where('role',RoleEnum::ADMIN->value)
-                            ->orWhere('user_id',Auth::guard('api')->user()->id)
-                            ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
-                    })
-                    ->where('projet_id',$projet_id)
-                    ->withTrashed()
-                    ->whereDate('date', '<=', Carbon::now())
-                    ->orderBy('id','desc')
-                    ->get();
-                  // Nombre de nouvelles notifications (not seen)
-               $new_notifications_count=Notification::on('temp')
-                    ->where('projet_id',$projet_id)
+   // Also update the get_notifications method to properly handle JSON array
+public function get_notifications(Request $request, $projet_id) {
+    if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+        DatabaseHelper::Config();
+        $userId = Auth::guard('api')->user()->id;
 
-                    ->whereNull('deleted_at')
-                    ->where('seen', false)
-                    ->where(function($q){
-                        $q->where('role', RoleEnum::ADMIN->value)
-                          ->orWhere('user_id', Auth::guard('api')->user()->id)
-                          ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
-                    })
-                    ->count();
-            }else{
-                $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
-                    ->where('projet_id',$projet_id)
-                    ->where(function($q){
-                        $q->where('user_id', Auth::guard('api')->user()->id)
-                         ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
-                    })
+        if(RoleHelper::AdminSup()) {
+            // All notifications (filter out type 99)
+            $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
+                ->where(function ($query) {
+                    $query->where('role', RoleEnum::ADMIN->value)
+                        ->orWhere('user_id', Auth::guard('api')->user()->id)
+                        ->orwhere('role', RoleEnum::ADMIN_COMMERCIAL->value);
+                })
+                ->where('projet_id', $projet_id)
+                ->withTrashed()
+                ->whereDate('date', '<=', Carbon::now())
+                ->orderBy('id', 'desc')
+                ->get()
+                ->map(function ($notification) use ($userId) {
+                    // Transform the seen field to boolean for current user
+                    $seenArray = $notification->seen ?? [];
+                    $notification->seen_for_current_user = in_array($userId, $seenArray);
+                    return $notification;
+                });
 
-                    ->withTrashed()
-                    ->whereDate('date', '<=', Carbon::now())
-                    ->orderBy('date','desc')
-                    ->get();
-                $new_notifications_count=Notification::on('temp')
-                    ->where('projet_id',$projet_id)
+            // Count notifications not seen by current user
+            $new_notifications_count = $all_notifications->filter(function ($notification) {
+                return !$notification->seen_for_current_user;
+            })->count();
 
-                    ->whereNull('deleted_at')
-                    ->where('seen', false)
-                    ->where(function($q){
-                        $q->where('user_id', Auth::guard('api')->user()->id)
-                        ->orwhere('role',RoleEnum::ADMIN_COMMERCIAL->value);
-                    })
-                    ->count();
+        } else {
+            $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
+                ->where('projet_id', $projet_id)
+                ->where(function($q) {
+                    $q->where('user_id', Auth::guard('api')->user()->id)
+                        ->orwhere('role', RoleEnum::ADMIN_COMMERCIAL->value);
+                })
+                ->withTrashed()
+                ->whereDate('date', '<=', Carbon::now())
+                ->orderBy('date', 'desc')
+                ->get()
+                ->map(function ($notification) use ($userId) {
+                    // Transform the seen field to boolean for current user
+                    $seenArray = $notification->seen ?? [];
+                    $notification->seen_for_current_user = in_array($userId, $seenArray);
+                    return $notification;
+                });
 
-            }
-           return response()->json([
-                'all_notifications' => $all_notifications,
-                'new_notifications_count'=>$new_notifications_count
-            ]);
+            $new_notifications_count = $all_notifications->filter(function ($notification) {
+                return !$notification->seen_for_current_user;
+            })->count();
         }
-         else{
-            return response()->json(['error' => 'Unauthorized'], 401);
-         }
+
+        return response()->json([
+            'all_notifications' => $all_notifications,
+            'new_notifications_count' => $new_notifications_count
+        ]);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
     public function DestroyNotif($id){
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
@@ -496,6 +497,7 @@ class NotificationController extends Controller
                 $nb_pen_att_valide = PenaliteDesistement::on('temp')->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
                 ->where('penalites_desistements.archive',0)
                 ->where('desistements.archive',0)
+                ->where('desistements.statut',1)
                 ->where('desistements.deleted_at',NULL)
                 ->where('desistements.projet_id',$projet_id)->where('penalites_desistements.statut',0)->count();
                 //avance en attente et avance  stored by admin(validé) mais sans encaissement
@@ -568,13 +570,14 @@ class NotificationController extends Controller
                 $nb_pen_en_cours = PenaliteDesistement::on('temp')->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
                 ->where('penalites_desistements.archive',0)
                 ->where('desistements.archive',0)
+                  ->where('desistements.statut',1)
                 ->where('desistements.projet_id',$projet_id)
                 ->where('penalites_desistements.statut',0)
                 ->where('desistements.user_id', $userAuth->value('id'))
                 ->where('desistements.deleted_at',NULL)
                 ->count();
 
-                
+
                 $nb_av_en_cours = Avance::on('temp')->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
                 ->whereNull('reservations.deleted_at')
                 ->where('reservations.etat', 1)
@@ -622,35 +625,72 @@ class NotificationController extends Controller
 
 
 
-    public function mark_notification_seen(Request $request) {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            $validated = $request->validate([
-                'notification_id' => 'required|integer',
-                'projet_id' => 'required|integer'
-            ]);
-            // Mark as seen for all users
-            Notification::on('temp')
-                ->where('id', $validated['notification_id'])
-                ->update(['seen' => 1]);
-            return response()->json(['success' => true]);
-        }
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
+        public function mark_notification_seen(Request $request) {
+            if (Auth::guard('api')->check()) {
+                DatabaseHelper::Config();
+                $validated = $request->validate([
+                    'notification_id' => 'required|integer',
+                    'projet_id' => 'required|integer'
+                ]);
 
-    public function mark_all_notifications_seen(Request $request) {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            $validated = $request->validate([
-                'notification_ids' => 'required|array',
-                'projet_id' => 'required|integer'
-            ]);
-            // Mark all as seen for all users
-            Notification::on('temp')
-                ->whereIn('id', $validated['notification_ids'])
-                ->update(['seen' => 1]);
-            return response()->json(['success' => true]);
+                $userId = Auth::guard('api')->user()->id;
+
+                // Get the current notification
+                $notification = Notification::on('temp')->withTrashed()->find($validated['notification_id']);
+
+                if ($notification) {
+                    // Get current seen array or initialize empty array
+                    $seenArray = $notification->seen ?? [];
+
+                    // Add current user ID to seen array if not already there
+                    if (!in_array($userId, $seenArray)) {
+                        $seenArray[] = $userId;
+
+                        // Update the notification
+                        $notification->seen = $seenArray;
+                        $notification->save();
+                    }
+
+                    return response()->json(['success' => true]);
+                }
+
+                return response()->json(['error' => 'Notification not found'], 404);
+            }
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
+
+        public function mark_all_notifications_seen(Request $request) {
+            if (Auth::guard('api')->check()) {
+                DatabaseHelper::Config();
+                $validated = $request->validate([
+                    'notification_ids' => 'required|array',
+                    'projet_id' => 'required|integer'
+                ]);
+
+                $userId = Auth::guard('api')->user()->id;
+
+                // Get all notifications for this user in the project
+                $notifications = Notification::on('temp')
+                    ->whereIn('id', $validated['notification_ids'])
+                    ->get();
+
+                foreach ($notifications as $notification) {
+                    // Get current seen array or initialize empty array
+                    $seenArray = $notification->seen ?? [];
+
+                    // Add current user ID to seen array if not already there
+                    if (!in_array($userId, $seenArray)) {
+                        $seenArray[] = $userId;
+
+                        // Update the notification
+                        $notification->seen = $seenArray;
+                        $notification->save();
+                    }
+                }
+
+                return response()->json(['success' => true]);
+            }
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
 }

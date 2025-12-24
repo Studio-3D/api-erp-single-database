@@ -16,13 +16,14 @@ return new class extends Migration
             $table->id();
             $table->string('page_fcb_id');
             $table->longText('acces_token_page');
+            $table->longText('acces_token_page_short_terme');
             $table->unsignedBigInteger('projet_id');
             $table->string('webhook_verify_token')->nullable();
             $table->boolean('webhook_enabled')->default(false);
             $table->json('webhook_subscriptions')->nullable();
             $table->softDeletes();
             $table->timestamps();
-            
+
             $table->foreign('projet_id')->references('id')->on('projets')->onDelete('cascade');
             $table->index(['projet_id', 'deleted_at']);
         });

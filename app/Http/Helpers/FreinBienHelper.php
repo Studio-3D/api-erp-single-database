@@ -14,6 +14,16 @@ use App\Events\NotifMenuEvent;
 class FreinBienHelper
 {
     public static function createFreinBien($bien_id,$frein_id){
+       // Check if the relationship already exists
+        $bien_deja_exist = Frein_Bien::where('bien_id', $bien_id)
+            ->where('frein_id', $frein_id)
+            ->first();
+
+        // If it already exists, return early
+        if ($bien_deja_exist) {
+            return false; // Or return a message indicating it already exists
+        }
+
         $frein_bien=new Frein_Bien();
         $frein_bien->setConnection('temp');
         $frein_bien->bien_id=$bien_id;

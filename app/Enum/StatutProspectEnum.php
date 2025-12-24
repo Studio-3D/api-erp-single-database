@@ -24,7 +24,7 @@ enum StatutProspectEnum: int
             self::Injoignable => 'Injoignable',
             self::Rappel => 'Rappel',
             self::Converti_en_visite => 'Converti en Visite',
-            self::Nouveau_appel => 'Nouveau Appel',
+            self::Nouveau_appel => 'Nouvel Appel',
             self::Affecte => 'Affecté',
             self::Interesse => 'Intéressé',
             self::Perdu => 'Perdu',

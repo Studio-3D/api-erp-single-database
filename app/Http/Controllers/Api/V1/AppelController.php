@@ -8,6 +8,7 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Requests\StoreTypologieRequest;
 use App\Http\Requests\UpdateTypologieRequest;
 use App\Models\Appel;
+use App\Models\Client;
 use App\Models\TraitementAppel;
 use App\Models\Frein;
 use App\Models\HistoriqueBien;
@@ -297,7 +298,6 @@ class AppelController extends Controller
 
     public function store(StoreAppelRequest $request)
     {
-
             if(RoleHelper::ACSup()){
 
                 $user = Auth::user();
@@ -305,7 +305,6 @@ class AppelController extends Controller
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                 $prospect_id=null;
                 if($request->prospect_id=="null"||$request->prospect_id==null){
-
                     $validatedData = $request->validated();
                     $validatedData['cin']=$request->cin=="null"?null:$request->cin;
                     $validatedData['nom']=$request->nom=="null"?null:$request->nom;
@@ -324,6 +323,7 @@ class AppelController extends Controller
                     $validatedData['projet_id']=$request->projet_id;
                     $prospectController = new ProspectController();
                     $prospect = $prospectController->store(new StoreProspectRequest($validatedData));
+
                 }
                 else{
 
@@ -351,6 +351,32 @@ class AppelController extends Controller
                     $prospect->save();
                 }
 
+                //store appel by client
+                if($request->client_id!=null){
+                    $client=Client::on('temp')->findOrFail($request->client_id);
+                    if($client){
+                            $client->prospect_id=$prospect->id;
+                            //$prospect->cin=$request->cin;
+                            if($request->cin!="null"){
+                                $cin_exist=Client::on('temp')->where('cin',$request->cin)->where('id','!=',$request->client_id)->count();
+                                if($cin_exist==0){
+                                    $client->cin=$request->cin;
+                                }
+                            }
+                            $client->nom= $request->nom=="null"?null:$request->nom;
+                            $client->prenom=$request->prenom=="null"?null:$request->prenom;
+                            $client->telephone_num1=  $request->telephone=="null"?null:$request->telephone;
+                            $client->telephone_num2=$request->telephone_num2=="null"?null:$request->telephone_num2;
+                            $client->ville= $request->ville=="null"?null:$request->ville;
+                            $client->email= $request->email=="null"?null:$request->email;
+
+                            if($client->save()){
+                                //set to prospect le client id
+                                $prospect->client_id=$request->client_id;
+                                $prospect->save();
+                            }
+                    }
+                }
                 //fetch if prosect_id has already an appel
 
                 $appels_prospect=Appel::on('temp')->where('prospect_id',$prospect->id)->first();

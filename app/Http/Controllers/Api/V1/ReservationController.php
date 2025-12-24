@@ -23,6 +23,7 @@ use App\Models\Aquereur;
 use App\Models\Avance;
 use App\Models\Bien;
 use App\Models\Client;
+use App\Models\Visite;
 use App\Models\HistoReservation;
 use App\Models\PiecesJointe;
 use App\Models\Reservation;
@@ -423,7 +424,7 @@ private function finalizeReservation($reservation, $userAuth)
     $histo->setConnection('temp');
     $histo->reservation_id = $reservation->id;
     $histo->user_id = $userAuth->id;
-    $histo->bien_id = request()->bien_id;
+    $histo->bien_id = $reservation->bien_id;
     $histo->action = 2;
     $histo->description = 'Création du Réservation';
     $histo->save();
@@ -569,8 +570,7 @@ private function finalizeReservation($reservation, $userAuth)
             {
                 $clientController = new ClientController();
                 $aquereurController = new AquereurController();
-                $clientRequest = new StoreClientRequest();
-                $aquereurRequest = new StoreAquereurRequest();
+
 
                 if ($request->origin == 'visite') {
                     $client_exist = Client::on('temp')
@@ -580,31 +580,51 @@ private function finalizeReservation($reservation, $userAuth)
 
                     if ($client_exist) {
                         $clientData = $client_exist;
+                        \Log::info('Using existing client ID: ' . $clientData->id);
+
                     } else {
+                         \Log::info('Creating new client for prospect: ' . $request->prospect_id);
+
+                        // Debug: Log what data is being sent
+                        \Log::info('Client creation data:', [
+                            'cin' => $request->cin,
+                            'nom' => $request->nom,
+                            'prenom' => $request->prenom,
+                            'prospect_id' => $request->prospect_id,
+                            'projet_id' => $request->projet_id,
+                            'telephone_num1' => $request->telephone_num1
+                        ]);
+                        $clientRequest = new StoreClientRequest();
+                        $aquereurRequest = new StoreAquereurRequest();
+
                         $dataClient = [
                             'cin' => $request->cin,
                             'nom' => $request->nom,
                             'prenom' => $request->prenom,
                             'telephone_num1' => $request->telephone_num1,
                             'telephone_num2' => $request->telephone_num2,
-                            'notifie' => $request->notifie,
+                            'notifie' => $request->notifie??0,
                             'prospect_id' => $request->prospect_id,
                             'civilite' => $request->civilite,
                             'situation_familliale' => $request->situation_familliale,
                             'type_client' => 1,
                             'projet_id' => $request->projet_id,
+                            'email' => $request->email ?? '',
+                            'ville' => $request->ville ?? '',
                         ];
                         $clientRequest->merge($dataClient);
-                        $clientData = $clientController->store($clientRequest);
+                         $clientData = $clientController->store($clientRequest);
+                        \Log::info('Client created successfully with ID: ' . $clientData->id);
                     }
-
+                    $aquereurRequest = new StoreAquereurRequest();
                     $dataAquereur = [
                         'pourcentage' => 100,
                         'client_id' => $clientData->id,
                         'reservation_id' => $reservation->id,
                     ];
                     $aquereurRequest->merge($dataAquereur);
-                    $aquereurController->store($aquereurRequest);
+                     $aquereurResult = $aquereurController->store($aquereurRequest);
+                    \Log::info('Aquereur created for reservation: ' . $reservation->id);
                 } else {
                     $dataArray_clients = json_decode($request->input('clients'), true);
                     $dataArray_oldClients = json_decode($request->input('oldClients', '[]'), true);
@@ -1350,9 +1370,17 @@ private function finalizeReservation($reservation, $userAuth)
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
             $societe = Societe::findOrfail($user_societes->societe_id);
-
             //bien disponible
             Bien_Helper::libererBien($reservation->bien_id, null, null,false);
+            //apres liberation de bien ==> set les visites reservtion perdu
+            $visites_vendu=Visite::on('temp')->where('bien_id',$reservation->bien_id)->where('statut','2')->where('etat',1)->get();
+            if(count($visites_vendu)>0){
+                foreach($visites_vendu as $visite){
+                    $visite->statut='4';
+                    $visite->save();
+                }
+            }
+
             //avance et encaissements
             $avanceController = new AvanceController();
             $avanceController->destoryUsingReservationId($id);

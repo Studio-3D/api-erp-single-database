@@ -19,7 +19,7 @@ return new class extends Migration
             $table->integer('client_id')->nullable();
             $table->string('nom')->nullable();
             $table->string('prenom')->nullable();
-            $table->string('telephone');
+            $table->string('telephone')->nullable();
             $table->string('telephone_num2')->nullable();
             $table->string('email')->nullable();
             $table->string('origin');

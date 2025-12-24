@@ -423,6 +423,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/histo_importation', [V1UploadBienController::class, 'histo_importation']);
         Route::delete('delete_fichier_import/{id}', [V1UploadBienController::class, 'delete_fichier_import'])->name('');
 
+        Route::post('upload_excel_bien_modif_en_masse', [V1UploadBienController::class, 'upload_excel_bien_modif_en_masse'])->name('');
+
         //Dashboad
         Route::get('dashboard/{projet_id}/{de}/{a}', [V1HomeController::class, 'dashboard'])->name('');
         //EtapesProjet

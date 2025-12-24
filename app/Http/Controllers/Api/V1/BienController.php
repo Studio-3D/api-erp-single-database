@@ -1290,8 +1290,10 @@ class BienController extends Controller
                 }
 
                 // Ajouter le bien réservé
+                if($bien_id!=0){
                 $bien_reserve = Bien::on('temp')->findOrFail($bien_id);
                 $biens[] = $formatBien($bien_reserve, $generateNom);
+                }
 
                 return response()->json(['biens' => $biens], 200);
 

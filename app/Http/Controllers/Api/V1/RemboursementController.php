@@ -365,7 +365,15 @@ class RemboursementController extends Controller
 
              DatabaseHelper::Config();
 
-             $query =  Remboursement::on('temp')->with('dossier_transfert') ->where('reservation_id', $reservation_id)->where('archive',0);
+             $query =  Remboursement::on('temp')
+            ->whereNotIn('mode_rembourse', ['direct', 'apres_vente'])
+            ->without('aquereur','desistement','reservation')
+            ->with(['dossier_transfert' => function ($query) {
+                $query->select('id', 'code_reservation')
+                      ->without('user', 'projet', 'historiques', 'bien', 'aquereurs', 'aquereurs_ancien', 'piece_jointe');
+            }])
+            ->where('reservation_id', $reservation_id)
+            ->where('archive',0);
              // Optional filters (Add more if needed)
 
              if ($request->filled('date')) {

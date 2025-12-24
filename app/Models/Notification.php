@@ -30,9 +30,9 @@ class Notification extends Model
         'traite_appel_id',
         'seen'
     ];
-
+   
     protected $casts = [
-        'seen' => 'boolean',
+        'seen' => 'array',
         'date' => 'datetime'
     ];
 

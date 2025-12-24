@@ -10,6 +10,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Projet;
 use App\Models\Import;
 use Carbon\Carbon;
+use App\Models\User;
+use App\Models\Societe;
+use Illuminate\Support\Facades\File;
+
 
 use App\Http\Helpers\ImportExcelHelper;
 class UploadBienController extends Controller
@@ -33,7 +37,7 @@ class UploadBienController extends Controller
            $hasImmeuble = in_array('Immeuble', $keys);
            //if excel containe column bloc or immeuble or tranche
             $console=0;
-           if ($hasTranche && $hasBloc && $hasImmeuble) {
+          /* if ($hasTranche && $hasBloc && $hasImmeuble) {
                return ImportExcelHelper::ImportStockByProjet($request,$data,$projet_id,$console);
 
            } elseif ($hasTranche && $hasBloc && !$hasImmeuble) {
@@ -54,6 +58,17 @@ class UploadBienController extends Controller
                return ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBloc($request,$data,$projet_id,$console);
            } else {
                return ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBlocAndImmeuble($request,$data,$projet_id,$console);
+           }*/
+            if ($hasBloc && $hasImmeuble) {
+            return ImportExcelHelper::ImportStockByProjetWithoutTranche($request,$data,$projet_id,$console);
+
+           } elseif ($hasBloc && !$hasImmeuble) {
+            return ImportExcelHelper::ImportStockByProjetWithoutTrancheAndImmeuble($request,$data,$projet_id,$console);
+
+           } elseif (!$hasBloc && $hasImmeuble) {
+               return ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBloc($request,$data,$projet_id,$console);
+           } else {
+               return ImportExcelHelper::ImportStockByProjetWithoutTrancheAndBlocAndImmeuble($request,$data,$projet_id,$console);
            }
             return response()->json('done stock fichier');
         } else {
@@ -63,6 +78,47 @@ class UploadBienController extends Controller
     }
 
 
+    public function upload_excel_bien_modif_en_masse(Request $request)
+{
+    if (RoleHelper::ACSup()) {
+        DatabaseHelper::Config();
+        $projet_id = $request->projet_id;
+        set_time_limit(0);
+        ini_set('memory_limit', '-1');
+        $data = json_decode($request->input('jsonData', '[]'), true);
+
+        $user = Auth::user();
+        DatabaseHelper::Config();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+        $user_societes = User::where('id', $userAuth->user_id_origin)->first();
+        $societe = Societe::findOrfail($user_societes->societe_id);
+
+        $imp = new Import();
+        $imp->setConnection('temp');
+        $imp->projet_id = $projet_id;
+        $imp->statut = '0';
+        $imp->user_id = $userAuth->id;
+        $imp->data = $data;
+        $imp->type = '1';
+
+        // Handle file upload only if file exists
+        if ($request->hasFile('piece_jointe')) {
+            $client_origin_name = $request->file('piece_jointe')->getClientOriginalName();
+            $date = str_replace(str_split('\\/:*?"<>|+-\s+'), '_', date("Y-m-d H:i:s"));
+            $filename = pathinfo($client_origin_name, PATHINFO_FILENAME) . '_' . $date;
+            $extension = pathinfo($client_origin_name, PATHINFO_EXTENSION);
+            $imp->fichier = $filename . '.' . $extension;
+            $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/Import_fichier_en_masse');
+            File::makeDirectory($directory, 0755, true, true);
+            $request->file('piece_jointe')->move($directory, $filename . '.' . $extension);
+        }
+
+        $imp->save();
+        return response()->json('done stock fichier');
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+}
     public function histo_importation(Request $request, $projet_id)
     {
         if (Auth::guard('api')->check()) {

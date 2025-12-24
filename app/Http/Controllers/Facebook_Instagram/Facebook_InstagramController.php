@@ -105,8 +105,9 @@ class Facebook_InstagramController extends Controller
                             'pageId_InstagramId' => $pageId,
                             'caption' => $description,
                             'text' => $text,
-                        //  'url' => $url, // Use dynamic URL instead of hardcoded
-                            'url'=> str_replace('\/\/', '/', 'https://immogestion.online/coline_dev/storage/reservations/C529FF99-F5B3-44A2-9B61-BD895DE0555B.jpeg'),
+                        //  'url' => $url, // Use dynamic URL instead of
+                        //url=https://immogestion.online/coline_dev/storage/reservations/C529FF99-F5B3-44A2-9B61-BD895DE0555B.jpeg
+                            'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
                             'network' => 'facebook',
                             'accessToken' => $accessToken
                         ];
@@ -136,7 +137,8 @@ class Facebook_InstagramController extends Controller
                             'caption' => $request->description,
                             'text' => 'media',
                             'type_media' => $type_media,
-                            'url'=> str_replace('\/\/', '/', 'https://immogestion.online/coline_dev/storage/reservations/C529FF99-F5B3-44A2-9B61-BD895DE0555B.jpeg'),
+                            //https://immogestion.online/coline_dev/storage/reservations/C529FF99-F5B3-44A2-9B61-BD895DE0555B.jpeg
+                            'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1604085572504-a392ddf0d86a?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8b3JhbmdlJTIwZmxvd2VyfGVufDB8fDB8fHww'),
                         // 'url' => $url, // Use dynamic URL instead of hardcoded
                             'network' => 'instagram',
                             'accessToken' => $accessToken
@@ -728,11 +730,12 @@ class Facebook_InstagramController extends Controller
                     // Handle messaging events based on object type
                     if (isset($entry['messaging'])) {
                         foreach ($entry['messaging'] as $messaging) {
-                            if ($objectType === 'instagram') {
+                            {/*if ($objectType === 'instagram') {
                                 // Instagram messaging (direct messages)
                                 $projet_id=$this->getProjet_id_from_page_id($pageId,'instagram');
-                                $this->handleInstagramMessaging($messaging, $societeId, $pageId,$projet_id);
-                            } else if ($objectType === 'page') {
+                               // $this->handleInstagramMessaging($messaging, $societeId, $pageId,$projet_id);
+                            } else */}
+                            if ($objectType === 'page') {
                                 // Facebook messaging (direct messages)
                                 $projet_id=$this->getProjet_id_from_page_id($pageId,'facebook');
                                 $this->handleFacebookMessages($messaging, $societeId, $pageId,$projet_id);
@@ -873,7 +876,7 @@ class Facebook_InstagramController extends Controller
             //Direct routing for Instagram comments
             if ($field == 'comments' && $platform === 'instagram') {
                 Log::info('Direct routing Instagram comment');
-                $this->handleInstagramComment($change,$pageId);
+                $this->handleInstagramComment($change,$pageId,$projet_id);
                 return;
             }
 
@@ -1095,7 +1098,7 @@ class Facebook_InstagramController extends Controller
         }
 
         // Handle Instagram comments
-        private function handleInstagramComment($data,$pageId)
+        private function handleInstagramComment($data,$pageId,$projet_id)
         {
             Log::info('Processing Instagram comment:', $data);
 
@@ -1261,7 +1264,206 @@ class Facebook_InstagramController extends Controller
         }
 
 
+           private function validatePhoneNumber($phoneNumber)
+            {
+                // Remove all non-digit characters except + sign
+                $cleaned = preg_replace('/[^\d+]/', '', $phoneNumber);
 
+                // Count digits (excluding + sign)
+                $digitCount = strlen(preg_replace('/[^0-9]/', '', $cleaned));
+
+                // Check minimum length
+                if ($digitCount < 9) {
+                    return [
+                        'is_valid' => false,
+                        'error_message' => "❌ Numéro trop court! Le numéro doit contenir au minimum 9 chiffres. Vous avez fourni {$digitCount} chiffres."
+                    ];
+                }
+
+                // Check maximum reasonable length
+                if ($digitCount > 15) {
+                    return [
+                        'is_valid' => false,
+                        'error_message' => "❌ Numéro trop long! Le numéro semble invalide."
+                    ];
+                }
+
+                // Define country codes and their patterns
+                $countryPatterns = [
+                    // Morocco
+                    'MA' => [
+                        'code' => '+212',
+                        'patterns' => [
+                            '/^(?:\+212|00212|212|0)([5-7]\d{8})$/',
+                            '/^[5-7]\d{8}$/',
+                        ],
+                        'example' => '+2126XXXXXXXX',
+                        'name' => 'Maroc'
+                    ],
+                    // France
+                    'FR' => [
+                        'code' => '+33',
+                        'patterns' => [
+                            '/^(?:\+33|0033|33|0)([1-9]\d{8})$/',
+                            '/^0[1-9](\d{2}){4}$/', // 01 23 45 67 89
+                        ],
+                        'example' => '+331XXXXXXXX',
+                        'name' => 'France'
+                    ],
+                    // Turkey
+                    'TR' => [
+                        'code' => '+90',
+                        'patterns' => [
+                            '/^(?:\+90|0090|90|0)([2-9]\d{9})$/',
+                            '/^0[2-9]\d{9}$/',
+                        ],
+                        'example' => '+905XXXXXXXXX',
+                        'name' => 'Turquie'
+                    ],
+                    // Algeria
+                    'DZ' => [
+                        'code' => '+213',
+                        'patterns' => [
+                            '/^(?:\+213|00213|213|0)([5-9]\d{8})$/',
+                            '/^0[5-9]\d{8}$/',
+                        ],
+                        'example' => '+2135XXXXXXXX',
+                        'name' => 'Algérie'
+                    ],
+                    // Tunisia
+                    'TN' => [
+                        'code' => '+216',
+                        'patterns' => [
+                            '/^(?:\+216|00216|216)([2-9]\d{7})$/',
+                            '/^[2-9]\d{7}$/',
+                        ],
+                        'example' => '+2162XXXXXXX',
+                        'name' => 'Tunisie'
+                    ],
+                    // Generic international pattern (fallback)
+                    'INTERNATIONAL' => [
+                        'patterns' => [
+                            '/^\+\d{10,14}$/', // + followed by 10-14 digits
+                            '/^00\d{10,14}$/', // 00 followed by 10-14 digits
+                            '/^\d{9,15}$/', // Just digits 9-15
+                        ],
+                        'name' => 'International'
+                    ]
+                ];
+
+                // Check against each country pattern
+                foreach ($countryPatterns as $countryCode => $countryInfo) {
+                    foreach ($countryInfo['patterns'] as $pattern) {
+                        if (preg_match($pattern, $cleaned)) {
+                            // Normalize the phone number
+                            $normalized = $this->normalizePhoneNumberInternational($phoneNumber, $countryCode);
+
+                            return [
+                                'is_valid' => true,
+                                'normalized' => $normalized,
+                                'country' => $countryCode,
+                                'country_name' => $countryInfo['name'] ?? $countryCode
+                            ];
+                        }
+                    }
+                }
+
+                // If no pattern matches, provide helpful error message with examples
+                $examples = [];
+                foreach ($countryPatterns as $countryInfo) {
+                    if (isset($countryInfo['example'])) {
+                        $examples[] = $countryInfo['example'];
+                    }
+                }
+
+                $errorMsg = "❌ Format de numéro invalide. Formats acceptés:\n\n";
+
+                // Add specific country examples
+                $errorMsg .= "**Maroc (MA)**:\n";
+                $errorMsg .= "• 06XXXXXXXX (10 chiffres)\n";
+                $errorMsg .= "• +2126XXXXXXXX (13 chiffres)\n";
+                $errorMsg .= "• 5XXXXXXXX (9 chiffres)\n\n";
+
+                $errorMsg .= "**France (FR)**:\n";
+                $errorMsg .= "• 01XXXXXXXX (10 chiffres)\n";
+                $errorMsg .= "• +331XXXXXXXX (12 chiffres)\n\n";
+
+                $errorMsg .= "**Turquie (TR)**:\n";
+                $errorMsg .= "• 05XXXXXXXXXX (11 chiffres)\n";
+                $errorMsg .= "• +905XXXXXXXXX (13 chiffres)\n\n";
+
+                $errorMsg .= "**Algérie (DZ)**:\n";
+                $errorMsg .= "• 05XXXXXXXX (10 chiffres)\n";
+                $errorMsg .= "• +2135XXXXXXXX (13 chiffres)\n\n";
+
+                $errorMsg .= "**Général**:\n";
+                $errorMsg .= "• Le numéro doit contenir 9 à 15 chiffres\n";
+                $errorMsg .= "• Format international recommandé: +CodePays Numéro\n";
+                $errorMsg .= "• Ex: +212612345678 (Maroc), +331234567890 (France)";
+
+                return [
+                    'is_valid' => false,
+                    'error_message' => $errorMsg
+                ];
+            }
+
+/**
+ * Normalize phone number to international format
+ */
+        private function normalizePhoneNumberInternational($phoneNumber, $countryCode = null)
+        {
+            $cleaned = preg_replace('/[^\d+]/', '', $phoneNumber);
+
+            // If country code is provided, use specific normalization
+            if ($countryCode) {
+                switch ($countryCode) {
+                    case 'MA': // Morocco
+                        if (str_starts_with($cleaned, '0') && strlen($cleaned) === 10) {
+                            return '+212' . substr($cleaned, 1);
+                        } elseif (str_starts_with($cleaned, '00212')) {
+                            return '+' . substr($cleaned, 2);
+                        } elseif (str_starts_with($cleaned, '212')) {
+                            return '+' . $cleaned;
+                        } elseif (strlen($cleaned) === 9 && in_array($cleaned[0], ['5', '6', '7'])) {
+                            return '+212' . $cleaned;
+                        }
+                        break;
+
+                    case 'FR': // France
+                        if (str_starts_with($cleaned, '0') && strlen($cleaned) === 10) {
+                            return '+33' . substr($cleaned, 1);
+                        } elseif (str_starts_with($cleaned, '0033')) {
+                            return '+' . substr($cleaned, 2);
+                        } elseif (str_starts_with($cleaned, '33') && strlen($cleaned) === 11) {
+                            return '+' . $cleaned;
+                        }
+                        break;
+
+                    case 'TR': // Turkey
+                        if (str_starts_with($cleaned, '0') && strlen($cleaned) === 11) {
+                            return '+90' . substr($cleaned, 1);
+                        } elseif (str_starts_with($cleaned, '0090')) {
+                            return '+' . substr($cleaned, 2);
+                        } elseif (str_starts_with($cleaned, '90') && strlen($cleaned) === 12) {
+                            return '+' . $cleaned;
+                        }
+                        break;
+                }
+            }
+
+            // Generic international normalization
+            if (str_starts_with($cleaned, '00')) {
+                return '+' . substr($cleaned, 2);
+            } elseif (str_starts_with($cleaned, '0')) {
+                // Remove leading zero for local numbers
+                // This is generic, might not work for all countries
+                return '+?' . substr($cleaned, 1);
+            } elseif (!str_starts_with($cleaned, '+')) {
+                return '+' . $cleaned;
+            }
+
+            return $cleaned;
+        }
 
 
             /**
@@ -1312,17 +1514,43 @@ class Facebook_InstagramController extends Controller
                 $phoneNumber = $this->extractPhoneNumber($message);
 
                 if ($senderId && $pageId) {
+                                // Check if phone number was provided
                     if ($phoneNumber) {
-                        // Check if phone number already exists for another prospect
-                        $Duplicate_Prospect= $this->isPhoneNumberDuplicate($phoneNumber, $senderId,$projet_id);
+                         // Validate phone number format and length
+                         $validationResult = $this->validatePhoneNumber($phoneNumber);
 
+                        if (!$validationResult['is_valid']) {
+                            // Send error message to user about invalid phone number format
+                            $errorMessage = $validationResult['error_message'] ??
+                                "❌ Format de numéro de téléphone invalide. Veuillez fournir un numéro valide (ex: 06XXXXXXXX ou +2126XXXXXXXX ou 5XXXXXXXXX).";
+
+                            $this->sendFacebookMessageFromPage($senderId, $errorMessage, $pageId);
+                            Log::warning("Invalid phone number format from user", [
+                                'sender_id' => $senderId,
+                                'phone_number' => $phoneNumber,
+                                'error' => $validationResult['error_message']
+                            ]);
+                        }
+                                        // Get the normalized phone number from validation result
+                                $normalizedPhone = $validationResult['normalized'] ?? $this->normalizePhoneNumberInternational($phoneNumber, $validationResult['country'] ?? null);
+
+                                // Check if phone number already exists for another prospect
+                                // Use the normalized phone number for duplicate checking
+
+
+                        // Check if phone number already exists for another prospect
+                                $Duplicate_Prospect = $this->isPhoneNumberDuplicate($normalizedPhone, $senderId, $projet_id);
                                 if ($Duplicate_Prospect!=null) {
                                     // Phone number exists - ask for different number
                                     Log::info("Duplicate phone number detected", [
                                         'sender_id' => $senderId,
                                         'phone_number' => $phoneNumber,
+                                         'normalized' => $normalizedPhone,
                                         'prospect_id'=>$Duplicate_Prospect->id
                                     ]);
+                                            // Inform user about duplicate
+                                        $duplicateMessage = "⚠️ Ce numéro de téléphone est déjà associé à un autre compte. Veuillez fournir un numéro différent ou contacter notre service client.";
+                                        $this->sendFacebookMessageFromPage($senderId, $duplicateMessage, $pageId);
                                     $notif_helper = new NotificationHelper();
                                     $req = new \Illuminate\Http\Request();
 
@@ -1336,33 +1564,43 @@ class Facebook_InstagramController extends Controller
                                         'prospect_id' => $Duplicate_Prospect->id,
                                         'projet_id'   => $projet_id,
                                     ]));
+                                                        return; // Stop processing duplicate phone number
+
                                 }
                             // User sent a valid and unique phone number - update prospect
-                            $updateSuccess = $this->updateProspectWithPhoneNumber($senderName, $phoneNumber, $societeId, $projet_id, $senderId);
+                            $updateSuccess = $this->updateProspectWithPhoneNumber($senderName, $normalizedPhone, $societeId, $projet_id, $senderId,$message);
 
                             if ($updateSuccess) {
                                 // Send confirmation message
-                                $confirmationMessage = "✅ Merci ! Votre numéro de téléphone {$phoneNumber} a été enregistré avec succès. Nous vous contacterons bientôt !";
+                                $confirmationMessage = "✅ Merci ! Votre numéro de téléphone {$normalizedPhone} a été enregistré avec succès. Nous vous contacterons bientôt !";
                                 $this->sendFacebookMessageFromPage($senderId, $confirmationMessage, $pageId);
                             } else {
                                 // Error updating prospect
                                 $errorMessage = "❌ Désolé, une erreur s'est produite lors de l'enregistrement de votre numéro. Veuillez réessayer.";
                                 $this->sendFacebookMessageFromPage($senderId, $errorMessage, $pageId);
                             }
-                        //}
+
 
                     } else {
-                        // Check if we already asked for phone number (to avoid infinite loop)
+                        // Check if we already asked for phone number (to avoid infinite loop)//// Check if this is the first message from user or if we need to ask for phone number
                        // $alreadyAsked = $this->hasAskedForPhoneRecently($senderId);
                         //!alreadyAsked
                     if ($this->isFirstMessageFromUser($senderId)) {
                             // First message from user - ask for phone number
-                            $welcomeMessage = "Bonjour {$senderName} ! 👋\n\nMerci de nous avoir contactés. Pour mieux vous assister, pourriez-vous nous partager votre numéro de téléphone ?\n\n📱 Format accepté: 06XXXXXXXX ou +2126XXXXXXXX";
-
-                            $messageSent = $this->sendFacebookMessageFromPage($senderId, $welcomeMessage, $pageId);
+                  // Ask for phone number with updated international examples
+                    $welcomeMessage = "Bonjour {$senderName} ! 👋\n\n" .
+                        "Merci de nous avoir contactés. Pour mieux vous assister, pourriez-vous nous partager votre numéro de téléphone ?\n\n" .
+                        "**Formats acceptés** :\n" .
+                        "• **Maroc** : 06XXXXXXXX (10) ou +2126XXXXXXXX (13)\n" .
+                        "• **France** : 01XXXXXXXX (10) ou +331XXXXXXXX (12)\n" .
+                        "• **Turquie** : 05XXXXXXXXXX (11) ou +905XXXXXXXXX (13)\n" .
+                        "• **Algérie** : 05XXXXXXXX (10) ou +2135XXXXXXXX (13)\n" .
+                        "• **International** : +CodePays Numéro (9-15 chiffres)\n\n" .
+                        "Veuillez inclure le code pays si vous êtes à l'étranger.";
+                           $messageSent = $this->sendFacebookMessageFromPage($senderId, $welcomeMessage, $pageId);
 
                             if ($messageSent) {
-                              //  $this->markAsAskedForPhone($senderId);
+                                $this->markAsAskedForPhone($senderId);/*===>24h*/
                               //send notif to commercial
                                 $description = "Le prospect {$senderName} n'a pas fourni son numéro de téléphone sur Facebook. Contactez-le pour obtenir ses coordonnées.";
 
@@ -1383,7 +1621,7 @@ class Facebook_InstagramController extends Controller
                                 // Broadcast the notification
                                 Config::set('broadcasting.default', 'pusher_3');
                                 broadcast(new \App\Events\NotificationEvent($notification->id));
-                                Log::info("fadwaa {$senderId}");
+                                Log::info("Asked user {$senderId} for phone number");
                             } else {
                                 Log::error("Failed to send phone request to user {$senderId}");
                             }
@@ -1417,33 +1655,42 @@ class Facebook_InstagramController extends Controller
         /**
          * Extract phone number from message text
          */
-        private function extractPhoneNumber($message)
+      private function extractPhoneNumber($message)
         {
-            // Remove all non-digit characters except + sign
-            $cleaned = preg_replace('/[^\d+]/', '', $message);
-
-            // Moroccan phone number patterns
+            // Look for phone number patterns in the message
             $patterns = [
-                '/^(?:\+212|0)([5-7]\d{8})$/', // Moroccan format: +2126xxxxxxxx or 06xxxxxxxx
-                '/^[5-7]\d{8}$/', // Just the 10 digits starting with 5,6,7
-                '/^0[5-7]\d{8}$/', // Starting with 0
-                '/^\+212[5-7]\d{8}$/', // Starting with +212
-                '/^00212[5-7]\d{8}$/', // Starting with 00212
+                // International formats
+                '/\+\d{10,14}\b/', // + followed by 10-14 digits
+                '/00\d{10,14}\b/', // 00 followed by 10-14 digits
+
+                // Country specific patterns
+                '/(?:\+|00)?212[5-7]\d{8}\b/', // Morocco
+                '/(?:\+|00)?33[1-9]\d{8}\b/', // France
+                '/(?:\+|00)?90[2-9]\d{9}\b/', // Turkey
+                '/(?:\+|00)?213[5-9]\d{8}\b/', // Algeria
+                '/(?:\+|00)?216[2-9]\d{7}\b/', // Tunisia
+
+                // National formats
+                '/0[5-7]\d{8}\b/', // Morocco national
+                '/0[1-9](\d{2}){4}\b/', // France national
+                '/0[2-9]\d{9}\b/', // Turkey national
+
+                // Generic digit sequences
+                '/\b\d{9,15}\b/', // Any 9-15 digit sequence
             ];
 
             foreach ($patterns as $pattern) {
-                if (preg_match($pattern, $cleaned)) {
-                    // Format to standard Moroccan format: +2126xxxxxxxx
-                    if (strlen($cleaned) === 10 && in_array($cleaned[0], ['5', '6', '7'])) {
-                        return '+212' . $cleaned;
-                    } elseif (strlen($cleaned) === 9 && in_array($cleaned[0], ['5', '6', '7'])) {
-                        return '+212' . $cleaned;
-                    } elseif (str_starts_with($cleaned, '0') && strlen($cleaned) === 10) {
-                        return '+212' . substr($cleaned, 1);
-                    } elseif (str_starts_with($cleaned, '00212')) {
-                        return '+' . substr($cleaned, 2);
+                if (preg_match($pattern, $message, $matches)) {
+                    $potentialNumber = $matches[0];
+
+                    // Clean the number
+                    $cleaned = preg_replace('/[^\d+]/', '', $potentialNumber);
+
+                    // Validate basic structure
+                    $digitCount = strlen(preg_replace('/[^0-9]/', '', $cleaned));
+                    if ($digitCount >= 9 && $digitCount <= 15) {
+                        return $cleaned;
                     }
-                    return $cleaned;
                 }
             }
 
@@ -1452,23 +1699,37 @@ class Facebook_InstagramController extends Controller
         /**
          * Check if phone number already exists for another user
          */
-        private function isPhoneNumberDuplicate($phoneNumber, $currentSenderId,$projet_id)
+            private function isPhoneNumberDuplicate($phoneNumber, $currentSenderId, $projet_id)
         {
             try {
-                // Normalize phone number for comparison
-                $normalizedPhone = $this->normalizePhoneNumber($phoneNumber);
+                // Normalize the phone number for comparison
+                $normalizedPhone = $phoneNumber;
 
-                // Check if phone number exists for any other prospect (excluding current user)
+                // Ensure it's in international format for comparison
+                if (!str_starts_with($phoneNumber, '+')) {
+                    $validationResult = $this->validatePhoneNumber($phoneNumber);
+                    if ($validationResult['is_valid']) {
+                        $normalizedPhone = $validationResult['normalized'] ?? $phoneNumber;
+                    }
+                }
+
+                // Also try to normalize without country code for comparison
+                $phoneDigits = preg_replace('/[^0-9]/', '', $normalizedPhone);
+
+                // Check if phone number exists for any other prospect
                 $existingProspect = \App\Models\Prospect::on('temp')
-                ->where('projet_id', $projet_id)
+                    ->where('projet_id', $projet_id)
                     ->where('telephone', '!=', '')
                     ->whereNotNull('telephone')
-                    ->where(function($query) use ($normalizedPhone) {
+                    ->where(function($query) use ($normalizedPhone, $phoneDigits) {
+                        // Check exact match
                         $query->where('telephone', $normalizedPhone)
-                            ->orWhere('telephone', 'LIKE', '%' . substr($normalizedPhone, -9) . '%')
-                            ->orWhere('telephone_num2', 'like', '%' . substr($normalizedPhone, -9) . '%');; // Last 9 digits
+                            // Check without + prefix
+                            ->orWhere('telephone', 'LIKE', '%' . substr($normalizedPhone, 1) . '%')
+                            // Check last 9-10 digits (most important part)
+                            ->orWhere('telephone', 'LIKE', '%' . substr($phoneDigits, -9) . '%')
+                            ->orWhere('telephone_num2', 'like', '%' . substr($phoneDigits, -9) . '%');
                     })
-                    //->where('facebook_id', '!=', $currentSenderId)
                     ->first();
 
                 if ($existingProspect) {
@@ -1487,38 +1748,31 @@ class Facebook_InstagramController extends Controller
 
             } catch (\Exception $e) {
                 Log::error("Error checking phone number duplicate: " . $e->getMessage());
-                return false; // On error, assume not duplicate to avoid blocking legitimate users
+                return null; // On error, return null
             }
         }
 
         /**
          * Normalize phone number for consistent comparison
          */
-        private function normalizePhoneNumber($phoneNumber)
-        {
-            // Remove all non-digit characters except +
-            $cleaned = preg_replace('/[^\d+]/', '', $phoneNumber);
-
-            // Convert to standard Moroccan format
-            if (str_starts_with($cleaned, '0') && strlen($cleaned) === 10) {
-                return '+212' . substr($cleaned, 1);
-            } elseif (str_starts_with($cleaned, '00212')) {
-                return '+' . substr($cleaned, 2);
-            } elseif (strlen($cleaned) === 9 && in_array($cleaned[0], ['5', '6', '7'])) {
-                return '+212' . $cleaned;
-            } elseif (strlen($cleaned) === 10 && in_array($cleaned[0], ['5', '6', '7'])) {
-                return '+212' . $cleaned;
-            }
-
-            return $cleaned;
-        }
 
 
-        private function updateProspectWithPhoneNumber($senderName, $phoneNumber, $societeId, $projet_id, $senderId)
+
+        private function updateProspectWithPhoneNumber($senderName, $phoneNumber, $societeId, $projet_id, $senderId,$message)
         {
             try {
                 // Normalize phone number before storing
-                $normalizedPhone = $this->normalizePhoneNumber($phoneNumber);
+            // Phone number should already be normalized by validatePhoneNumber
+        // But we'll ensure it's properly normalized
+        $normalizedPhone = $phoneNumber;
+
+        // If it doesn't start with +, try to normalize it
+        if (!str_starts_with($phoneNumber, '+')) {
+            $validationResult = $this->validatePhoneNumber($phoneNumber);
+            if ($validationResult['is_valid']) {
+                $normalizedPhone = $validationResult['normalized'] ?? $phoneNumber;
+            }
+        }
 
                 // Find prospect by Facebook ID or name
                 $prospect = \App\Models\Prospect::on('temp')
@@ -1541,7 +1795,7 @@ class Facebook_InstagramController extends Controller
                 } else {
                     // Create new prospect with phone number
                     \App\Http\Controllers\Api\V1\ProspectController::Store_fcb_instagram(
-                        "Nouveau prospect Facebook avec numéro: {$normalizedPhone}",
+                        $message,
                         $senderName,
                         'facebook',
                         $societeId,
@@ -1568,32 +1822,40 @@ class Facebook_InstagramController extends Controller
         /*
           Check if we recently asked this user for phone number
 
-        private function hasAskedForPhoneRecently($senderId)
+      private function shouldAskForPhoneNumber($senderId)
+{
+    // Check if we've asked recently (within 24 hours)
+    if (cache()->has("asked_phone_{$senderId}")) {
+        return false;
+    }
+
+    // Check if user already has phone number in prospect record
+    $prospect = \App\Models\Prospect::on('temp')
+        ->where('facebook_id', $senderId)
+        ->orWhere(function($query) use ($senderId) {
+            // You might want to add other identification methods
+            $query->where('telephone', 'LIKE', '%' . substr($senderId, -6) . '%');
+        })
+        ->first();
+
+    // Ask for phone if no prospect exists or prospect has no phone
+    return !$prospect || empty($prospect->telephone);
+}*/
+
+
+      //Mark that we asked this user for phone number
+
+       private function markAsAskedForPhone($senderId)
         {
             try {
-                // You might want to create a table to track this, or use cache
-                // For simplicity, using cache with 1-hour expiration
-                return cache()->has("asked_phone_{$senderId}");
-
-            } catch (\Exception $e) {
-                Log::error("Error checking if asked for phone: " . $e->getMessage());
-                return false;
-            }
-        }*/
-
-    /*
-      Mark that we asked this user for phone number
-
-        private function markAsAskedForPhone($senderId)
-        {
-            try {
-                // Store in cache for 1 hour
-                cache()->put("asked_phone_{$senderId}", true, 3600);
+                // Store in cache for 24 hours (1440 minutes)
+                cache()->put("asked_phone_{$senderId}", true, 1440); // 24h = 1440 minutes
+                 Log::info("Marked user {$senderId} as asked for phone number");
 
             } catch (\Exception $e) {
                 Log::error("Error marking asked for phone: " . $e->getMessage());
             }
-        }*/
+        }
 
 
      /* Check if this is the first message from user
@@ -1625,7 +1887,7 @@ class Facebook_InstagramController extends Controller
                 $client = new Client(['timeout' => 30.0]);
 
                 // Use the page ID in the URL and page access token
-                $response = $client->post("https://graph.facebook.com/v22.0/{$pageId}/messages", [
+                $response = $client->post("https://graph.facebook.com/v24.0/{$pageId}/messages", [
                     'headers' => [
                         'Content-Type' => 'application/json',
                     ],
@@ -1687,7 +1949,7 @@ class Facebook_InstagramController extends Controller
                     $userData = $response->json();
                     Log::info("Facebook user data retrieved:", $userData);
 
-                    return $userData['name'] ?? $userData['first_name'] ?? 'Utilisateur Facebook';
+                    return $userData['name'] ?? $userData['first_name'] ?? ' ';
                 } else {
                     Log::warning("Failed to get Facebook user data: " . $response->body());
                     return 'Utilisateur Facebook';
@@ -1936,6 +2198,7 @@ class Facebook_InstagramController extends Controller
                     ->map(function ($config) {
                         return [
                             'id' => $config->id,
+                            'acces_token_page' => $config->acces_token_page,
                             'page_fcb_id' => $config->page_fcb_id,
                             'projet_id' => $config->projet_id,
                             'created_at' => $config->created_at,
@@ -1967,7 +2230,8 @@ class Facebook_InstagramController extends Controller
                     Schema::connection('temp')->create('facebook_configurations', function (Blueprint $table) {
                         $table->id();
                         $table->string('page_fcb_id');
-                        $table->longText('acces_token_page');
+                        $table->longText('acces_token_page');//long term
+                        $table->longText('acces_token_page_short_term');
                         $table->unsignedBigInteger('projet_id');
                         $table->string('webhook_verify_token')->nullable();
                         $table->boolean('webhook_enabled')->default(false);
@@ -2012,7 +2276,8 @@ class Facebook_InstagramController extends Controller
                 // Insert new configuration (webhook explicitly disabled by default)
                 $configId = DB::connection('temp')->table('facebook_configurations')->insertGetId([
                     'page_fcb_id' => $request->page_fcb_id,
-                    'acces_token_page' => $request->acces_token_page,
+                    'acces_token_page' => $request->acces_token_page,//long term
+                    'acces_token_page_short_term' => $request->acces_token_page_short_term,
                     'projet_id' => $request->projet_id,
                     'webhook_enabled' => false, // Explicitly set to false
                     'webhook_verify_token' => null,
@@ -2020,6 +2285,7 @@ class Facebook_InstagramController extends Controller
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);
+                        $this->subscribePageToWebhook($request->page_fcb_id, $request->acces_token_page_short_term);
 
                 return response()->json([
                     'message' => 'Configuration Facebook enregistrée avec succès',
@@ -2068,7 +2334,8 @@ class Facebook_InstagramController extends Controller
                     ->where('id', $id)
                     ->update([
                         'page_fcb_id' => $request->page_fcb_id,
-                        'acces_token_page' => $request->acces_token_page,
+                        'acces_token_page' => $request->acces_token_page,//long terme
+                        'acces_token_page_short_term' => $request->acces_token_page_short_term,
                         'projet_id' => $request->projet_id,
                         'updated_at' => now()
                     ]);
@@ -2174,7 +2441,8 @@ class Facebook_InstagramController extends Controller
                     Schema::connection('temp')->create('instagram_configurations', function (Blueprint $table) {
                         $table->id();
                         $table->string('instagram_id');
-                        $table->longText('acces_token_user');
+                        $table->longText('acces_token_user');//long term
+                        $table->longText('acces_token_user_short_term');
                         $table->unsignedBigInteger('projet_id');
                         $table->string('webhook_verify_token')->nullable();
                         $table->boolean('webhook_enabled')->default(false);
@@ -2220,8 +2488,9 @@ class Facebook_InstagramController extends Controller
                 $configId = DB::connection('temp')->table('instagram_configurations')->insertGetId([
                     'instagram_id' => $request->instagram_id,
                     'acces_token_user' => $request->acces_token_user,
+                    'acces_token_user_short_term' => $request->acces_token_user_short_term,
                     'projet_id' => $request->projet_id,
-                    'webhook_enabled' => false, // Explicitly set to false
+                    'webhook_enabled' => true, // Explicitly set to false
                     'webhook_verify_token' => null,
                     'webhook_subscriptions' => null,
                     'created_at' => now(),
@@ -2275,7 +2544,8 @@ class Facebook_InstagramController extends Controller
                     ->where('id', $id)
                     ->update([
                         'instagram_id' => $request->instagram_id,
-                        'acces_token_user' => $request->acces_token_user,
+                        'acces_token_user' => $request->acces_token_user,//long term
+                        'acces_token_user_short_term' => $request->acces_token_user_short_term,
                         'projet_id' => $request->projet_id,
                         'updated_at' => now()
                     ]);
@@ -2406,7 +2676,7 @@ class Facebook_InstagramController extends Controller
                     ->where('id', $configId)
                     ->update([
                         'webhook_verify_token' => $request->webhook_verify_token,
-                        'webhook_enabled' => false, // Explicitly set to false
+                        'webhook_enabled' => true, // Explicitly set to false
                         'webhook_subscriptions' => json_encode(['feed', 'mention', 'messages']), // Valid Facebook webhook fields
                         'updated_at' => now()
                     ]);
@@ -2589,7 +2859,7 @@ class Facebook_InstagramController extends Controller
             Log::info("Attempting to subscribe Facebook page {$pageId} to webhook");
 
             $response = $client->post(
-                "https://graph.facebook.com/v23.0/{$pageId}/subscribed_apps",
+                "https://graph.facebook.com/v24.0/{$pageId}/subscribed_apps",
                 [
                     'form_params' => [
                         // Use only VALID Facebook page webhook fields

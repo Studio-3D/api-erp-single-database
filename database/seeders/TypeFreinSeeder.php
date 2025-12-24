@@ -22,7 +22,6 @@ class TypeFreinSeeder extends Seeder
             ['description'=>'Superficie'],
             ['description'=>'Typologie'],
             ['description'=>'Vue'],
-            ['description'=>'Ne souhaite plus investir'],
 
         ];
         foreach ($items as $item)

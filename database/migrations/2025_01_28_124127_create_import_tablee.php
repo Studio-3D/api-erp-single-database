@@ -19,6 +19,9 @@ return new class extends Migration
             $table->string('commentaire')->nullable();
             $table->string('fichier');
             $table->json('data');
+            $table->integer('ligne_echou')->nullable();
+            $table->text('message_echou')->nullable();
+            $table->timestamp('date_echou')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });

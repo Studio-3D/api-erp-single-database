@@ -538,7 +538,27 @@ class FreinController extends Controller
             DatabaseHelper::Config();
 
             // Démarrer la requête directement sur le modèle
-            $query = Frein_Bien::on('temp')->where('frein_id', $frein_id)->with('is_proposed','bien');
+           $query = Frein_Bien::on('temp')
+                ->where('frein_id', $frein_id)
+                ->with([
+                    'is_proposed',  // Load this relationship
+                    'bien' => function($query) {
+                        $query->with([
+                            'immeuble' => function($q) {
+                                $q->select('id', 'nom')
+                                ->without(['projet', 'tranche', 'bloc']);
+                            },
+                            'bloc' => function($q) {
+                                $q->select('id', 'nom')
+                                ->without(['projet', 'tranche']);
+                            },
+                            'tranche' => function($q) {
+                                $q->select('id', 'nom')
+                                ->without(['projet']);
+                            }
+                        ])->without('projet', 'typologie', 'vue', 'compositionBien');
+                    }
+                ]);
 
             if ($request->filled('bien_filtre')) {
                 $query->whereHas('bien', function ($q) use ($request) {

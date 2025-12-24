@@ -22,383 +22,366 @@ use Illuminate\Support\Facades\Auth;
 
 class Bien_Helper
 {
+  public static function validateNumericValue($value, $fieldName) {
+    if ($value !== null && $value !== '') {
+        if (is_numeric($value)) {
+            return (float) $value;
+        } else {
+            throw new \Exception("La valeur de '$fieldName' doit être un nombre. Valeur trouvée : " . $value);
+        }
+    }
+    return 0;
+    }
 
-    public static function checkAndCreateBienByExcel($projet_id, $tranche_id, $bloc_id, $immeuble_id, $row)
-    {
+  public static function checkAndCreateBienByExcel($projet_id, $tranche_id, $bloc_id, $immeuble_id, $row)
+{
+    $bien_count = Bien::on('temp')->where(function ($query) use ($row, $projet_id, $tranche_id, $bloc_id, $immeuble_id) {
+        if (!empty($row['Numero'])) {
+            $query->where('propriete_dite_bien', $row['Numero']);
+        }
+        if ($immeuble_id !== null) {
+            $query->where('immeuble_id', $immeuble_id);
+        }
+        if ($bloc_id !== null) {
+            $query->where('bloc_id', $bloc_id);
+        }
+        // Updated condition for tranche_id
+        $trancheIdToUse = $row['tranche_id'] ?? $tranche_id ?? null;
+        if ($trancheIdToUse !== null) {
+            $query->where('tranche_id', $trancheIdToUse);
+        }
+        $query->where('projet_id', $projet_id);
+    })->count();
 
-        // DatabaseHelper::Config(); on desactive si on fait import sans cron version ancien
-        $bien_count = 0;
+    if ($bien_count == 0) {
+        $bien = new Bien();
+        $bien->setConnection('temp');
+        $bien->immeuble_id = $immeuble_id ?? null;
+        $bien->bloc_id     = $bloc_id ?? null;
+        $bien->tranche_id = $row['tranche_id'] ?? $tranche_id ?? null;
+        $bien->projet_id   = $projet_id;
 
-        if ($bien_count == 0) {
-            $bien = new Bien();
-            $bien->setConnection('temp');
-            $bien->immeuble_id = $immeuble_id ?? null;
-            $bien->bloc_id     = $bloc_id ?? null;
-            $bien->tranche_id  = $tranche_id ?? null;
-            $bien->projet_id   = $projet_id;
-            // 1. Champs requis avec messages personnalisés
-            $requiredFields = [
-                "Numero" => "Numéro du bien manquant",
-                //"Etage" => "Niveau (étage) manquant",
-                //"conventionne" => "Champ 'conventionné' manquant",
-                "Type bien" => "Type de bien manquant",
-            ];
-             // Ajouter "Etage" aux champs requis si un des IDs parent est présent
-            if ($bloc_id || $tranche_id || $immeuble_id) {
-                $requiredFields["Etage"] = "Niveau (étage) manquant";
-            }
-            // Vérification des champs requis
+        // Collect ALL errors for this row
+        $errors = [];
 
-            foreach ($requiredFields as $key => $message) {
-                if (!array_key_exists($key, $row) || $row[$key] === null || $row[$key] === '') {
-                    throw new \Exception($message);
-                }
-            }
-        // 2. Vérification des champs numériques
-
-           $numericFields = [
-            'pu',
-            'prix',
-            'prix_parking',
-            'prix_box',
-            'avance_minimale',
-            'superficie_architecte',
-            'Superficie habitable',
-            'superficie_parking',
-            'superficie_box',
-            'Superficie terrasse',
-            'Superficie terrasse calculée',
-            'Superficie balcon',
-            'Superficie balcon calculée',
-            'Superficie jardin',
-            'Superficie jardin calculée',
-            'superficie_total',
-            'superficie_vendable',
-            'nbre_facades',
+        // 1. Champs requis avec messages personnalisés
+        $requiredFields = [
+            "Numero" => "Numéro du bien manquant",
+            "Type bien" => "Type de bien manquant",
+            "Prix unitaire" => "Prix Unitaire manquant",
         ];
 
-        foreach ($numericFields as $key) {
-            // Si la clé est présente et non vide (on autorise null/empty)
-            if (isset($row[$key]) && $row[$key] !== '') {
-                // S'il ne s'agit pas d'un nombre => erreur
-                if (!is_numeric($row[$key])) {
-                    throw new \Exception("Le champ '$key' doit être un nombre (ou vide/null). Trouvé : " . $row[$key]);
-                }
+        // Ajouter "Etage" aux champs requis si un des IDs parent est présent
+        if ($bloc_id || $tranche_id || $immeuble_id) {
+            $requiredFields["Etage"] = "Niveau (étage) manquant";
+        }
+
+        // Vérification des champs requis - collect all missing fields
+        foreach ($requiredFields as $key => $message) {
+            if (!array_key_exists($key, $row) || $row[$key] === null || $row[$key] === '') {
+                $errors[] = $message;
             }
         }
 
-
-            // 3. Validation enum orientation
-            /* $validOrientations = [
-                'N', 'E', 'S', 'O', 'N_E', 'N_O', 'S_E', 'S_O'
+        // 2. Vérification des champs numériques - collect all numeric errors
+       // Add this in the numeric fields validation section, around line where you validate numeric fields:
+            $numericFields = [
+                'Prix unitaire',
+                'Prix',
+                'Prix parking',
+                'Prix box',
+                'Avance mininmale',
+                'Superficie architecte',
+                'Superficie habitable',
+                'Superficie parking',
+                'Superficie box',
+                'Superficie terrasse',
+                'Superficie terrasse calculée',
+                'Superficie balcon',
+                'Superficie balcon calculée',
+                'Superficie jardin',
+                'Superficie jardin calculée',
+                'Superficie totale',
+                'Superficie vendable',
+                'Nombre facades',
             ];
-            if (!in_array($row['orientation'], $validOrientations)) {
-                throw new \Exception("Orientation invalide. Doit être l'une de : " . implode(', ', $validOrientations));
-            } */
 
-            // 4. Validation enum état
-            /* $validEtats = [
-                'DISPONIBLE',
-                'PRE_RESERVATION',
-                'RESERVATION',
-                'BLOQUE',
-                'VENDU',
-                'ENCOURS_DE_PROPOSITION'
-            ];
-            if (!in_array($row['etat'], $validEtats)) {
-                throw new \Exception("État du bien invalide. Doit être l'un de : " . implode(', ', $validEtats));
-            } */
-
-            // 5. Validation boolean conventionne
-            if (array_key_exists("conventionne", $row) &&!in_array($row['conventionne'], [0, 1, '0', '1', true, false, 'true', 'false'], true)) {
-                throw new \Exception("Valeur invalide pour le champ 'conventionné'. Doit être 0 ou 1 (booléen)");
-            }
-
-            // 6. Vérification projet_id s’il est requis pour la relation avec type bien
-            if (!$projet_id) {
-                throw new \Exception("Projet ID manquant");
-            }
-
-
-            if (array_key_exists("Numero", $row) && $row['Numero'] != null) {
-                $bien->propriete_dite_bien = $row['Numero'];
-            }
-            if (str_contains($row['Numero'], 'Appt')) {
-                $explode_numero = explode("Appt", $row['Numero']);
-                $num            = $explode_numero[1];
-
-            } elseif (str_contains($row['Numero'], 'APP')) {
-                $explode_numero = explode("APP", $row['Numero']);
-                $num            = $explode_numero[1];
-            } else {
-                $num = $row['Numero'];
-            }
-            $bien->numero = $num;
-
-            if (array_key_exists("Etage", $row)) {
-                    if (str_contains($row['Etage'], 'er etage')) {
-                    $explode_niveau_1 = explode("er etage", $row['Etage']);
-                    $nv               = $explode_niveau_1[0];
-                } elseif (str_contains($row['Etage'], 'er étage')) {
-                    $explode_niveau_5 = explode("er étage", $row['Etage']);
-                    $nv               = $explode_niveau_5[0];
-                } elseif (str_contains($row['Etage'], 'eme etage')) {
-                    $explode_niveau_2 = explode("eme etage", $row['Etage']);
-                    $nv               = $explode_niveau_2[0];
-
-                } elseif (str_contains($row['Etage'], 'ème etage')) {
-                    $explode_niveau_3 = explode("ème etage", $row['Etage']);
-                    $nv               = $explode_niveau_3[0];
-                } elseif (str_contains($row['Etage'], 'ème étage')) {
-                    $explode_niveau_4 = explode("ème étage", $row['Etage']);
-                    $nv               = $explode_niveau_4[0];
-                } elseif (str_contains($row['Etage'], 'RDC')) {
-                    $nv = 0;
-                }
-            } else {
-                $nv=NULL;
-            }
-
-            $bien->niveau = $nv;
-
-            if (array_key_exists("Type bien", $row) && $row['Type bien'] != null) {
-                $type      = TypeBien::on('temp')->where('projet_id', $projet_id)->get();
-                $typeFound = false;
-                foreach ($type as $key => $value) {
-                    if ($value->id == intval($row['Type bien'])) {
-                        $bien->type_id = $value->id;
-                        $typeFound     = true;
-                        break;
-                    }
-                }
-                if (! $typeFound) {
-                    throw new \Exception("Type de bien invalide ou non trouvé");
-                }
-            }
-
-            if (array_key_exists("Prix parking", $row) && $row['Prix parking'] != null) {
-                $bien->prix_parking = $row['Prix parking'];
-            } else {
-                $bien->prix_parking = 0;
-            }
-            if (array_key_exists("Prix box", $row) && $row['Prix box'] != null) {
-                $bien->prix_box = $row['Prix box'];
-            } else {
-                $bien->prix_box = 0;
-            }
-            // Handle Superficie balcon
-            if (array_key_exists("Superficie balcon", $row)) {
-                $superficie_balcon = $row['Superficie balcon'];
-
-                if ($superficie_balcon === null || $superficie_balcon === 'SYNDIC PROPOSE' || $superficie_balcon === 'SYNDIC PLAN') {
-                    $bien->superficie_balcon = 0;
-                } else {
-                    // Vérifier si c'est un nombre
-                    if (is_numeric($superficie_balcon)) {
-                        $bien->superficie_balcon = (float) $superficie_balcon;
-                    } else {
-                        throw new \Exception("La valeur de 'Superficie balcon' doit être un nombre. Valeur trouvée : " . $superficie_balcon);
+            foreach ($numericFields as $key) {
+                // Si la clé est présente et non vide (on autorise null/empty)
+                if (isset($row[$key]) && $row[$key] !== '') {
+                    // S'il ne s'agit pas d'un nombre => erreur
+                    if (!is_numeric($row[$key])) {
+                        $errors[] = "Le champ '$key' doit être un nombre (ou vide/null). Trouvé : " . $row[$key];
                     }
                 }
             }
 
-            // Handle Superficie balcon calculée
-            if (array_key_exists("Superficie balcon calculée", $row)) {
-                $superficie_balcon_calculee = $row['Superficie balcon calculée'];
-
-                if ($superficie_balcon_calculee === null || $superficie_balcon_calculee === 'SYNDIC PROPOSE' || $superficie_balcon_calculee === 'SYNDIC PLAN') {
-                    $bien->superficie_balcon_calculer = 0;
-                } else {
-                    // Vérifier si c'est un nombre
-                    if (is_numeric($superficie_balcon_calculee)) {
-                        $bien->superficie_balcon_calculer = (float) $superficie_balcon_calculee;
-                    } else {
-                        throw new \Exception("La valeur de 'Superficie balcon calculée' doit être un nombre. Valeur trouvée : " . $superficie_balcon_calculee);
-                    }
+            // ADD THIS VALIDATION FOR TYPE BIEN - RIGHT AFTER THE NUMERIC FIELDS VALIDATION
+            // Validate that Type bien is numeric
+            if (array_key_exists("Type bien", $row) && $row['Type bien'] !== null && $row['Type bien'] !== '') {
+                if (!is_numeric($row['Type bien'])) {
+                    $errors[] = "Le champ 'Type bien' doit être un ID numérique. Valeur trouvée : " . $row['Type bien'];
                 }
+            }
+
+        // 3. Validation boolean conventionne
+        if (array_key_exists("conventionne", $row) && !in_array($row['conventionne'], [0, 1, '0', '1', true, false, 'true', 'false'], true)) {
+            $errors[] = "Valeur invalide pour le champ 'conventionné'. Doit être 0 ou 1 (booléen)";
+        }
+
+        // 4. Vérification projet_id s'il est requis pour la relation avec type bien
+        if (!$projet_id) {
+            $errors[] = "Projet ID manquant";
+        }
+
+        // If there are any errors, throw exception with ALL errors
+        if (!empty($errors)) {
+            throw new \Exception(implode(' | ', $errors));
+        }
+
+        // Continue with processing if no errors...
+        if (array_key_exists("Numero", $row) && $row['Numero'] != null) {
+            $bien->propriete_dite_bien = $row['Numero'];
+        }
+
+        if (str_contains($row['Numero'], 'Appt')) {
+            $explode_numero = explode("Appt", $row['Numero']);
+            $num            = $explode_numero[1];
+        } elseif (str_contains($row['Numero'], 'APP')) {
+            $explode_numero = explode("APP", $row['Numero']);
+            $num            = $explode_numero[1];
+        } else {
+            $num = $row['Numero'];
+        }
+        $bien->numero = $num;
+
+        $nv = 0;
+        if (array_key_exists("Etage", $row)) {
+            if (str_contains($row['Etage'], 'er etage')) {
+                $explode_niveau_1 = explode("er etage", $row['Etage']);
+                $nv               = $explode_niveau_1[0];
+            } elseif (str_contains($row['Etage'], 'er étage')) {
+                $explode_niveau_5 = explode("er étage", $row['Etage']);
+                $nv               = $explode_niveau_5[0];
+            } elseif (str_contains($row['Etage'], 'eme etage')) {
+                $explode_niveau_2 = explode("eme etage", $row['Etage']);
+                $nv               = $explode_niveau_2[0];
+            } elseif (str_contains($row['Etage'], 'ème etage')) {
+                $explode_niveau_3 = explode("ème etage", $row['Etage']);
+                $nv               = $explode_niveau_3[0];
+            } elseif (str_contains($row['Etage'], 'ème étage')) {
+                $explode_niveau_4 = explode("ème étage", $row['Etage']);
+                $nv               = $explode_niveau_4[0];
+            } elseif (str_contains($row['Etage'], 'RDC')) {
+                $nv = 0;
+            }
+        } else {
+            $nv = NULL;
+        }
+
+        $bien->niveau = $nv;
+
+        if (array_key_exists("Type bien", $row) && $row['Type bien'] != null) {
+            $type      = TypeBien::on('temp')->where('projet_id', $projet_id)->get();
+            $typeFound = false;
+            foreach ($type as $key => $value) {
+                if ($value->id == intval($row['Type bien'])) {
+                    $bien->type_id = $value->id;
+                    $typeFound     = true;
+                    break;
+                }
+            }
+            if (!$typeFound) {
+                throw new \Exception("Type de bien invalide ou non trouvé");
+            }
+        }
+
+        if (array_key_exists("Prix parking", $row) && $row['Prix parking'] != null) {
+            $bien->prix_parking = self::validateNumericValue($row['Prix parking'], "Prix parking");
+        } else {
+            $bien->prix_parking = 0;
+        }
+
+        if (array_key_exists("Prix box", $row) && $row['Prix box'] != null) {
+            $bien->prix_box = self::validateNumericValue($row['Prix box'], "Prix box");
+        } else {
+            $bien->prix_box = 0;
+        }
+
+        // Handle Superficie balcon
+        if (array_key_exists("Superficie balcon", $row)) {
+            $superficie_balcon = $row['Superficie balcon'];
+            if ($superficie_balcon === null || $superficie_balcon === 'SYNDIC PROPOSE' || $superficie_balcon === 'SYNDIC PLAN') {
+                $bien->superficie_balcon = 0;
             } else {
-                // If not provided, use half the value of superficie_balcon
-                $bien->superficie_balcon_calculer = ($bien->superficie_balcon ?? 0) / 2;
+                $bien->superficie_balcon = self::validateNumericValue($row['Superficie balcon'], "Superficie balcon");
             }
+        }
 
-            // Handle Superficie jardin
-            if (array_key_exists("Superficie jardin", $row)) {
-                $superficie_jardin = $row['Superficie jardin'];
-
-                if ($superficie_jardin === null || $superficie_jardin === 'SYNDIC PROPOSE' || $superficie_jardin === 'SYNDIC PLAN') {
-                    $bien->superficie_jardin = 0;
-                } else {
-                    // Vérifier si c'est un nombre
-                    if (is_numeric($superficie_jardin)) {
-                        $bien->superficie_jardin = (float) $superficie_jardin;
-                    } else {
-                        throw new \Exception("La valeur de 'Superficie jardin' doit être un nombre. Valeur trouvée : " . $superficie_jardin);
-                    }
-                }
-            }
-
-            // Handle Superficie jardin calculée
-            if (array_key_exists("Superficie jardin calculée", $row)) {
-                $superficie_jardin_calculee = $row['Superficie jardin calculée'];
-
-                if ($superficie_jardin_calculee === null || $superficie_jardin_calculee === 'SYNDIC PROPOSE' || $superficie_jardin_calculee === 'SYNDIC PLAN') {
-                    $bien->superficie_jardin_calculer = 0;
-                } else {
-                    // Vérifier si c'est un nombre
-                    if (is_numeric($superficie_jardin_calculee)) {
-                        $bien->superficie_jardin_calculer = (float) $superficie_jardin_calculee;
-                    } else {
-                        throw new \Exception("La valeur de 'Superficie jardin calculée' doit être un nombre. Valeur trouvée : " . $superficie_jardin_calculee);
-                    }
-                }
+        // Handle Superficie balcon calculée
+        if (array_key_exists("Superficie balcon calculée", $row)) {
+            $superficie_balcon_calculee = $row['Superficie balcon calculée'];
+            if ($superficie_balcon_calculee === null || $superficie_balcon_calculee === 'SYNDIC PROPOSE' || $superficie_balcon_calculee === 'SYNDIC PLAN') {
+                $bien->superficie_balcon_calculer = 0;
             } else {
-                // If not provided, use half the value of superficie_jardin
-                $bien->superficie_jardin_calculer = ($bien->superficie_jardin ?? 0) / 2;
+                $bien->superficie_balcon_calculer = self::validateNumericValue($superficie_balcon_calculee, "Superficie balcon calculée");
             }
+        } else {
+            // If not provided, use half the value of superficie_balcon
+            $bien->superficie_balcon_calculer = ($bien->superficie_balcon ?? 0) / 2;
+        }
 
-            // Handle Superficie terrasse
-            if (array_key_exists("Superficie terrasse", $row)) {
-                $superficie_terrasse = $row['Superficie terrasse'];
-
-                if ($superficie_terrasse === null || $superficie_terrasse === 'SYNDIC PROPOSE' || $superficie_terrasse === 'SYNDIC PLAN') {
-                    $bien->superficie_terrasse = 0;
-                } else {
-                    // Vérifier si c'est un nombre
-                    if (is_numeric($superficie_terrasse)) {
-                        $bien->superficie_terrasse = (float) $superficie_terrasse;
-                    } else {
-                        throw new \Exception("La valeur de 'Superficie terrasse' doit être un nombre. Valeur trouvée : " . $superficie_terrasse);
-                    }
-                }
-            }
-
-            // Handle Superficie terrasse calculée
-            if (array_key_exists("Superficie terrasse calculée", $row)) {
-                $superficie_terrasse_calculee = $row['Superficie terrasse calculée'];
-
-                if ($superficie_terrasse_calculee === null || $superficie_terrasse_calculee === 'SYNDIC PROPOSE' || $superficie_terrasse_calculee === 'SYNDIC PLAN') {
-                    $bien->superficie_terrasse_calculer = 0;
-                } else {
-                    // Vérifier si c'est un nombre
-                    if (is_numeric($superficie_terrasse_calculee)) {
-                        $bien->superficie_terrasse_calculer = (float) $superficie_terrasse_calculee;
-                    } else {
-                        throw new \Exception("La valeur de 'Superficie terrasse calculée' doit être un nombre. Valeur trouvée : " . $superficie_terrasse_calculee);
-                    }
-                }
+        // Handle Superficie jardin
+        if (array_key_exists("Superficie jardin", $row)) {
+            $superficie_jardin = $row['Superficie jardin'];
+            if ($superficie_jardin === null || $superficie_jardin === 'SYNDIC PROPOSE' || $superficie_jardin === 'SYNDIC PLAN') {
+                $bien->superficie_jardin = 0;
             } else {
-                // If not provided, use half the value of superficie_terrasse
-                $bien->superficie_terrasse_calculer = ($bien->superficie_terrasse ?? 0) / 2;
+                $bien->superficie_jardin = self::validateNumericValue($superficie_jardin, "Superficie jardin");
             }
+        }
 
-
-            if (array_key_exists("Terrasse", $row) && $row['Terrasse'] != null) {
-                $bien->superficie_terrasse          = $row['Terrasse'];
-                $bien->superficie_terrasse_calculer = $row['Terrasse'];
+        // Handle Superficie jardin calculée
+        if (array_key_exists("Superficie jardin calculée", $row)) {
+            $superficie_jardin_calculee = $row['Superficie jardin calculée'];
+            if ($superficie_jardin_calculee === null || $superficie_jardin_calculee === 'SYNDIC PROPOSE' || $superficie_jardin_calculee === 'SYNDIC PLAN') {
+                $bien->superficie_jardin_calculer = 0;
             } else {
-                $bien->superficie_terrasse          = 0;
+                $bien->superficie_jardin_calculer = self::validateNumericValue($superficie_jardin_calculee, "Superficie jardin calculée");
+            }
+        } else {
+            // If not provided, use half the value of superficie_jardin
+            $bien->superficie_jardin_calculer = ($bien->superficie_jardin ?? 0) / 2;
+        }
+
+        // Handle Superficie terrasse
+        if (array_key_exists("Superficie terrasse", $row)) {
+            $superficie_terrasse = $row['Superficie terrasse'];
+            if ($superficie_terrasse === null || $superficie_terrasse === 'SYNDIC PROPOSE' || $superficie_terrasse === 'SYNDIC PLAN') {
+                $bien->superficie_terrasse = 0;
+            } else {
+                $bien->superficie_terrasse = self::validateNumericValue($superficie_terrasse, "Superficie terrasse");
+            }
+        }
+
+        // Handle Superficie terrasse calculée
+        if (array_key_exists("Superficie terrasse calculée", $row)) {
+            $superficie_terrasse_calculee = $row['Superficie terrasse calculée'];
+            if ($superficie_terrasse_calculee === null || $superficie_terrasse_calculee === 'SYNDIC PROPOSE' || $superficie_terrasse_calculee === 'SYNDIC PLAN') {
                 $bien->superficie_terrasse_calculer = 0;
-            }
-            if (array_key_exists("Superficie architect", $row) && $row['Superficie architect'] != null) {
-                $bien->superficie_architecte = $row['Superficie architect'];
             } else {
-                $bien->superficie_architecte = 0;
+                $bien->superficie_terrasse_calculer = self::validateNumericValue($superficie_terrasse_calculee, "Superficie terrasse calculée");
             }
-            if (array_key_exists("Superficie habitable", $row) && $row['Superficie habitable'] != null) {
-                $bien->superficie_habitable = $row['Superficie habitable'];
-            } else {
-                $bien->superficie_habitable = 0;
-            }
-            if (array_key_exists("pu", $row) && $row['pu'] != null) {
-                $bien->prix_unitaire = $row['pu'];
-            } else {
-                $bien->prix_unitaire = 0;
-            }
-            if (array_key_exists("Orientation", $row) && $row['Orientation'] != null) {
-                $bien->orientation = $row['Orientation'];
-            } else {
-                $bien->orientation = 'N';
-            }
-            if (array_key_exists("Avance minimale", $row) && $row['Avance minimale'] != null) {
-                $bien->avance_minimale = $row['Avance minimale'];
-            } else {
-                $bien->avance_minimale = 0;
-            }
-            if (array_key_exists("Nombre facades", $row) && $row['Nombre facades'] != null) {
-                $bien->nbre_facades = $row['Nombre facades'];
-            } else {
-                $bien->nbre_facades = 0;
-            }
-            if (array_key_exists("Superficie totale", $row) && $row['Superficie totale'] != null) {
-                $bien->superficie_total = $row['Superficie totale'];
-            } else {
-                $bien->superficie_total = $bien->superficie_habitable + $bien->superficie_balcon + $bien->superficie_terrasse + $bien->superficie_jardin;
+        } else {
+            // If not provided, use half the value of superficie_terrasse
+            $bien->superficie_terrasse_calculer = ($bien->superficie_terrasse ?? 0) / 2;
+        }
+
+        if (array_key_exists("Superficie architecte", $row) && $row['Superficie architecte'] != null) {
+            $bien->superficie_architecte = self::validateNumericValue($row['Superficie architecte'], "Superficie architecte");
+        } else {
+            $bien->superficie_architecte = 0;
+        }
+
+        if (array_key_exists("Superficie habitable", $row) && $row['Superficie habitable'] != null) {
+            $bien->superficie_habitable = self::validateNumericValue($row['Superficie habitable'], "Superficie habitable");
+        } else {
+            $bien->superficie_habitable = 0;
+        }
+
+        if (array_key_exists("Prix unitaire", $row) && $row['Prix unitaire'] != null) {
+            $bien->prix_unitaire = self::validateNumericValue($row['Prix unitaire'], "Prix unitaire");
+        } else {
+            $bien->prix_unitaire = 0;
+        }
+
+        if (array_key_exists("Orientation", $row) && $row['Orientation'] != null) {
+            $bien->orientation = $row['Orientation'];
+        } else {
+            $bien->orientation = 'N';
+        }
+
+        if (array_key_exists("Avance minimale", $row) && $row['Avance minimale'] != null) {
+            $bien->avance_minimale = self::validateNumericValue($row['Avance minimale'], "Avance minimale");
+        } else {
+            $bien->avance_minimale = 0;
+        }
+
+        if (array_key_exists("Nombre facades", $row) && $row['Nombre facades'] != null) {
+            $bien->nbre_facades = self::validateNumericValue($row['Nombre facades'], "Nombre facades");
+        } else {
+            $bien->nbre_facades = 0;
+        }
+
+        if (array_key_exists("Superficie totale", $row) && $row['Superficie totale'] != null) {
+            $bien->superficie_total = $row['Superficie totale'];
+        } else {
+            $bien->superficie_total = $bien->superficie_habitable + $bien->superficie_balcon + $bien->superficie_terrasse + $bien->superficie_jardin;
+        }
+
+        $bien->superficie_vendable = $bien->superficie_habitable + $bien->superficie_balcon_calculer + $bien->superficie_terrasse_calculer + $bien->superficie_jardin_calculer;
+        $bien->prix                = $bien->prix_unitaire * $bien->superficie_total + $bien->prix_parking + $bien->prix_box;
+        $bien->etat                = 'disponible';
+
+        if ($bien->save()) {
+            // Utilisation de validateNumericValue avec array_key_exists comme dans votre code original
+            $nb_chambre   = (array_key_exists("Nombre chambre", $row) && $row['Nombre chambre'] != null) ?
+                            self::validateNumericValue($row['Nombre chambre'], "Nombre chambre") : 0;
+
+            $nb_salon     = (array_key_exists("Nombre salon", $row) && $row['Nombre salon'] != null) ?
+                            self::validateNumericValue($row['Nombre salon'], "Nombre salon") : 0;
+
+            $nb_cuisine   = (array_key_exists("Nombre cuisine", $row) && $row['Nombre cuisine'] != null) ?
+                            self::validateNumericValue($row['Nombre cuisine'], "Nombre cuisine") : 0;
+
+            $nb_sdb       = (array_key_exists("Nombre sdb", $row) && $row['Nombre sdb'] != null) ?
+                            self::validateNumericValue($row['Nombre sdb'], "Nombre sdb") : 0;
+
+            $nb_hall      = (array_key_exists("Nombre hall", $row) && $row['Nombre hall'] != null) ?
+                            self::validateNumericValue($row['Nombre hall'], "Nombre hall") : 0;
+
+            $nb_placard   = (array_key_exists("Nombre placard", $row) && $row['Nombre placard'] != null) ?
+                            self::validateNumericValue($row['Nombre placard'], "Nombre placard") : 0;
+
+            $nb_balcon    = (array_key_exists("Nombre balcon", $row) && $row['Nombre balcon'] != null) ?
+                            self::validateNumericValue($row['Nombre balcon'], "Nombre balcon") : 0;
+
+            $nb_terasse   = (array_key_exists("Nombre terasse", $row) && $row['Nombre terasse'] != null) ?
+                            self::validateNumericValue($row['Nombre terasse'], "Nombre terasse") : 0;
+
+            $nb_buanderie = (array_key_exists("Nombre buanderie", $row) && $row['Nombre buanderie'] != null) ?
+                            self::validateNumericValue($row['Nombre buanderie'], "Nombre buanderie") : 0;
+
+            $nb_reception = (array_key_exists("Nombre reception", $row) && $row['Nombre reception'] != null) ?
+                            self::validateNumericValue($row['Nombre reception'], "Nombre reception") : 0;
+
+            // Vérifier si au moins une composition a une valeur non nulle
+            if ($nb_chambre != 0 || $nb_salon != 0 || $nb_cuisine != 0 || $nb_sdb != 0 ||
+                $nb_hall != 0 || $nb_placard != 0 || $nb_balcon != 0 || $nb_terasse != 0 ||
+                $nb_buanderie != 0 || $nb_reception != 0) {
+
+                $compo = new CompositionBien();
+                $compo->setConnection('temp');
+                $compo->bien_id         = $bien->id;
+                $compo->nbre_chambres   = $nb_chambre;
+                $compo->nbre_salons     = $nb_salon;
+                $compo->nbre_sdb        = $nb_sdb;
+                $compo->nbre_cuisines   = $nb_cuisine;
+                $compo->nbre_balcons    = $nb_balcon;
+                $compo->nbre_terasses   = $nb_terasse;
+                $compo->nbre_placards   = $nb_placard;
+                $compo->nbre_halls      = $nb_hall;
+                $compo->nbre_buanderies = $nb_buanderie;
+                $compo->nbre_receptions = $nb_reception;
+                $compo->save();
             }
 
-            $bien->superficie_vendable = $bien->superficie_habitable + $bien->superficie_balcon_calculer + $bien->superficie_terrasse_calculer + $bien->superficie_jardin_calculer;
-            $bien->prix                = $bien->prix_unitaire * $bien->superficie_total + $bien->prix_parking + $bien->prix_box;
-            $bien->etat                = 'disponible';
-            if ($bien->save()) {
-                $nb_chambre   = 0;
-                $nb_salon     = 0;
-                $nb_cuisine   = 0;
-                $nb_sdb       = 0;
-                $nb_hall      = 0;
-                $nb_placard   = 0;
-                $nb_balcon    = 0;
-                $nb_terasse   = 0;
-                $nb_buanderie = 0;
-                $nb_reception = 0;
-                if (array_key_exists("Nombre chambre", $row) && $row['Nombre chambre'] != null) {
-                    $nb_chambre = $row['Nombre chambre'];
-                }
-                if (array_key_exists("Nombre salon", $row) && $row['Nombre salon'] != null) {
-                    $nb_salon = $row['Nombre salon'];
-                }
-                if (array_key_exists("Nombre cuisine", $row) && $row['Nombre cuisine'] != null) {
-                    $nb_cuisine = $row['Nombre cuisine'];
-                }
-                if (array_key_exists("Nombre sdb", $row) && $row['Nombre sdb'] != null) {
-                    $nb_sdb = $row['Nombre sdb'];
-                }
-                if (array_key_exists("Nombre hall", $row) && $row['Nombre hall'] != null) {
-                    $nb_hall = $row['Nombre hall'];
-                }
-                if (array_key_exists("Nombre terasse", $row) && $row['Nombre terasse'] != null) {
-                    $nb_terasse = $row['Nombre terasse'];
-                }
-                if (array_key_exists("Nombre balcon", $row) && $row['Nombre balcon'] != null) {
-                    $nb_balcon = $row['Nombre balcon'];
-                }
-                if (array_key_exists("Nombre buanderie", $row) && $row['Nombre buanderie'] != null) {
-                    $nb_buanderie = $row['Nombre buanderie'];
-                }
-                if (array_key_exists("Nombre placard", $row) && $row['Nombre placard'] != null) {
-                    $nb_placard = $row['Nombre placard'];
-                }
-                if (array_key_exists("Nombre reception", $row) && $row['Nombre reception'] != null) {
-                    $nb_reception = $row['Nombre reception'];
-                }
-                if ($nb_chambre != 0 || $nb_salon != 0 || $nb_cuisine != 0 || $nb_sdb != 0 || $nb_hall != 0 || $nb_placard != 0 || $nb_balcon != 0 || $nb_terasse != 0 || $nb_buanderie != 0 || $nb_reception != 0) {
-                    $compo = new CompositionBien();
-                    $compo->setConnection('temp');
-                    $compo->bien_id         = $bien->id;
-                    $compo->nbre_chambres   = $nb_chambre;
-                    $compo->nbre_salons     = $nb_salon;
-                    $compo->nbre_sdb        = $nb_sdb;
-                    $compo->nbre_cuisines   = $nb_cuisine;
-                    $compo->nbre_balcons    = $nb_balcon;
-                    $compo->nbre_terasses   = $nb_terasse;
-                    $compo->nbre_placards   = $nb_placard;
-                    $compo->nbre_halls      = $nb_hall;
-                    $compo->nbre_buanderies = $nb_buanderie;
-                    $compo->nbre_receptions = $nb_reception;
-                    $compo->save();
-                }
+            Bien_Helper::store_bien_frein($bien->id, 'import');
+        }
+    }
+}
 
-                Bien_Helper::store_bien_frein($bien->id, 'import');
-
-                /*if (array_key_exists("composition",$row)){
+    /*if (array_key_exists("composition",$row)){
                     $pattern = "/[,\s.]/";
                     $exp=preg_split($pattern, $row['composition']);
                     $balcon=0;
@@ -450,10 +433,435 @@ class Bien_Helper
                                     $compo->nbre_placards=$placard;
                                     $compo->save();
 
-                }*/
+    }*/
+
+
+   public static function updateBienByExcel($projet_id, $row)
+    {
+        \Log::info("🔄 updateBienByExcel called for ID: " . ($row['ID'] ?? 'Unknown'));
+
+        // Add field mapping to handle different field names
+        $fieldMapping = [
+            'Nombre chambres' => 'Nombre chambre',
+            'Nombre salons' => 'Nombre salon',
+            'Nombre salles de bain' => 'Nombre sdb',
+            'Nombre cuisines' => 'Nombre cuisine',
+            'Nombre halls' => 'Nombre hall',
+            'Nombre terrasses' => 'Nombre terasse',
+            'Nombre balcons' => 'Nombre balcon',
+            'Nombre buanderies' => 'Nombre buanderie',
+            'Nombre placards' => 'Nombre placard',
+            'Nombre réceptions' => 'Nombre reception'
+        ];
+
+        // Map fields to expected names
+        foreach ($fieldMapping as $jsonField => $expectedField) {
+            if (array_key_exists($jsonField, $row) && !array_key_exists($expectedField, $row)) {
+                $row[$expectedField] = $row[$jsonField];
             }
         }
+
+        // Validate that ID exists and is numeric
+        if (!isset($row['ID']) || $row['ID'] === null || $row['ID'] === '') {
+            throw new \Exception("ID manquant dans la ligne");
+        }
+
+
+        if (!is_numeric($row['ID'])) {
+            throw new \Exception("ID doit être numérique. Trouvé: " . $row['ID']);
+        }
+
+        $bien = Bien::on('temp')->where('id', $row['ID'])->where(function ($query) use ($row, $projet_id) {
+            $query->where('projet_id', $projet_id);
+        })->first();
+
+        if (!$bien) {
+            \Log::warning("Bien not found with ID: {$row['ID']} in projet: {$projet_id}");
+            throw new \Exception("Bien non trouvé avec ID: {$row['ID']} dans le projet {$projet_id}");
+        }
+            \Log::info("✅ Bien found: ID {$bien->id}, Numéro: {$bien->numero}");
+
+
+        // Collect ALL errors for this row
+        $errors = [];
+
+        // 1. Champs requis avec messages personnalisés
+        $requiredFields = [
+            "Numero" => "Numéro du bien manquant",
+            "Type" => "Type de bien manquant",
+             "Prix" => "Prix manquant",
+            "Prix unitaire" => "Prix Unitaire manquant",
+        ];
+
+        // In updateBienByExcel, add debugging for required fields
+        foreach ($requiredFields as $key => $message) {
+            if (!array_key_exists($key, $row) || $row[$key] === null || $row[$key] === '') {
+                $errors[] = $message;
+                    \Log::info("✅ Bien found: ID {$bien->id}, Numéro: {$bien->numero}");
+
+            }
+        }
+
+        // 2. Vérification des champs numériques - collect all numeric errors
+        $numericFields = [
+            'Prix unitaire',
+            'Prix',
+            'Prix parking',
+            'Prix box',
+            'Avance mininmale',
+            'Superficie architecte',
+            'Superficie habitable',
+            'Superficie parking',
+            'Superficie box',
+            'Superficie terrasse',
+            'Superficie terrasse calculée',
+            'Superficie balcon',
+            'Superficie balcon calculée',
+            'Superficie jardin',
+            'Superficie jardin calculée',
+            'Superficie totale',
+            'Superficie vendable',
+            'Nombre facades',
+        ];
+
+     foreach ($numericFields as $key) {
+            if (isset($row[$key]) && $row[$key] !== '' && !is_numeric($row[$key])) {
+                $errors[] = "Le champ '{$key}' doit être un nombre. Trouvé: " . $row[$key];
+                \Log::warning("Non-numeric value for {$key}: " . $row[$key]);
+            }
+        }
+        // If there are any errors, throw exception with ALL errors
+        if (!empty($errors)) {
+            $errorMessage = "Erreurs validation pour ID {$row['ID']}: " . implode(' | ', $errors);
+            \Log::error($errorMessage);
+            throw new \Exception($errorMessage);
+        }
+
+        \Log::info("✅ All validations passed for ID: {$row['ID']}");
+
+        // Validate that Type bien is numeric
+        if (array_key_exists("Type", $row) && $row['Type'] !== null && $row['Type'] !== '') {
+            if (!is_numeric($row['Type'])) {
+                $errors[] = "Le champ 'Type bien' doit être un ID numérique. Valeur trouvée : " . $row['Type'];
+            }
+        }
+
+        // 3. Validation Orientation Enum
+        if (array_key_exists("Orientation", $row) && $row['Orientation'] !== null && $row['Orientation'] !== '') {
+            $validOrientations = [
+                'N' => 1, 'E' => 2, 'S' => 3, 'O' => 4,
+                'N_E' => 5, 'N_O' => 6, 'S_E' => 7, 'S_O' => 8
+            ];
+
+            if (!array_key_exists($row['Orientation'], $validOrientations)) {
+                $errors[] = "Orientation invalide. Valeurs acceptées: " . implode(', ', array_keys($validOrientations)) . ". Trouvé: " . $row['Orientation'];
+            }
+        }
+
+        // 4. Validation Statut Enum
+        if (array_key_exists("Statut", $row) && $row['Statut'] !== null && $row['Statut'] !== '') {
+            $validStatus = [
+                'Disponible' => 1,
+                'Pré-réservé' => 2,
+                'Réservé' => 3,
+                'Bloqué' => 4,
+                'Vendu' => 5,
+                'En cours de proposition' => 6
+            ];
+
+            if (!array_key_exists($row['Statut'], $validStatus)) {
+                $errors[] = "Statut invalide. Valeurs acceptées: " . implode(', ', array_keys($validStatus)) . ". Trouvé: " . $row['Statut'];
+            }
+        }
+
+        // 5. Validation boolean conventionne
+        if (array_key_exists("conventionne", $row) && !in_array($row['conventionne'], [0, 1, '0', '1', true, false, 'true', 'false'], true)) {
+            $errors[] = "Valeur invalide pour le champ 'conventionné'. Doit être 0 ou 1 (booléen)";
+        }
+
+        // 6. Vérification projet_id s'il est requis pour la relation avec type bien
+        if (!$projet_id) {
+            $errors[] = "Projet ID manquant";
+        }
+
+        // If there are any errors, throw exception with ALL errors
+        if (!empty($errors)) {
+            throw new \Exception(implode(' | ', $errors));
+        }
+
+        // Continue with processing if no errors...
+        if (array_key_exists("Nom", $row) && $row['Nom'] != null) {
+            $bien->propriete_dite_bien = $row['Nom'];
+        }
+
+        if (str_contains($row['Numero'], 'Appt')) {
+            $explode_numero = explode("Appt", $row['Numero']);
+            $num            = $explode_numero[1];
+        } elseif (str_contains($row['Numero'], 'APP')) {
+            $explode_numero = explode("APP", $row['Numero']);
+            $num            = $explode_numero[1];
+        } else {
+            $num = $row['Numero'];
+        }
+        $bien->numero = $num;
+
+        $nv = 0;
+        if (array_key_exists("Etage", $row)) {
+            if (str_contains($row['Etage'], 'er etage')) {
+                $explode_niveau_1 = explode("er etage", $row['Etage']);
+                $nv               = $explode_niveau_1[0];
+            } elseif (str_contains($row['Etage'], 'er étage')) {
+                $explode_niveau_5 = explode("er étage", $row['Etage']);
+                $nv               = $explode_niveau_5[0];
+            } elseif (str_contains($row['Etage'], 'eme etage')) {
+                $explode_niveau_2 = explode("eme etage", $row['Etage']);
+                $nv               = $explode_niveau_2[0];
+            } elseif (str_contains($row['Etage'], 'ème etage')) {
+                $explode_niveau_3 = explode("ème etage", $row['Etage']);
+                $nv               = $explode_niveau_3[0];
+            } elseif (str_contains($row['Etage'], 'ème étage')) {
+                $explode_niveau_4 = explode("ème étage", $row['Etage']);
+                $nv               = $explode_niveau_4[0];
+            } elseif (str_contains($row['Etage'], 'RDC')) {
+                $nv = 0;
+            }
+        } else {
+            $nv = NULL;
+        }
+
+        $bien->niveau = $nv;
+
+        if (array_key_exists("Type", $row) && $row['Type'] != null) {
+            $type      = TypeBien::on('temp')->where('projet_id', $projet_id)->get();
+            $typeFound = false;
+            foreach ($type as $key => $value) {
+                if ($value->id == intval($row['Type'])) {
+                    $bien->type_id = $value->id;
+                    $typeFound     = true;
+                    break;
+                }
+            }
+            if (!$typeFound) {
+                throw new \Exception("Type de bien invalide ou non trouvé");
+            }
+        }
+
+        if (array_key_exists("Prix parking", $row) && $row['Prix parking'] != null) {
+            $bien->prix_parking = self::validateNumericValue($row['Prix parking'], "Prix parking");
+        } else {
+            $bien->prix_parking = 0;
+        }
+
+        if (array_key_exists("Prix box", $row) && $row['Prix box'] != null) {
+            $bien->prix_box = self::validateNumericValue($row['Prix box'], "Prix box");
+        } else {
+            $bien->prix_box = 0;
+        }
+
+        // Handle Superficie balcon
+        if (array_key_exists("Superficie balcon", $row)) {
+            $superficie_balcon = $row['Superficie balcon'];
+            if ($superficie_balcon === null || $superficie_balcon === 'SYNDIC PROPOSE' || $superficie_balcon === 'SYNDIC PLAN') {
+                $bien->superficie_balcon = 0;
+            } else {
+                $bien->superficie_balcon = self::validateNumericValue($row['Superficie balcon'], "Superficie balcon");
+            }
+        }
+
+        // Handle Superficie balcon calculée
+        if (array_key_exists("Superficie balcon calculée", $row)) {
+            $superficie_balcon_calculee = $row['Superficie balcon calculée'];
+            if ($superficie_balcon_calculee === null || $superficie_balcon_calculee === 'SYNDIC PROPOSE' || $superficie_balcon_calculee === 'SYNDIC PLAN') {
+                $bien->superficie_balcon_calculer = 0;
+            } else {
+                $bien->superficie_balcon_calculer = self::validateNumericValue($superficie_balcon_calculee, "Superficie balcon calculée");
+            }
+        } else {
+            // If not provided, use half the value of superficie_balcon
+            $bien->superficie_balcon_calculer = ($bien->superficie_balcon ?? 0) / 2;
+        }
+
+        // Handle Superficie jardin
+        if (array_key_exists("Superficie jardin", $row)) {
+            $superficie_jardin = $row['Superficie jardin'];
+            if ($superficie_jardin === null || $superficie_jardin === 'SYNDIC PROPOSE' || $superficie_jardin === 'SYNDIC PLAN') {
+                $bien->superficie_jardin = 0;
+            } else {
+                $bien->superficie_jardin = self::validateNumericValue($superficie_jardin, "Superficie jardin");
+            }
+        }
+
+        // Handle Superficie jardin calculée
+        if (array_key_exists("Superficie jardin calculée", $row)) {
+            $superficie_jardin_calculee = $row['Superficie jardin calculée'];
+            if ($superficie_jardin_calculee === null || $superficie_jardin_calculee === 'SYNDIC PROPOSE' || $superficie_jardin_calculee === 'SYNDIC PLAN') {
+                $bien->superficie_jardin_calculer = 0;
+            } else {
+                $bien->superficie_jardin_calculer = self::validateNumericValue($superficie_jardin_calculee, "Superficie jardin calculée");
+            }
+        } else {
+            // If not provided, use half the value of superficie_jardin
+            $bien->superficie_jardin_calculer = ($bien->superficie_jardin ?? 0) / 2;
+        }
+
+        // Handle Superficie terrasse
+        if (array_key_exists("Superficie terrasse", $row)) {
+            $superficie_terrasse = $row['Superficie terrasse'];
+            if ($superficie_terrasse === null || $superficie_terrasse === 'SYNDIC PROPOSE' || $superficie_terrasse === 'SYNDIC PLAN') {
+                $bien->superficie_terrasse = 0;
+            } else {
+                $bien->superficie_terrasse = self::validateNumericValue($superficie_terrasse, "Superficie terrasse");
+            }
+        }
+
+        // Handle Superficie terrasse calculée
+        if (array_key_exists("Superficie terrasse calculée", $row)) {
+            $superficie_terrasse_calculee = $row['Superficie terrasse calculée'];
+            if ($superficie_terrasse_calculee === null || $superficie_terrasse_calculee === 'SYNDIC PROPOSE' || $superficie_terrasse_calculee === 'SYNDIC PLAN') {
+                $bien->superficie_terrasse_calculer = 0;
+            } else {
+                $bien->superficie_terrasse_calculer = self::validateNumericValue($superficie_terrasse_calculee, "Superficie terrasse calculée");
+            }
+        } else {
+            // If not provided, use half the value of superficie_terrasse
+            $bien->superficie_terrasse_calculer = ($bien->superficie_terrasse ?? 0) / 2;
+        }
+
+        if (array_key_exists("Superficie architecte", $row) && $row['Superficie architecte'] != null) {
+            $bien->superficie_architecte = self::validateNumericValue($row['Superficie architecte'], "Superficie architecte");
+        } else {
+            $bien->superficie_architecte = 0;
+        }
+
+        if (array_key_exists("Superficie habitable", $row) && $row['Superficie habitable'] != null) {
+            $bien->superficie_habitable = self::validateNumericValue($row['Superficie habitable'], "Superficie habitable");
+        } else {
+            $bien->superficie_habitable = 0;
+        }
+
+        if (array_key_exists("Prix unitaire", $row) && $row['Prix unitaire'] != null) {
+            $bien->prix_unitaire = self::validateNumericValue($row['Prix unitaire'], "Prix unitaire");
+        } else {
+            $bien->prix_unitaire = 0;
+        }
+
+        // Set Orientation with enum validation
+        if (array_key_exists("Orientation", $row) && $row['Orientation'] != null) {
+            $bien->orientation = $row['Orientation'];
+        } else {
+            $bien->orientation = 'N';
+        }
+
+        // Set Statut with enum validation
+        if (array_key_exists("Statut", $row) && $row['Statut'] != null) {
+            $statusMapping = [
+                'Disponible' => 'disponible',
+                'Pré-réservé' => 'pre_reservation',
+                'Réservé' => 'reservation',
+                'Bloqué' => 'bloque',
+                'Vendu' => 'vendu',
+                'En cours de proposition' => 'encours_de_proposition'
+            ];
+            $bien->etat = $statusMapping[$row['Statut']] ?? 'disponible';
+        } else {
+            $bien->etat = 'disponible';
+        }
+
+        if (array_key_exists("Avance minimale", $row) && $row['Avance minimale'] != null) {
+            $bien->avance_minimale = self::validateNumericValue($row['Avance minimale'], "Avance minimale");
+        } else {
+            $bien->avance_minimale = 0;
+        }
+
+        if (array_key_exists("Nombre facades", $row) && $row['Nombre facades'] != null) {
+            $bien->nbre_facades = self::validateNumericValue($row['Nombre facades'], "Nombre facades");
+        } else {
+            $bien->nbre_facades = 0;
+        }
+
+        if (array_key_exists("Superficie totale", $row) && $row['Superficie totale'] != null) {
+            $bien->superficie_total = $row['Superficie totale'];
+        } else {
+            $bien->superficie_total = $bien->superficie_habitable + $bien->superficie_balcon + $bien->superficie_terrasse + $bien->superficie_jardin;
+        }
+
+        $bien->superficie_vendable = $bien->superficie_habitable + $bien->superficie_balcon_calculer + $bien->superficie_terrasse_calculer + $bien->superficie_jardin_calculer;
+       // $bien->prix                = $bien->prix_unitaire * $bien->superficie_total + $bien->prix_parking + $bien->prix_box;
+        $bien->prix                = $row['Prix'];
+
+        if ($bien->save()) {
+            \Log::info("✅ Bien saved successfully: ID {$bien->id}");
+
+            // Handle composition...
+            $compo = CompositionBien::on('temp')->where('bien_id', $bien->id)->first();
+            if ($compo) {
+                \Log::info("✅ Composition found and updated for bien: {$bien->id}");
+            } else {
+                \Log::info("✅ New composition created for bien: {$bien->id}");
+            }
+            if (!$compo) {
+                $compo = new CompositionBien();
+                $compo->setConnection('temp');
+                $compo->bien_id = $bien->id;
+            }
+
+            // Utilisation de validateNumericValue avec array_key_exists
+            $nb_chambre   = (array_key_exists("Nombre chambre", $row) && $row['Nombre chambre'] != null) ?
+                            self::validateNumericValue($row['Nombre chambre'], "Nombre chambre") : 0;
+
+            $nb_salon     = (array_key_exists("Nombre salon", $row) && $row['Nombre salon'] != null) ?
+                            self::validateNumericValue($row['Nombre salon'], "Nombre salon") : 0;
+
+            $nb_cuisine   = (array_key_exists("Nombre cuisine", $row) && $row['Nombre cuisine'] != null) ?
+                            self::validateNumericValue($row['Nombre cuisine'], "Nombre cuisine") : 0;
+
+            $nb_sdb       = (array_key_exists("Nombre sdb", $row) && $row['Nombre sdb'] != null) ?
+                            self::validateNumericValue($row['Nombre sdb'], "Nombre sdb") : 0;
+
+            $nb_hall      = (array_key_exists("Nombre hall", $row) && $row['Nombre hall'] != null) ?
+                            self::validateNumericValue($row['Nombre hall'], "Nombre hall") : 0;
+
+            $nb_placard   = (array_key_exists("Nombre placard", $row) && $row['Nombre placard'] != null) ?
+                            self::validateNumericValue($row['Nombre placard'], "Nombre placard") : 0;
+
+            $nb_balcon    = (array_key_exists("Nombre balcon", $row) && $row['Nombre balcon'] != null) ?
+                            self::validateNumericValue($row['Nombre balcon'], "Nombre balcon") : 0;
+
+            $nb_terasse   = (array_key_exists("Nombre terasse", $row) && $row['Nombre terasse'] != null) ?
+                            self::validateNumericValue($row['Nombre terasse'], "Nombre terasse") : 0;
+
+            $nb_buanderie = (array_key_exists("Nombre buanderie", $row) && $row['Nombre buanderie'] != null) ?
+                            self::validateNumericValue($row['Nombre buanderie'], "Nombre buanderie") : 0;
+
+            $nb_reception = (array_key_exists("Nombre reception", $row) && $row['Nombre reception'] != null) ?
+                            self::validateNumericValue($row['Nombre reception'], "Nombre reception") : 0;
+
+            // Update composition values
+            $compo->nbre_chambres   = $nb_chambre;
+            $compo->nbre_salons     = $nb_salon;
+            $compo->nbre_sdb        = $nb_sdb;
+            $compo->nbre_cuisines   = $nb_cuisine;
+            $compo->nbre_balcons    = $nb_balcon;
+            $compo->nbre_terasses   = $nb_terasse;
+            $compo->nbre_placards   = $nb_placard;
+            $compo->nbre_halls      = $nb_hall;
+            $compo->nbre_buanderies = $nb_buanderie;
+            $compo->nbre_receptions = $nb_reception;
+            $compo->save();
+
+            // Store bien frein only if status is "disponible"
+            if ($bien->etat == 'disponible') {
+                Bien_Helper::store_bien_frein($bien->id, 'import');
+            }
+            return $bien;
+        } else {
+            \Log::error("❌ Failed to save bien: ID {$bien->id}");
+            throw new \Exception("Échec de sauvegarde du bien ID: {$bien->id}");
+        }
+
     }
+
+
 
 
     public static function libererBien($id, $text, $dst_id,$mode_proposition)
@@ -565,6 +973,8 @@ class Bien_Helper
         }
     public static function store_bien_frein($id, $text)
     {
+                \Log::info("im inside bien frein: " . ($id));
+
         if ($text != 'console' && $text != 'import') {
             DatabaseHelper::Config();
         }
@@ -590,6 +1000,7 @@ class Bien_Helper
             ->get();
 
         foreach ($freins as $fr) {
+
             if (($fr->fr_tranche == 1 && $fr->tranche_id == $bien->tranche_id)
                 || ($fr->fr_etage == 1 && $fr->etage == $bien->niveau)
                 || ($fr->fr_orientation == 1 && $fr->orientation == $bien->orientation)

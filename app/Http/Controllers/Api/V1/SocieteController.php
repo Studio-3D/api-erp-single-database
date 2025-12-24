@@ -69,7 +69,7 @@ class SocieteController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function update(UpdateSocieteRequest $request, $id)
+    /*public function update(UpdateSocieteRequest $request, $id)
     {
         if (RoleHelper::Superadmin()) {
             $societe                           = Societe::findOrfail($id);
@@ -118,7 +118,118 @@ class SocieteController extends Controller
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
+    }*/
+        public function update(UpdateSocieteRequest $request, $id)
+{
+    if (RoleHelper::Superadmin()) {
+        $societe = Societe::findOrfail($id);
+        $originalRaisonSociale = $societe->raison_sociale_concatene;
+
+        $societe->raison_sociale = $request->raison_sociale;
+        $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
+        $societe->raison_sociale_concatene = $raison_sociale_concatene;
+
+        // Store other updates
+        $societe->adresse = $request->adresse;
+        $societe->nom_contact = $request->nom_contact;
+        $societe->prenom_contact = $request->prenom_contact;
+        $societe->tel = $request->tel;
+        $societe->email = $request->email;
+        $societe->id_fiscal = $request->id_fiscal;
+        $societe->registre_commerce = $request->registre_commerce;
+        $societe->capital = $request->capital;
+
+        // Handle logo update
+        if ($request->hasFile('logo')) {
+            if ($societe->logo != null) {
+                $image_path = public_path('img/' . $societe->raison_sociale_concatene . '_' . $id . '/logos/' . $societe->logo);
+                if (file_exists($image_path)) {
+                    File::delete($image_path);
+                }
+            }
+            $logo = time() . '.' . $raison_sociale_concatene . '.' . $request->logo->extension();
+            FichierHelper::ajouter_fichier($request->logo, $raison_sociale_concatene, $societe->id, 'logos', $logo);
+            $societe->logo = $logo;
+        }
+
+        // Save societe first
+        $societe->save();
+
+        // Check if raison_sociale changed and rename folders
+        if ($request->has('raison_sociale')) {
+            $newRaisonSociale = $societe->raison_sociale_concatene;
+
+            if ($originalRaisonSociale !== $newRaisonSociale) {
+                // Rename database
+                $newDatabaseName = 'Erp_' . $newRaisonSociale . '_' . $id;
+                $oldDatabaseName = 'Erp_' . $originalRaisonSociale . '_' . $id;
+
+                $databaseHelper = new DatabaseHelper();
+                $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
+
+                // Rename folders
+                $this->renameSocieteFolders($originalRaisonSociale, $newRaisonSociale, $id);
+            }
+        }
+
+        Config::set('broadcasting.default', 'pusher_1');
+        broadcast(new NewSocieteEvent($societe->id));
+        return response()->json(['societe' => $societe], 200);
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
+
+/**
+ * Rename all folders related to a societe
+ */
+private function renameSocieteFolders($oldName, $newName, $societeId)
+{
+    $oldBaseFolder = $oldName . '_' . $societeId;
+    $newBaseFolder = $newName . '_' . $societeId;
+
+    // List of directory types that need renaming
+    $directoryTypes = ['img', 'docs'];
+
+    foreach ($directoryTypes as $dirType) {
+        $oldPath = public_path($dirType . '/' . $oldBaseFolder);
+        $newPath = public_path($dirType . '/' . $newBaseFolder);
+
+        if (File::exists($oldPath)) {
+            // Create parent directory if it doesn't exist
+            if (!File::exists(dirname($newPath))) {
+                File::makeDirectory(dirname($newPath), 0755, true);
+            }
+
+            // Rename the directory
+            File::move($oldPath, $newPath);
+        }
+    }
+
+    // Also handle the case where files are in public root with old naming pattern
+    $this->renameRootFiles($oldName, $newName, $societeId);
+}
+
+/**
+ * Rename files in public root that use the societe naming pattern
+ */
+private function renameRootFiles($oldName, $newName, $societeId)
+{
+    // You might have files directly in public/img or public/docs with the old pattern
+    $patterns = [
+        public_path('img/*' . $oldName . '_' . $societeId . '*'),
+        public_path('docs/*' . $oldName . '_' . $societeId . '*'),
+    ];
+
+    foreach ($patterns as $pattern) {
+        $files = glob($pattern);
+        foreach ($files as $file) {
+            $newFilename = str_replace($oldName . '_' . $societeId, $newName . '_' . $societeId, $file);
+            File::move($file, $newFilename);
+        }
+    }
+}
     public function destroy($id)
     {
         if (RoleHelper::Superadmin()) {

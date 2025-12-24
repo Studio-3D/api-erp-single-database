@@ -390,10 +390,6 @@ class ProspectController extends Controller
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
 
-                $statutProspect = new StatutProspect();
-                $statutProspect->setConnection('temp');
-                $statutProspect->prospect_id = $prospect->id;
-
             $statutProspect = new StatutProspect();
             $statutProspect->setConnection('temp');
             $statutProspect->prospect_id = $prospect->id;
@@ -527,7 +523,7 @@ class ProspectController extends Controller
         }
     }
 
-    public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null)
+    public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null,$projet_id)
     {
         DatabaseHelper::Config($societe_id);
         $prospect = new Prospect();
@@ -538,6 +534,7 @@ class ProspectController extends Controller
         $prospect->prenom    = $prenom;
         $prospect->telephone = $phone;
         $prospect->email     = $email;
+         $prospect->projet_id     = $projet_id;
         $prospect->origin    = 'landingPage';
         $prospect->source    = 3;
         $prospect->save();
@@ -560,7 +557,7 @@ class ProspectController extends Controller
                 'type'        => 50, // custom type for Landing Page prospect
                 'description' => 'Nouveau prospect via Landing Page',
                 'user_id'     => null,
-                'role'        => null,
+                'role'        => 4,
                 'visite_id'   => null,
                 'prospect_id' => $prospect->id,
                 'projet_id'   => null,
@@ -591,9 +588,9 @@ class ProspectController extends Controller
                 'commercial_affecte' => function($query) {
                 $query->select('id','user_id_origin')->without('societe'); // Fixed syntax
             },
-                 'appels' => function($query) {
-                $query->select('id',)->without('prospect','projet'); // Fixed syntax
-            },
+                'appels' => function($query) {
+    $query->without('prospect', 'projet');
+},
                 'affecte_par_admin' => function($query) {
                 $query->select('id','name','prenom')->without('societe'); // Fixed syntax
             }])->findOrfail($id);
@@ -631,9 +628,11 @@ class ProspectController extends Controller
             if ($request->has('commercial_affecte')) {
                 // Allow reassignment regardless of final status
                // $lastStatus = $prospect->last_statut;
+                //get user id temp
+                $user = User::on('temp')->where('user_id_origin', $request->commercial_affecte)->first();
 
                 $oldCommercialId = $prospect->commercial_affecte;
-                $newCommercialId = $request->commercial_affecte;
+                $newCommercialId = $user->id;
 
                 // If commercial is changing, update counters and track affectation
                 if ($oldCommercialId != $newCommercialId) {
