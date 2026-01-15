@@ -409,77 +409,91 @@ private function processReservationFiles($reservation, $request, $societe)
 }
 
 // Update finalizeReservation to remove file processing
-private function finalizeReservation($reservation, $userAuth)
-{
-    // Create status record if validated
-    if ($reservation->statut == StatutReservationEnum::Validé->value) {
-        $res_statut = new statutReservation();
-        $res_statut->setConnection('temp');
-        $res_statut->reservation_id = $reservation->id;
-        $res_statut->statut = StatutReservationEnum::Validé->value;
-        $res_statut->user_id_valider = $userAuth->id;
-        $res_statut->date_validation = Carbon::now();
-        $res_statut->save();
-    }
+        private function finalizeReservation($reservation, $userAuth)
+        {
+             if (RoleHelper::Com()) {
+            //create histo reservation en attente
+                $histo = new HistoReservation();
+                $histo->setConnection('temp');
+                $histo->reservation_id = $reservation->id;
+                $histo->user_id = $userAuth->id;
+                $histo->bien_id = $reservation->bien_id;
+                $histo->action = 1;//en attente
+                $histo->description = null;
+                $histo->save();
+             }
+            // Create status record if validated
+            if ($reservation->statut == StatutReservationEnum::Validé->value) {
+                //Validation
+                $histo = new HistoReservation();
+                $histo->setConnection('temp');
+                $histo->reservation_id = $reservation->id;
+                $histo->user_id = $userAuth->id;
+                $histo->bien_id = $reservation->bien_id;
+                $histo->action = 2;//Validation
+                $histo->description = null;
+                $histo->save();
 
-    $histo = new HistoReservation();
-    $histo->setConnection('temp');
-    $histo->reservation_id = $reservation->id;
-    $histo->user_id = $userAuth->id;
-    $histo->bien_id = $reservation->bien_id;
-    $histo->action = 2;
-    $histo->description = 'Création du Réservation';
-    $histo->save();
+                $res_statut = new statutReservation();
+                $res_statut->setConnection('temp');
+                $res_statut->reservation_id = $reservation->id;
+                $res_statut->statut = StatutReservationEnum::Validé->value;
+                $res_statut->user_id_valider = $userAuth->id;
+                $res_statut->date_validation = Carbon::now();
+                $res_statut->save();
+            }
 
-    // Send notifications if needed
-    if (RoleHelper::Com()) {
-        Config::set('broadcasting.default', 'pusher_3');
 
-        $data_notif = [
-            'lien' => '/ventes/reservations/'.$reservation->id,
-            'date' => Carbon::now(),
-            'type' => 6,
-            'role' => RoleEnum::ADMIN->value,
-            'description' => 'DEMANDE VALIDATION RESERVATION',
-            'projet_id' => $reservation->projet_id,
-            'reservation_id' => $reservation->id,
-        ];
 
-        (new NotificationHelper())->storeNotification(request()->merge($data_notif));
-        broadcast(new NotificationEvent($reservation->id));
+            // Send notifications if needed
+            if (RoleHelper::Com()) {
+                Config::set('broadcasting.default', 'pusher_3');
 
-        Config::set('broadcasting.default', 'pusher_5');
-        broadcast(new NotifMenuEvent(1));
+                $data_notif = [
+                    'lien' => '/ventes/reservations/'.$reservation->id,
+                    'date' => Carbon::now(),
+                    'type' => 6,
+                    'role' => RoleEnum::ADMIN->value,
+                    'description' => 'DEMANDE VALIDATION RESERVATION',
+                    'projet_id' => $reservation->projet_id,
+                    'reservation_id' => $reservation->id,
+                ];
 
-        //send mail to admin avec etat
-        $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
-        if($admins->count() > 0){
-            foreach($admins as $admin){
-                try {
-                    $to_email = $admin->email;
-                    $data = [
-                        'adminName' => $admin->name,
-                        'reservationCode' => $reservation->code_reservation,
-                        'validationLink' => 'http://localhost:3000/ventes/reservations/'.$reservation->id,
-                        'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
-                        'createdBy' => $userAuth->name ?? 'Un commercial'
-                    ];
+                (new NotificationHelper())->storeNotification(request()->merge($data_notif));
+                broadcast(new NotificationEvent($reservation->id));
 
-                    Mail::send('emails.demande_validation_reservation', $data, function ($message) use ($to_email, $reservation) {
-                        $message->to($to_email)
-                            ->subject('Demande Validation Réservation : '.$reservation->code_reservation);
-                        $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
-                    });
+                Config::set('broadcasting.default', 'pusher_5');
+                broadcast(new NotifMenuEvent(1));
 
-                    Log::info("Email de demande de validation envoyé à l'admin: {$admin->email}");
+                //send mail to admin avec etat
+                $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                if($admins->count() > 0){
+                    foreach($admins as $admin){
+                        try {
+                            $to_email = $admin->email;
+                            $data = [
+                                'adminName' => $admin->name,
+                                'reservationCode' => $reservation->code_reservation,
+                                'validationLink' => env('APP_URL').'/ventes/reservations/'.$reservation->id,
+                                'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                'createdBy' => $userAuth->name ?? 'Un commercial'
+                            ];
 
-                } catch (\Exception $e) {
-                    Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                            Mail::send('emails.demande_validation_reservation', $data, function ($message) use ($to_email, $reservation) {
+                                $message->to($to_email)
+                                    ->subject('Demande Validation Réservation : '.$reservation->code_reservation);
+                                $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                            });
+
+                            Log::info("Email de demande de validation envoyé à l'admin: {$admin->email}");
+
+                        } catch (\Exception $e) {
+                            Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
 
 
@@ -874,6 +888,92 @@ private function finalizeReservation($reservation, $userAuth)
         }
     }
 
+private function getAllHistoriquesWithAncien($reservationId)
+{
+    $allHistoriques = collect();
+
+    // Get historiques for current reservation
+    $currentHistoriques = HistoReservation::on('temp')
+        ->select('id', 'reservation_id', 'ancien_id', 'bien_id', 'user_id', 'action', 'description', 'created_at')
+        ->with([
+            'user' => function($q) {
+                $q->select('id', 'name', 'prenom')->without('societe');
+            },
+            'bien' => function($q) {
+                $q->select('id', 'propriete_dite_bien', 'tranche_id', 'bloc_id', 'immeuble_id')
+                  ->with([
+                      'immeuble' => function($t) { $t->select('id', 'nom'); },
+                      'bloc' => function($b) { $b->select('id', 'nom'); },
+                      'tranche' => function($i) { $i->select('id', 'nom'); }
+                  ]);
+            }
+        ])
+        ->where('reservation_id', $reservationId)
+        ->get();
+
+    $allHistoriques = $allHistoriques->merge($currentHistoriques);
+
+    // Check for ancien_id chain
+    $ancienIds = [];
+    $nextId = $currentHistoriques->firstWhere('ancien_id', '!=', null)?->ancien_id;
+
+    // Follow the chain of ancien_ids
+    while ($nextId !== null && !in_array($nextId, $ancienIds)) {
+        $ancienIds[] = $nextId;
+
+        $ancienHistoriques = HistoReservation::on('temp')
+            ->select('id', 'reservation_id', 'ancien_id', 'bien_id', 'user_id', 'action', 'description', 'created_at')
+            ->with([
+                'user' => function($q) {
+                    $q->select('id', 'name', 'prenom')->without('societe');
+                },
+                'bien' => function($q) {
+                    $q->select('id', 'propriete_dite_bien', 'tranche_id', 'bloc_id', 'immeuble_id')
+                      ->with([
+                          'immeuble' => function($t) { $t->select('id', 'nom'); },
+                          'bloc' => function($b) { $b->select('id', 'nom'); },
+                          'tranche' => function($i) { $i->select('id', 'nom'); }
+                      ]);
+                }
+            ])
+            ->where('reservation_id', $nextId)
+            ->get();
+
+        $allHistoriques = $allHistoriques->merge($ancienHistoriques);
+
+        // Get next ancien_id
+        $nextId = $ancienHistoriques->firstWhere('ancien_id', '!=', null)?->ancien_id;
+    }
+
+    // Sort by ID descending (highest ID = most recent first)
+    return $allHistoriques->sortByDesc('id')->values();
+}
+    /*'historiques' => function($query) {
+                        $query->select('id', 'reservation_id', 'bien_id', 'user_id', 'action', 'description', 'created_at','ancien_id')
+                            ->with([
+                                'user' => function($q) {
+                                    $q->select('id', 'name', 'prenom')->without('societe');
+                                },
+                                'bien' => function($q) {
+                                    $q->select('id', 'propriete_dite_bien', 'tranche_id', 'bloc_id', 'immeuble_id')
+                                    ->without('projet','typologie','vue','compositionBien','typeBien')
+                                        ->with([
+                                            'immeuble' => function($t) {
+                                                $t->select('id', 'nom') ->without(['projet', 'tranche','bloc']);
+                                            },
+                                            'bloc' => function($b) {
+                                                $b->select('id', 'nom')
+                                            ->without(['projet', 'tranche']);
+                                            },
+                                            'tranche' => function($i) {
+                                                $i->select('id', 'nom')
+                                            ->without(['projet']);
+                                            }
+                                        ]);
+                                }
+                            ])
+                            ->orderBy('created_at', 'desc');
+                    },*/
     public function show($id)
 {
     if (RoleHelper::ACSup()) {
@@ -883,32 +983,6 @@ private function finalizeReservation($reservation, $userAuth)
             ->withSum('avances','montant')
             ->without('avances_valides')
             ->with([
-                'historiques' => function($query) {
-                    $query->select('id', 'reservation_id', 'bien_id', 'user_id', 'action', 'description', 'created_at')
-                          ->with([
-                              'user' => function($q) {
-                                  $q->select('id', 'name', 'prenom')->without('societe');
-                              },
-                              'bien' => function($q) {
-                                  $q->select('id', 'propriete_dite_bien', 'tranche_id', 'bloc_id', 'immeuble_id')
-                                 ->without('projet','typologie','vue','compositionBien','typeBien')
-                                    ->with([
-                                        'immeuble' => function($t) {
-                                            $t->select('id', 'nom') ->without(['projet', 'tranche','bloc']);
-                                        },
-                                        'bloc' => function($b) {
-                                            $b->select('id', 'nom')
-                                        ->without(['projet', 'tranche']);
-                                        },
-                                        'tranche' => function($i) {
-                                            $i->select('id', 'nom')
-                                         ->without(['projet']);
-                                        }
-                                    ]);
-                              }
-                          ])
-                          ->orderBy('created_at', 'desc');
-                },
                 'bien' => function($query) {
                     $query->with([
                         'immeuble' => function($q) {
@@ -982,6 +1056,11 @@ private function finalizeReservation($reservation, $userAuth)
                 $sum_avances_valides += $av->montant;
             }
         }
+          // Get all historiques (with ancien if applicable)
+        $allHistoriques = $this->getAllHistoriquesWithAncien($id);
+
+        // Set the relation on reservation object
+        $reservation->setRelation('historiques', $allHistoriques);
         return response()->json([
             'reservation' => $reservation,
             'sum_avances_valides' => $sum_avances_valides
@@ -1455,9 +1534,20 @@ private function finalizeReservation($reservation, $userAuth)
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
+             $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
             $reservation = Reservation::on('temp')->findOrFail($id);
             $reservation->statut = StatutReservationEnum::En_Attente->value;
-            $reservation->save();
+            if( $reservation->save()){
+                //store action relance rejete
+                $histo = new HistoReservation();
+                $histo->setConnection('temp');
+                $histo->reservation_id = $id;
+                $histo->user_id = $userAuth->id;
+                $histo->bien_id = $reservation->bien_id;
+                $histo->action = 5;//REJET-RELANCE EN COURS
+                $histo->description = null;
+                $histo->save();
             Config::set('broadcasting.default', 'pusher_3');
             //notifiction to admin de valider dossier d reservation user_id=>null
             $data_notif = [
@@ -1477,6 +1567,8 @@ private function finalizeReservation($reservation, $userAuth)
             //1 traitement reservation
             broadcast(new NotifMenuEvent(1));
             return response()->json(['message' => 'reservation relancé avec succès.'], 200);
+            }
+
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -1857,6 +1949,16 @@ private function finalizeReservation($reservation, $userAuth)
             }
 
             if ($request->statut_res == 1) {
+                //Validation
+                //store histo valide
+                $histo = new HistoReservation();
+                $histo->setConnection('temp');
+                $histo->reservation_id = $id;
+                $histo->user_id = $userAuth->value('id');
+                $histo->bien_id = $reservation->bien_id;
+                $histo->action = 2;//Validation
+                $histo->description = null;
+                $histo->save();
                 //store new notification validé
                 Config::set('broadcasting.default', 'pusher_3');
                 $data_notif = [
@@ -1879,6 +1981,16 @@ private function finalizeReservation($reservation, $userAuth)
 
             } else {
                 //store new notification rejeté
+                //store histo rejete
+                 $histo = new HistoReservation();
+                $histo->setConnection('temp');
+                $histo->reservation_id = $id;
+                $histo->user_id = $userAuth->value('id');
+                $histo->bien_id = $reservation->bien_id;
+                $histo->action = 4;//Rejet
+                $histo->description = null;
+                $histo->save();
+
                 Config::set('broadcasting.default', 'pusher_3');
                 $data_notif = [
                     'lien' => '/ventes/reservations/' . $id,

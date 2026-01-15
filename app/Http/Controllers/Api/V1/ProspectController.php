@@ -37,100 +37,100 @@ class ProspectController extends Controller
      */
 
     public function indexByProjet(Request $request, $projet_id)
-{
-    if (Auth::guard('api')->check()) {
-        $size = $request->input('size', null);
-        $page = $request->input('page', null);
+        {
+            if (Auth::guard('api')->check()) {
+                $size = $request->input('size', null);
+                $page = $request->input('page', null);
 
-        DatabaseHelper::Config();
+                DatabaseHelper::Config();
 
-        // Démarrer la requête directement sur le modèle
-        $query = prospect::on('temp')->with([
+                // Démarrer la requête directement sur le modèle
+                $query = prospect::on('temp')->with([
 
-            'traite_par_user' => function($query) {
-                $query->select('id','name','prenom')->without('societe'); // Fixed syntax
-            },
-            'partenaire' => function($query) {
-                $query->select('id','description'); // Fixed syntax
-            },
-            'last_statut' => function($query) {
-                $query->select('*')->without('prospect','user'); // Fixed syntax
-            },
-             'commercial_affecte' => function($query) {
-                $query->select('id','user_id_origin', 'name', 'prenom')->without('societe'); // Fixed syntax
-            },
-            'client' => function($query) {
-                $query->select('id', 'nom', 'prenom')->without('partenaire'); // Fixed syntax
-            },
-            'affecte_par_admin' => function($query) {
-                $query->select('id', 'name', 'prenom')->without('societe'); // Fixed syntax
-            }
-        ])->withCount([
-            'visites',
-            'appels'
-        ])->where('projet_id', $projet_id);
+                    'traite_par_user' => function($query) {
+                        $query->select('id','name','prenom')->without('societe'); // Fixed syntax
+                    },
+                    'partenaire' => function($query) {
+                        $query->select('id','description'); // Fixed syntax
+                    },
+                    'last_statut' => function($query) {
+                        $query->select('*')->without('prospect','user'); // Fixed syntax
+                    },
+                    'commercial_affecte' => function($query) {
+                        $query->select('id','user_id_origin', 'name', 'prenom')->without('societe'); // Fixed syntax
+                    },
+                    'client' => function($query) {
+                        $query->select('id', 'nom', 'prenom')->without('partenaire'); // Fixed syntax
+                    },
+                    'affecte_par_admin' => function($query) {
+                        $query->select('id', 'name', 'prenom')->without('societe'); // Fixed syntax
+                    }
+                ])->withCount([
+                    'visites',
+                    'appels'
+                ])->where('projet_id', $projet_id);
 
-        if ($request->filled('telephone')) {
-            $query->where(function ($q) use ($request) {
                 if ($request->filled('telephone')) {
-                    $q->where(function ($subQuery) use ($request) {
-                        $subQuery->where('telephone', 'like', '%' . $request->input('telephone') . '%')
-                            ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                    $query->where(function ($q) use ($request) {
+                        if ($request->filled('telephone')) {
+                            $q->where(function ($subQuery) use ($request) {
+                                $subQuery->where('telephone', 'like', '%' . $request->input('telephone') . '%')
+                                    ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                            });
+                        }
                     });
                 }
-            });
+
+                if ($request->filled('cin')) {
+                    $query->where('cin', 'like', '%' . $request->input('cin') . '%');
+                }
+                if ($request->filled('nom')) {
+                    $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+                }
+                if ($request->filled('email')) {
+                    $query->where('email', 'like', '%' . $request->input('email') . '%');
+                }
+                if ($request->filled('prenom')) {
+                    $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+                }
+
+                // Remove this duplicate condition - it's checking 'prenom' again instead of 'statut'
+                // if ($request->filled('statut')) {
+                //     $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+                // }
+
+                if ($request->filled('statut')) {
+                    $query->whereHas('last_statut', function ($q) use ($request) {
+                        $q->where('statut', $request->input('statut'));
+                    });
+                }
+
+                if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+                    $prospects = $query->orderBy('created_at', 'desc')
+                        ->paginate($size, ['*'], 'page', $page);
+
+                    $pagination = [
+                        'currentPage' => $prospects->currentPage(),
+                        'totalItems'  => $prospects->total(),
+                        'totalPages'  => $prospects->lastPage(),
+                    ];
+
+                    $prospects = $prospects->items();
+
+                    return response()->json([
+                        'prospects'  => $prospects,
+                        'pagination' => $pagination,
+                    ], 200);
+                } else {
+                    $prospects = $query->orderBy('created_at', 'desc')
+                        ->get();
+
+                    return response()->json(['prospects' => $prospects], 200);
+                }
+            }
+
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
-
-        if ($request->filled('cin')) {
-            $query->where('cin', 'like', '%' . $request->input('cin') . '%');
-        }
-        if ($request->filled('nom')) {
-            $query->where('nom', 'like', '%' . $request->input('nom') . '%');
-        }
-        if ($request->filled('email')) {
-            $query->where('email', 'like', '%' . $request->input('email') . '%');
-        }
-        if ($request->filled('prenom')) {
-            $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
-        }
-
-        // Remove this duplicate condition - it's checking 'prenom' again instead of 'statut'
-        // if ($request->filled('statut')) {
-        //     $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
-        // }
-
-        if ($request->filled('statut')) {
-            $query->whereHas('last_statut', function ($q) use ($request) {
-                $q->where('statut', $request->input('statut'));
-            });
-        }
-
-        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-            $prospects = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
-
-            $pagination = [
-                'currentPage' => $prospects->currentPage(),
-                'totalItems'  => $prospects->total(),
-                'totalPages'  => $prospects->lastPage(),
-            ];
-
-            $prospects = $prospects->items();
-
-            return response()->json([
-                'prospects'  => $prospects,
-                'pagination' => $pagination,
-            ], 200);
-        } else {
-            $prospects = $query->orderBy('created_at', 'desc')
-                ->get();
-
-            return response()->json(['prospects' => $prospects], 200);
-        }
-    }
-
-    return response()->json(['error' => 'Unauthorized'], 401);
-}
 
     public function index(Request $request)
     {
@@ -300,247 +300,247 @@ class ProspectController extends Controller
 
     }
 
-public function get_Historiques_by_prospect($id, Request $request)
-{
-    if (Auth::guard('api')->check()) {
-        $size = $request->input('size', config('app.default_item_number_perpage'));
-        $page = $request->input('page', 1);
+    public function get_Historiques_by_prospect($id, Request $request)
+    {
+        if (Auth::guard('api')->check()) {
+            $size = $request->input('size', config('app.default_item_number_perpage'));
+            $page = $request->input('page', 1);
 
-        DatabaseHelper::Config();
+            DatabaseHelper::Config();
 
-        // Récupérer le prospect pour vérifier s'il est devenu client
-        $prospect = Prospect::on('temp')->find($id);
+            // Récupérer le prospect pour vérifier s'il est devenu client
+            $prospect = Prospect::on('temp')->find($id);
 
-        if (!$prospect) {
-            return response()->json(['error' => 'Prospect non trouvé'], 404);
-        }
+            if (!$prospect) {
+                return response()->json(['error' => 'Prospect non trouvé'], 404);
+            }
 
-        // 1. Récupérer les statuts de prospect
-        $statutsProspect = StatutProspect::on('temp')
-            ->select(
-                'id',
-                'prospect_id',
-                'statut',
-                'user_id_traite',
-                'date_traitement',
-                'rdv',
-                'date_rappel',
-                'commentaire',
-                'visite_id',
-                'appel_id',
-                'created_at',
-                'updated_at'
-            )
-            ->with([
-                'user' => function($query) {
-                    $query->select('id', 'name', 'prenom')
-                        ->without('societe');
-                }
-            ])
-            ->where('prospect_id', $id)
-            ->without('prospect')
-            ->get();
-
-        // 2. Récupérer les statuts de client si le prospect est devenu client
-        $statutsClient = collect();
-        if ($prospect->client_id) {
-            $statutsClient = StatutClient::on('temp')
+            // 1. Récupérer les statuts de prospect
+            $statutsProspect = StatutProspect::on('temp')
                 ->select(
                     'id',
+                    'prospect_id',
                     'statut',
                     'user_id_traite',
                     'date_traitement',
+                    'rdv',
+                    'date_rappel',
                     'commentaire',
                     'visite_id',
+                    'appel_id',
                     'created_at',
-                    'updated_at',
-                    'reservation_id',
-                    'avance_id',
-                    'desistement_id',
-                    'penalite_id',
-                    'remboursement_id',
-                    'client_id',
-                    'rdv_id'
+                    'updated_at'
                 )
-                ->where('client_id', $prospect->client_id)
                 ->with([
                     'user' => function($query) {
                         $query->select('id', 'name', 'prenom')
                             ->without('societe');
-                    },
-                    'reservation' => function($query) {
-                        $query->select('id', 'code_reservation');
-                    },
-                    'avance' => function($query) {
-                        $query->select('id', 'montant');
-                    },'rdv' => function($query) {
-                        $query->select('id', 'rdv');
                     }
                 ])
-                ->without('client')
+                ->where('prospect_id', $id)
+                ->without('prospect')
                 ->get();
-        }
 
-        // 3. Combiner et formater les résultats
-        $allHistoriques = collect();
-
-        // Ajouter les statuts de prospect
-        foreach ($statutsProspect as $statut) {
-            $allHistoriques->push([
-                'id' => $statut->id,
-                'prospect_id' => $statut->prospect_id,
-                'statut' => $statut->statut,
-                'user_id_traite' => $statut->user_id_traite,
-                'date_traitement' => $statut->date_traitement,
-                'rdv' => $statut->rdv,
-                'date_rappel' => $statut->date_rappel,
-                'commentaire' => $statut->commentaire,
-                'visite_id' => $statut->visite_id,
-                'appel_id' => $statut->appel_id,
-                'created_at' => $statut->created_at,
-                'updated_at' => $statut->updated_at,
-                'type_source' => 'prospect',
-                'reservation_id' => null,
-                'avance_id' => null,
-                'desistement_id' => null,
-                'penalite_id' => null,
-                'remboursement_id' => null,
-                'client_id' => null,
-                'user' => $statut->user ? [
-                    'id' => $statut->user->id,
-                    'name' => $statut->user->name,
-                    'prenom' => $statut->user->prenom
-                ] : null
-            ]);
-        }
-
-        // Ajouter les statuts de client
-        foreach ($statutsClient as $statut) {
-             // Get RDV date from related Rendez_vous model if rdv_id exists
-            $rdvDate = null;
-            if ($statut->rdv_id && $statut->rdv) {
-                $rdvDate = $statut->rdv->rdv; // 'rdv' is the column in rendez_vous table
+            // 2. Récupérer les statuts de client si le prospect est devenu client
+            $statutsClient = collect();
+            if ($prospect->client_id) {
+                $statutsClient = StatutClient::on('temp')
+                    ->select(
+                        'id',
+                        'statut',
+                        'user_id_traite',
+                        'date_traitement',
+                        'commentaire',
+                        'visite_id',
+                        'created_at',
+                        'updated_at',
+                        'reservation_id',
+                        'avance_id',
+                        'desistement_id',
+                        'penalite_id',
+                        'remboursement_id',
+                        'client_id',
+                        'rdv_id'
+                    )
+                    ->where('client_id', $prospect->client_id)
+                    ->with([
+                        'user' => function($query) {
+                            $query->select('id', 'name', 'prenom')
+                                ->without('societe');
+                        },
+                        'reservation' => function($query) {
+                            $query->select('id', 'code_reservation');
+                        },
+                        'avance' => function($query) {
+                            $query->select('id', 'montant');
+                        },'rdv' => function($query) {
+                            $query->select('id', 'rdv');
+                        }
+                    ])
+                    ->without('client')
+                    ->get();
             }
-            $allHistoriques->push([
-                'id' => $statut->id,
-                'prospect_id' => null,
-                'statut' => $statut->statut,
-                'user_id_traite' => $statut->user_id_traite,
-                'date_traitement' => $statut->date_traitement,
-                'rdv' => $rdvDate, // RDV from related Rendez_vous model
-                'date_rappel' => null,
-                'commentaire' => $statut->commentaire,
-                'visite_id' => $statut->visite_id,
-                'appel_id' => null,
-                'created_at' => $statut->created_at,
-                'updated_at' => $statut->updated_at,
-                'type_source' => 'client',
-                'reservation_id' => $statut->reservation_id,
-                'avance_id' => $statut->avance_id,
-                'desistement_id' => $statut->desistement_id,
-                'penalite_id' => $statut->penalite_id,
-                'remboursement_id' => $statut->remboursement_id,
-                'client_id' => $statut->client_id,
-                'rdv_id' => $statut->rdv_id, // Include rdv_id in response
-                'user' => $statut->user ? [
-                    'id' => $statut->user->id,
-                    'name' => $statut->user->name,
-                    'prenom' => $statut->user->prenom
-                ] : null,
-                'reservation' => $statut->reservation ? [
-                    'id' => $statut->reservation->id,
-                    'code_reservation' => $statut->reservation->code_reservation
-                ] : null,
-                'avance' => $statut->avance ? [
-                    'id' => $statut->avance->id,
-                    'montant' => $statut->avance->montant
-                ] : null,
-                'rendez_vous' => $statut->rdv ? [
-                    'id' => $statut->rdv->id,
-                    'rdv' => $statut->rdv->rdv,
-                ] : null
-            ]);
-        }
 
-        // 4. Appliquer les filtres
-        $filteredHistoriques = $allHistoriques;
+            // 3. Combiner et formater les résultats
+            $allHistoriques = collect();
 
-        if ($request->filled('date_traitement')) {
-            $date = Carbon::parse($request->input('date_traitement'))->format('Y-m-d');
-            $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($date) {
-                return $item['date_traitement'] &&
-                       Carbon::parse($item['date_traitement'])->format('Y-m-d') == $date;
-            });
-        }
+            // Ajouter les statuts de prospect
+            foreach ($statutsProspect as $statut) {
+                $allHistoriques->push([
+                    'id' => $statut->id,
+                    'prospect_id' => $statut->prospect_id,
+                    'statut' => $statut->statut,
+                    'user_id_traite' => $statut->user_id_traite,
+                    'date_traitement' => $statut->date_traitement,
+                    'rdv' => $statut->rdv,
+                    'date_rappel' => $statut->date_rappel,
+                    'commentaire' => $statut->commentaire,
+                    'visite_id' => $statut->visite_id,
+                    'appel_id' => $statut->appel_id,
+                    'created_at' => $statut->created_at,
+                    'updated_at' => $statut->updated_at,
+                    'type_source' => 'prospect',
+                    'reservation_id' => null,
+                    'avance_id' => null,
+                    'desistement_id' => null,
+                    'penalite_id' => null,
+                    'remboursement_id' => null,
+                    'client_id' => null,
+                    'user' => $statut->user ? [
+                        'id' => $statut->user->id,
+                        'name' => $statut->user->name,
+                        'prenom' => $statut->user->prenom
+                    ] : null
+                ]);
+            }
 
-       if ($request->filled('rdv')) {
-            $date = Carbon::parse($request->input('rdv'))->format('Y-m-d');
-            $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($date) {
-                // Check both prospect RDV and client RDV (from related rendez_vous)
-                if ($item['rdv']) {
-                    return Carbon::parse($item['rdv'])->format('Y-m-d') == $date;
+            // Ajouter les statuts de client
+            foreach ($statutsClient as $statut) {
+                // Get RDV date from related Rendez_vous model if rdv_id exists
+                $rdvDate = null;
+                if ($statut->rdv_id && $statut->rdv) {
+                    $rdvDate = $statut->rdv->rdv; // 'rdv' is the column in rendez_vous table
                 }
-                return false;
-            });
-        }
+                $allHistoriques->push([
+                    'id' => $statut->id,
+                    'prospect_id' => null,
+                    'statut' => $statut->statut,
+                    'user_id_traite' => $statut->user_id_traite,
+                    'date_traitement' => $statut->date_traitement,
+                    'rdv' => $rdvDate, // RDV from related Rendez_vous model
+                    'date_rappel' => null,
+                    'commentaire' => $statut->commentaire,
+                    'visite_id' => $statut->visite_id,
+                    'appel_id' => null,
+                    'created_at' => $statut->created_at,
+                    'updated_at' => $statut->updated_at,
+                    'type_source' => 'client',
+                    'reservation_id' => $statut->reservation_id,
+                    'avance_id' => $statut->avance_id,
+                    'desistement_id' => $statut->desistement_id,
+                    'penalite_id' => $statut->penalite_id,
+                    'remboursement_id' => $statut->remboursement_id,
+                    'client_id' => $statut->client_id,
+                    'rdv_id' => $statut->rdv_id, // Include rdv_id in response
+                    'user' => $statut->user ? [
+                        'id' => $statut->user->id,
+                        'name' => $statut->user->name,
+                        'prenom' => $statut->user->prenom
+                    ] : null,
+                    'reservation' => $statut->reservation ? [
+                        'id' => $statut->reservation->id,
+                        'code_reservation' => $statut->reservation->code_reservation
+                    ] : null,
+                    'avance' => $statut->avance ? [
+                        'id' => $statut->avance->id,
+                        'montant' => $statut->avance->montant
+                    ] : null,
+                    'rendez_vous' => $statut->rdv ? [
+                        'id' => $statut->rdv->id,
+                        'rdv' => $statut->rdv->rdv,
+                    ] : null
+                ]);
+            }
 
-        if ($request->filled('date_rappel')) {
-            $date = Carbon::parse($request->input('date_rappel'))->format('Y-m-d');
-            $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($date) {
-                return $item['date_rappel'] &&
-                       Carbon::parse($item['date_rappel'])->format('Y-m-d') == $date;
-            });
-        }
+            // 4. Appliquer les filtres
+            $filteredHistoriques = $allHistoriques;
 
-        if ($request->filled('statut')) {
-                // Gérer les valeurs préfixées
-                 $statutValue = $request->input('statut');
-            if (str_starts_with($statutValue, 'P_')) {
-                // Statut prospect - retirer le préfixe
-                $statutId = str_replace('P_', '', $statutValue);
-                $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($statutId) {
-                    return $item['type_source'] === 'prospect' &&
-                        $item['statut'] == $statutId;
-                });
-            } elseif (str_starts_with($statutValue, 'C_')) {
-                // Statut client - retirer le préfixe
-                $statutId = str_replace('C_', '', $statutValue);
-                $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($statutId) {
-                    return $item['type_source'] === 'client' &&
-                        $item['statut'] == $statutId;
-                });
-            } else {
-                // Ancien format (sans préfixe) - pour la rétrocompatibilité
-                $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($request) {
-                    return $item['statut'] == $request->statut;
+            if ($request->filled('date_traitement')) {
+                $date = Carbon::parse($request->input('date_traitement'))->format('Y-m-d');
+                $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($date) {
+                    return $item['date_traitement'] &&
+                        Carbon::parse($item['date_traitement'])->format('Y-m-d') == $date;
                 });
             }
 
+        if ($request->filled('rdv')) {
+                $date = Carbon::parse($request->input('rdv'))->format('Y-m-d');
+                $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($date) {
+                    // Check both prospect RDV and client RDV (from related rendez_vous)
+                    if ($item['rdv']) {
+                        return Carbon::parse($item['rdv'])->format('Y-m-d') == $date;
+                    }
+                    return false;
+                });
+            }
+
+            if ($request->filled('date_rappel')) {
+                $date = Carbon::parse($request->input('date_rappel'))->format('Y-m-d');
+                $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($date) {
+                    return $item['date_rappel'] &&
+                        Carbon::parse($item['date_rappel'])->format('Y-m-d') == $date;
+                });
+            }
+
+            if ($request->filled('statut')) {
+                    // Gérer les valeurs préfixées
+                    $statutValue = $request->input('statut');
+                if (str_starts_with($statutValue, 'P_')) {
+                    // Statut prospect - retirer le préfixe
+                    $statutId = str_replace('P_', '', $statutValue);
+                    $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($statutId) {
+                        return $item['type_source'] === 'prospect' &&
+                            $item['statut'] == $statutId;
+                    });
+                } elseif (str_starts_with($statutValue, 'C_')) {
+                    // Statut client - retirer le préfixe
+                    $statutId = str_replace('C_', '', $statutValue);
+                    $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($statutId) {
+                        return $item['type_source'] === 'client' &&
+                            $item['statut'] == $statutId;
+                    });
+                } else {
+                    // Ancien format (sans préfixe) - pour la rétrocompatibilité
+                    $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($request) {
+                        return $item['statut'] == $request->statut;
+                    });
+                }
+
+            }
+
+            // 5. Trier et paginer
+            $sortedHistoriques = $filteredHistoriques->sortByDesc('created_at')->values();
+            $totalItems = $sortedHistoriques->count();
+
+            $historiques = $sortedHistoriques->slice(($page - 1) * $size, $size)->values();
+
+
+        // 7. Informations de pagination
+        $pagination = [
+            'currentPage' => (int)$page,
+            'totalItems'  => $totalItems, // Gardez 'totalItems'
+            'totalPages'  => ceil($totalItems / $size),
+            'perPage' => $size
+        ];
+
+        return response()->json([
+            'historiques' => $historiques,
+            'pagination'  => $pagination,
+        ], 200);
         }
 
-        // 5. Trier et paginer
-        $sortedHistoriques = $filteredHistoriques->sortByDesc('created_at')->values();
-        $totalItems = $sortedHistoriques->count();
-
-        $historiques = $sortedHistoriques->slice(($page - 1) * $size, $size)->values();
-
-
-    // 7. Informations de pagination
-    $pagination = [
-        'currentPage' => (int)$page,
-        'totalItems'  => $totalItems, // Gardez 'totalItems'
-        'totalPages'  => ceil($totalItems / $size),
-        'perPage' => $size
-    ];
-
-    return response()->json([
-        'historiques' => $historiques,
-        'pagination'  => $pagination,
-    ], 200);
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
-
-    return response()->json(['error' => 'Unauthorized'], 401);
-}
     /*public function get_Historiques_by_prospect($id, Request $request)
     {
         if (Auth::guard('api')->check()) {
@@ -821,42 +821,42 @@ public function get_Historiques_by_prospect($id, Request $request)
      * Display the specified resource.
      */
    public function show($id)
-{
-    if (Auth::guard('api')->check()) {
-        DatabaseHelper::Config();
-        $prospect = Prospect::on('temp')->with([
-            'client' => function($query) {
-                $query->select('id')
-                    ->with(['reservations' => function($q) {
-                        $q->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
-                            ->withSum('avances', 'montant')
-                            ->where('etat', 1)
-                            ->where('statut', 1)
-                            ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')->without('user', 'projet', 'historiques', 'piece_jointe', 'bien', 'aquereurs', 'aquereurs_ancien');
-                    }])->without('partenaire');
-            },
-            'traite_par_user' => function($query) {
-                $query->select('id', 'name', 'prenom');
-            },
-            'partenaire' => function($query) {
-                $query->select('id', 'description');
-            },
-            'commercial_affecte' => function($query) {
-                $query->select('id', 'user_id_origin');
-            },
-            'appels' => function($query) {
-                $query->without('prospect', 'projet');
-            },
-            'affecte_par_admin' => function($query) {
-                $query->select('id', 'name', 'prenom');
-            }
-        ])->findOrFail($id);
+    {
+        if (Auth::guard('api')->check()) {
+            DatabaseHelper::Config();
+            $prospect = Prospect::on('temp')->with([
+                'client' => function($query) {
+                    $query->select('id')
+                        ->with(['reservations' => function($q) {
+                            $q->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
+                                ->withSum('avances', 'montant')
+                                ->where('etat', 1)
+                                ->where('statut', 1)
+                                ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')->without('user', 'projet', 'historiques', 'piece_jointe', 'bien', 'aquereurs', 'aquereurs_ancien');
+                        }])->without('partenaire');
+                },
+                'traite_par_user' => function($query) {
+                    $query->select('id', 'name', 'prenom');
+                },
+                'partenaire' => function($query) {
+                    $query->select('id', 'description');
+                },
+                'commercial_affecte' => function($query) {
+                    $query->select('id', 'user_id_origin');
+                },
+                'appels' => function($query) {
+                    $query->without('prospect', 'projet');
+                },
+                'affecte_par_admin' => function($query) {
+                    $query->select('id', 'name', 'prenom');
+                }
+            ])->findOrFail($id);
 
-        return response()->json(['prospect' => $prospect], 200);
-    } else {
-        return response()->json(['error' => 'Unauthorized'], 401);
+            return response()->json(['prospect' => $prospect], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
-}
 
     /**
      * Show the form for editing the specified resource.

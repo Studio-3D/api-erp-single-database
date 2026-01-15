@@ -9,9 +9,9 @@ enum StatutClientEnum: int
     case Demande_des_documents = 3;
     case Autre = 4;
     case Creation_Reservation = 5;
-    case Ajouter_Rdv = 6;
-    case Signer_Attestation_Vente = 7;
-    case Signer_Contrat_Vente = 8;
+    case Ajout_Rendez_Vous = 6;
+    case Signature_Attestation_Vente = 7;
+    case Signature_Contrat_Vente = 8;
     case Remise_Cle = 9;
     case Desistement_dd = 10;
     case Desistement_dp_profit = 11;
@@ -33,9 +33,9 @@ enum StatutClientEnum: int
             self::Demande_des_documents  => 'Le client a des questions concernant les documents',
             self::Autre => 'Autre type de question non spécifiée',
             self::Creation_Reservation => 'Processus de création de réservation',
-            self::Ajouter_Rdv => 'Ajout d\'un rendez-vous avec le client',
-            self::Signer_Attestation_Vente => 'Signature de l\'attestation de vente',
-            self::Signer_Contrat_Vente => 'Signature du contrat de vente définitif',
+            self::Ajout_Rendez_Vous => 'Ajout d\'un rendez-vous avec le client',
+            self::Signature_Attestation_Vente => 'Signature de l\'attestation de vente',
+            self::Signature_Contrat_Vente => 'Signature du contrat de vente définitif',
             self::Remise_Cle => 'Remise des clés du bien au client',
             self::Desistement_dd => 'Désistement avec dépôt de garantie non restitué',
             self::Desistement_dp_profit => 'Désistement avec dépôt de garantie à partager selon profit',

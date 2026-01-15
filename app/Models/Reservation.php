@@ -80,6 +80,7 @@ class Reservation extends Model
     {
         return $this->hasMany(PiecesJointe::class,'reservation_id')->where('active',1)->onlyTrashed();
     }
+    //not used ==> see show reservation
     public function historiques()
     {
         return $this->hasMany(HistoReservation::class,'reservation_id')->orderby('created_at','desc');

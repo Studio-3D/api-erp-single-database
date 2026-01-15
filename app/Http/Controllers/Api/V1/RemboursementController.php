@@ -38,12 +38,19 @@ class RemboursementController extends Controller
             $page = $request->input('page', null);
             DatabaseHelper::Config();
 
-            // Démarrer la requête directement sur le
-            $query = Remboursement::on('temp')->with('desistement_not_trashed','aquereur','banque')->where('archive',0)->where('etat', 1)->where('mode_rembourse','!=','transfert');
-            $query->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
-                $q->where('projet_id', $projet_id);
-            });
+        // Exclude transfert_rem_direct AND transfert_rem_apres_vente with montant_a_rembourser = 0
+            $query = Remboursement::on('temp')->with('desistement_not_trashed','aquereur','banque')
+                    ->where('archive',0)
+                    ->where('etat', 1)
+                    ->where('mode_rembourse','!=','transfert')
+                ->where(function($q) {
+                        $q->whereNotIn('mode_rembourse', ['transfert_rem_direct', 'transfert_rem_apres_vente'])
+                        ->orWhere('montant_a_rembourser', '>', 0);
+                    });
 
+                $query->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                });
 
 
            if (RoleHelper::AdminSup()) {

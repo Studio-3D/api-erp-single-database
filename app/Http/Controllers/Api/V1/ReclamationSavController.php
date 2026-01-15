@@ -13,13 +13,15 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Societe;
-use App\Models\StatutAvancePenalite;
+use App\Models\StatutAvancePenaflite;
 use App\Models\User;
 use Illuminate\Support\Facades\File;
 use App\Http\Requests\StorePiecesJointeRequest;
 use App\Models\Prestataire;
 use Carbon\Carbon;
 use Mail;
+use Illuminate\Support\Facades\Log;
+
 class ReclamationSavController extends Controller
 {
     /**
@@ -131,76 +133,108 @@ class ReclamationSavController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreReclamationRequest $request)
-    {
-        return response()->json($request);
-        if(RoleHelper::AdminSup()){
-            DatabaseHelper::Config();
-            $user = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $rec=new Reclamation();
-            $rec->setConnection('temp');
-            $rec->bien_id=$request->bien_id;
-            $rec->projet_id=$request->projet_id;
-            $rec->client_id=$request->client_id;
-            $rec->date_reclamation=$request->date_reclamation;
-            //$rec->date_intervention=$request->date_intervention;
-            //$rec->date_fin_intervention=$request->date_fin_intervention;
-            $rec->statut=1;
-            $rec->service_id=$request->service_id;
-            $rec->emplacements=$request->emplacements;
-            $rec->problemes=$request->problemes;
-            $rec->user_id= $userAuth->value('id');
-            if($rec->save()){
-                ////storer les pieces jointe d
+   public function store(StoreReclamationRequest $request)
+{
+    if(RoleHelper::AdminSup()){
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
 
-                if ($request->files_reclamation) {
+       /* // Get the prestataire with minimum nb_reclamation for this service
+        $prestataire = Prestataire::on('temp')
+            ->where('service_id', $request->service_id)
+            ->whereNull('deleted_at')
+            ->orderBy('nb_reclamations', 'asc')
+            ->first();
 
-                    foreach ($request->files_reclamation as $file) {
-                        $piecesJointeController = new PiecesJointeController();
-                        $pieceJointeRequest = new StorePiecesJointeRequest();
-                        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-                        $user_connecter = $userAuth->value('user_id_origin');
-                        $user_societes = User::where('id', $user_connecter)->first();
-                        $societe = Societe::findOrfail($user_societes->societe_id);
+        // Check if prestataire exists
+        if (!$prestataire) {
+            return response()->json(['error' => 'No prestataire available for this service'], 400);
+        }*/
 
-                        // Récupérer le nom du fichier
-                        $fileName = $file->getClientOriginalName();
-                        $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations');
-                        File::makeDirectory($directory, 0755, true, true);
-                        $file->move($directory, $fileName);
-                        $fileType = $file->getClientOriginalExtension();
-                        $datapieceJointe = [
-                            'fichier' => $fileName,
-                            'type' => $fileType,
-                            'reclamation_id' => $rec->id,
-                            'active' => 1,
-                        ];
+        $rec = new Reclamation();
+        $rec->setConnection('temp');
+        $rec->bien_id = $request->bien_id;
+        $rec->projet_id = $request->projet_id;
+        $rec->client_id = $request->client_id;
+        $rec->date_reclamation = $request->date_reclamation;
+        $rec->statut = 1;
+        $rec->service_id = $request->service_id;
+        //$rec->prestataire_id = $prestataire->id; // Assign the selected prestataire
+        $rec->emplacements = $request->emplacements;
+        $rec->problemes = $request->problemes;
+        $rec->user_id = $userAuth->value('id');
 
-                        $pieceJointeRequest->merge($datapieceJointe);
-                        $piecesJointeController->store($pieceJointeRequest);
-                    }
+        if($rec->save()){
+            // Increment the prestataire's nb_reclamation
+            $prestataire->increment('nb_reclamations');
+
+            // Store attached files
+            if ($request->files_reclamation) {
+                foreach ($request->files_reclamation as $file) {
+                    $piecesJointeController = new PiecesJointeController();
+                    $pieceJointeRequest = new StorePiecesJointeRequest();
+                    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+                    $user_connecter = $userAuth->value('user_id_origin');
+                    $user_societes = User::where('id', $user_connecter)->first();
+                    $societe = Societe::findOrfail($user_societes->societe_id);
+
+                    $fileName = $file->getClientOriginalName();
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/reclamations');
+                    File::makeDirectory($directory, 0755, true, true);
+                    $file->move($directory, $fileName);
+                    $fileType = $file->getClientOriginalExtension();
+
+                    $datapieceJointe = [
+                        'fichier' => $fileName,
+                        'type' => $fileType,
+                        'reclamation_id' => $rec->id,
+                        'active' => 1,
+                    ];
+
+                    $pieceJointeRequest->merge($datapieceJointe);
+                    $piecesJointeController->store($pieceJointeRequest);
                 }
-                //send email to prestataire
-                /* $pres=Prestataire::on('temp')->findorfail($request->prestataire_id);
-                if($pres->email!=null){
-                    $to_email=$pres->email;
-                    $data=array('bien'=>$rec->bien->propriete_dite_bien,'client'=>$rec->client->nom.' '.$rec->client->prenom,'emplacement'=>$rec->emplacements);
-                      Mail::send('SAV.mail', $data, function($message) use($to_email){
-                        $message->to($to_email)
-                            ->subject ('Nouvlle Réclamation');
-                        $message->from('immo.immobilier02@gmail.com','Immobilier');
-
-                    });
-                } */
-
             }
 
-            return response()->json(['recl'=>$rec],200);
-        }
-        else  return response()->json(['error' => 'Unauthorized'], 401);
+          /*  // Send email to prestataire
+            if($prestataire->email != null){
+                $to_email = $prestataire->email;
+                $data = [
+                    'bien' => $rec->bien->propriete_dite_bien ?? 'N/A',
+                    'client' => $rec->client->nom.' '.$rec->client->prenom ?? 'N/A',
+                    'emplacement' => $rec->emplacements,
+                    'prestataire' => $prestataire->nom.' '.$prestataire->prenom
+                ];
 
+                try {
+                    Mail::send('SAV.mail', $data, function($message) use($to_email) {
+                        $message->to($to_email)
+                            ->subject('Nouvelle Réclamation');
+                        $message->from(env('MAIL_USERNAME'), 'Immobilier');
+                    });
+                } catch (\Exception $e) {
+                    // Log email error but don't fail the whole operation
+                    Log::error('Failed to send email to prestataire: ' . $e->getMessage());
+                }
+            }
+*/
+            return response()->json([
+                'recl' => $rec,
+                'prestataire_assigne' => [
+                    'id' => $prestataire->id,
+                    'nom' => $prestataire->nom,
+                    'prenom' => $prestataire->prenom,
+                    'email' => $prestataire->email,
+                    'nb_reclamations' => $prestataire->nb_reclamations
+                ]
+            ], 200);
+        }
+
+        return response()->json(['error' => 'Failed to save reclamation'], 500);
     }
+    else return response()->json(['error' => 'Unauthorized'], 401);
+}
 
     /**
      * Display the specified resource.
@@ -221,32 +255,121 @@ class ReclamationSavController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function traiter_reclamation($id,Request $request)
-    {
-        if(RoleHelper::AdminSup()){
-            DatabaseHelper::Config();
-            $rec=Reclamation::on('temp')->findOrFail($id);
-            $rec->statut=2;
-            $rec->date_intervention=$request->date_intervention;
-            $rec->prestataire_id=$request->prestataire_id;
-            $rec->commentaires=$request->commentaire;
-            $rec->save();
-            /* $pres=Prestataire::on('temp')->findorfail($request->prestataire_id);
-                if($pres->email!=null){
-                    $to_email=$pres->email;
-                    $data=array('bien'=>$rec->bien->propriete_dite_bien,'client'=>$rec->client->nom.' '.$rec->client->prenom,'emplacement'=>$rec->emplacements);
-                    Mail::send('SAV.mail', $data, function($message) use($to_email){
-                        $message->to($to_email)
-                            ->subject ('Nouvlle Réclamation');
-                        $message->from('immo.immobilier02@gmail.com','Immobilier');
+   public function traiter_reclamation($id, Request $request)
+{
+    if(RoleHelper::AdminSup()){
+        DatabaseHelper::Config();
+        $rec = Reclamation::on('temp')->findOrFail($id);
+        $rec->statut = 2;
+        $rec->date_intervention = $request->date_intervention;
+        $rec->prestataire_id = $request->prestataire_id;
+        $rec->commentaires = $request->commentaire;
+        $rec->save();
 
-                    });
-                } */
-            return response()->json(['rec'=>$rec],200);
-        }else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        // Get prestataire details
+        $prestataire = Prestataire::on('temp')->findOrFail($request->prestataire_id);
+
+         // Construire la référence complète du bien
+        $bienReference = $rec->bien->propriete_dite_bien ?? '';
+
+        // Ajouter les informations de tranche, bloc, immeuble si elles existent
+        $referenceParts = [];
+
+        if ($rec->bien->tranche && !empty($rec->bien->tranche->nom)) {
+            $referenceParts[] = $rec->bien->tranche->nom;
         }
+
+        if ($rec->bien->bloc && !empty($rec->bien->bloc->nom)) {
+            $referenceParts[] = $rec->bien->bloc->nom;
+        }
+
+        if ($rec->bien->immeuble && !empty($rec->bien->immeuble->nom)) {
+            $referenceParts[] = $rec->bien->immeuble->nom;
+        }
+
+        // Ajouter la propriété dite bien si elle existe
+        if (!empty($bienReference)) {
+            $referenceParts[] = $bienReference;
+        }
+
+        // Construire la référence finale
+        $bienReferenceComplete = !empty($referenceParts) ? implode('-', $referenceParts) : 'N/A';
+
+        // Send email to prestataire
+        if($prestataire->email != null){
+            $to_email = $prestataire->email;
+
+            // Prepare email data
+            $data = [
+                'prestataire' => [
+                    'nom' => $prestataire->nom,
+                    'prenom' => $prestataire->prenom,
+                ],
+                'client' => [
+                    'nom' => $rec->client->nom ?? 'N/A',
+                    'prenom' => $rec->client->prenom ?? 'N/A',
+                    'email' => $rec->client->email ?? null,
+                    'telephone' => $rec->client->telephone_num2 ?? null,
+                    'adresse' => $rec->client->adresse ?? null,
+                ],
+                'bien' => [
+                   'reference' => $bienReferenceComplete,
+                ],
+                'service' => [
+                    'nom' => $rec->service->nom ?? ' ',
+                ],
+                'reclamation' => [
+                    'id' => $rec->id,
+                    'date_reclamation' => $rec->date_reclamation
+                        ? date('d/m/Y', strtotime($rec->date_reclamation))
+                        : date('d/m/Y'),
+                    'emplacements' => $rec->emplacements ?? 'Non spécifié',
+                    'problemes' => $rec->problemes ?? 'Description non disponible',
+                    'date_intervention' => $rec->date_intervention
+                        ? date('d/m/Y', strtotime($rec->date_intervention))
+                        : 'À planifier',
+                ],
+                'reclamationLink' => env('APP_URL') . '/sav/reclamations/show/' . $rec->id,
+            ];
+
+            try {
+                Mail::send('SAV.nouvelle-reclamation-prestataire', $data, function($message) use($to_email, $prestataire, $rec) {
+                    $message->to($to_email)
+                        ->subject('Nouvelle Réclamation #' . $rec->id . ' - Intervention Requise');
+                    $message->from(env('MAIL_USERNAME'), 'Immobilier Immo - SAV');
+                });
+
+                // Log email sent
+                Log::info('Email de nouvelle réclamation envoyé au prestataire', [
+                    'prestataire_id' => $prestataire->id,
+                    'reclamation_id' => $rec->id,
+                    'email' => $to_email,
+                ]);
+
+            } catch (\Exception $e) {
+                // Log email error
+                Log::error('Échec d\'envoi d\'email au prestataire : ' . $e->getMessage(), [
+                    'prestataire_id' => $prestataire->id,
+                    'reclamation_id' => $rec->id,
+                    'email' => $to_email,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'rec' => $rec,
+            'message' => 'Réclamation assignée avec succès au prestataire',
+            'prestataire' => [
+                'id' => $prestataire->id,
+                'nom' => $prestataire->nom,
+                'prenom' => $prestataire->prenom,
+                'email' => $prestataire->email
+            ]
+        ], 200);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
     public function resoudre_reclamation($id, Request $request)
 {
 
@@ -282,7 +405,7 @@ class ReclamationSavController extends Controller
             $rec->date_reclamation=$request->date_reclamation;
             $rec->date_intervention=$request->date_intervention;
             $rec->date_fin_intervention=$request->date_fin_intervention;
-            $rec->prestataire_id=$request->prestataire_id;
+            $rec->service_id=$request->service_id;
             $rec->emplacements=$request->emplacements;
             $rec->problemes=$request->problemes;
             if($rec->save()){

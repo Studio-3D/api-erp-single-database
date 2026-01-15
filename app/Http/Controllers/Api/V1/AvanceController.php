@@ -785,7 +785,7 @@ class AvanceController extends Controller
                                             'reservationCode' => $avance->reservation->code_reservation,
                                             'avanceNumero' => $avance->num_recu,
                                             'montantAvance' => number_format($request->montant, 2, ',', ' '),
-                                            'validationLink' => 'http://localhost:3000/ventes/reservations/'.$request->reservation_id,
+                                            'validationLink' =>env('APP_URL'). '/ventes/reservations/'.$request->reservation_id,
                                             'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
                                             'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
                                             'projetName' => $avance->reservation->projet->nom ?? 'Non spécifié'
@@ -1424,7 +1424,7 @@ class AvanceController extends Controller
                                                 'reservationCode' => $avance->reservation->code_reservation,
                                                 'avanceNumero' => $avance->num_recu,
                                                 'montantAvance' => number_format($request->montant, 2, ',', ' '),
-                                                'validationLink' => 'http://localhost:3000/ventes/reservations/'.$request->reservation_id,
+                                                'validationLink' => env('APP_URL').'/ventes/reservations/'.$request->reservation_id,
                                                 'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
                                                 'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
                                                 'projetName' => $avance->reservation->projet->nom ?? 'Non spécifié'

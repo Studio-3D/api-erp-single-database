@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('bien_id')->constrained('biens')->onDelete('cascade');
             $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
             $table->foreignId('prestataire_id')->nullable()->constrained('prestataires')->onDelete('cascade');
+            $table->foreignId('service_id')->constrained('services_prestataires')->onDelete('cascade');
             $table->String('emplacements');
             $table->String('problemes')->nullable();
             $table->integer('statut')->default(0)->comment('

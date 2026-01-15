@@ -147,7 +147,27 @@ class ReclamationController extends Controller
             $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
             $societe       = Societe::findOrfail($user_societes->societe_id);
             $societeDB = 'erp_' . $societe->raison_sociale_concatene . '_' . $societe->id;
-            $rec_f = DB::connection('mysql_client')->table('reclamations')->where('id', $id)->update(['user_id_traite' => $userAuth->value('id'), 'etat' => $request->statut, 'date_fin_traitement' => $request->date_fin_traitement, 'date_traitement' => $request->date_traitement, 'commentaire' => $request->commentaire]);
+            $rec_f = DB::connection('mysql_client')->table('reclamations')->where('id', $id);
+
+            // Préparer un tableau de mise à jour
+            $updateData = [
+                'user_id_traite' => $userAuth->value('id'),
+                'etat' => $request->statut,
+                'commentaire' => $request->commentaire,
+            ];
+
+            // Ajouter la date_traitement seulement si elle est fournie et non vide
+            if ($request->has('date_traitement') && !empty($request->date_traitement)) {
+                $updateData['date_traitement'] = $request->date_traitement;
+            }
+
+            // Ajouter la date_fin_traitement seulement si elle est fournie et non vide
+            if ($request->has('date_fin_traitement') && !empty($request->date_fin_traitement)) {
+                $updateData['date_fin_traitement'] = $request->date_fin_traitement;
+            }
+
+            // Mettre à jour seulement les champs pertinents
+            $rec_f->update($updateData);
             //send notif to client
             $rec  = DB::connection('mysql_client')->table('reclamations')->where('reclamations.id', $id) ->Leftjoin("users as us_espace_client", 'us_espace_client.id', '=', 'reclamations.user_id')
                          ->Leftjoin("$societeDB.clients", 'clients.id', '=', 'us_espace_client.client_id')->select('reclamations.*','clients.email')->get()->first();

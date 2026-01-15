@@ -1,5 +1,6 @@
 <?php
 
+
 namespace App\Http\Controllers;
 
 use App\Events\Rendez_vous_Prop;
@@ -32,6 +33,8 @@ use App\Events\RdvEvent;
 use App\Events\AttestationVenteEvent;
 use App\Events\ContratVenteEvent;
 use App\Models\Aquereur;
+use App\Models\HistoReservation;
+
 
 use App\Models\StatutClient;
 
@@ -802,7 +805,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
 
                 $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
                 $societe = Societe::findOrfail($user_societes->societe_id);
-                $comp = Compromis_vente::on('temp')->findOrfail($request->input("comp_id"));
+                $comp = Compromis_vente::on('temp')->with('reservation')->findOrfail($request->input("comp_id"));
                 $comp->setConnection('temp');
 
                 // Récupérer le nom du fichier
@@ -812,6 +815,15 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
                 // Créer StatutClient après le scan
                     $this->createStatutClientForScanner($comp->reservation_id, $userAuth, 'compromis');
+                     //store historique
+                    $histo = new HistoReservation();
+                    $histo->setConnection('temp');
+                    $histo->reservation_id = $comp->reservation_id;
+                    $histo->user_id = $userAuth->id;
+                    $histo->action = 11;//Attesation de vente
+                    $histo->bien_id=$comp->reservation->bien_id;
+                    $histo->description = null;
+                    $histo->save();
                       //actualiser compromise de reservation
                     Config::set('broadcasting.default', 'pusher_9');
                     // Broadcast event to all users subscribed to this reservation
@@ -953,7 +965,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
 
                 $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
                 $societe = Societe::findOrfail($user_societes->societe_id);
-                $comp = Contrat_vente::on('temp')->findOrfail($request->input("contrat_id"));
+                $comp = Contrat_vente::on('temp')->with('reservation')->findOrfail($request->input("contrat_id"));
                 $comp->setConnection('temp');
                 $codeReservation = $comp->reservation->code_reservation;
 
@@ -964,6 +976,15 @@ public function updateReservationCreneau($reservation_id, Request $request)
                 $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
                  // Créer StatutClient après le scan
                 $this->createStatutClientForScanner($comp->reservation_id, $userAuth, 'contrat');
+                 //store historique
+                    $histo = new HistoReservation();
+                    $histo->setConnection('temp');
+                    $histo->reservation_id = $comp->reservation_id;
+                    $histo->user_id = $userAuth->id;
+                    $histo->action = 12;//Contrat de vente
+                    $histo->bien_id=$comp->reservation->bien_id;
+                    $histo->description = null;
+                    $histo->save();
                 //actualiser contrat de vente
                     Config::set('broadcasting.default', 'pusher_10');
                     // Broadcast event to all users subscribed to this reservation

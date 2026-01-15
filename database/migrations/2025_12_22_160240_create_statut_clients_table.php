@@ -26,9 +26,9 @@ return new class extends Migration
                 StatutClientEnum::Demande_des_documents->value,
                 StatutClientEnum::Autre->value,
                 StatutClientEnum::Creation_Reservation->value,
-                StatutClientEnum::Ajouter_Rdv->value,
-                StatutClientEnum::Signer_Attestation_Vente->value,
-                StatutClientEnum::Signer_Contrat_Vente->value,
+                StatutClientEnum::Ajout_Rendez_Vous->value,
+                StatutClientEnum::Signature_Attestation_Vente->value,
+                StatutClientEnum::Signature_Contrat_Vente->value,
                 StatutClientEnum::Remise_Cle->value,
                 StatutClientEnum::Desistement_dd->value,
                 StatutClientEnum::Desistement_dp_profit->value,
@@ -37,7 +37,7 @@ return new class extends Migration
                 StatutClientEnum::Desistement_change_bien->value,
                StatutClientEnum::Penalite_valide->value,
                 StatutClientEnum::Remise_du_remboursement->value, StatutClientEnum::Decaissement_effctue->value, StatutClientEnum::Penalite_rejete->value,
-                ])->default(StatutClientEnum::Autre->value)->comment(' 1=>Nouvelle_Avance, 2=>Suivi_Avancement_travaux, 3=>Demande_des_documents, 4=>Autre, 5=>Creation_Reservation, 6=>Ajouter_Rdv, 7=>Signer_Attestation_Vente, 8=>Signer_Contrat_Vente, 9=>Remise_Cle, 10=>Desistement_dd, 11=>Desistement_dp_profit, 12=>Desistement_dp_co, 13=>Desistement_dp_partiel, 14=>Desistement_change_bien, 15=>Penalite Valide, 16=>Remise Remboursement,17=>dacaissement effectue ,19=>penalite rejete');
+                ])->default(StatutClientEnum::Autre->value)->comment(' 1=>Nouvelle_Avance, 2=>Suivi_Avancement_travaux, 3=>Demande_des_documents, 4=>Autre, 5=>Creation_Reservation, 6=>Ajouter_Rdv, 7=>Signature_Attestation_Vente, 8=>Signer_Contrat_Vente, 9=>Remise_Cle, 10=>Desistement_dd, 11=>Desistement_dp_profit, 12=>Desistement_dp_co, 13=>Desistement_dp_partiel, 14=>Desistement_change_bien, 15=>Penalite Valide, 16=>Remise Remboursement,17=>dacaissement effectue ,19=>penalite rejete');
                 $table->string('commentaire')->nullable();
                 $table->date('date_traitement')->nullable();
                 // Correction: 'visites' au pluriel
