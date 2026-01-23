@@ -70,6 +70,14 @@ use Illuminate\Support\Facades\Route;
 |
  */
 
+// Health check endpoint for ALB
+Route::get('/', function () {
+    return response()->json(['status' => 'ok', 'service' => 'immogestion-api'], 200);
+});
+Route::get('/health', function () {
+    return response()->json(['status' => 'ok', 'service' => 'immogestion-api'], 200);
+});
+
 Route::post('login', [UserController::class, 'login'])->name('login');
 Route::post('/validateToken/{token}', [UserController::class, 'validateToken']);
 Route::post('/resetPassword/{token}', [V1UserController::class, 'resetPassword']);
