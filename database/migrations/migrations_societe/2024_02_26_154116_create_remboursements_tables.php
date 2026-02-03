@@ -32,6 +32,7 @@ return new class extends Migration
             $table->bigInteger('num_paiement')->nullable();
             $table->string('pour_le_compte')->nullable();
             $table->string('fichier_autorisation')->nullable();
+            $table->string('nom_autorisation')->nullable();
             $table->double('montant_transfert')->nullable();
             $table->dateTime('remis_le')->nullable();
             $table->string('cheque_client_signe')->nullable();

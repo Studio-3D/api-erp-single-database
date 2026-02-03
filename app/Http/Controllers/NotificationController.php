@@ -364,7 +364,7 @@ class NotificationController extends Controller
 
    // Also update the get_notifications method to properly handle JSON array
 public function get_notifications(Request $request, $projet_id) {
-    if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+    if (Auth::guard('api')->check() && (RoleHelper::AdminSup() ||RoleHelper::Notaire_Respo_Comptable_SAV_Comm())) {
         DatabaseHelper::Config();
         $userId = Auth::guard('api')->user()->id;
 
@@ -397,8 +397,11 @@ public function get_notifications(Request $request, $projet_id) {
             $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                 ->where('projet_id', $projet_id)
                 ->where(function($q) {
-                    $q->where('user_id', Auth::guard('api')->user()->id)
-                        ->orwhere('role', RoleEnum::ADMIN_COMMERCIAL->value);
+                    $q->where('user_id', Auth::guard('api')->user()->id);
+                     // Ajouter ADMIN_COMMERCIAL seulement si l'utilisateur est Commercial
+                    if (RoleHelper::Com()) {
+                        $q->orWhere('role', RoleEnum::ADMIN_COMMERCIAL->value);
+                    }
                 })
                 ->withTrashed()
                 ->whereDate('date', '<=', Carbon::now())

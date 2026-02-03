@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\V1\UploadBienController as V1UploadBienController;
 use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\V1\VisiteController as V1VisiteController;
 use App\Http\Controllers\Api\V1\VueController as V1VueController;
+use App\Http\Controllers\Api\V1\GestionRolesController as V1GestionRolesController;
 use App\Http\Controllers\EnumController;
 use App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController;
 use App\Http\Controllers\Landing_page\Landing_pageController;
@@ -96,6 +97,10 @@ Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify'])
 
 Route::middleware('auth:api')->group(function () {
     Route::prefix('v1')->group(function () {
+        /********************Gestion Roles*********************/
+            Route::resource('gestion_roles', V1GestionRolesController::class);
+            Route::get('gestion_roles_actives/{societe_id}',  [V1GestionRolesController::class, 'roles_actives']);
+
         /********************Social Netxork*********************/
         Route::post('/postTo_Social_Network', [Facebook_InstagramController::class, 'postTo_Social_Network']);
         Route::get('/configurations_social_network', [Facebook_InstagramController::class, 'configurations_social_network']);

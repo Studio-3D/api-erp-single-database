@@ -91,7 +91,7 @@ class ProjetController extends Controller
 
    public function index(Request $request)
     {
-            if (! RoleHelper::AdminSup() && ! RoleHelper::Com()) {
+            if (! RoleHelper::AdminSup() && ! RoleHelper::Notaire_Respo_Comptable_SAV_Comm()) {
                 return response()->json(['error' => 'Unauthorized'], 401);
             }
 
@@ -120,7 +120,7 @@ class ProjetController extends Controller
             }
 
              // Restriction par rôle
-            if (RoleHelper::Com()) {
+            if (RoleHelper::Notaire_Respo_Comptable_SAV_Comm()) {
                 // Commercial connecté : voir uniquement ses projets
                 $id_auth = Auth::guard('api')->user()->id;
                 $user = User::on('temp')->where('user_id_origin', $id_auth)->first();

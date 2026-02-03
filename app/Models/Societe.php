@@ -17,6 +17,7 @@ class Societe extends Model
         'raison_sociale', 'tel','societe_id',
     ];
 
+
     protected $dates = ['deleted_at'];
 
     public function user()
@@ -33,5 +34,5 @@ class Societe extends Model
     {
         return $this->hasMany(Projet::class);
     }
-    
+
 }

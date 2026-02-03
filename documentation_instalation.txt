@@ -24,7 +24,7 @@ Cette documentation décrit les étapes nécessaires pour installer et configure
    ```
    Si tu rencontres des problèmes d'autoload, utilise cette commande pour régénérer l'autoload :
    ```bash
-   composer dump-autoload
+   composer dump-autoload IF ERROS MOVE PHP INI FROM XAMPP TO C PHP 
    ```
 
 5. **Générer la clé d'application Laravel :**
