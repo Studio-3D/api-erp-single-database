@@ -28,9 +28,12 @@ RUN composer install --no-dev --optimize-autoloader
 # Copy Nginx config
 COPY docker/nginx/default.conf /etc/nginx/sites-available/default
 
-# Fix permissions
-RUN chown -R www-data:www-data /var/www/html \
+# Fix permissions (SAFE)
+RUN mkdir -p /var/www/html/storage \
+    /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
 
 # Expose port
 EXPOSE 80
