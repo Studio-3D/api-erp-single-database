@@ -6,7 +6,7 @@ use Illuminate\Console\Command;
 use App\Http\Helpers\DatabaseHelper;
 use App\Http\Helpers\ChroneJobHelpers;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Proposition;
+use App\Models\Rendez_vous;
 use App\Models\User;
 use App\Models\Societe;
 use Illuminate\Support\Facades\DB;
@@ -17,21 +17,21 @@ use Illuminate\Support\Facades\DB;
 
 
 
-class ClearPropositionTable extends Command
+class AnnulerRdvAutomatique extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'app:clear-proposition-table';
+    protected $signature = 'annuler_rdv_automatique';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Libérer le bien après 30 minutes s\'il est toujours en cours de proposition.';
+    protected $description = 'chaque heure annuler les rendez vous  non traités';
 
     /**
      * Execute the console command.
@@ -39,10 +39,7 @@ class ClearPropositionTable extends Command
 
     public function handle()
     {
-        $databases = DB::table('societes')
-                        ->whereNull('deleted_at')
-                        //->where('id', '!=', 1)
-                        ->get();
-        DatabaseHelper::deletePropositionTable($databases);
+        $databases = DB::table('societes')->whereNull('deleted_at')->get();
+        DatabaseHelper::annuler_rdv_automatique($databases);
     }
 }

@@ -465,7 +465,7 @@ Route::middleware('auth:api')->group(function () {
 
                /***********************************Notaire*******************/
 
-        Route::get('/notaires', [V1NotaireController::class, 'get_notaires'])->name('');
+        Route::get('projets/{idprojet}/notaires', [V1NotaireController::class, 'get_notaires'])->name('');
         Route::put('/affecter_notaire/{id}', [V1NotaireController::class, 'affecter_notaire'])->name('');
         Route::get('projets/{idprojet}/new_dossiers_notaire', [V1NotaireController::class, 'get_new_dossier_notaire'])->name('');
         Route::get('projets/{idprojet}/rdvs_notaire', [V1NotaireController::class, 'get_rdvs_notaire'])->name('');
@@ -476,13 +476,15 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/get_contrats_ventes', [V1NotaireController::class, 'get_contrats_ventes'])->name('');
          // Nouvelles routes pour gérer les créneaux
             // Route POST pour un seul créneau (MÊME URL que GET)
-            Route::post('creaneau_occupes_by_user_id', [V1NotaireController::class, 'storeCreneau']);
-            Route::get('creaneau_occupes_by_user_id', [V1NotaireController::class, 'getCreneauxOccupes_by_User']);
-            // Route POST pour plusieurs créneaux
-            Route::post('creaneau_occupes_by_user_id/multiple', [V1NotaireController::class, 'storeMultipleCreneaux']);
+        Route::post('storeCreneau', [V1NotaireController::class, 'storeCreneau']);
+        Route::get('creaneau_occupes_by_user_id', [V1NotaireController::class, 'getCreneauxOccupes_by_User']);
             // Route DELETE
-            Route::delete('creaneau_occupes_by_user_id/{id}', [V1NotaireController::class, 'deleteCreneau']);
-                // TikTok API Integration - updated with OAuth flow
+        Route::delete('creaneau_occupes_by_user_id/{id}', [V1NotaireController::class, 'deleteCreneau']);
+        Route::put('/update-creneau-by-user/{id}', [V1NotaireController::class, 'updateCreneau']);
+        Route::post('/update-agenda-by-user', [V1NotaireController::class, 'updateAgendaByUser']);
+
+        /****************************Fin NotaireController************************ */
+            // TikTok API Integration - updated with OAuth flow
         Route::get('/tiktok/auth-url', [TikTokApiController::class, 'getAuthUrl']);
         Route::post('/tiktok/callback', [TikTokApiController::class, 'handleCallback']);
         Route::post('/tiktok/publish', [TikTokApiController::class, 'publishContent']);

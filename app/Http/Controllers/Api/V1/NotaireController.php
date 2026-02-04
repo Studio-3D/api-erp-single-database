@@ -3,6 +3,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
+use App\Events\Rendez_vous_Prop;
 
 use App\Enum\RoleEnum;
 use App\Events\NotificationEvent;
@@ -39,18 +40,27 @@ use DB;
 class NotaireController extends Controller
 {
 
-public function get_notaires(Request $request)
-    {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            if (RoleHelper::AdminSup_RC()||RoleHelper::RespoLivraison()) {
-                $notaires=User::on('temp')->where('role',5)->where('is_actif',1)->get();
-                return response()->json(['notaires' => $notaires], 200);
-            }
+public function get_notaires(Request $request, $projet_id)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+
+        if (RoleHelper::AdminSup_RC() || RoleHelper::RespoLivraison()) {
+            // Get users with role 5 who are active and associated with the specific project
+            $notaires = User::on('temp')
+                ->where('role', 5)
+                ->where('is_actif', 1)
+                ->whereHas('projets', function ($query) use ($projet_id) {
+                    $query->where('projet_id', $projet_id);
+                })
+                ->get();
+
+            return response()->json(['notaires' => $notaires], 200);
+        }
 
         return response()->json(['error' => 'Unauthorized'], 401);
-         }
     }
+}
     public function affecter_notaire($id, Request $request){
         if (Auth::guard('api')->check()) {
                 $user = Auth::user();
@@ -501,7 +511,7 @@ public function get_notaires(Request $request)
 
     public function get_relances_history($id)
     {
-        if (RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::ACSup()) {
             DatabaseHelper::Config();
             $rdv = Rendez_vous::on('temp')->findOrFail($id);
 
@@ -1027,72 +1037,106 @@ public function get_notaires(Request $request)
             }
 
         /*Creneau Occupes by notaire*/
-        public function getCreneauxOccupes_by_User(Request $request)
-            {
-                 if (RoleHelper::Notaire() || RoleHelper::RespoLivraison()) { {
+public function getCreneauxOccupes_by_User(Request $request)
+{
+    if (RoleHelper::Notaire() || RoleHelper::RespoLivraison()) {
+        $user = Auth::user();
+        DatabaseHelper::Config();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
 
-                   $user = Auth::user();
-                    DatabaseHelper::Config();
-                    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+        // Démarrer la requête
+        $query = CreneauxOccupes::on('temp')->where('type', '!=', 0);
 
-                    // Démarrer la requête directement sur le modèle
-                    $query = CreneauxOccupes::on('temp')->where('user_id',$userAuth->id);
+        // Récupérer le notaire_id depuis la requête
+        $notaireId = $request->input('notaire_id');
 
-                         $start = Carbon::createFromTimestamp($request->input('start')/1000);
-                        $end = Carbon::createFromTimestamp($request->input('end')/1000);
+        if (RoleHelper::Notaire()) {
+            // Pour un notaire, toujours voir ses propres créneaux
+            $query->where('user_id', $userAuth->id);
+        } elseif (RoleHelper::RespoLivraison()) {
+            // Pour le respo livraison
 
-                        // Return all results if pagination parameters are not provided or invalid
-                        $creneau = $query->whereBetween('debut', [$start, $end])->orderBy('created_at', 'desc')
-                            ->get()
-                            ->map(function ($creneau) {
-                                return [
-                                    'id' => $creneau->id,
-                                    'debut' => $creneau->debut->format('Y-m-d H:i:s'),
-                                    'fin' => $creneau->fin->format('Y-m-d H:i:s'),
-                                    'disponible'=>$creneau->disponible
-                                ];
-                            });
+            if ($notaireId === 'tous' || $notaireId === null) {
+                // Voir tous les créneaux de tous les notaires (rôle 5)
+                // Récupérer tous les IDs des notaires
+                $notairesIds = User::on('temp')
+                    ->where('role', 5)
+                    ->pluck('id')
+                    ->toArray();
 
-                        return response()->json(['creneaux' => $creneau], 200);
-                    }
+                // Filtrer les créneaux par ces IDs
+                if (!empty($notairesIds)) {
+                    $query->whereIn('user_id', $notairesIds);
+                } else {
+                    // Si pas de notaires, retourner vide
+                    return response()->json(['creneaux' => []], 200);
                 }
+            } elseif ($notaireId && $notaireId !== 'null') {
+                // Voir les créneaux d'un notaire spécifique
+                $query->where('user_id', $notaireId);
+            }
+        }
 
+        $start = Carbon::createFromTimestamp($request->input('start') / 1000);
+        $end = Carbon::createFromTimestamp($request->input('end') / 1000);
+
+        // Récupérer les créneaux
+        $creneaux = $query->whereBetween('debut', [$start, $end])
+            ->orderBy('debut', 'asc')
+            ->get();
+
+        // Enrichir avec les informations utilisateur
+        $enrichedCreneaux = $creneaux->map(function ($creneau) {
+            // Récupérer l'utilisateur associé
+            $user = User::on('temp')->find($creneau->user_id);
+
+            return [
+                'id' => $creneau->id,
+                'debut' => $creneau->debut->format('Y-m-d H:i:s'),
+                'fin' => $creneau->fin->format('Y-m-d H:i:s'),
+                'disponible' => $creneau->disponible,
+                'type' => $creneau->type,
+                'user_id' => $creneau->user_id,
+                // Utiliser les noms de colonnes corrects de votre base de données
+                'user_name' => $user ? ($user->nom ?? $user->name ?? null) : null,
+                'user_prenom' => $user ? $user->prenom : null,
+                'user_type' => $user ? $user->role : null
+            ];
+        });
+
+        return response()->json(['creneaux' => $enrichedCreneaux], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
+      public function storeCreneau(Request $request)
+        {
+            if (!RoleHelper::NotaireRespoL()) {
                 return response()->json(['error' => 'Unauthorized'], 401);
-
-
-
             }
 
-        public function storeCreneau(Request $request)
-            {
-                if (!RoleHelper::Notaire() && !RoleHelper::RespoLivraison()) {
-                    return response()->json(['error' => 'Unauthorized'], 401);
-                }
+            $user = Auth::user();
+            DatabaseHelper::Config();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
 
-                $user = Auth::user();
-                DatabaseHelper::Config();
-                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+            // Valider les données
+            $validated = $request->validate([
+                'debut' => 'required|date',
+                'fin' => 'required|date|after:debut',
+                'disponible' => 'boolean',
+                'type' => 'nullable'
+            ]);
 
-                // Valider les données
-                $validated = $request->validate([
-                    'debut' => 'required|date',
-                    'fin' => 'required|date|after:debut',
-                    'disponible' => 'boolean',
-                    'type' => 'nullable'
-                ]);
+            try {
 
-                try {
-                    // Vérifier si le créneau existe déjà
+                // Vérifier si le créneau existe déjà
                     $existingCreneau = CreneauxOccupes::on('temp')
-                        ->where('user_id', $userAuth->id)
                         ->where(function($query) use ($validated) {
-                            $query->whereBetween('debut', [$validated['debut'], $validated['fin']])
-                                ->orWhereBetween('fin', [$validated['debut'], $validated['fin']])
-                                ->orWhere(function($q) use ($validated) {
-                                    $q->where('debut', '<=', $validated['debut'])
-                                        ->where('fin', '>=', $validated['fin']);
-                                });
+                            // Vérifie les chevauchements (sans inclure les créneaux qui se touchent)
+                            $query->where('debut', '<', $validated['fin'])   // début existant < fin nouveau
+                                ->where('fin', '>', $validated['debut']);  // fin existant > début nouveau
                         })
+                        ->where('type','!=',0)
                         ->first();
 
                     if ($existingCreneau) {
@@ -1106,41 +1150,139 @@ public function get_notaires(Request $request)
                         ], 409);
                     }
 
-                    // Créer le créneau
-                    $creneau = CreneauxOccupes::on('temp')->create([
-                        'user_id' => $userAuth->id,
-                        'debut' => Carbon::parse($validated['debut']),
-                        'fin' => Carbon::parse($validated['fin']),
-                        'disponible' => $validated['disponible'] ?? true,
-                        'type' => $validated['type'] ?? null,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
+                // Créer le nouveau créneau
+                $cren = new CreneauxOccupes();
+                $cren->setConnection('temp');
+                $cren->debut = Carbon::parse($validated['debut']);
+                $cren->fin = Carbon::parse($validated['fin']);
+                $cren->user_id = $userAuth->id;
+                $cren->type = $validated['type'] ?? null;
+                $cren->reservation_id = null;
+                $cren->disponible = false; // Utiliser la valeur du formulaire
+                $cren->save();
 
-                    return response()->json([
-                        'message' => 'Créneau ajouté avec succès',
-                        'creneau' => [
-                            'id' => $creneau->id,
-                            'debut' => $creneau->debut->format('Y-m-d H:i:s'),
-                            'fin' => $creneau->fin->format('Y-m-d H:i:s'),
-                            'disponible' => $creneau->disponible,
-                            'type' => $creneau->type
-                        ]
-                    ], 201);
-
-                } catch (\Illuminate\Validation\ValidationException $e) {
-                    return response()->json([
-                        'error' => 'Validation error',
-                        'errors' => $e->errors()
-                    ], 422);
-                } catch (\Exception $e) {
-                    return response()->json([
-                        'error' => 'Erreur lors de l\'ajout du créneau',
-                        'details' => $e->getMessage()
-                    ], 500);
+                // Check the creneau propose ==> supprimer it
+                $cren_prop = CreneauxOccupes::on('temp')
+                    ->where('type', 0)
+                    ->where('user_id', $userAuth->id)
+                    ->get();
+                if (count($cren_prop) > 0) {
+                            foreach($cren_prop as $cr){
+                            $cr->forceDelete();
+                            }
                 }
+
+
+                return response()->json([
+                    'message' => 'Créneau ajouté avec succès',
+                    'creneau' => [
+                        'id' => $cren->id,
+                        'debut' => $cren->debut->format('Y-m-d H:i:s'),
+                        'fin' => $cren->fin->format('Y-m-d H:i:s'),
+                        'disponible' => $cren->disponible,
+                        'type' => $cren->type
+                    ]
+                ], 201);
+
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return response()->json([
+                    'error' => 'Validation error',
+                    'errors' => $e->errors()
+                ], 422);
+            } catch (\Exception $e) {
+                // CORRECTION: Ne pas utiliser $creneau qui n'existe pas
+                return response()->json([
+                    'error' => 'Erreur lors de l\'ajout du créneau',
+                    'details' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString() // Pour debug
+                ], 500);
+            }
+        }
+
+
+    public function updateCreneau(Request $request, $id)
+    {
+        if (!RoleHelper::NotaireRespoL()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $user = Auth::user();
+        DatabaseHelper::Config();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
+        // Valider les données
+        $validated = $request->validate([
+            'debut' => 'required|date',
+            'fin' => 'required|date|after:debut',
+            'disponible' => 'boolean',
+            'type' => 'nullable'
+        ]);
+
+        try {
+            // Récupérer le créneau à modifier
+            $creneau = CreneauxOccupes::on('temp')
+                ->where('id', $id)
+                ->where('user_id', $userAuth->id)
+                ->firstOrFail();
+
+            // Vérifier si le créneau existe déjà (pour d'autres créneaux)
+            $existingCreneau = CreneauxOccupes::on('temp')
+                ->where('id', '!=', $id)
+                ->where(function($query) use ($validated) {
+                    $query->whereBetween('debut', [$validated['debut'], $validated['fin']])
+                        ->orWhereBetween('fin', [$validated['debut'], $validated['fin']])
+                        ->orWhere(function($q) use ($validated) {
+                            $q->where('debut', '<=', $validated['debut'])
+                                ->where('fin', '>=', $validated['fin']);
+                        });
+                })
+                ->first();
+
+            if ($existingCreneau) {
+                return response()->json([
+                    'error' => 'Ce créneau chevauche un créneau existant',
+                    'conflict_with' => [
+                        'id' => $existingCreneau->id,
+                        'debut' => $existingCreneau->debut->format('Y-m-d H:i:s'),
+                        'fin' => $existingCreneau->fin->format('Y-m-d H:i:s')
+                    ]
+                ], 409);
             }
 
+            // Mettre à jour le créneau
+            $creneau->debut = Carbon::parse($validated['debut']);
+            $creneau->fin = Carbon::parse($validated['fin']);
+            $creneau->type = $validated['type'] ?? null;
+            $creneau->disponible = $validated['disponible'] ?? false;
+            $creneau->save();
+
+            return response()->json([
+                'message' => 'Créneau modifié avec succès',
+                'creneau' => [
+                    'id' => $creneau->id,
+                    'debut' => $creneau->debut->format('Y-m-d H:i:s'),
+                    'fin' => $creneau->fin->format('Y-m-d H:i:s'),
+                    'disponible' => $creneau->disponible,
+                    'type' => $creneau->type
+                ]
+            ], 200);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => 'Créneau non trouvé'
+            ], 404);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Erreur lors de la modification du créneau',
+                'details' => $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Delete a créneau
      */
@@ -1194,108 +1336,102 @@ public function get_notaires(Request $request)
     /**
      * Store multiple créneaux at once
      */
-    public function storeMultipleCreneaux(Request $request)
-    {
-        if (!RoleHelper::Notaire() && !RoleHelper::RespoLivraison()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
 
-        $user = Auth::user();
-        DatabaseHelper::Config();
-        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
 
-        // Valider les données
-        $validated = $request->validate([
-            'creneaux' => 'required|array|min:1',
-            'creneaux.*.debut' => 'required|date',
-            'creneaux.*.fin' => 'required|date|after:creneaux.*.debut',
-            'creneaux.*.disponible' => 'boolean',
-            'creneaux.*.type' => 'nullable'
-        ]);
 
-        try {
-            $createdCreneaux = [];
-            $errors = [];
+    // Dans votre contrôleur Laravel
+public function updateAgendaByUser(Request $request)
+{
+    $validated = $request->validate([
+        'date_debut' => 'required|date',
+        'date_fin' => 'required|date',
+    ]);
 
-            foreach ($validated['creneaux'] as $index => $creneauData) {
-                try {
-                    // Vérifier les conflits pour chaque créneau
-                    $existingCreneau = CreneauxOccupes::on('temp')
-                        ->where('user_id', $userAuth->id)
-                        ->where(function($query) use ($creneauData) {
-                            $query->whereBetween('debut', [$creneauData['debut'], $creneauData['fin']])
-                                ->orWhereBetween('fin', [$creneauData['debut'], $creneauData['fin']])
-                                ->orWhere(function($q) use ($creneauData) {
-                                    $q->where('debut', '<=', $creneauData['debut'])
-                                      ->where('fin', '>=', $creneauData['fin']);
-                                });
-                        })
-                        ->first();
-
-                    if ($existingCreneau) {
-                        $errors[] = [
-                            'index' => $index,
-                            'error' => 'Chevauchement avec un créneau existant',
-                            'debut' => $creneauData['debut'],
-                            'fin' => $creneauData['fin']
-                        ];
-                        continue;
-                    }
-
-                    // Créer le créneau
-                    $creneau = CreneauxOccupes::on('temp')->create([
-                        'user_id' => $userAuth->id,
-                        'debut' => Carbon::parse($creneauData['debut']),
-                        'fin' => Carbon::parse($creneauData['fin']),
-                        'disponible' => $creneauData['disponible'] ?? true,
-                        'type' => $creneauData['type'] ?? null,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
-
-                    $createdCreneaux[] = [
-                        'id' => $creneau->id,
-                        'debut' => $creneau->debut->format('Y-m-d H:i:s'),
-                        'fin' => $creneau->fin->format('Y-m-d H:i:s'),
-                        'disponible' => $creneau->disponible,
-                        'type' => $creneau->type
-                    ];
-
-                } catch (\Exception $e) {
-                    $errors[] = [
-                        'index' => $index,
-                        'error' => $e->getMessage(),
-                        'debut' => $creneauData['debut'],
-                        'fin' => $creneauData['fin']
-                    ];
-                }
-            }
-
-            $response = [
-                'message' => count($createdCreneaux) . ' créneau(x) ajouté(s) avec succès',
-                'created' => $createdCreneaux
-            ];
-
-            if (!empty($errors)) {
-                $response['errors'] = $errors;
-                $response['partial_success'] = true;
-                return response()->json($response, 207); // 207 Multi-Status
-            }
-
-            return response()->json($response, 201);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'error' => 'Validation error',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Erreur lors de l\'ajout des créneaux',
-                'details' => $e->getMessage()
-            ], 500);
-        }
+    // Vérifier les permissions
+    if (!RoleHelper::NotaireRespoL()) {
+        return response()->json(['message' => 'Unauthorized'], 403);
     }
+
+    $user = Auth::user();
+    DatabaseHelper::Config();
+    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
+    $debutTime = Carbon::parse($validated['date_debut']);
+    $finTime = Carbon::parse($validated['date_fin']);
+
+    // Vérifier les heures d'ouverture
+    $debutHour = $debutTime->format('H:i');
+    $finHour = $finTime->format('H:i');
+
+    if ($debutHour < '09:00' || $finHour > '17:00') {
+        return response()->json([
+            'message' => 'Hors des heures d\'ouverture',
+            'errors' => ['date_debut' => ['Veuillez choisir un horaire entre 9h et 17h']]
+        ], 422);
+    }
+
+    return DB::connection('temp')->transaction(function () use ($debutTime, $finTime, $userAuth) {
+        // CORRECTION : Vérifier les conflits de manière correcte
+        $existingConflict = CreneauxOccupes::on('temp')
+            ->where(function($query) use ($debutTime, $finTime) {
+                // Vérifier si un créneau existant chevauche le nouveau créneau
+                $query->where(function($q) use ($debutTime, $finTime) {
+                    // Cas 1 : Le créneau existant commence avant et finit après le début du nouveau
+                    $q->where('debut', '<', $finTime)
+                      ->where('fin', '>', $debutTime);
+                })
+                ->orWhere(function($q) use ($debutTime, $finTime) {
+                    // Cas 2 : Même début et fin exacts
+                    $q->where('debut', $debutTime)
+                      ->where('fin', $finTime);
+                });
+            })
+            ->where('type', '!=',0)
+            ->where('disponible', false) // Seulement les créneaux occupés
+            ->exists();
+
+        if ($existingConflict) {
+            return response()->json([
+                'message' => 'Ce créneau n\'est plus disponible',
+                'errors' => ['date_debut' => ['Ce créneau est déjà occupé']]
+            ], 422);
+        }
+
+        // Supprimer les anciennes propositions du même jour
+        $todayPropositions = CreneauxOccupes::on('temp')
+            ->where('user_id', $userAuth->id)
+            ->where('type', 0) // Propositions seulement
+            ->whereDate('debut', $debutTime->toDateString())
+            ->get();
+
+        foreach ($todayPropositions as $proposition) {
+            $proposition->forceDelete();
+        }
+
+        // Créer le nouveau créneau
+        $creneau = new CreneauxOccupes();
+        $creneau->setConnection('temp');
+        $creneau->debut = $debutTime->format('Y-m-d H:i:s');
+        $creneau->fin = $finTime->format('Y-m-d H:i:s');
+        $creneau->user_id = $userAuth->id;
+        $creneau->type = 0; // Type 0 = proposition
+        $creneau->disponible = false;
+        $creneau->save();
+
+        // Déclencher l'événement Pusher
+        event(new Rendez_vous_Prop(
+            $debutTime->format('Y-m-d H:i:s'),
+            $userAuth->id,
+            null, // Pas de reservation_id
+            null  // Pas d'ancien créneau
+        ));
+
+        return response()->json([
+            'message' => 'Proposition de créneau enregistrée avec succès',
+            'creneau' => $creneau
+        ]);
+    });
+}
 }
 
 

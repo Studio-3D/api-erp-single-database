@@ -13,6 +13,7 @@ use App\Models\Visite;
 use App\Models\Relance_Rdv_Visite;
 use App\Models\Relance_Rdv_Appel;
 use App\Models\TraitementAppel;
+use App\Models\Rendez_vous;
 
 
 use App\Models\Societe;
@@ -160,70 +161,103 @@ class DatabaseHelper
     }
 
    public static function deletePropositionTable($databases)
-{
-    foreach ($databases as $database) {
-        $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+    {
+        foreach ($databases as $database) {
+            $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
 
-        try {
-            // Établir la connexion
-            $connection = DatabaseHelper::Connection_database($databaseName);
-            config(['database.connections.temp' => $connection]);
-            DB::connection('temp')->setDatabaseName($connection['database']);
-            DB::reconnect('temp');
+            try {
+                // Établir la connexion
+                $connection = DatabaseHelper::Connection_database($databaseName);
+                config(['database.connections.temp' => $connection]);
+                DB::connection('temp')->setDatabaseName($connection['database']);
+                DB::reconnect('temp');
 
-            // Vérifier l'existence de la table une seule fois
-            if (!Schema::connection('temp')->hasTable('propositions')) {
-                \Log::info("Table 'propositions' does not exist in $databaseName.");
-                continue;
-            }
-
-            // Récupérer les utilisateurs une seule fois
-            $notConnectedUsers = DB::table('users')->where('is_connected', 0)->pluck('id');
-            $connectedUsers = DB::table('users')->where('is_connected', 1)->pluck('id');
-
-            // Fusionner les deux traitements similaires
-            $allUsers = [
-                'not_connected' => $notConnectedUsers,
-                'connected' => $connectedUsers
-            ];
-
-            foreach ($allUsers as $type => $users) {
-                if ($users->isEmpty()) {
+                // Vérifier l'existence de la table une seule fois
+                if (!Schema::connection('temp')->hasTable('propositions')) {
+                    \Log::info("Table 'propositions' does not exist in $databaseName.");
                     continue;
                 }
 
-                $propositions = Proposition::on('temp')
-                    ->when($type == 'connected', function ($query) {
-                        return $query->select('id', 'created_at', 'bien_id');
-                    })
-                    ->whereIn('user_id', $users)
-                    ->with(['bien' => function($query) {
-                        $query->select('id', 'etat', 'created_at');
-                    }])
-                    ->get();
+                // Récupérer les utilisateurs une seule fois
+                $notConnectedUsers = DB::table('users')->where('is_connected', 0)->pluck('id');
+                $connectedUsers = DB::table('users')->where('is_connected', 1)->pluck('id');
 
-                foreach ($propositions as $prop) {
-                    $bien = $prop->bien;
-                    if ($bien && $bien->etat == 'ENCOURS_DE_PROPOSITION') {
-                        $expiryTime = Carbon::parse($bien->created_at)->addMinutes(30);
-                        if ($expiryTime->isPast()) {
-                            Bien_Helper::libererBien($bien->id, 'console', null);
-                            \Log::info("Bien proposé updated==>.".$bien->id);
+                // Fusionner les deux traitements similaires
+                $allUsers = [
+                    'not_connected' => $notConnectedUsers,
+                    'connected' => $connectedUsers
+                ];
 
-                        }
+                foreach ($allUsers as $type => $users) {
+                    if ($users->isEmpty()) {
+                        continue;
                     }
-                    $prop->forceDelete();
-                }
 
-                \Log::info("Deleted propositions for {$type} users in $databaseName.");
+                    $propositions = Proposition::on('temp')
+                        ->when($type == 'connected', function ($query) {
+                            return $query->select('id', 'created_at', 'bien_id');
+                        })
+                        ->whereIn('user_id', $users)
+                        ->with(['bien' => function($query) {
+                            $query->select('id', 'etat', 'created_at');
+                        }])
+                        ->get();
+
+                    foreach ($propositions as $prop) {
+                        $bien = $prop->bien;
+                        if ($bien && $bien->etat == 'ENCOURS_DE_PROPOSITION') {
+                            $expiryTime = Carbon::parse($bien->created_at)->addMinutes(30);
+                            if ($expiryTime->isPast()) {
+                                Bien_Helper::libererBien($bien->id, 'console', null);
+                                \Log::info("Bien proposé updated==>.".$bien->id);
+
+                            }
+                        }
+                        $prop->forceDelete();
+                    }
+
+                    \Log::info("Deleted propositions for {$type} users in $databaseName.");
+                }
+            } catch (\Exception $e) {
+                \Log::error("Error processing database $databaseName: " . $e->getMessage());
             }
-        } catch (\Exception $e) {
-            \Log::error("Error processing database $databaseName: " . $e->getMessage());
         }
     }
-}
 
   public static function deleteCreneauPropose($databases)
+    {
+        foreach ($databases as $database) {
+            $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+
+            try {
+                // Établir la connexion
+                $connection = DatabaseHelper::Connection_database($databaseName);
+                config(['database.connections.temp' => $connection]);
+                DB::connection('temp')->setDatabaseName($connection['database']);
+                DB::reconnect('temp');
+
+                // Vérifier l'existence de la table une seule fois
+                if (!Schema::connection('temp')->hasTable('creneaux_occupes')) {
+                    \Log::info("Table creneaux_occupes does not exist in $databaseName.");
+                    continue;
+                }
+
+                $creneaux = CreneauxOccupes::on('temp')->get();
+                    foreach ($creneaux as $prop) {
+                            $expiryTime = Carbon::parse($prop->created_at)->addMinutes(3);
+                            if ($expiryTime->isPast() && $prop->type==0) {
+                                $prop->forceDelete();
+                                \Log::info("creneay proposé deleted.");
+                            }
+                    }
+            } catch (\Exception $e) {
+                \Log::error("Error processing database $databaseName: " . $e->getMessage());
+            }
+        }
+    }
+
+
+    public static function annuler_rdv_automatique($databases)
 {
     foreach ($databases as $database) {
         $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
@@ -235,20 +269,37 @@ class DatabaseHelper
             DB::connection('temp')->setDatabaseName($connection['database']);
             DB::reconnect('temp');
 
-            // Vérifier l'existence de la table une seule fois
-            if (!Schema::connection('temp')->hasTable('creneaux_occupes')) {
-                \Log::info("Table creneaux_occupes does not exist in $databaseName.");
+            // Vérifier l'existence de la table
+            if (!Schema::connection('temp')->hasTable('rendez_vous')) {
+                \Log::info("Table rendez_vous does not exist in $databaseName.");
                 continue;
             }
 
-            $creneaux = CreneauxOccupes::on('temp')->get();
-                foreach ($creneaux as $prop) {
-                        $expiryTime = Carbon::parse($prop->created_at)->addMinutes(3);
-                        if ($expiryTime->isPast() && $prop->type==0) {
-                            $prop->forceDelete();
-                            \Log::info("creneay proposé deleted.");
-                        }
+            // Récupérer les RDV en attente (statut = 1) dont la date est passée de plus d'une heure
+            $now = now();
+
+            $rdvs = Rendez_vous::on('temp')
+                ->where('statut', '1') // en attente
+                ->whereNotNull('rdv') // vérifier que rdv n'est pas null
+                ->where('rdv', '<=', $now->subHour()) // rdv date plus ancienne qu'il y a une heure
+                ->get();
+
+            foreach ($rdvs as $rdv) {
+                // Vérifier si plus d'une heure s'est écoulée depuis la date du RDV
+                $rdvDateTime = \Carbon\Carbon::parse($rdv->rdv);
+                $hoursDifference = $rdvDateTime->diffInHours($now);
+
+                if ($hoursDifference >= 1) {
+                    // Mettre à jour le statut à 4 (annulé automatique)
+                    $rdv->statut = '4';
+                    $rdv->save();
+
+                    \Log::info("RDV ID {$rdv->id} dans $databaseName annulé automatiquement. RDV date: {$rdv->rdv}, Heure actuelle: {$now}");
                 }
+            }
+
+            \Log::info("Processed $databaseName: " . $rdvs->count() . " RDVs annulés automatiquement.");
+
         } catch (\Exception $e) {
             \Log::error("Error processing database $databaseName: " . $e->getMessage());
         }

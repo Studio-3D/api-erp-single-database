@@ -23,7 +23,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:import_fichiers_biens_en_masse')->everyMinute();
         $schedule->command('app:clear-webhook_events-table')->sundays()->at('07:00'); // Runs every Sunday at midnight
         $schedule->command(command: 'whatsapp:send-reminder')->dailyAt('00:00'); // Exécute tous les jours à minuit
-        $schedule->command('delete_creneau_propose')->everyMinute();//after 2 min
+        $schedule->command('delete_creneau_propose')->everyThreeMinutes();//3min
+        $schedule->command('annuler_rdv_automatique')->everyFifteenMinutes();//15min
 
         // Poll LinkedIn stats every 5 minutes
         $schedule->command('linkedin:poll-stats')

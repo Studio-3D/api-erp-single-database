@@ -153,6 +153,12 @@ class RoleHelper
         }
         return false;
     }
-
+    public static function NotaireRespoL()
+        {
+            if (Auth::guard('api')->check() && (Auth::guard('api')->user()->role == 5 ||  Auth::guard('api')->user()->role == 6)) {
+                return true;
+            }
+            return false;
+        }
 
 }

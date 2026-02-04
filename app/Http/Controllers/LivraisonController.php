@@ -150,12 +150,6 @@ public function store_rdv_reservation($id, Request $request)
             $rdv->save();
             $rdvId = $rdv->id;
 
-            // Mark time slot as occupied
-            //check the creneau propose ==> supprimer it
-            $cren_prop=CreneauxOccupes::on('temp')->where('debut',$dateDebut)->where('fin',$dateFin)->where('type',0)->where('user_id',$userAuth->id)->first();
-            if($cren_prop!=null){
-                $cren_prop->forceDelete();
-            }
             $cren = new CreneauxOccupes();
             $cren->setConnection('temp');
             $cren->debut = $dateDebut;
@@ -165,6 +159,15 @@ public function store_rdv_reservation($id, Request $request)
             $cren->reservation_id=$id;
             $cren->disponible = false;
             $cren->save();
+            // Mark time slot as occupied
+            //check the creneau propose ==> supprimer it ->where('debut',$dateDebut)->where('fin',$dateFin)
+            $cren_prop=CreneauxOccupes::on('temp')->where('type',0)->where('user_id',$userAuth->id)->get();
+             if (count($cren_prop) > 0) {
+                    foreach($cren_prop as $cr){
+                    $cr->forceDelete();
+                    }
+            }
+
         });
                 //actualiser avances
                 Config::set('broadcasting.default', 'pusher_8');
@@ -302,17 +305,18 @@ public function updateReservationCreneau($reservation_id, Request $request)
     $dateFin = $rdvTime->copy()->addMinutes(30)->format('Y-m-d H:i:s');
 
     // Business hours check
-    if ($rdvTime->format('H:i') < '08:00' || $rdvTime->format('H:i') > '18:00') {
+    if ($rdvTime->format('H:i') < '09:00' || $rdvTime->format('H:i') > '17:00') {
         return response()->json([
-            'message' => 'Outside business hours',
-            'errors' => ['rdv' => ['Please select a time between 8am and 6pm']]
+            'message' => 'Hors des heures d\'ouverture',
+            'errors' => ['rdv' => ['Veuillez choisir un horaire entre 9h et 17h']]
+
         ], 422);
     }
 
     return DB::connection('temp')->transaction(function () use ($reservation_id, $dateDebut, $dateFin, $userAuth, $validated) {
         // 1. Find and delete only the most recent creneau for this reservation
         $lastCreneau = CreneauxOccupes::on('temp')
-            ->where('reservation_id', $reservation_id)
+         ->where('reservation_id', $reservation_id)
             ->where('type',0)//proposition
             ->where('user_id',$userAuth->id)//proposition
             ->latest('debut')
@@ -322,16 +326,27 @@ public function updateReservationCreneau($reservation_id, Request $request)
             $lastCreneau->forceDelete();
         }
 
-        // 2. Check if new slot is available
-        $existingConflict = CreneauxOccupes::on('temp')
-            ->where('debut', $dateDebut)
-            ->where('disponible', false)
-            ->exists();
+         // Vérifier si le créneau existe déjà
 
-        if ($existingConflict) {
-            throw new \Exception('Ce rendez-vous n\'est plus disponible. ');
+             $existingCreneau = CreneauxOccupes::on('temp')
+                        //->where('user_id','!=', $userAuth->id)
+                        ->where(function($query) use ($dateDebut,$dateFin) {
+                            // Vérifie les chevauchements (sans inclure les créneaux qui se touchent)
+                            $query->where('debut', '<',$dateDebut)   // début existant < fin nouveau
+                                ->where('fin', '>', $dateFin);  // fin existant > début nouveau
+                        })
+                        ->first();
+
+        if ($existingCreneau) {
+            return response()->json([
+                'error' => 'Ce créneau chevauche un créneau existant',
+                'conflict_with' => [
+                    'id' => $existingCreneau->id,
+                    'debut' => $existingCreneau->debut->format('Y-m-d H:i:s'),
+                    'fin' => $existingCreneau->fin->format('Y-m-d H:i:s')
+                ]
+            ], 409);
         }
-
         // 3. Create new creneau
           $cren = new CreneauxOccupes();
             $cren->setConnection('temp');
@@ -522,9 +537,9 @@ public function updateReservationCreneau($reservation_id, Request $request)
             $rdv->statut = $request->statut;
             $rdv->user_id_valider = $userAuth->value('id');
             $rdv->date_validation = Carbon::now();
-            if ($request->statut == 3) {
+           // if ($request->statut == 3) {
                 $rdv->commentaire = $request->commentaire;
-            }
+            //}
             if ($rdv->save()) {
                /*** if ($request->statut == 2) {
                     //store new notification validé
