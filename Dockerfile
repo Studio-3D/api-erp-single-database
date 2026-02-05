@@ -39,6 +39,4 @@ RUN mkdir -p /var/www/html/storage \
 EXPOSE 80
 
 # Start services
-RUN php artisan config:clear
-RUN php artisan cache:clear
 CMD service nginx start && php-fpm
