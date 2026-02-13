@@ -24,8 +24,18 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
+    public function boot()
     {
-        //
+        if (env('PASSPORT_PRIVATE_KEY_BASE64')) {
+            file_put_contents(
+                storage_path('oauth-private.key'),
+                base64_decode(env('PASSPORT_PRIVATE_KEY_BASE64'))
+            );
+
+            file_put_contents(
+                storage_path('oauth-public.key'),
+                base64_decode(env('PASSPORT_PUBLIC_KEY_BASE64'))
+            );
+        }
     }
 }
