@@ -26,6 +26,12 @@ COPY . .
 # Installer dépendances Laravel
 RUN composer install --no-dev --optimize-autoloader
 
+# Générer clé application
+RUN php artisan key:generate
+
+# Générer clés OAuth Passport
+RUN php artisan passport:keys
+
 # 🔥 CRÉER LES DOSSIERS LARAVEL OBLIGATOIRES
 RUN mkdir -p storage/framework/sessions \
     storage/framework/cache \
