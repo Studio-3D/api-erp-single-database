@@ -48,7 +48,7 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord"]
+#CMD ["/usr/bin/supervisord"]
 
 # Copier entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
