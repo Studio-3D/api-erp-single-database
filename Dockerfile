@@ -40,6 +40,9 @@ RUN chown -R www-data:www-data /var/www \
 # Supprimer config nginx par défaut
 RUN rm /etc/nginx/sites-enabled/default
 
+# Copier le fichier .env.example
+COPY .env.example .
+
 # Copier config nginx
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
