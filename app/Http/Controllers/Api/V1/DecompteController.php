@@ -76,7 +76,7 @@ class DecompteController extends Controller
 
     public function store(StoreDecompteRequest $request)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             $user = Auth::user();
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -101,7 +101,7 @@ class DecompteController extends Controller
      */
     public function decomptes_in_facture($projet_id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $decomptes = Decompte::on('temp')->withSum('factures', 'montant')->where('projet_id',$projet_id)->get();
             $dec_facture = array();
@@ -125,7 +125,7 @@ class DecompteController extends Controller
 
     public function show($id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $decompte = Decompte::on('temp')->withSum('factures','montant')->findOrfail($id);
             return response()->json(['decompte' => $decompte], 200);
@@ -136,7 +136,7 @@ class DecompteController extends Controller
 
     public function update(StoreDecompteRequest $request, $id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $decompte = Decompte::on('temp')->findOrFail($id);
             $update = $request->all();
@@ -196,7 +196,7 @@ class DecompteController extends Controller
 
     public function get_info_numero_decompte_unique($id,$num)
     {
-            if(RoleHelper::ACSup()){
+            if(RoleHelper::ACSup()||RoleHelper::Comptable()){
                 $user = Auth::user();
                 DatabaseHelper::Config();
 

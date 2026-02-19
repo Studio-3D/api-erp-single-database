@@ -976,7 +976,7 @@ private function getAllHistoriquesWithAncien($reservationId)
                     },*/
     public function show($id)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::NotaireRespoL()||RoleHelper::AgentAdmin()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
 
             $reservation = Reservation::on('temp')
@@ -1077,7 +1077,7 @@ private function getAllHistoriquesWithAncien($reservationId)
 
     public function get_etat_dossier($id)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
 
             $reservation = Reservation::on('temp')->where('etat',1)

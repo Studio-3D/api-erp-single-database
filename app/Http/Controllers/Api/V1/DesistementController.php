@@ -2048,7 +2048,7 @@ private function createStatutClientForDesistement($desistementId, $userAuth, $aq
 
     public function get_dossiers_by_bien(Request $request, $bien_id)
     {
-        if (RoleHelper::ACSup()) {
+            if (RoleHelper::ACSup_RC()||RoleHelper::NotaireRespoL()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
@@ -3010,64 +3010,91 @@ public function validation_desitement($id,Request $request){
 
                             broadcast(new NotificationEvent($desistement->id));
 
-
                             // if desistement has penalite a valider
                             if($desistement->penalite_desistement!=null){
-                                    if($desistement->penalite_desistement->statut==0){
+                                if($desistement->penalite_desistement->statut==0){
 
-                                        $pen=$desistement->penalite_desistement;
-                                        //notification to admin de valider penalite
+                                    $pen = $desistement->penalite_desistement;
+                                    $projet_id = $desistement->projet_id;
+
+                                    // Get all admin and comptable users for this project
+                                    $admins = User::on('temp')
+                                        ->select('id', 'email', 'name', 'user_id_origin', 'role')
+                                        ->whereIn('role', [2, 7]) // Get users with role 2 (admin) or role 7 (admins_comptable)
+                                        ->where('email', '!=', null)
+                                        ->whereHas('projets', function($query) use ($projet_id) {
+                                            $query->where('projet_id', $projet_id);
+                                        })
+                                        ->get();
+
+                                    // Send emails to all admin and comptable users
+                                    if($admins->count() > 0){
+                                        foreach($admins as $admin){
+                                            try {
+                                                $to_email = $admin->email;
+                                                $code_res = $reservation->code_reservation;
+
+                                                $data = [
+                                                    'adminName' => $admin->name,
+                                                    'penaliteCode' => $pen->num_recu ?? '',
+                                                    'reservationCode' => $code_res ?? '',
+                                                    'montantPenalite' => number_format($pen->montant, 2, ',', ' ') . ' €',
+                                                    'validationLink' => env('APP_URL').'/ventes/desistements/penalites/'.$pen->id,
+                                                    'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                                    'createdBy' => $userAuth->name ?? $userAuth->name ?? 'Un commercial',
+                                                    'projetName' => $reservation->projet->nom ?? 'Non spécifié'
+                                                ];
+
+                                                Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
+                                                    $message->to($to_email)
+                                                        ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res  ?? ''));
+                                                    $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                                                });
+
+                                                Log::info("Email de demande de validation pénalité envoyé à l'admin/comptable: {$admin->email}");
+
+                                            } catch (\Exception $e) {
+                                                Log::error("Échec de l'envoi de l'email à l'admin/comptable {$admin->email}: " . $e->getMessage());
+                                            }
+                                        }
+                                    }
+
+                                    // Create notifications for each admin and comptable user
+                                    Config::set('broadcasting.default', 'pusher_3');
+
+                                    foreach($admins as $admin) {
+                                        // Set role based on user type
+                                        // If user is admin (role 2), set role to ADMIN value
+                                        // If user is comptable (role 7), set role to null
+                                        $roleValue = ($admin->role == 2) ? RoleEnum::ADMIN->value : RoleEnum::COMPTABLE->value;
+
                                         $data_notif = [
                                             'lien' => '/ventes/desistements/penalites/' . $pen->id,
                                             'date' => Carbon::now(),
                                             'type' => 10,
+                                            'user_id' => $admin->user_id_origin, // Send to specific user
                                             'description' => 'DEMANDE VALIDATION Pénalité',
-                                            'role' => RoleEnum::ADMIN->value,
+                                            'role' => $roleValue, // Set role based on user type
                                             'projet_id' => $desistement->projet_id,
                                             'reservation_id' => $desistement->reservation_id,
+                                            'avance_id' => null,
+                                            'visite_id' => null,
+                                            'prospect_id' => null,
+                                            'bien_id' => null,
+                                            'traite_appel_id' => null
                                         ];
+
                                         $notif_helper = new NotificationHelper();
-                                        $notif_helper->storeNotification($request->merge($data_notif));
+                                        $notif_helper->storeNotification(new \Illuminate\Http\Request($data_notif));
 
-                                        broadcast(new NotificationEvent($pen->id));
-
-                                        // Configuration broadcasting pour notification menu
-                                        Config::set('broadcasting.default', 'pusher_5');
-                                        broadcast(new NotifMenuEvent(22));
-
-                                        //send mail to admin pour validation pénalité
-                                        $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
-                                        if($admins->count() > 0){
-                                            foreach($admins as $admin){
-                                                try {
-                                                    $to_email = $admin->email;
-                                                    $code_res =$reservation->code_reservation;
-                                                    // Eager load the relationships to avoid N+1 queries
-                                                    $data = [
-                                                        'adminName' => $admin->name,
-                                                        'penaliteCode' => $pen->num_recu ?? '',
-                                                        'reservationCode' => $code_res ?? '',
-                                                        'montantPenalite' => number_format($pen->montant, 2, ',', ' ') . ' €',
-                                                        'validationLink' => env('APP_URL').'/ventes/desistements/penalites/'.$pen->id,
-                                                        'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
-                                                        'createdBy' => $userAuth->name ?? $userAuth->name ?? 'Un commercial',
-                                                        'projetName' => $reservation->projet->nom ?? 'Non spécifié'
-                                                    ];
-
-                                                    Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
-                                                        $message->to($to_email)
-                                                            ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res  ?? ''));
-                                                        $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
-                                                    });
-
-                                                    Log::info("Email de demande de validation pénalité envoyé à l'admin: {$admin->email}");
-
-                                                } catch (\Exception $e) {
-                                                    Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
-                                                }
-                                            }
-                                        }
+                                        // Broadcast to specific user's channel
+                                        broadcast(new NotificationEvent($admin->user_id_origin));
                                     }
+
+                                    // Configuration broadcasting pour notification menu
+                                    Config::set('broadcasting.default', 'pusher_5');
+                                    broadcast(new NotifMenuEvent(22));
+                                }
                             }
                     }
                     // At the end of the function, modify the return statement:
@@ -3591,61 +3618,89 @@ public function validation_desitement($id,Request $request){
                 } else {
                     $fiche->date = Carbon::now();
                 }
-                if ($fiche->save()) {
-                     if (RoleHelper::Com()) {
-                    //notifiction to admin de valider penalite
-                    $data_notif = [
-                        'lien' => '/ventes/desistements/penalites/' . $pen->id,
-                        'date' => Carbon::now(),
-                        'type' => 10,
-                        'role' => Auth::guard('api')->user()->role,
-                        'description' => 'DEMANDE VALIDATION Pénalité',
-                        'projet_id' => $pen->desistement->projet_id,
-                        'reservation_id' => $pen->desistement->reservation_id,
+              if ($fiche->save()) {
+                    if (RoleHelper::Com()) {
 
-                    ];
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
+                        $projet_id = $pen->desistement->projet_id;
 
-                    broadcast(new NotificationEvent($pen->id));
+                        // Get all admin and comptable users for this project
+                        $admins = User::on('temp')
+                            ->select('id', 'email', 'name', 'user_id_origin', 'role')
+                            ->whereIn('role', [2, 7]) // Get users with role 2 (admin) or role 7 (admins_comptable)
+                            ->where('email', '!=', null)
+                            ->whereHas('projets', function($query) use ($projet_id) {
+                                $query->where('projet_id', $projet_id);
+                            })
+                            ->get();
 
+                        // Send emails to all admin and comptable users
+                        if($admins->count() > 0){
+                            foreach($admins as $admin){
+                                try {
+                                    $to_email = $admin->email;
+                                    $code_res = $pen->desistement->reservation->code_reservation;
 
-                     //send mail to admin pour validation pénalité
-                    $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
-                    if($admins->count() > 0){
-                        foreach($admins as $admin){
-                            try {
-                                $to_email = $admin->email;
+                                    $data = [
+                                        'adminName' => $admin->name,
+                                        'penaliteCode' => $pen->num_recu ?? '',
+                                        'reservationCode' => $code_res ?? '',
+                                        'montantPenalite' => number_format($pen->montant, 2, ',', ' ') . ' €',
+                                        'validationLink' => env('APP_URL').'/ventes/desistements/penalites/'.$pen->id,
+                                        'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
+                                        'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
+                                        'projetName' => $pen->desistement->projet->nom ?? 'Non spécifié'
+                                    ];
 
-                                // Eager load the relationships to avoid N+1 queries
-                                            $code_res=$pen->desistement->reservation->code_reservation;
-                                            $data = [
-                                                'adminName' => $admin->name,
-                                                'penaliteCode' => $pen->num_recu ?? '',
-                                                'reservationCode' =>$code_res ?? '',
-                                                'montantPenalite' => number_format($pen->montant, 2, ',', ' ') . ' €',
-                                                'validationLink' => env('APP_URL').'/ventes/desistements/penalites/'.$pen->id,
-                                                'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
-                                                'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
-                                                'projetName' => $pen->desistement->projet->nom ?? 'Non spécifié'
-                                            ];
+                                    Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
+                                        $message->to($to_email)
+                                            ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res ?? ''));
+                                        $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
+                                    });
 
+                                    Log::info("Email de demande de validation pénalité envoyé à l'admin/comptable: {$admin->email}");
 
-                                Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
-                                    $message->to($to_email)
-                                        ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res ?? ''));
-                                    $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
-                                });
-
-                                Log::info("Email de demande de validation pénalité envoyé à l'admin: {$admin->email}");
-
-                            } catch (\Exception $e) {
-                                Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                                } catch (\Exception $e) {
+                                    Log::error("Échec de l'envoi de l'email à l'admin/comptable {$admin->email}: " . $e->getMessage());
+                                }
                             }
                         }
-                    }
 
-                     }
+                        // Create notifications for each admin and comptable user
+                        Config::set('broadcasting.default', 'pusher_3');
+
+                        foreach($admins as $admin) {
+                            // Set role based on user type
+                            // If user is admin (role 2), set role to ADMIN value
+                            // If user is comptable (role 7), set role to null
+                            $roleValue = ($admin->role == 2) ? RoleEnum::ADMIN->value : RoleEnum::COMPTABLE->value ;
+
+                            $data_notif = [
+                                'lien' => '/ventes/desistements/penalites/' . $pen->id,
+                                'date' => Carbon::now(),
+                                'type' => 10,
+                                'user_id' => $admin->user_id_origin, // Send to specific user
+                                'description' => 'DEMANDE VALIDATION Pénalité',
+                                'role' => $roleValue, // Set role based on user type
+                                'projet_id' => $pen->desistement->projet_id,
+                                'reservation_id' => $pen->desistement->reservation_id,
+                                'avance_id' => null,
+                                'visite_id' => null,
+                                'prospect_id' => null,
+                                'bien_id' => null,
+                                'traite_appel_id' => null
+                            ];
+
+                            $notif_helper = new NotificationHelper();
+                            $notif_helper->storeNotification(new \Illuminate\Http\Request($data_notif));
+
+                            // Broadcast to specific user's channel
+                            broadcast(new NotificationEvent($admin->user_id_origin));
+                        }
+
+                        // Configuration broadcasting pour notification menu
+                        Config::set('broadcasting.default', 'pusher_5');
+                        broadcast(new NotifMenuEvent(22));
+                    }
                 }
 
             }
@@ -3664,7 +3719,7 @@ public function validation_desitement($id,Request $request){
     public function get_all_penalites(Request $request, $projet_id,$statut)
     {
 
-        if (RoleHelper::ACSup_RC()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
@@ -3749,7 +3804,7 @@ public function validation_desitement($id,Request $request){
 
 
 
-                if (RoleHelper::AdminSup_RC()) {
+                if (RoleHelper::AdminSup_RC()||RoleHelper::Comptable()) {
                     $penalites = $query->orderBy('created_at', 'desc')
                     ->paginate($size, ['*'], 'page', $page);
                 } elseif (RoleHelper::Com()) {
@@ -3832,7 +3887,7 @@ public function validation_desitement($id,Request $request){
     }
    public function traiter_penalite($id,Request $request)
     {
-        if(RoleHelper::ACSup()) {
+        if(RoleHelper::ACSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();

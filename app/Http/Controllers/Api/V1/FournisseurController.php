@@ -80,7 +80,7 @@ class FournisseurController extends Controller
 
     public function store(StoreFournisseurRequest $request)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             $user = Auth::user();
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -115,7 +115,7 @@ class FournisseurController extends Controller
      */
     public function show($id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $fournisseur = Fournisseur::on('temp')->findOrfail($id);
             return response()->json(['fournisseur' => $fournisseur], 200);
@@ -126,7 +126,7 @@ class FournisseurController extends Controller
 
     public function update(StoreFournisseurRequest $request, $id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             DatabaseHelper::Config();
@@ -203,7 +203,7 @@ class FournisseurController extends Controller
 
      public function get_info_ice_unique($id,$ice)
      {
-             if(RoleHelper::ACSup()){
+             if(RoleHelper::ACSup()||RoleHelper::Comptable()){
                  $user = Auth::user();
                  DatabaseHelper::Config();
                  //cin unique

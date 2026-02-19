@@ -84,7 +84,7 @@ class ComptabiliteController extends Controller
 
     public function calculer_tva(StoreTvaRequest $request,$tranche_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $tranche = Tranche::on('temp')->withSum('bien', 'superficie_total')->findorfail($tranche_id);
             $somme_sup_par_tranche=23183;//$tranche->bien_sum_superficie_total;

@@ -492,10 +492,18 @@ public function get_notifications(Request $request, $projet_id) {
 
 
     public function get_notif_menu_horizontal_vente_admin(Request $request,$projet_id){
-        if (Auth::guard('api')->check() && RoleHelper::ACSup_RC()) {
+        if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC()||RoleHelper::Comptable())) {
             DatabaseHelper::Config();
-                if(RoleHelper::AdminSup()||RoleHelper::RespoCommercial()){
-                $nb_desistement_att_valide = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',0)->count();
+                if(RoleHelper::Comptable()){
+                    $nb_desistement_att_valide=0;
+                    $nb_res_att_validation=0;
+                }else{
+                  $nb_desistement_att_valide = Desistement::on('temp')->where('archive',0)->where('projet_id',$projet_id)->where('statut',0)->count();
+                  $nb_res_att_validation = Reservation::on('temp')->with('last_statut')
+                                            ->where('projet_id', $projet_id)
+                                            ->where('statut', 3)
+                                            ->where('etat', 1)->count();
+                }
                 $nb_pen_att_valide = PenaliteDesistement::on('temp')->join('desistements', 'desistements.id', '=', 'penalites_desistements.desistement_id')
                 ->where('penalites_desistements.archive',0)
                 ->where('desistements.archive',0)
@@ -528,10 +536,7 @@ public function get_notifications(Request $request, $projet_id) {
                             }
                         }
                     }
-                $nb_res_att_validation = Reservation::on('temp')->with('last_statut')
-                ->where('projet_id', $projet_id)
-                ->where('statut', 3)
-                ->where('etat', 1)->count();
+
                 $nb_demande = Remboursement::on('temp')->join('desistements', 'desistements.id', '=', 'remboursements.desistement_id')
                 ->where('desistements.projet_id',$projet_id)->where('remboursements.statut',0)->where('remboursements.etat',1)
                 ->where(function ($query) {
@@ -549,13 +554,14 @@ public function get_notifications(Request $request, $projet_id) {
                     ->where('avances.mode_paiement','!=',7)->where('avances.montant','>',0)
                     ->where('reservations.etat', 1) ->where('reservations.statut', StatutReservationEnum::Validé->value)->count();
 
-                $nb_rdv_notaire = Rendez_vous::on('temp')->join('reservations', 'rendez_vous.reservation_id', '=', 'reservations.id')
+                /*$nb_rdv_notaire = Rendez_vous::on('temp')->join('reservations', 'rendez_vous.reservation_id', '=', 'reservations.id')
                 ->whereNull('reservations.deleted_at')
                 ->where('reservations.etat', 1)
                 ->where('rendez_vous.statut','0')
-                ->where('reservations.projet_id',$projet_id)->count();
-                       }
-           return response()->json(['nb_dst_att_valide' => $nb_desistement_att_valide,'nb_pen_att_valide'=>$nb_pen_att_valide,'nb_av_att_validation'=>$nb_av_att_validation,'nb_res_att_validation'=>$nb_res_att_validation,'nb_demande_pre_remourse'=>$nb_demande,'nb_echeance'=>$nb_echeance,'nb_rdv_notaire'=>$nb_rdv_notaire]);
+                ->where('reservations.projet_id',$projet_id)->count();*/
+                //,'nb_rdv_notaire'=>$nb_rdv_notaire
+
+           return response()->json(['nb_dst_att_valide' => $nb_desistement_att_valide,'nb_pen_att_valide'=>$nb_pen_att_valide,'nb_av_att_validation'=>$nb_av_att_validation,'nb_res_att_validation'=>$nb_res_att_validation,'nb_demande_pre_remourse'=>$nb_demande,'nb_echeance'=>$nb_echeance]);
         }
          else{
             return response()->json(['error' => 'Unauthorized'], 401);

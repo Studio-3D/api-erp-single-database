@@ -18,7 +18,7 @@ class CompositionBienController extends Controller
      */
     public function index(Request $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::NotaireRespoL()||RoleHelper::Comptable()) {
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
             $bien_id = $request->input('bien_id');

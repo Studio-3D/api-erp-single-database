@@ -69,7 +69,7 @@ class AvanceController extends Controller
 
     public function getAvancesByReservation(Request $request, $reservation_id)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
@@ -223,12 +223,12 @@ class AvanceController extends Controller
 
     public function get_avances_by_etat($projet_id, $statut, Request $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
             $aa=0;
-            if (RoleHelper::AdminSup()) {
+            if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
                 if($statut==3){
                     $query = Avance::on('temp')->
                     with([
@@ -442,7 +442,7 @@ class AvanceController extends Controller
 
     public function traiter_avance($id, Request $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::Comptable()) {
 
             DatabaseHelper::Config();
             $user = Auth::user();
@@ -469,17 +469,18 @@ class AvanceController extends Controller
                 $st_av->date_validation = Carbon::now();
                 $st_av->save();
 
-
-
-
-
                 Config::set('broadcasting.default', 'pusher_7');
                 $reservationId = $avance->reservation_id;
+                $projet_id= $avance->reservation->projet_id;
                 // Broadcast event to all users subscribed to this reservation
                 broadcast(new AvancesEvent($reservationId,null));
                 // Get all users who should receive this update (admins, managers, etc.)
-                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                $usersToNotify = User::on('temp')
                     ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                     ->where('role','!=',8)
+                    ->whereHas('projets', function($query) use ($projet_id) {
+                                        $query->where('projet_id', $projet_id);
+                                    })
                     ->get();
                     // Broadcast to each user's specific channel
                 foreach ($usersToNotify as $user) {
@@ -670,7 +671,7 @@ class AvanceController extends Controller
 
                     if ($avance->save()) {
                      DB::connection('temp')->commit();
-
+                        $projet_id = $avance->reservation->projet_id;
                         // CREATE STATUTCLIENT FOR EACH CLIENT AFTER AVANCE IS SAVED
                         // Create StatutClient if:
                         // 1. Called from frontend (no origin parameter) OR
@@ -772,12 +773,24 @@ class AvanceController extends Controller
                         //si commercial==> demande validation du paiement
                     // && $avance->reservation->statut==StatutReservationEnum::Validé->value
                         if($request->avance_with_reservation==false ){
-                            if (RoleHelper::Com() && $request->montant>0 ) {
-                            //send mail to admin avec etat
-                            $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                   if ((RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) && $request->montant>0 ) {
+                            //send mail to admin et comptable avec etat
+
+                            // Get all admin and comptable users for this project
+                            $admins = User::on('temp')
+                                ->select('id', 'email', 'name', 'user_id_origin', 'role') // Added 'role' to select
+                                ->whereIn('role', [2, 7]) // Get users with role 2 (admin) or role 7 (admins_comptable)
+                                ->where('email', '!=', null)
+                                ->whereHas('projets', function($query) use ($projet_id) {
+                                    $query->where('projet_id', $projet_id);
+                                })
+                                ->get();
+
+                            // Send emails to all admin and comptable users
                             if($admins->count() > 0){
                                 foreach($admins as $admin){
-                                    try {
+                                    if($admin->email!=null){
+                                        try {
                                         $to_email = $admin->email;
 
                                         $data = [
@@ -785,7 +798,7 @@ class AvanceController extends Controller
                                             'reservationCode' => $avance->reservation->code_reservation,
                                             'avanceNumero' => $avance->num_recu,
                                             'montantAvance' => number_format($request->montant, 2, ',', ' '),
-                                            'validationLink' =>env('APP_URL'). '/ventes/reservations/'.$request->reservation_id,
+                                            'validationLink' => env('APP_URL'). '/ventes/reservations/'.$request->reservation_id,
                                             'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
                                             'createdBy' => $userAuth->first()->name ?? $userAuth->name ?? 'Un commercial',
                                             'projetName' => $avance->reservation->projet->nom ?? 'Non spécifié'
@@ -799,38 +812,51 @@ class AvanceController extends Controller
 
                                         Log::info("Email de demande de validation avance envoyé à l'admin: {$admin->email}");
 
-                                    } catch (\Exception $e) {
-                                        Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                                        } catch (\Exception $e) {
+                                            Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                                        }
                                     }
+
                                 }
                             }
 
-                                Config::set('broadcasting.default', 'pusher_3');
+                            // Create notifications for each admin and comptable user
+                            Config::set('broadcasting.default', 'pusher_3');
+
+                            foreach($admins as $admin) {
+                                // Set role based on user type
+                                // If user is admin (role 2), set role to ADMIN value
+                                // If user is comptable (role 7), set role to null
+                                $roleValue = ($admin->role == 2) ? RoleEnum::ADMIN->value : RoleEnum::COMPTABLE->value;
+
                                 $data_notif = [
-                                // 'lien' => '/reservations/show/'.$avance->reservation_id,
-                                    'lien'=>'/ventes/reservations/'.$request->reservation_id,
+                                    'lien' => '/ventes/reservations/'.$request->reservation_id,
                                     'date' => Carbon::now(),
                                     'type' => 7,
-                                    'user_id'=>null,
+                                    'user_id' => $admin->user_id_origin, // Send to specific user
                                     'description' => 'Validation paiement',
-                                    'role'=>RoleEnum::ADMIN->value,
-                                    'projet_id'=>$avance->reservation->projet_id,
-                                    'avance_id'=>$avance->id,
-                                    'reservation_id'=>$request->reservation_id
-
+                                    'role' => $roleValue, // Set role based on user type
+                                    'projet_id' => $avance->reservation->projet_id,
+                                    'avance_id' => $avance->id,
+                                    'reservation_id' => $request->reservation_id,
+                                    'visite_id' => null,
+                                    'prospect_id' => null,
+                                    'bien_id' => null,
+                                    'traite_appel_id' => null
                                 ];
+
                                 $notif_helper = new NotificationHelper();
-                                $notif_helper->storeNotification($request->merge($data_notif));
-                                broadcast(new NotificationEvent(0));
-                                Config::set('broadcasting.default', 'pusher_5');
-                                //2 traitement avance
-                                broadcast(new NotifMenuEvent(2));
+                                $notif_helper->storeNotification(new \Illuminate\Http\Request($data_notif));
 
-
-
+                                // Broadcast to specific user's channel
+                                broadcast(new NotificationEvent($admin->user_id_origin));
                             }
-                        }
 
+                            Config::set('broadcasting.default', 'pusher_5');
+                            //2 traitement avance (update menu counter for pending validations)
+                            broadcast(new NotifMenuEvent(2));
+                        }
+                        }
                         $num_recu='';
                         //num recu cree aujourdhui
                         $recu_now = FicheTransmission::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")->whereDate('created_at', Carbon::now())
@@ -906,11 +932,16 @@ class AvanceController extends Controller
                         //actualiser avances
                         Config::set('broadcasting.default', 'pusher_7');
                         $reservationId = $request->reservation_id;
+
                         // Broadcast event to all users subscribed to this reservation
                         broadcast(new AvancesEvent($reservationId,null));
                         // Get all users who should receive this update (admins, managers, etc.)
-                        $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                        $usersToNotify = User::on('temp') // Adjust roles as needed
                             ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                            ->where('role','!=',8)
+                            ->whereHas('projets', function($query) use ($projet_id) {
+                                        $query->where('projet_id', $projet_id);
+                                    })
                             ->get();
                             // Broadcast to each user's specific channel
                         foreach ($usersToNotify as $user) {
@@ -1247,6 +1278,8 @@ class AvanceController extends Controller
                 }
 
                 if ($avance->save()) {
+                $projet_id = $avance->reservation->projet_id;
+
                        // remodifier fiche transmission
                 $fiche = FicheTransmission::on('temp')->where('avance_id', $avance->id)->orderby('created_at', 'desc')->first();
                 if ($fiche != null) {
@@ -1391,30 +1424,20 @@ class AvanceController extends Controller
                     }
                     //si commercial==> demande validation du paiement
                        //if($avance->reservation->statut == StatutReservationEnum::Validé->value){
-                            if (RoleHelper::Com() && $request->montant > 0) {
-                                Config::set('broadcasting.default', 'pusher_3');
-                                $data_notif = [
-                                    'lien' => '/ventes/reservations/'. $avance->reservation_id,
-                                    'date' => Carbon::now(),
-                                    'type' => 7,
-                                    'user_id' => null,
-                                    'description' => 'Validation paiement',
-                                    'role' => RoleEnum::ADMIN->value,
-                                    'projet_id' => $avance->reservation->projet_id,
-                                    'avance_id' => $avance->id,
-                                    'reservation_id' => $request->reservation_id
-                                ];
+                          if ((RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) && $request->montant > 0) {
 
-                                $notif_helper = new NotificationHelper();
-                                $notif_helper->storeNotification($request->merge($data_notif));
-                                broadcast(new NotificationEvent($id));
 
-                                Config::set('broadcasting.default', 'pusher_5');
-                                broadcast(new NotifMenuEvent(2));
+                                // Get all admin and comptable users for this project
+                                $admins = User::on('temp')
+                                    ->select('id', 'email', 'name', 'user_id_origin', 'role')
+                                    ->whereIn('role', [2, 7]) // Get users with role 2 (admin) or role 7 (admins_comptable)
+                                    ->where('email', '!=', null)
+                                    ->whereHas('projets', function($query) use ($projet_id) {
+                                        $query->where('projet_id', $projet_id);
+                                    })
+                                    ->get();
 
-                                //send mail to admin avec etat
-                                                   //send mail to admin avec etat
-                                $admins = User::on('temp')->select('id','email','name')->where('role',2)->where('email','!=',null)->get();
+                                // Send emails to all admin and comptable users
                                 if($admins->count() > 0){
                                     foreach($admins as $admin){
                                         try {
@@ -1437,13 +1460,49 @@ class AvanceController extends Controller
                                                 $message->from(env('MAIL_USERNAME'), 'Immobilier Immo');
                                             });
 
-                                            Log::info("Email de demande de validation avance envoyé à l'admin: {$admin->email}");
+                                            Log::info("Email de demande de validation avance envoyé à l'admin/comptable: {$admin->email}");
 
                                         } catch (\Exception $e) {
-                                            Log::error("Échec de l'envoi de l'email à l'admin {$admin->email}: " . $e->getMessage());
+                                            Log::error("Échec de l'envoi de l'email à l'admin/comptable {$admin->email}: " . $e->getMessage());
                                         }
                                     }
                                 }
+
+                                // Create notifications for each admin and comptable user
+                                Config::set('broadcasting.default', 'pusher_3');
+
+                                foreach($admins as $admin) {
+                                    // Set role based on user type
+                                    // If user is admin (role 2), set role to ADMIN value
+                                    // If user is comptable (role 7), set role to null
+                                    $roleValue = ($admin->role == 2) ? RoleEnum::ADMIN->value : RoleEnum::COMPTABLE->value;
+
+                                    $data_notif = [
+                                        'lien' => '/ventes/reservations/'. $avance->reservation_id,
+                                        'date' => Carbon::now(),
+                                        'type' => 7,
+                                        'user_id' => $admin->user_id_origin, // Send to specific user
+                                        'description' => 'Validation paiement',
+                                        'role' => $roleValue, // Set role based on user type
+                                        'projet_id' => $avance->reservation->projet_id,
+                                        'avance_id' => $avance->id,
+                                        'reservation_id' => $avance->reservation_id,
+                                        'visite_id' => null,
+                                        'prospect_id' => null,
+                                        'bien_id' => null,
+                                        'traite_appel_id' => null
+                                    ];
+
+                                    $notif_helper = new NotificationHelper();
+                                    $notif_helper->storeNotification(new \Illuminate\Http\Request($data_notif));
+
+                                    // Broadcast to specific user's channel
+                                    broadcast(new NotificationEvent($admin->user_id_origin));
+                                }
+
+                                Config::set('broadcasting.default', 'pusher_5');
+                                //2 traitement avance (update menu counter for pending validations)
+                                broadcast(new NotifMenuEvent(2));
                             }
                       //  }
 
@@ -1453,9 +1512,15 @@ class AvanceController extends Controller
                             // Broadcast event to all users subscribed to this reservation
                             broadcast(new AvancesEvent($reservationId,null));
                             // Get all users who should receive this update (admins, managers, etc.)
-                            $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                            //->whereIn('role', [2, 3])
+                            $usersToNotify = User::on('temp')// Adjust roles as needed
                                 ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                               ->where('role','!=',8)
+                                ->whereHas('projets', function($query) use ($projet_id) {
+                                            $query->where('projet_id', $projet_id);
+                                        })
                                 ->get();
+
                                 // Broadcast to each user's specific channel
                             foreach ($usersToNotify as $user) {
                             event(new AvancesEvent(null,$user->user_id_origin)); }// Pass user ID for specific channel
@@ -1466,7 +1531,7 @@ class AvanceController extends Controller
                             return response()->json(['avance' => $avance], 200);
                         }
                         return response()->json(['error', 'Unauthorized'], 401);
-                    }
+    }
     /**
      * Remove the specified resource from storage.
      */
@@ -1476,6 +1541,7 @@ class AvanceController extends Controller
             DatabaseHelper::config();
             $avance = Avance::on('temp')->findOrFail($id);
             $dd=$avance;
+            $projet_id=$avance->reservation->projet_id;
             if(count($avance->all_piece_jointe)>0){
                 foreach($avance->all_piece_jointe as $all_p){
                     $all_p->delete();
@@ -1519,8 +1585,12 @@ class AvanceController extends Controller
 
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-                $usersToNotify = User::on('temp')->whereIn('role', [2, 3]) // Adjust roles as needed
+                $usersToNotify = User::on('temp') // Adjust roles as needed
                     ->where('id', '!=', $userAuth->value('id')) // Don't notify the current user
+                    ->where('role','!=',8)
+                    ->whereHas('projets', function($query) use ($projet_id) {
+                                        $query->where('projet_id', $projet_id);
+                                    })
                     ->get();
                     // Broadcast to each user's specific channel
                 foreach ($usersToNotify as $user) {
@@ -1595,10 +1665,10 @@ class AvanceController extends Controller
     public function get_notif_avances_att_validation($projet_id)
     {
 
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+        if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC()||RoleHelper::Comptable())) {
             DatabaseHelper::Config();
 
-            if (RoleHelper::AdminSup()) {
+            if (RoleHelper::AdminSup()||RoleHelper::Comptable()||RoleHelper::RespoCommercial()) {
                 //avance en attente et avance  stored by admin(validé) mais sans encaissement
                 $query = Avance::on('temp')->with('last_statut','reservation')
                     ->where('mode_paiement','!=',7)->where('montant','>',0) ->orderBy('created_at', 'desc')
@@ -1651,12 +1721,12 @@ class AvanceController extends Controller
     public function get_echeances($projet_id, Request $request)
     {
 
-        if (Auth::guard('api')->check() && RoleHelper::ACSup_RC()) {
+        if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC()||RoleHelper::Comptable())) {
             DatabaseHelper::Config();
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
 
-            if (RoleHelper::AdminSup_RC()) {
+            if (RoleHelper::AdminSup_RC()||RoleHelper::Comptable()) {
                 //ADMIN
                     $query =Avance::on('temp')->with('last_statut','reservation')
                     ->where('mode_paiement','!=',7)->where('montant','>',0)
@@ -1743,11 +1813,11 @@ class AvanceController extends Controller
     public function get_echeances_menu($projet_id, Request $request)
     {
 
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+        if (Auth::guard('api')->check() && (RoleHelper::ACSup()||RoleHelper::Comptable())) {
             DatabaseHelper::Config();
 
 
-            if (RoleHelper::AdminSup()) {
+            if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
                 //ADMIN
                 $echeances = Avance::on('temp')
                     ->join('reservations', 'avances.reservation_id', '=', 'reservations.id')

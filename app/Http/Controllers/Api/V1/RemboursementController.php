@@ -381,7 +381,7 @@ class RemboursementController extends Controller
     {
 
 
-       if(RoleHelper::ACSup()) {
+       if(RoleHelper::ACSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             Config::set('broadcasting.default', 'pusher_3');
             $user = Auth::user();

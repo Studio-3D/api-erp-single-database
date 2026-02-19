@@ -95,7 +95,7 @@ class CreditsController extends Controller
     {
 
 
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -136,7 +136,7 @@ class CreditsController extends Controller
      */
     public function show($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $cr = Credit::on('temp')->findOrFail($id);
             return response()->json(['credit' => $cr], 200);
@@ -157,7 +157,7 @@ class CreditsController extends Controller
      */
     public function update(Request $request, $id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -196,7 +196,7 @@ class CreditsController extends Controller
      */
     public function destroy(string $id)
     {
-        if (RoleHelper::AdminSup() ) {
+        if (RoleHelper::AdminSup() ||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $cr = Credit::on('temp')->findOrFail($id);
             if ($cr->delete()) {
@@ -211,7 +211,7 @@ class CreditsController extends Controller
 
     public function get_info_numero_credit_unique($id,$num)
     {
-            if(RoleHelper::ACSup()){
+            if(RoleHelper::ACSup()||RoleHelper::Comptable()){
                 $user = Auth::user();
                 DatabaseHelper::Config();
 
