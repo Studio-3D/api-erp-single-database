@@ -37,5 +37,9 @@ class Encaissement extends Model
     {
         return $this->belongsTo(PenaliteDesistement::class,'penalite_id');
     }
+     public function bien()
+    {
+        return $this->belongsTo(Bien::class,'bien_id');
+    }
 
 }
