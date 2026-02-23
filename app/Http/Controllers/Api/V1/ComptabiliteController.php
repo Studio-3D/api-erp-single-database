@@ -252,7 +252,6 @@ class ComptabiliteController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-
     public function destroyTvaCollectesByReservationId($reservation_id)
     {
         if (RoleHelper::ACSup()) {
