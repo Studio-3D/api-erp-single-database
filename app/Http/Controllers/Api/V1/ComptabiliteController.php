@@ -15,6 +15,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Coefficient_tranche;
 use Carbon\Carbon;
+use App\Models\Projet;
+use App\Models\TypeBien;
+use App\Models\Bien;
+use App\Models\RemiseCle;
+use App\Models\Encaissement;
+
+
+
 
 class ComptabiliteController extends Controller
 
@@ -258,5 +266,153 @@ class ComptabiliteController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+
+  public function get_rapport($projet_id)
+{
+    if (RoleHelper::Comptable()) {
+        DatabaseHelper::Config();
+
+        $projet = Projet::on('temp')->find($projet_id);
+
+        if (!$projet) {
+            return response()->json(['error' => 'Projet non trouvé'], 404);
+        }
+
+        // Initialiser le résultat
+        $resultat = [
+            'projet_nom' => $projet->nom,
+            'projet_code' => $projet->code,
+        ];
+
+        // Récupérer tous les types de biens
+        $types = TypeBien::on('temp')->where('projet_id', $projet_id)->get();
+        \Log::info('Types found:', $types->toArray());
+
+        // Pour chaque type, compter les biens vendus
+        foreach ($types as $type) {
+            $nbVendus = Bien::on('temp')->where('projet_id', $projet_id)
+                ->where('type_id', $type->id)
+                ->whereHas('reservation', function($query) {
+                    $query->where('etat', 1);
+                })
+                ->count();
+
+                // Debug: Log the type name and formatted result
+            \Log::info('Processing type:', [
+                'original' => $type->nom,
+                'formatted' => $this->formatTypeName($type->nom),
+                'count' => $nbVendus
+            ]);
+            // Créer le nom de la clé dynamiquement
+            $nomChamp = "nb_" . $this->formatTypeName($type->type) . "_vendu";
+            $resultat[$nomChamp] = $nbVendus;
+        }
+
+        // Ajouter les autres statistiques
+        $resultat['nb_dos_cloturer'] = Bien::on('temp')->where('projet_id', $projet_id)
+            ->whereHas('reservation', function($query) {
+                $query->where('etat', 1);
+            })
+            ->whereHas('remiseCle')
+            ->count();
+
+        $resultat['nb_remise_cles'] = RemiseCle::on('temp')->whereHas('bien', function($query) use ($projet_id) {
+            $query->where('projet_id', $projet_id);
+        })->count();
+
+        // Prix total des biens vendus
+        $resultat['sum_prix'] = Bien::on('temp')->where('projet_id', $projet_id)
+            ->whereHas('reservation', function($query) {
+                $query->where('etat', 1);
+            })
+            ->sum('prix');
+
+        // Total des encaissements (type 1 et 6)
+        $resultat['sum_encaissement'] = Encaissement::on('temp')->whereHas('bien', function($query) use ($projet_id) {
+                $query->where('projet_id', $projet_id);
+            })
+            ->whereIn('type_encaissement', [1, 6])
+            ->sum('montant');
+
+        $resultat['sum_remboursement_penalite'] = Encaissement::on('temp')->whereHas('bien', function($query) use ($projet_id) {
+                $query->where('projet_id', $projet_id);
+            })
+            ->where('type_encaissement', 3)
+            ->sum('montant');
+
+        // Total des avances
+        $resultat['sum_avances'] = Encaissement::on('temp')->whereHas('bien', function($query) use ($projet_id) {
+                $query->where('projet_id', $projet_id);
+            })
+            ->where('type_encaissement', 1)
+            ->sum('montant');
+
+        // Solde restant
+        $resultat['solde_restant'] = $resultat['sum_prix'] - $resultat['sum_encaissement'];
+
+        return response()->json($resultat);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
+
+// Add this method to your controller
+private function formatTypeName($typeName)
+{
+    // If the type name is null or empty, return a default
+    if (empty($typeName)) {
+        return 'type_' . uniqid(); // This will create a unique key like 'type_5f1a2b3c4d5e6'
+    }
+
+    // Convert to lowercase
+    $formatted = strtolower(trim($typeName));
+
+    // Remove accents
+    $formatted = str_replace(
+        ['é', 'è', 'ê', 'ë', 'à', 'â', 'ä', 'î', 'ï', 'ô', 'ö', 'ù', 'û', 'ü', 'ç'],
+        ['e', 'e', 'e', 'e', 'a', 'a', 'a', 'i', 'i', 'o', 'o', 'u', 'u', 'u', 'c'],
+        $formatted
+    );
+
+    // Remove any special characters and replace with underscore
+    $formatted = preg_replace('/[^a-z0-9]+/', '_', $formatted);
+
+    // Remove leading/trailing underscores
+    $formatted = trim($formatted, '_');
+
+    // If after cleaning we have an empty string, use the original with special chars removed
+    if (empty($formatted)) {
+        // Try to extract any letters from the original
+        $formatted = preg_replace('/[^a-zA-Z]+/', '', $typeName);
+        $formatted = strtolower($formatted);
+
+        // If still empty, use a default
+        if (empty($formatted)) {
+            $formatted = 'type_' . $type->id; // Use the ID as fallback
+        }
+    }
+
+    return $formatted;
+}
+
+/**
+ * Formate le nom du type pour créer une clé de champ
+ */
+
+
+/*
+    "projet_nom": "Résidence Les Jardins",
+    "projet_code": "RJ2024",
+    "nb_appartement_vendu": 15,
+    "nb_magasin_vendu": 3,
+    "nb_bureau_vendu": 5,
+    "nb_villa_vendu": 2,
+    "nb_dos_cloturer": 8,
+    "nb_remise_cles": 10,
+    "sum_prix": 12500000,
+    "sum_encaissement": 8750000,
+    "solde_restant": 3750000
+*/
 
 }

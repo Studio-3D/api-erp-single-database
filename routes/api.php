@@ -360,6 +360,7 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('fournisseurs', V1FournisseurController::class);
         Route::get('projets/{idprojet}/fournisseurs', [V1FournisseurController::class, 'indexByProjet']);
         Route::get('get_info_ice_unique/{id}/{ice}', [V1FournisseurController::class, 'get_info_ice_unique']);
+        Route::get('projets/{idprojet}/rapports', [V1ComptabiliteController::class, 'get_rapport'])->name('');
 
         //decomptes
         Route::resource('decomptes', V1DecompteController::class);
