@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 
 class SocieteController extends Controller
 {
@@ -32,19 +33,44 @@ class SocieteController extends Controller
     {
         $this->societeService = $societeService;
     }
+
     public function store(StoreSocieteRequest $request)
     {
-        if (! RoleHelper::Superadmin()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        try {
+            if (!RoleHelper::Superadmin()) {
+                Log::warning('Unauthorized attempt to create societe', [
+                    'user' => auth()->user()
+                ]);
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+
+            Log::info('Controller: Starting societe creation', [
+                'request_data' => $request->except('logo')
+            ]);
+
+            // This now returns the societe object, not a response
+            $societe = $this->societeService->createSociete($request);
+
+            Log::info('Controller: Societe creation completed', [
+                'societe_id' => $societe->id
+            ]);
+
+            return response()->json([
+                'societe' => $societe,
+                'message' => 'Société ajoutée avec succès',
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Controller: Societe creation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'Societe creation failed',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        // Passe directement l'objet $request
-        $response = $this->societeService->createSociete($request);
-
-        return response()->json([
-            'societe' => $response->original['societe'], // Récupère la société créée
-            'message' => 'Société ajoutée avec succès',
-        ], 200);
     }
 
     public function show($id)

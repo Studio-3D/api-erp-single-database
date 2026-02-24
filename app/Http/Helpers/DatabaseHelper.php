@@ -34,73 +34,187 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
-
 class DatabaseHelper
 {
-    public function createNewClientDatabase($raison_sociale, $societe_id)
-    {
 
+public function createNewClientDatabase($raison_sociale, $societe_id)
+    {
         $databaseName = 'Erp_' . $raison_sociale . '_' . $societe_id;
 
-        if ($this->databaseExists($databaseName)) {
-            return response()->json(['message' => 'Database already exists.']);
-        }
+        try {
+            Log::info('DatabaseHelper: Starting database creation', [
+                'database_name' => $databaseName,
+                'raison_sociale' => $raison_sociale,
+                'societe_id' => $societe_id
+            ]);
 
-        DB::statement("CREATE DATABASE IF NOT EXISTS $databaseName");
+            if ($this->databaseExists($databaseName)) {
+                Log::warning('DatabaseHelper: Database already exists', [
+                    'database_name' => $databaseName
+                ]);
+                // Return an array instead of response
+                return [
+                    'success' => false,
+                    'message' => 'Database already exists.',
+                    'status_code' => 409
+                ];
+            }
 
-        $connection = [
-            'driver' => 'mysql',
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => $databaseName,
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'charset' => 'utf8mb4',
-            'collation' => 'utf8mb4_unicode_ci',
-            'prefix' => '',
-            'strict' => true,
-            'engine' => null,
-        ];
+            Log::info('DatabaseHelper: Creating database', ['database_name' => $databaseName]);
+            DB::statement("CREATE DATABASE IF NOT EXISTS $databaseName");
+            Log::info('DatabaseHelper: Database created successfully', ['database_name' => $databaseName]);
 
-        $migration = $this->runMigrations($connection);
+            $connection = [
+                'driver' => 'mysql',
+                'host' => env('DB_HOST', '127.0.0.1'),
+                'port' => env('DB_PORT', '3306'),
+                'database' => $databaseName,
+                'username' => env('DB_USERNAME', 'root'),
+                'password' => env('DB_PASSWORD', ''),
+                'charset' => 'utf8mb4',
+                'collation' => 'utf8mb4_unicode_ci',
+                'prefix' => '',
+                'strict' => true,
+                'engine' => null,
+            ];
 
-        if ($migration === true) {
-            return response()->json(['message' => 'Database created and migrations ran successfully.']);
-        } else {
-            return response()->json(['message' => 'Error running migrations.']);
+            Log::info('DatabaseHelper: Running migrations', [
+                'database_name' => $databaseName,
+                'migration_path' => 'database/migrations/migrations_societe'
+            ]);
+
+            $migration = $this->runMigrations($connection);
+
+            if ($migration === true) {
+                Log::info('DatabaseHelper: Migrations completed successfully', [
+                    'database_name' => $databaseName
+                ]);
+                return [
+                    'success' => true,
+                    'message' => 'Database created and migrations ran successfully.',
+                    'status_code' => 200
+                ];
+            } else {
+                Log::error('DatabaseHelper: Migrations failed', [
+                    'database_name' => $databaseName,
+                    'migration_result' => $migration
+                ]);
+
+                // Cleanup: drop the database if migrations failed
+                try {
+                    DB::statement("DROP DATABASE IF EXISTS $databaseName");
+                    Log::info('DatabaseHelper: Cleaned up database after migration failure', [
+                        'database_name' => $databaseName
+                    ]);
+                } catch (\Exception $cleanupError) {
+                    Log::error('DatabaseHelper: Failed to clean up database', [
+                        'database_name' => $databaseName,
+                        'error' => $cleanupError->getMessage()
+                    ]);
+                }
+
+                return [
+                    'success' => false,
+                    'message' => 'Error running migrations.',
+                    'status_code' => 500
+                ];
+            }
+
+        } catch (\Exception $e) {
+            Log::error('DatabaseHelper: Exception in database creation', [
+                'database_name' => $databaseName ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Attempt cleanup
+            if (isset($databaseName)) {
+                try {
+                    DB::statement("DROP DATABASE IF EXISTS $databaseName");
+                    Log::info('DatabaseHelper: Cleaned up database after exception', [
+                        'database_name' => $databaseName
+                    ]);
+                } catch (\Exception $cleanupError) {
+                    Log::error('DatabaseHelper: Failed to clean up database after exception', [
+                        'database_name' => $databaseName,
+                        'error' => $cleanupError->getMessage()
+                    ]);
+                }
+            }
+
+            return [
+                'success' => false,
+                'message' => 'Database creation failed: ' . $e->getMessage(),
+                'status_code' => 500
+            ];
         }
     }
 
     public function runMigrations($connection)
     {
-        config(['database.connections.temp' => $connection]);
+        try {
+            Log::info('DatabaseHelper: Configuring temporary database connection', [
+                'database' => $connection['database'] ?? 'unknown'
+            ]);
 
-       $migration = Artisan::call('migrate', [
-            '--database' => 'temp',
-            '--path' => 'database/migrations/migrations_societe',
-            '--force' => true,
-        ]);
+            config(['database.connections.temp' => $connection]);
 
-        config(['database.connections.temp' => null]);
+            Log::info('DatabaseHelper: Starting migration execution', [
+                'database' => $connection['database'] ?? 'unknown',
+                'command' => 'migrate --database=temp --path=database/migrations/migrations_societe --force'
+            ]);
 
-        return $migration === 0;
+            $exitCode = Artisan::call('migrate', [
+                '--database' => 'temp',
+                '--path' => 'database/migrations/migrations_societe',
+                '--force' => true,
+            ]);
+
+            $migrationOutput = Artisan::output();
+
+            Log::info('DatabaseHelper: Migration execution completed', [
+                'database' => $connection['database'] ?? 'unknown',
+                'exit_code' => $exitCode,
+                'output' => $migrationOutput
+            ]);
+
+            config(['database.connections.temp' => null]);
+
+            return $exitCode === 0;
+
+        } catch (\Exception $e) {
+            Log::error('DatabaseHelper: Exception during migration execution', [
+                'database' => $connection['database'] ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            config(['database.connections.temp' => null]);
+            return false;
+        }
     }
 
-    public function renameDatabase($oldDatabaseName, $newDatabaseName)
+    private function databaseExists($databaseName)
     {
+        try {
+            $query = "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?";
+            $result = DB::select($query, [$databaseName]);
 
-        DB::statement("CREATE DATABASE $newDatabaseName");
+            $exists = !empty($result);
 
-        $tables = DB::select("SHOW TABLES FROM $oldDatabaseName");
+            Log::info('DatabaseHelper: Check if database exists', [
+                'database_name' => $databaseName,
+                'exists' => $exists
+            ]);
 
-        foreach ($tables as $table) {
-            $tableName = reset($table);
-
-            DB::statement("CREATE TABLE $newDatabaseName.$tableName LIKE $oldDatabaseName.$tableName");
-            DB::statement("INSERT INTO $newDatabaseName.$tableName SELECT * FROM $oldDatabaseName.$tableName");
+            return $exists;
+        } catch (\Exception $e) {
+            Log::error('DatabaseHelper: Error checking if database exists', [
+                'database_name' => $databaseName,
+                'error' => $e->getMessage()
+            ]);
+            return false;
         }
-
-        DB::statement("DROP DATABASE $oldDatabaseName");
     }
 
     public static function Config($societe_id = null)
@@ -1429,11 +1543,4 @@ private static function envoyerEmailUserAppel($user, $traitements, $relanceUserI
         }
     }
 
-    public function databaseExists($databaseName)
-    {
-        $query = "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '$databaseName'";
-        $database = DB::select($query);
-
-        return count($database) > 0;
-    }
 }
