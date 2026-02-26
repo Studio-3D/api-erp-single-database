@@ -3,7 +3,7 @@
 
 # Except these specific files/directories
 !/public/docs/exemplaires-import-biens/
-!/import-prospects*
+!/import_prospects*
 
 # Keep the directory structure
 !/public/
