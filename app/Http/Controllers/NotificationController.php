@@ -670,18 +670,26 @@ public function get_notifications(Request $request, $projet_id) {
         public function mark_all_notifications_seen(Request $request) {
             if (Auth::guard('api')->check()) {
                 DatabaseHelper::Config();
+                     // Debug: Log the received data
+                 \Log::info('Received notification_ids:', ['data' => $request->all()]);
                 $validated = $request->validate([
                     'notification_ids' => 'required|array',
                     'projet_id' => 'required|integer'
                 ]);
-
+// Debug: Log validated data
+               \Log::info('Validated notification_ids:', ['ids' => $validated['notification_ids']]);
                 $userId = Auth::guard('api')->user()->id;
 
                 // Get all notifications for this user in the project
                 $notifications = Notification::on('temp')
                     ->whereIn('id', $validated['notification_ids'])
+                    ->withTrashed()  // Add this to include soft deleted notifications
                     ->get();
-
+                \Log::info('Found notifications:', [
+                'count' => $notifications->count(),
+                'ids' => $notifications->pluck('id')
+            ]);
+                $updatedCount = 0;
                 foreach ($notifications as $notification) {
                     // Get current seen array or initialize empty array
                     $seenArray = $notification->seen ?? [];
@@ -693,8 +701,11 @@ public function get_notifications(Request $request, $projet_id) {
                         // Update the notification
                         $notification->seen = $seenArray;
                         $notification->save();
+                        $updatedCount++;
+
                     }
                 }
+                 \Log::info('Updated notifications count:', ['count' => $updatedCount]);
 
                 return response()->json(['success' => true]);
             }
