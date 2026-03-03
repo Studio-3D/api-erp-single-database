@@ -1,6 +1,6 @@
 FROM public.ecr.aws/docker/library/php:8.2-fpm
 
-# Installer dépendances système
+# Installer dépendances système et extensions PHP
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -10,9 +10,19 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
+    libicu-dev \
     nginx \
     supervisor \
-    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip
+    && docker-php-ext-install \
+        pdo \
+        pdo_mysql \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        zip \
+        intl
 
 # Installer Composer
 RUN curl -sS https://getcomposer.org/installer | php \
@@ -26,14 +36,14 @@ COPY . .
 # Installer dépendances Laravel
 RUN composer install --no-dev --optimize-autoloader
 
-
-# 🔥 CRÉER LES DOSSIERS LARAVEL OBLIGATOIRES
+# Créer les dossiers Laravel obligatoires
 RUN mkdir -p storage/framework/sessions \
     storage/framework/cache \
     storage/framework/views \
-    bootstrap/cache
+    bootstrap/cache \
+    storage/logs
 
-# 🔥 PERMISSIONS CORRECTES
+# Permissions correctes
 RUN chown -R www-data:www-data /var/www \
     && chmod -R 775 storage bootstrap/cache
 
@@ -49,15 +59,12 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 # Copier config supervisor
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-EXPOSE 80
-
-#CMD ["/usr/bin/supervisord"]
-
 # Copier entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
+EXPOSE 80
 
-# Exposer le fichier de log
 VOLUME /var/log
+
+ENTRYPOINT ["/entrypoint.sh"]

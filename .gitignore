@@ -1,51 +1,39 @@
-# Ignore everything by default
-/*
+# Fichiers sensibles / temporaires
+/node_modules
+/vendor
+.env*
+storage/*.key
+/public/storage
+/public/hot
+/public/build
 
-# Except these specific files/directories
+# Dossiers à versionner partiellement
 !/public/docs/exemplaires-import-biens/
 !/import_prospects.xlsx
 
-# Keep the directory structure
-!/public/
-!/public/docs/
+# Mais on ignore tout le reste de /public/docs/
+/public/docs/*
 
-# Ignore all other files and directories
-/.phpunit.cache
-/node_modules
-/public/build
-/public/img
-/public/files
-/public/docs/**
-/public/hot
-/public/storage
-/storage/*.key
-/vendor
-.env*.local
-/.env
-/.env.backup
-/.env.production
-/.env.aws
+# Cache, logs, etc.
+.phpunit.cache
 .phpunit.result.cache
-Homestead.json
-Homestead.yaml
-auth.json
+*.log
 npm-debug.log
 yarn-error.log
-/.fleet
+
+# IDEs
 /.idea
 /.vscode
-**uploads
+/.fleet
 
-nginx/ssl/
-
+# Système
 *.swp
 *.swo
+.DS_Store
+**uploads
 
-# Allow Passport keys
-!storage/oauth-private.key
-!storage/oauth-public.key
-
-# Deployment scripts with credentials
+# Déploiement
+nginx/ssl/
 deploy-wrapper.sh
 get-api-url.sh
 aws-deploy-ecs.sh
@@ -54,7 +42,3 @@ prod.sh
 scheduler.sh
 docker-compose.dev.yml
 docker-compose.prod.yml
-
-# Re-ignore everything else in public/docs except the specific folder
-/public/docs/*
-!/public/docs/exemplaires-import-biens/
