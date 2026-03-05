@@ -856,8 +856,8 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                         } else {
                             $fiche->date = Carbon::now();
                         }
-                        $fiche->save();
-                        /*if ($fiche->save()) {
+                       // $fiche->save();
+                        if ($fiche->save()) {
                           if (RoleHelper::Com()) {
 
                                 //notification to admin de valider penalite
@@ -912,7 +912,7 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                                     }
                                 }
                             }
-                        }*/
+                        }
 
                     }
 
