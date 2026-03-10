@@ -19,9 +19,9 @@ return new class extends Migration
             $table->foreignId('service_id')->constrained('services_prestataires')->onDelete('cascade');
             $table->String('emplacements');
             $table->String('problemes')->nullable();
-            $table->integer('statut')->default(0)->comment('
+            $table->integer('statut')->default(1)->comment('
                 1 =>En attente
-                =>En cours
+                2=>En cours
                 3 =>Résolu
                 4 ==>Non Résolu');
             $table->dateTime('date_reclamation');
