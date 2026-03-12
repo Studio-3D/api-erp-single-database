@@ -181,7 +181,7 @@ class GestionRolesController extends Controller
             RoleEnum::COMPTABLE->value,
             RoleEnum::SAV->value,
             RoleEnum::RESPO_COMMERCIAL->value,
-            RoleEnum::AGENT_ADMINISTRATIF->value
+            //RoleEnum::AGENT_ADMINISTRATIF->value
         ];
     }
 

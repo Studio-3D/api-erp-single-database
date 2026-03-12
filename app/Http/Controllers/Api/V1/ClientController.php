@@ -148,7 +148,7 @@ class ClientController extends Controller
             } else {
                 if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
                     $clients = Client::all();
-                } else if (RoleHelper::AC()) {
+                } else if (RoleHelper::AC()||RoleHelper::RespoCommercial()) {
                     $clients = $query->orderBy('nom', 'asc')
                         ->get();
                 }
@@ -353,7 +353,7 @@ class ClientController extends Controller
      */
     public function store(StoreClientRequest $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = new Client();
             $client->setConnection('temp');
@@ -532,7 +532,7 @@ class ClientController extends Controller
      */
     public function update(UpdateClientRequest $request, $id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->findOrFail($id);
             $update = $request->all();
@@ -550,7 +550,7 @@ class ClientController extends Controller
      */
     public function destroy($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->with('prospect', 'aquereur_desistement', 'reclamation', 'aquereur')->findOrFail($id);
 
@@ -592,7 +592,7 @@ class ClientController extends Controller
 
     public function getClient_by_projet(Request $request, $projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page    = $request->input('page', 1);
@@ -613,7 +613,7 @@ class ClientController extends Controller
 
     public function search_client_by_cin($cin,$projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->where('cin', $cin)->where('projet_id',$projet_id)
                 ->get()->first();
@@ -638,7 +638,7 @@ class ClientController extends Controller
     }
     public function search_client_by_phone($phone,$projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')
                 ->where(function ($query) use ($phone) {
@@ -679,7 +679,7 @@ class ClientController extends Controller
 
     public function search_client_by_email($email,$projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->where('email', $email)->where('projet_id',$projet_id)
                 ->get()->first();

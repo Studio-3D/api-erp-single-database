@@ -272,7 +272,7 @@ class ReservationController extends Controller
     public function store(StoreReservationRequest $request)
     {
         $user = Auth::user();
-        if (!RoleHelper::ACSup()) {
+        if (!RoleHelper::ACSup_RC()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -411,7 +411,7 @@ private function processReservationFiles($reservation, $request, $societe)
 // Update finalizeReservation to remove file processing
         private function finalizeReservation($reservation, $userAuth)
         {
-             if (RoleHelper::Com()) {
+             if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
             //create histo reservation en attente
                 $histo = new HistoReservation();
                 $histo->setConnection('temp');
@@ -446,7 +446,7 @@ private function processReservationFiles($reservation, $request, $societe)
 
 
             // Send notifications if needed
-            if (RoleHelper::Com()) {
+            if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
                 Config::set('broadcasting.default', 'pusher_3');
 
                 $data_notif = [
@@ -833,7 +833,7 @@ private function processReservationFiles($reservation, $request, $societe)
 
                 public function search_reservation_by_code($code)
                 {
-                    if (RoleHelper::ACSup()) {
+                    if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
                         DatabaseHelper::Config();
                         $reservation = Reservation::on('temp')->where('code_reservation', $code)->where('etat', 1)
                             ->get()->first();
@@ -843,7 +843,7 @@ private function processReservationFiles($reservation, $request, $societe)
 
     public function info_reservation($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $reservation = Reservation::on('temp')->with('remboursement_dd_with_transfert','compromis_vente')->findOrFail($id);
             $statut=$reservation->statut;
@@ -1077,7 +1077,7 @@ private function getAllHistoriquesWithAncien($reservationId)
 
     public function get_etat_dossier($id)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::Comptable()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
 
             $reservation = Reservation::on('temp')->where('etat',1)
@@ -1153,7 +1153,7 @@ private function getAllHistoriquesWithAncien($reservationId)
     }
         public function show_dossier_in_dd($id)
         {
-            if (RoleHelper::ACSup()) {
+            if (RoleHelper::ACSup_RC()) {
                 DatabaseHelper::Config();
 
                 $reservation = Reservation::on('temp')
@@ -1221,7 +1221,7 @@ private function getAllHistoriquesWithAncien($reservationId)
     }
     public function getReservationssByProjet($projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $avances = Avance::on('temp')->select('reservation_id', DB::raw('SUM(avances.montant) as sum_avances'))
                 ->groupby('reservation_id');
@@ -1287,7 +1287,7 @@ private function getAllHistoriquesWithAncien($reservationId)
      */
         public function update(UpdateReservationRequest $request, $id)
 {
-    if (!RoleHelper::ACSup()) {
+    if (!RoleHelper::ACSup_RC()) {
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
@@ -1659,7 +1659,7 @@ private function getAllHistoriquesWithAncien($reservationId)
      */
     public function destroy($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $reservation = Reservation::on('temp')->findOrFail($id);
             $user = Auth::user();
@@ -1905,7 +1905,7 @@ private function getAllHistoriquesWithAncien($reservationId)
             ->orderBy('created_at', 'desc')
                 ->where('projet_id', $projet_id)
                 ->where('etat', 1)->where('reservations.statut', $statut);
-            if (RoleHelper::Com()) {
+            if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                 $query->where('reservations.user_id', $userAuth->value('id'));
@@ -1982,7 +1982,7 @@ private function getAllHistoriquesWithAncien($reservationId)
     public function get_notif_reservation_att_validation($projet_id)
     {
 
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+        if (Auth::guard('api')->check() && RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
 
 
@@ -1994,7 +1994,7 @@ private function getAllHistoriquesWithAncien($reservationId)
                 ->where('projet_id', $projet_id)
                 ->where('etat', 1)->where('statut',3)->count();
 
-            } else if (RoleHelper::Com()) {
+            } else if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                 $nb_att_validation = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance')
@@ -2011,7 +2011,7 @@ private function getAllHistoriquesWithAncien($reservationId)
     }
     public function traiter_reservation($id, Request $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::AdminSup()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();

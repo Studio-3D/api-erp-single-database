@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreUserRequest extends FormRequest
 {
@@ -24,7 +25,15 @@ class StoreUserRequest extends FormRequest
         return [
             //'name' => 'required|string',
            // 'prenom' => 'required|string',
-            'email' => 'required|email|',
+            'email' => [
+                'required',
+                'email',
+                'max:254',
+                // Check uniqueness across all users
+                Rule::unique('users', 'email')->where(function ($query) {
+                    return $query->whereNotNull('email');
+                }),
+            ],
             'password' => 'required|min:6|same:password_confirmation',
             'password_confirmation' => 'required|min:6',
             'role' => 'required|integer',
@@ -45,7 +54,9 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'cin.unique' => 'Le Cin que vous avez saisi apprtient à un autre utilisateur',
-            'email.unique' => 'L\'email que vous avez saisi appartient à un autre utilisateur',
+            'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur. Veuillez choisir une autre adresse email.',
+            'email.required' => 'L\'email est requis',
+            'email.email' => 'Veuillez entrer une adresse email valide',
             'societe_id.required' => 'la societe est requise',
         ];
     }

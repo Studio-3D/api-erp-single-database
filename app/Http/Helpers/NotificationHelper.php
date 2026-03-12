@@ -24,7 +24,10 @@ class NotificationHelper
         $notif->projet_id= $request->projet_id;
         $notif->avance_id= $request->avance_id;
         $notif->reservation_id= $request->reservation_id;
-        $notif->bien_id= $request->bien_id;
+        // Set bien_id to null if it's 0 or empty, otherwise use the provided value
+        $notif->bien_id = (!empty($request->bien_id) && $request->bien_id != 0)
+        ? $request->bien_id
+        : null;
         $notif->traite_appel_id= $request->traite_appel_id;
         $notif->save();
     }

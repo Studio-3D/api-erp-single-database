@@ -18,7 +18,11 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->dateTime('rdv')->nullable();
             $table->dateTime('prochaine_relance')->nullable();
+<<<<<<< HEAD
             $table->json('relances_history')->nullable()->after('prochaine_relance')->comment('Historique des relances au format JSON');
+=======
+            $table->json('relances_history')->nullable()->comment('Historique des relances au format JSON');
+>>>>>>> e2456cee4fa357cddb2557c98e07a44f6b145f69
             $table->dateTime('date_validation')->nullable();
             $table->foreignId('user_id_valider')->nullable()->constrained('users')->onDelete('cascade');
             $table->String('type')->nullable()->comment('1=>compromis de vente ,2=>contrat de vente 3=> bloque');

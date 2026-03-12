@@ -32,20 +32,21 @@ class SocieteController extends Controller
     {
         $this->societeService = $societeService;
     }
+  
     public function store(StoreSocieteRequest $request)
-    {
-        if (! RoleHelper::Superadmin()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-        // Passe directement l'objet $request
-        $response = $this->societeService->createSociete($request);
-
-        return response()->json([
-            'societe' => $response->original['societe'], // Récupère la société créée
-            'message' => 'Société ajoutée avec succès',
-        ], 200);
+{
+    if (! RoleHelper::Superadmin()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+    // Passe directement l'objet $request
+    $societe = $this->societeService->createSociete($request);
+
+    return response()->json([
+        'societe' => $societe, // Directly use the societe object
+        'message' => 'Société ajoutée avec succès',
+    ], 200);
+}
 
     public function show($id)
     {

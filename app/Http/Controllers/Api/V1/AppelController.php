@@ -298,7 +298,7 @@ class AppelController extends Controller
 
     public function store(StoreAppelRequest $request)
     {
-            if(RoleHelper::ACSup()){
+            if(RoleHelper::ACSup()||RoleHelper::RespoCommercial()){
 
                 $user = Auth::user();
                 DatabaseHelper::Config();
@@ -483,7 +483,7 @@ class AppelController extends Controller
 
     public function update(Request $request,$id)
     {
-            if(RoleHelper::ACSup()){
+            if(RoleHelper::ACSup()||RoleHelper::RespoCommercial()){
                 $user = Auth::user();
                 DatabaseHelper::Config();
                 $traite_appel=TraitementAppel::on('temp')->findorfail($id);
@@ -745,7 +745,7 @@ class AppelController extends Controller
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            if(RoleHelper::AdminSup()){
+            if(RoleHelper::AdminSup()||RoleHelper::RespoCommercial()){
 
             $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
                 ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
@@ -777,7 +777,7 @@ class AppelController extends Controller
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            if(RoleHelper::AdminSup()){
+            if(RoleHelper::AdminSup()||RoleHelper::RespoCommercial()){
 
             $nb_rdv_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
                 ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
@@ -953,7 +953,7 @@ class AppelController extends Controller
     }
     public function destroy($id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $appel = Appel::on('temp')->findOrFail($id);
             $traitement_appels=TraitementAppel::on('temp')->where('appel_id',$id)->get();
@@ -975,7 +975,7 @@ class AppelController extends Controller
 //destroy traitement appel
     public function destroy_t_appel($id,$number)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $t_appel = TraitementAppel::on('temp')->findOrFail($id);
             $relances_rdv=Relance_Rdv_Appel::on('temp')->where('traite_appel_id',$id)->get();
@@ -1044,7 +1044,7 @@ class AppelController extends Controller
 
     public  function traiter_relance_rdv_appel($id,UpdateDate_relance_Rdv $request)
     {
-        if(RoleHelper::ACSup()) {
+        if(RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
            // Config::set('broadcasting.default', 'pusher_5');
             DatabaseHelper::Config();
             $user = Auth::user();
@@ -1208,7 +1208,7 @@ class AppelController extends Controller
 
      public function get_info_cin_unique($id,$cin)
     {
-            if(RoleHelper::ACSup()){
+            if(RoleHelper::ACSup()||RoleHelper::RespoCommercial()){
                 DatabaseHelper::Config();
                 //cin unique
                 $prospect_count=Prospect::on('temp')->where('cin',$cin)->where('id','!=',$id)->count();

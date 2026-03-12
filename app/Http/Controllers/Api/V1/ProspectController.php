@@ -200,7 +200,7 @@ class ProspectController extends Controller
         ], [
             'statut.required' => 'Le Statut est Obligatoire.',
         ]);
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $user      = Auth::user();
             $userAuth  = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -612,7 +612,7 @@ class ProspectController extends Controller
      */
     public function store(StoreProspectRequest $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             Log::info($request);
             DatabaseHelper::Config();
             $prospect = new Prospect();
@@ -871,7 +871,7 @@ class ProspectController extends Controller
      */
     public function update(UpdateProspectRequest $request, $id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             if ($request->cin != null) {
                 $cin_exist = Prospect::on('temp')->where('cin', $request->cin)->where('id', '!=', $id)->count();
@@ -979,7 +979,8 @@ class ProspectController extends Controller
      */
     public function destroy($id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::RespoCommercial()) {
+
             DatabaseHelper::Config();
             $prospect = Prospect::on('temp')->findOrFail($id);
             if (count($prospect->visites) > 0 || $prospect->appels != null || $prospect->client != null) {
@@ -1005,7 +1006,7 @@ class ProspectController extends Controller
     public function search_prospect_by_param($param_1, $value, $projet_id)
     {
         //cin ou email
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             if ($param_1 == 'cin' || $param_1 == 'email') {
                 $prospect = Prospect::on('temp')->with('visite_pre_reserves','visite_first', 'visites_perdu', 'visites_perdu.freins', 'visites_perdu.freins.freinTranche', 'visites_perdu.freins.FreinEtage', 'visites_perdu.freins.FreinOrientation', 'visites_perdu.freins.FreinTypologie', 'visites_perdu.freins.FreinVue', 'appels')
@@ -1238,7 +1239,7 @@ class ProspectController extends Controller
     }
     public function autoAssignProspects(Request $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
 
             // Custom validation since we're using temp connection

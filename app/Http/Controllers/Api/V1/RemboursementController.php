@@ -53,7 +53,7 @@ class RemboursementController extends Controller
                 });
 
 
-           if (RoleHelper::AdminSup()) {
+           if (RoleHelper::AdminSup_RC()||RoleHelper::Comptable()) {
                 switch ($action) {
                     case 0: // Demande de pré-remboursement
                         $query->where('remboursements.statut', 0)
@@ -202,7 +202,7 @@ class RemboursementController extends Controller
     public function traiter_demande_pre_rembourse($id,Request $request)
     {
 
-        if(RoleHelper::ACSup()) {
+        if(RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
            // Config::set('broadcasting.default', 'pusher_3');
            Config::set('broadcasting.default', 'pusher_5');
@@ -260,7 +260,7 @@ class RemboursementController extends Controller
 
     public function traiter_accuse($id,Request $request)
     {
-       if(RoleHelper::ACSup()) {
+       if(RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             Config::set('broadcasting.default', 'pusher_3');
             $user = Auth::user();
@@ -485,11 +485,11 @@ class RemboursementController extends Controller
             }
 
 
-         return response()->json(['message' => 'Le décaissement du remboursement a été effectué avec succès.'], 200);
-    } else {
-        return response()->json(['error' => 'Unauthorized'], 401);
+            return response()->json(['message' => 'Le décaissement du remboursement a été effectué avec succès.'], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
     }
-}
 
 
 
@@ -553,7 +553,7 @@ class RemboursementController extends Controller
 
      public function get_notif_demande_pre_remboursement($projet_id){
         DatabaseHelper::Config();
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
             $nb_demande = Remboursement::on('temp')->with('desistement_not_trashed')
             ->whereHas('desistement_not_trashed', function ($q) use ($projet_id) {
                 $q->where('projet_id', $projet_id);

@@ -352,7 +352,7 @@ class HomeController extends Controller
         $obj_mois_appels=0;
         $obj_mois_visites=0;
         $obj_mois_reservations=0;
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+        if (Auth::guard('api')->check() && RoleHelper::ACSup_RC()) {
             $us_id=$userAuth->value('id');
             $us_id_origin=$userAuth->value('user_id_origin');
             $us_role=$userAuth->value('role');

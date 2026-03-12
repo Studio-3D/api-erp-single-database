@@ -211,7 +211,7 @@ class CreditsController extends Controller
 
     public function get_info_numero_credit_unique($id,$num)
     {
-            if(RoleHelper::ACSup()||RoleHelper::Comptable()){
+            if(RoleHelper::AdminSup()||RoleHelper::Comptable()){
                 $user = Auth::user();
                 DatabaseHelper::Config();
 

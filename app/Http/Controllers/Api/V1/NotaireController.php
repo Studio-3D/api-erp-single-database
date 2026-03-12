@@ -45,7 +45,7 @@ public function get_notaires(Request $request, $projet_id)
     if (Auth::guard('api')->check()) {
         DatabaseHelper::Config();
 
-        if (RoleHelper::AdminSup_RC() || RoleHelper::RespoLivraison()) {
+        if (RoleHelper::AdminSup() || RoleHelper::RespoLivraison()) {
             // Get users with role 5 who are active and associated with the specific project
             $notaires = User::on('temp')
                 ->where('role', 5)
@@ -67,7 +67,7 @@ public function get_notaires(Request $request, $projet_id)
                 DatabaseHelper::Config();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
                 $nt = User::on('temp')->findOrFail($request->notaire_id);
-                    if (RoleHelper::AdminSup_RC()) {
+                    if (RoleHelper::AdminSup()||RoleHelper::RespoLivraison()) {
                     $res=Reservation::on('temp')->findOrFail($id);
                     $res->notaire_id=$request->notaire_id;
                     $res->user_id_affecte = $userAuth->id;

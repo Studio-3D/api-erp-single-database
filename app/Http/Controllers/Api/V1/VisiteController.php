@@ -256,7 +256,7 @@ class VisiteController extends Controller
     }
     public function update_visite_bien_pre_reserve($id, Request $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             foreach ($request->list_biens_visite as $key => $list) {
                 //Annuler pre reservation
@@ -333,7 +333,7 @@ class VisiteController extends Controller
         DB::connection('temp')->beginTransaction();
         $avance_id=null;
         $user = Auth::user();
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
         try {
             $msg_sended = 0;
             $projet = Projet::on('temp')->findorfail($request->selectedProjet);
@@ -1454,7 +1454,7 @@ class VisiteController extends Controller
 
     public static function traiter_relance_rdv_visite($id, UpdateDate_relance_Rdv $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             // Config::set('broadcasting.default', 'pusher_5');
             DatabaseHelper::Config();
             $user     = Auth::user();
@@ -1621,7 +1621,7 @@ public function edit_visite($id)
     public function update(UpdateVisiteRequest $request, $id)
     {
         $user = Auth::user();
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
                 DatabaseHelper::Config();
                 Config::set('broadcasting.default', 'pusher_3');
                      // Start database transaction
@@ -2212,7 +2212,7 @@ public function edit_visite($id)
     public function destroy($id)
     {
         DatabaseHelper::Config();
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $visite = Visite::on('temp')->findOrFail($id);
 
@@ -2299,7 +2299,7 @@ public function edit_visite($id)
         $origin=($last_origin_id_prospect !="null" && $last_origin_id_prospect != null)
                                         ? $last_origin_id_prospect
                                         : $id;
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             try {
             $prospect = Prospect::on('temp')->findorfail($request->prospect_id);
             //si interet on store cin du client

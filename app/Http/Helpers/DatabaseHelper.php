@@ -63,15 +63,51 @@ class DatabaseHelper
             'engine' => null,
         ];
 
-        $migration = $this->runMigrations($connection);
+       // Run migrations
+    $migration = $this->runMigrations($connection);
 
-        if ($migration === true) {
-            return response()->json(['message' => 'Database created and migrations ran successfully.']);
+    if ($migration === true) {
+        // Run seeders after successful migrations
+        $seeder = $this->runSeeders($connection);
+
+        if ($seeder === true) {
+            return response()->json(['message' => 'Database created, migrations and seeders ran successfully.']);
         } else {
-            return response()->json(['message' => 'Error running migrations.']);
+            return response()->json(['message' => 'Migrations ran successfully but error running seeders.']);
         }
+    } else {
+        return response()->json(['message' => 'Error running migrations.']);
     }
+}
 
+public function runSeeders($connection)
+{
+    config(['database.connections.temp' => $connection]);
+
+    // Run the specific seeders
+    $seeder1 = Artisan::call('db:seed', [
+        '--database' => 'temp',
+        '--class' => 'Database\Seeders\ServicesPrestatairesSeeder',
+        '--force' => true,
+    ]);
+
+    $seeder2 = Artisan::call('db:seed', [
+        '--database' => 'temp',
+        '--class' => 'Database\Seeders\SourceSeeder',
+        '--force' => true,
+    ]);
+
+    $seeder3 = Artisan::call('db:seed', [
+        '--database' => 'temp',
+        '--class' => 'Database\Seeders\TypeFreinSeeder',
+        '--force' => true,
+    ]);
+
+    config(['database.connections.temp' => null]);
+
+    // Check if all seeders ran successfully (return 0 means success)
+    return ($seeder1 === 0 && $seeder2 === 0 && $seeder3 === 0);
+}
     public function runMigrations($connection)
     {
         config(['database.connections.temp' => $connection]);
