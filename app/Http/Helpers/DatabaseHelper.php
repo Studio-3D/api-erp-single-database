@@ -244,7 +244,7 @@ public function runSeeders($connection)
                         if ($bien && $bien->etat == 'ENCOURS_DE_PROPOSITION') {
                             $expiryTime = Carbon::parse($bien->created_at)->addMinutes(30);
                             if ($expiryTime->isPast()) {
-                                Bien_Helper::libererBien($bien->id, 'console', null);
+                                Bien_Helper::libererBien($bien->id, 'console', null,false);
                                 \Log::info("Bien proposé updated==>.".$bien->id);
 
                             }
@@ -1604,7 +1604,7 @@ public static function import_titre_foncier_en_masse($databases)
                         $diff_in_days = Carbon::parse($bien->last_pre_reservation->date_pre_reserve)->diffInDays($cur_date);
                         if ($diff_in_days >= $bien->projet->limite_annulation_reservation + $bien->projet->prolongation_reservation) {
                             //if diff>=3 libere bien
-                            Bien_Helper::libererBien($bien->id, 'console', null);
+                            Bien_Helper::libererBien($bien->id, 'console', null,false);
                         } else if ($diff_in_days == $bien->projet->limite_annulation_reservation) {
 
                             //if diff==2 notif to commercial

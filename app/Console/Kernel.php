@@ -28,7 +28,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('annuler_rdv_automatique')->everyFifteenMinutes();//15min
 
 
-        // Poll LinkedIn stats every 5 minutes
+       /* // Poll LinkedIn stats every 5 minutes
         $schedule->command('linkedin:poll-stats')
                  ->everyFiveMinutes()
                  ->withoutOverlapping()
@@ -36,7 +36,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->call(function () {
         app()->make(\App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController::class)->checkExpiredPhoneReminders();
-        })->everyMinute(); // or ->everyFiveMinutes() depending on your needs
+        })->everyMinute(); // or ->everyFiveMinutes() depending on your needs*/
 
     }
 
