@@ -278,6 +278,7 @@ class ReservationController extends Controller
 
         DatabaseHelper::Config();
         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
         $societe_id = Auth::guard('api')->user()->societe_id;
         $societe = Societe::findOrfail($societe_id);
         $DatabaseName = 'Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
@@ -323,7 +324,7 @@ class ReservationController extends Controller
             $this->processDependencies($reservation, $request, $userAuth);
 
             // Finalize the reservation
-            $this->finalizeReservation($reservation, $userAuth);
+            $this->finalizeReservation($reservation,$userAuth->name, $userAuth);
 
             // Commit transaction
             DB::connection('temp')->commit();
@@ -412,7 +413,7 @@ private function processReservationFiles($reservation, $request, $societe)
 }
 
 // Update finalizeReservation to remove file processing
-        private function finalizeReservation($reservation, $userAuth)
+ private function finalizeReservation($reservation,$userAuth_name,$userAuth)
         {
              if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
             //create histo reservation en attente
@@ -479,7 +480,7 @@ private function processReservationFiles($reservation, $request, $societe)
                                 'reservationCode' => $reservation->code_reservation,
                                 'validationLink' => env('APP_URL').'/ventes/reservations/'.$reservation->id,
                                 'dateCreation' => Carbon::now()->format('d/m/Y à H:i'),
-                                'createdBy' => $userAuth->name ?? 'Un commercial'
+                                'createdBy' => $userAuth_name ?? 'Un commercial'
                             ];
 
                             Mail::send('emails.demande_validation_reservation', $data, function ($message) use ($to_email, $reservation) {
@@ -510,7 +511,7 @@ private function processReservationFiles($reservation, $request, $societe)
                         if ($bien->save()) {
                             $bien_propose = new Proposition();
                             $bien_propose->setConnection('temp');
-                            $bien_propose->bien_id = $bien_id;
+                            $bien_propose->bien_id = $bien->id;
                             $bien_propose->user_id = Auth::guard('api')->user()->id;
                             $bien_propose->save();
                         }
@@ -549,7 +550,17 @@ private function processReservationFiles($reservation, $request, $societe)
                     // Update with all remaining fields individually
 
                 $reservation->commentaire = $request->commentaire== "null" ? null : $request->commentaire;
-                $reservation->prix_remise = $request->prix_remise;
+                 // ✅ Nouvelle logique pour prix_remise
+                // Si prix_unitaire == prix_remise, alors prix_remise = 0
+                if (isset($request->prix_unitaire) && isset($request->prix_remise) && $request->prix_unitaire == $request->prix_remise) {
+                    $reservation->prix_remise = 0;
+                    $reservation->prix_remise_lettre = null;
+                } else {
+                    $reservation->prix_remise = $request->prix_remise ?? 0;
+                    $reservation->prix_remise_lettre = isset($request->prix_remise) && $request->prix_remise > 0
+                        ? (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_remise)
+                        : null;
+                }
                 $reservation->prix_remise_lettre = (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_remise);
                 $reservation->prix_forfetaire = $request->prix_forfetaire;
                 $reservation->prix_forfetaire_lettre = (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_forfetaire);
@@ -641,7 +652,9 @@ private function processReservationFiles($reservation, $request, $societe)
                             'prenom' => $request->prenom,
                             'prospect_id' => $request->prospect_id,
                             'projet_id' => $request->projet_id,
-                            'telephone_num1' => $request->telephone_num1
+                            'telephone_num1' => $request->telephone_num1,
+                            'email' => $request->email ?? 'null'
+
                         ]);
                         $aquereurRequest = new StoreAquereurRequest();
 
@@ -650,27 +663,30 @@ private function processReservationFiles($reservation, $request, $societe)
                             'nom' => $request->nom,
                             'prenom' => $request->prenom,
                             'telephone_num1' => $request->telephone_num1,
-                            'telephone_num2' => $request->telephone_num2,
-                            'notifie' => $request->notifie??0,
+                            'telephone_num2' => $request->telephone_num2 ?? null,                            'notifie' => $request->notifie??0,
                             'prospect_id' => $request->prospect_id,
                             'civilite' => $request->civilite,
                             'situation_familliale' => $request->situation_familliale,
                             'type_client' => 1,
                             'projet_id' => $request->projet_id,
-                            'email' => $request->email ?? '',
+                            // FIX: Handle email properly - use null for empty strings
+                            'email' => (isset($request->email) && !empty(trim($request->email))) ? trim($request->email) : null,
                             'ville' => $request->ville ?? '',
+                            'notifie' => $request->notifie ?? 0,
                         ];
                         $clientRequest->merge($dataClient);
                          $clientData = $clientController->store($clientRequest);
-                            // Create statut client using the new function
+
+                        \Log::info('Client created successfully with ID: ' . $clientData->id);
+                    }
+                     // Create statut client using the new function
                             $this->createStatutClient(
                                 clientId: $clientData->id,
                                 reservationId: $reservation->id,
-                                userId: $userAuth->value('id'),
+                                userId: $userAuth->id,
                                 codeReservation: $reservation->code_reservation
                             );
-                        \Log::info('Client created successfully with ID: ' . $clientData->id);
-                    }
+                             \Log::info('Client created successfully with ID: ' . $clientData->id);
                     $dataAquereur = [
                         'pourcentage' => 100,
                         'client_id' => $clientData->id,
@@ -698,7 +714,7 @@ private function processReservationFiles($reservation, $request, $societe)
                                     $this->createStatutClient(
                                         clientId: $clientData->id,
                                         reservationId: $reservation->id,
-                                        userId: $userAuth->value('id'),
+                                        userId: $userAuth->id,
                                         codeReservation: $reservation->code_reservation
                                     );
                             $dataAquereur = [
@@ -725,7 +741,7 @@ private function processReservationFiles($reservation, $request, $societe)
                                     $this->createStatutClient(
                                         clientId: $clientInfo['id'],
                                         reservationId: $reservation->id,
-                                        userId: $userAuth->value('id'),
+                                        userId: $userAuth->id,
                                         codeReservation: $reservation->code_reservation
                                     );
                                     $dataAquereur = [
@@ -776,7 +792,8 @@ private function processReservationFiles($reservation, $request, $societe)
                     'processed_files' => $avanceFileNames, // Pass processed file names instead of file objects
 
                 ];
-
+                // Add a small delay to ensure proper ordering in database
+                        sleep(1); // 1 second delay
                 $avanceRequest->merge($dataAvance);
                 $avanceController->store($avanceRequest);
             }

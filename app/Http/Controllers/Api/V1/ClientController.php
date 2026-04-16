@@ -357,6 +357,10 @@ class ClientController extends Controller
             DatabaseHelper::Config();
             $client = new Client();
             $client->setConnection('temp');
+             // Ensure email is null if empty string
+            if (isset($request->email) && trim($request->email) === '') {
+                $request->merge(['email' => null]);
+            }
             $client->type_client = $request->type_client;
             if ($request->type_client == TypeClient::Société->value) {
                 $client->partenaire_id = $request->partenaire_id;
@@ -398,7 +402,7 @@ class ClientController extends Controller
                     $prospect            = Prospect::on('temp')->findorfail($client->prospect_id);
                     $prospect->client_id = $client->id;
                     $prospect->save();
-                    // Append statut 10: Converti en client
+                    /* Append statut 10: Converti en client
                     $sp = new \App\Models\StatutProspect();
                     $sp->setConnection('temp');
                     $sp->prospect_id = $prospect->id;
@@ -409,7 +413,7 @@ class ClientController extends Controller
                     $userAuth = \App\Models\User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
                     if ($userAuth) { $sp->user_id_traite = $userAuth->id; }
                     $sp->commentaire = 'Prospect converti en client';
-                    $sp->save();
+                    $sp->save();*/
                 }
                 //store info to database client (non-blocking)
                 try {
@@ -419,7 +423,7 @@ class ClientController extends Controller
                         'prenom' => $request->prenom,
                         'email' => $request->email,
                         'password' => Hash::make($client->password),
-                        'gender' => $request->civilite,
+                      //  'gender' => $request->civilite,
                         'client_id' => $client->id
                     ]);
                 } catch (\Throwable $e) {
@@ -468,28 +472,19 @@ class ClientController extends Controller
             ->where('prospect_id', $client->prospect_id)
             ->latest('created_at')
             ->get();
-
-        $groupedVisites = $visites->groupBy('origin_id')->map(function ($visite) {
-            $firstVisite = $visite->first();
+        //->groupBy('origin_id')
+        $groupedVisites = $visites->map(function ($visite) {
+            $firstVisite = $visite;//->first()
             return [
                 'id'                  => $firstVisite->id,
                 'origin_id'           => $firstVisite->origin_id,
                 'nom_cc'              => $firstVisite->user ? $firstVisite->user->name : null,
                 'prenom_cc'           => $firstVisite->user ? $firstVisite->user->prenom : null,
                 'date'                => $firstVisite->created_at,
-                'cin'                 => $firstVisite->prospect ? $firstVisite->prospect->cin : null,
-                'nom'                 => $firstVisite->prospect ? $firstVisite->prospect->nom : null,
-                'prenom'              => $firstVisite->prospect ? $firstVisite->prospect->prenom : null,
-                'telephone'           => $firstVisite->prospect ? $firstVisite->prospect->telephone : null,
-                'telephone2'          => $firstVisite->prospect ? $firstVisite->prospect->telephone_num2 : null,
                 'prospect_id'         => $firstVisite->prospect ? $firstVisite->prospect->id : null,
                 'interet'             => $firstVisite->interet,
                 'statut'              => $firstVisite->statut,
-                'propriete_dite_bien' => $firstVisite->bien ? $firstVisite->bien->propriete_dite_bien : '',
-                'etat_bien'           => $firstVisite->bien ? $firstVisite->bien->etat : '',
-                'bien_id'             => $firstVisite->bien_id ?? '',
-                'visit_count'         => $visite->count(),
-                'reservation'         => $firstVisite->reservation ?? null,
+                'bien' => $firstVisite->bien ? $firstVisite->bien : '',
             ];
         });
 

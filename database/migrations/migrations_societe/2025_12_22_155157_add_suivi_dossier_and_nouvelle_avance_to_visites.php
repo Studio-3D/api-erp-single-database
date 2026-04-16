@@ -14,7 +14,7 @@ return new class extends Migration
     {
         // Add 'Suivi_dossier' (value 4) to interet enum
         try {
-            DB::statement("ALTER TABLE visites MODIFY interet ENUM('1','2','3','4') NOT NULL COMMENT '1=>interesse 2=>recpetif 3=>perdu 4=>suivi dossier'");
+            DB::statement("ALTER TABLE visites MODIFY interet ENUM('1','2','3','5') NOT NULL COMMENT '1=>interesse 2=>recpetif 3=>perdu 5=>suivi dossier'");
         } catch (\Throwable $e) {
             \Log::warning('Could not modify interet column (might already have the value): ' . $e->getMessage());
         }

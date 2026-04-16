@@ -30,7 +30,7 @@ return new class extends Migration
                 RoleEnum::SAV->value, RoleEnum::RESPO_COMMERCIAL->value ,RoleEnum::AGENT_ADMINISTRATIF->value
             ])->comment('1=>superadmin 2=>Admin 3=>Commercial 4=>admin_commercial 5=>Notaire 6=>RESPO LIVRAISON 7=>Comptable 8=>SAV 9==>RESPO_COMMERCIAL 10==>AGENT_ADMINISTRATIF');
 
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('user_id')->nullable()->references('user_id_origin')->on('users')->onDelete('cascade');
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->foreignId('projet_id')->nullable()->constrained('projets')->onDelete('cascade');
             $table->foreignId('prospect_id')->nullable()->constrained('prospects')->onDelete('cascade');

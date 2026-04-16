@@ -247,6 +247,8 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API visite
         Route::resource('visites', V1VisiteController::class);
+
+        Route::get('projets/{idprojet}/visites_by_prospect_client', [V1VisiteController::class, 'index_visites_by_prospect_client']);
         Route::get('edit_visite/{id}', [V1VisiteController::class, 'edit_visite']);
         Route::get('projets/{idprojet}/visites', [V1VisiteController::class, 'indexByProjet']);
         Route::put('update_visite_bien_pre_reserve/{origin_id}', [V1VisiteController::class, 'update_visite_bien_pre_reserve'])->name('');
