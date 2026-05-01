@@ -8,13 +8,20 @@ RUN apt-get update && apt-get install -y \
     git unzip libzip-dev \
     && docker-php-ext-install pdo pdo_mysql zip \
     && pecl install redis \
-    && docker-php-ext-enable redis
+    && docker-php-ext-enable redis \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 RUN composer install --no-dev --optimize-autoloader
 
-RUN cp .env.example .env
+RUN mkdir -p storage/framework/sessions \
+    storage/framework/cache \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 80
 
