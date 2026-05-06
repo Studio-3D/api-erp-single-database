@@ -26,19 +26,38 @@ class UpdateBanqueRequest extends FormRequest
     public function rules(): array
     {
         $societe_id = Auth::guard('api')->user()->societe_id;
-        $societe=Societe::findOrfail( $societe_id);
-        $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
+        $societe = Societe::findOrfail($societe_id);
+        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
-        return [
-            'nom' => ['required',Rule::unique('temp.'.$DatabaseName.'.banques','nom')->ignore($this->banque)],
 
+        return [
+            'nom' => ['required', Rule::unique('temp.' . $DatabaseName . '.banques', 'nom')->ignore($this->banque)],
         ];
     }
 
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
     public function messages(): array
     {
         return [
-            'nom.unique' => 'Cette banque est deja exist dans la societe',
+            // Nom
+            'nom.required' => 'Le champ nom de la banque est obligatoire.',
+            'nom.unique' => 'Cette banque existe déjà dans la société.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'nom' => 'nom de la banque',
         ];
     }
 }

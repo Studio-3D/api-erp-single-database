@@ -75,10 +75,43 @@ class EtapeProjetController extends Controller
         //
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    /*
     public function store(Request $request)
+    {
+    if (RoleHelper::AdminSup()) {
+            $user = Auth::user();
+            // Check if user is superadmin
+            $isSuperAdmin = RoleHelper::SuperAdmin();
+
+            // Switch to tenant database
+            DatabaseHelper::Config();
+
+            // Set user_id_add based on user type
+            if ($isSuperAdmin) {
+                // For superadmin, set user_id_add to 0
+                $userId = 0;
+            } else {
+                // For regular users, get the tenant user
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                $userId = $userAuth->id;
+            }
+            $ech = new EcheanceProjet();
+            $ech->setConnection('temp');
+            $ech->description = $request->description;
+            $ech->date_debut_prevu = $request->date_debut_prevu;
+            $ech->date_fin_prevu = $request->date_fin_prevu;
+            $ech->projet_id = $request->projet_id;
+            $ech->etat='0';//non commencé
+            $ech->user_id=$userId;
+            if ($ech->save()) {
+                return response()->json(['ech' => $ech], 200);
+            }
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+
+    }*/
+
+         public function store(Request $request)
     {
 
         if (RoleHelper::AdminSup()) {
@@ -122,9 +155,60 @@ class EtapeProjetController extends Controller
         //
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    /*public function update(Request $request, $id)
+{
+    if (RoleHelper::AdminSup()) {
+
+            $user = Auth::user();
+            // Check if user is superadmin
+            $isSuperAdmin = RoleHelper::SuperAdmin();
+
+            // Switch to tenant database
+            DatabaseHelper::Config();
+
+            // Set user_id_add based on user type
+            if ($isSuperAdmin) {
+                // For superadmin, set user_id_add to 0
+                $userId = 0;
+            } else {
+                // For regular users, get the tenant user
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                $userId = $userAuth->id;
+            }
+        $ech = EcheanceProjet::on('temp')->findOrFail($id);
+
+        // Only update fields that are provided in the request
+        if ($request->has('description')) {
+            $ech->description = $request->description;
+        }
+        if ($request->has('date_debut')) {
+            $ech->date_debut = $request->date_debut;
+        }
+        if ($request->has('date_fin')) {
+            $ech->date_fin = $request->date_fin;
+        }
+        if ($request->has('date_fin_prevu')) {
+            $ech->date_fin_prevu = $request->date_fin_prevu;
+        }
+        if ($request->has('date_debut_prevu')) {
+            $ech->date_debut_prevu = $request->date_debut_prevu; // Fixed typo: date_debut_preu -> date_debut_prevu
+        }
+        if ($request->has('projet_id')) {
+            $ech->projet_id = $request->projet_id;
+        }
+        if ($request->has('etat')) {
+            $ech->etat = $request->etat;
+        }
+
+        $ech->user_id = $userId;
+
+        if ($ech->save()) {
+            return response()->json(['ech' => $ech], 200);
+        }
+    }
+    return response()->json(['error' => 'Unauthorized'], 401);
+}*/
+
    public function update(Request $request, $id)
 {
     if (RoleHelper::AdminSup()) {
@@ -184,4 +268,3 @@ class EtapeProjetController extends Controller
         }
     }
 }
-

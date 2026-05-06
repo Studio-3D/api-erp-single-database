@@ -18,9 +18,9 @@ return new class extends Migration
                   ->change();
 
             // Add type column
-            $table->enum('type', [0, 1])
+            $table->enum('type', [0,1,2,3])
                   ->nullable()
-                  ->comment('0=>creer bien ,1=>modif en masse')
+                  ->comment('0=>creer bien ,1=>modif en masse , 2 titre foncier ,3 propsects')
                   ->default('0');
         });
     }

@@ -20,15 +20,14 @@ class Kernel extends ConsoleKernel
         $schedule->command(command: 'emails:send-scheduled')->dailyAt('07:00'); // Exécute tous les jours à minuit
         $schedule->command(command: 'app:echeance-email')->dailyAt('07:00'); // Exécute tous les jours à minuit
         $schedule->command('app:import_fichiers')->everyMinute();
-        $schedule->command('app:import_fichiers_biens_en_masse')->everyMinute();
-        $schedule->command('app:import_fichiers_titre_foncier_en_masse')->everyMinute();
+        $schedule->command('app:edit_biens_et_titre_foncier_en_masse')->everyMinute();
         $schedule->command('app:clear-webhook_events-table')->sundays()->at('07:00'); // Runs every Sunday at midnight
         $schedule->command(command: 'whatsapp:send-reminder')->dailyAt('00:00'); // Exécute tous les jours à minuit
         $schedule->command('delete_creneau_propose')->everyThreeMinutes();//3min
         $schedule->command('annuler_rdv_automatique')->everyFifteenMinutes();//15min
 
 
-        // Poll LinkedIn stats every 5 minutes
+       /* // Poll LinkedIn stats every 5 minutes
         $schedule->command('linkedin:poll-stats')
                  ->everyFiveMinutes()
                  ->withoutOverlapping()
@@ -36,7 +35,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->call(function () {
         app()->make(\App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController::class)->checkExpiredPhoneReminders();
-        })->everyMinute(); // or ->everyFiveMinutes() depending on your needs
+        })->everyMinute(); // or ->everyFiveMinutes() depending on your needs*/
 
     }
 

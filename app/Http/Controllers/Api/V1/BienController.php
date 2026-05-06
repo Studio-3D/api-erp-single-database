@@ -1206,6 +1206,7 @@ class BienController extends Controller
                     'prix'                         => $b_pr->prix,
                     'avance_minimale'              => $b_pr->avance_minimale,
                     'prix_unitaire'                => $b_pr->prix_unitaire,
+                    'superficie_vendable' => $b_pr->superficie_vendable,
                     'superficie_terrasse_calculer' => $b_pr->superficie_terrasse_calculer,
                     'superficie_jardin_calculer'   => $b_pr->superficie_jardin_calculer,
                     'superficie_balcon_calculer'   => $b_pr->superficie_balcon_calculer,
@@ -1278,6 +1279,7 @@ class BienController extends Controller
                         'superficie_jardin_calculer'   => $bien->superficie_jardin_calculer,
                         'superficie_balcon_calculer'   => $bien->superficie_balcon_calculer,
                         'superficie_habitable'         => $bien->superficie_habitable,
+                        'superficie_vendable'         => $bien->superficie_vendable,
                         'prix_box'                     => $bien->prix_box,
                         'prix_parking'                 => $bien->prix_parking,
                         'is_proposed'                  => $bien->is_proposed,
@@ -1307,7 +1309,7 @@ class BienController extends Controller
     public function getBiens_Vendu_ByProjet_Concat($projet_id, $text)
     {
 
-        if (RoleHelper::ACSup()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoLivraison()||RoleHelper::SAV()) {
             DatabaseHelper::Config();
             if ($text == 'BiensNonRemise') {
                 //biens vendu sans Remise

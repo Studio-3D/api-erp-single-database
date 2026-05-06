@@ -178,7 +178,7 @@ class ImmeubleController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $immeuble = Immeuble::on('temp')->with('projet','tranche','bloc','bien')->withCount('bien')->findOrfail($id);
+            $immeuble = Immeuble::on('temp')->with('projet','projet.typologies','projet.vues','projet.typesBien','tranche','bloc','bien')->withCount('bien')->findOrfail($id);
 
             return response()->json(['immeuble' => $immeuble], 200);
         } else {

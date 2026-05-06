@@ -19,7 +19,6 @@ return new class extends Migration
             $table->bigInteger('bien_id')->unsigned();
             $table->foreign('bien_id')->references('id')->on('biens');
             $table->bigInteger('user_id')->unsigned()->nullable();
-            $table->foreign('user_id')->references('user_id_origin')->on('users');
             $table->foreignId('visite_id')->nullable()->constrained('visites')->onDelete('cascade');
             $table->foreignId('reservation_id')->nullable()->constrained('reservations')->onDelete('cascade');
             $table->foreignId('desistement_id')->nullable();

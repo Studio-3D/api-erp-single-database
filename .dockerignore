@@ -1,7 +1,9 @@
 vendor
 node_modules
 .env
-.env.*
+.env.production
+.env.staging
+.env.local
 .git
 .gitignore
 storage/
@@ -10,3 +12,7 @@ docker-compose.*.yml
 Dockerfile*
 README.md
 *.md
+*.log
+.DS_Store
+.idea
+.vscode

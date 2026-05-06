@@ -151,6 +151,29 @@ class PartenaireController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+    public function store_multiple_partenaires (Request $request)
+        {
+            if (RoleHelper::AdminSup()) {
+                DatabaseHelper::Config();
+                $dataArray_donnees = json_decode($request->input('donneesPartenaire', '[]'), true);
+
+                if ($dataArray_donnees) {
+                    foreach ($dataArray_donnees as $Data) {  // Changed variable name
+                        $s = new Partenaire();  // Keep this as $typologie
+                        $s->setConnection('temp');
+                        $s->description = $Data['description'];  // Use $typologieData here
+                        $s->projet_id = $request->projet_id;
+                        $s->save();
+                    }
+                }
+
+                // Get all type biens created
+                $part = Partenaire::on('temp')->get();
+                return response()->json(['partenaires' => $part], 200);
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+        }
 
     /**
      * Display the specified resource.
@@ -227,22 +250,39 @@ class PartenaireController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-    public static function AjouterPartenaire($partenaire, $projet_id)
-    {
-            $partenaireController = new PartenaireController();
-            $partenaireRequest = new StorePartenaireRequest();
+   public static function AjouterPartenaire($partenaire, $projet_id)
+{
+    // Handle different input formats
+    $description = null;
+    $remise = null;
 
-                $dataPartenaire = [
-                    'description' => $partenaire['description'],
-                    'remise' => $partenaire['remise'],
-                    'projet_id' => $projet_id,
-                ];
-            $partenaireRequest->merge($dataPartenaire);
-            $partenaireController->store($partenaireRequest);
-
-
-
+    if (is_array($partenaire)) {
+        // If it's an array, try to get description and remise
+        $description = $partenaire['description'] ?? $partenaire['name'] ?? $partenaire['nom'] ?? null;
+        $remise = $partenaire['remise'] ?? $partenaire['discount'] ?? 0;
+    } elseif (is_string($partenaire)) {
+        // If it's just a string, use it as description
+        $description = $partenaire;
+        $remise = 0;
     }
+
+    // Skip if no description
+    if (empty($description)) {
+        return;
+    }
+
+    $partenaireController = new PartenaireController();
+    $partenaireRequest = new StorePartenaireRequest();
+
+    $dataPartenaire = [
+        'description' => $description,
+        'remise' => $remise,
+        'projet_id' => $projet_id,
+    ];
+
+    $partenaireRequest->merge($dataPartenaire);
+    $partenaireController->store($partenaireRequest);
+}
 
 
 }

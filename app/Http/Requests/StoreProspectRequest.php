@@ -29,21 +29,44 @@ class StoreProspectRequest extends FormRequest
         $societe = Societe::findOrfail($societe_id);
         $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
+
         return [
             'telephone' => 'required',
             'cin' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->whereNull('deleted_at')],
             'email' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->whereNull('deleted_at')],
-
         ];
     }
 
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
     public function messages(): array
     {
         return [
+            // Téléphone
+            'telephone.required' => 'Le champ numéro de téléphone est obligatoire.',
 
-            'cin.unique' => 'Le cin appartient à un autre utilisateur',
-            'email.unique' => 'L\'email appartient à un autre utilisateur',
+            // CIN
+            'cin.unique' => 'Ce CIN appartient déjà à un autre prospect.',
 
+            // Email
+            'email.unique' => 'Cet email appartient déjà à un autre prospect.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'telephone' => 'numéro de téléphone',
+            'cin' => 'CIN',
+            'email' => 'email',
         ];
     }
 }

@@ -12,7 +12,7 @@ class SocieteSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\Societe::factory()->create([
+        \App\Models\Societe::create([
             'raison_sociale' => 'studio4d',
             'raison_sociale_concatene' => 'studio4d',
             'nom_contact' => 'Mohamed',

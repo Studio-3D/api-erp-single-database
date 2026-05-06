@@ -26,17 +26,38 @@ class UpdateSourceRequest extends FormRequest
     public function rules(): array
     {
         $societe_id = Auth::guard('api')->user()->societe_id;
-        $societe=Societe::findOrfail( $societe_id);
-        $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
+        $societe = Societe::findOrfail($societe_id);
+        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
+
         return [
-            //'source'=>['required',Rule::unique('temp.'.$DatabaseName.'.sources','source')],
+            'source' => ['required', Rule::unique('temp.' . $DatabaseName . '.sources', 'source')->whereNull('deleted_at')->ignore($this->source)],
         ];
     }
+
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
     public function messages(): array
     {
         return [
+            // Source
+            'source.required' => 'Le champ source est obligatoire.',
             'source.unique' => 'Cette source existe déjà dans cette société.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'source' => 'source',
         ];
     }
 }

@@ -16,6 +16,29 @@ class TypologieController extends Controller
     /**
      * Display a listing of the resource.
      */
+  public function store_multiple_typologies (Request $request)
+{
+    if (RoleHelper::AdminSup()) {
+        DatabaseHelper::Config();
+        $dataArray_donnees = json_decode($request->input('donneesTypologie', '[]'), true);
+
+        if ($dataArray_donnees) {
+            foreach ($dataArray_donnees as $typologieData) {  // Changed variable name
+                $typologie = new Typologie();  // Keep this as $typologie
+                $typologie->setConnection('temp');
+                $typologie->typologie = $typologieData['typologie'];  // Use $typologieData here
+                $typologie->projet_id = $request->projet_id;
+                $typologie->save();
+            }
+        }
+
+        // Get all type biens created
+        $typologies = Typologie::on('temp')->where('projet_id', $request->projet_id)->get();
+        return response()->json(['typologies' => $typologies], 200);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+}
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
@@ -200,11 +223,22 @@ class TypologieController extends Controller
     }
     public static function AjouterTypologie($typologie, $projet_id)
     {
+           // If $typeBien is an array, extract the type field
+            if (is_array($typologie)) {
+                $typeValue = $typologie['type'] ?? null;
+            } else {
+                $typeValue = $typologie;
+            }
+
+            if (empty($typeValue)) {
+                return; // Skip empty values
+            }
+
             $typologieController = new TypologieController();
             $typologieRequest = new StoreTypologieRequest();
 
                 $dataTypologie = [
-                'typologie' => $typologie,
+                'typologie' => $typeValue,
                 'projet_id' => $projet_id,
                 ];
             $typologieRequest->merge($dataTypologie);

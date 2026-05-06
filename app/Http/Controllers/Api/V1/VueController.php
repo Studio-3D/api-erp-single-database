@@ -16,6 +16,28 @@ class VueController extends Controller
     /**
      * Display a listing of the resource.
      */
+      public function store_multiple_vues (Request $request)
+    {
+        if (RoleHelper::AdminSup()) {
+            DatabaseHelper::Config();
+            $dataArray_donnees = json_decode($request->input('donneesVue', '[]'), true);
+            if ($dataArray_donnees) {
+                    foreach ($dataArray_donnees as $vueData) {
+                        $vue = new Vue();
+                        $vue->setConnection('temp');
+                        $vue->vue = $vueData['vue'];
+                        $vue->projet_id = $request->projet_id;
+                        $vue->save();
+                    }
+                }
+            //get all type biens created
+            $vues=Vue::on('temp')->where('projet_id',$request->projet_id)->get();
+            return response()->json(['vues' => $vues], 200);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+    }
+
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
@@ -207,11 +229,20 @@ class VueController extends Controller
     }
     public static function AjouterVue($vues, $projet_id)
     {
+        if (is_array($vues)) {
+                $typeValue = $vues['type'] ?? null;
+            } else {
+                $typeValue = $vues;
+            }
+
+            if (empty($typeValue)) {
+                return; // Skip empty values
+            }
             $vueController = new VueController();
             $vueRequest = new StoreVueRequest();
 
                 $datavue = [
-                'vue' => $vues,
+                'vue' => $typeValue,
                 'projet_id' => $projet_id,
                 ];
             $vueRequest->merge($datavue);

@@ -86,6 +86,28 @@ class SourceController extends Controller
         }
 
     }
+      public function store_multiple_sources (Request $request)
+        {
+            if (RoleHelper::AdminSup()) {
+                DatabaseHelper::Config();
+                $dataArray_donnees = json_decode($request->input('donneesSource', '[]'), true);
+
+                if ($dataArray_donnees) {
+                    foreach ($dataArray_donnees as $Data) {  // Changed variable name
+                        $s = new Source();  // Keep this as $typologie
+                        $s->setConnection('temp');
+                        $s->source = $Data['source'];  // Use $typologieData here
+                        $s->save();
+                    }
+                }
+
+                // Get all type biens created
+                $sources = Source::on('temp')->get();
+                return response()->json(['sources' => $sources], 200);
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+        }
 
     /**
      * Display the specified resource.
@@ -146,4 +168,3 @@ class SourceController extends Controller
         }
     }
 }
-

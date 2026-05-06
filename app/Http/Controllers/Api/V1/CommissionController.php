@@ -41,10 +41,6 @@ class CommissionController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-
-
-
-    //store les Configurations
     public function store(Request $request)
     {
 
@@ -103,6 +99,80 @@ class CommissionController extends Controller
         }
 
     }
+
+
+    //store les Configurations
+    /*public function store(Request $request)
+    {
+
+        if (RoleHelper::AdminSup()) {
+            $user = Auth::user();
+            // Check if user is superadmin
+            $isSuperAdmin = RoleHelper::SuperAdmin();
+
+            // Switch to tenant database
+            DatabaseHelper::Config();
+
+            // Set user_id_add based on user type
+            if ($isSuperAdmin) {
+                // For superadmin, set user_id_add to 0
+                $userId = 0;
+            } else {
+                // For regular users, get the tenant user
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                $userId = $userAuth->id;
+            }
+            $commission=CommissionMontant::on('temp')->where('projet_id',$request->projet_id)->first();
+            if($commission!=null){
+                if($request->montant!=$commission->montant){
+                    $commission->setConnection('temp');
+                    $commission->montant=$request->commission_montant;
+                    $commission->user_id=$userId;
+                    $commission->save();
+                }
+            }else{
+                $com = new CommissionMontant();
+                    $com->setConnection('temp');
+                    $com->montant = $request->commission_montant;
+                    $com->projet_id=$request->projet_id;
+                    $com->user_id=$userId;
+                    $com->save();
+            }
+
+
+            $dataArray_config = json_decode($request->input('configuration'), true);
+
+            if ($dataArray_config) {
+            //delete old configuration
+
+                $old_configurations=CommissionConfiguration::on('temp')->where('projet_id',$request->projet_id)->get();
+                if(count($old_configurations)>0){
+                    foreach($old_configurations as $old){
+                        $old->delete();
+                    }
+                }
+            //store les news configurations
+
+                foreach ($dataArray_config as $inputs) {
+                    $com = new CommissionConfiguration();
+                    $com->setConnection('temp');
+                    $com->projet_id = $request->projet_id;
+                    $com->de = $inputs['de'];
+                    $com->a =$inputs['a'];
+                    $com->pourcentage =$inputs['pourcentage'];
+                    $com->user_id=$userId;
+                    $com->save();
+                }
+                return response()->json(['commission' => 'done'], 200);
+
+            }
+
+        }else{
+            return response()->json(['error' => 'Unauthorized'], 401);
+
+        }
+
+    }*/
 
     // get montant fixe par projet
     public function commission_montant($projet_id)

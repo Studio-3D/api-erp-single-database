@@ -15,7 +15,11 @@ use Illuminate\Support\Facades\Route;
  */
 
 Route::get('/', function () {
-    return view('welcome');
+    return response()->json([
+        'name' => config('app.name'),
+        'status' => 'ok',
+        'env' => app()->environment(),
+    ]);
 });
 /* Route::get('/test',function(\Illuminate\Support\Facades\Request $request){
     return 'aaa';

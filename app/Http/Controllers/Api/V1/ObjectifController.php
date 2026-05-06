@@ -77,9 +77,45 @@ class ObjectifController extends Controller
      * Show the form for creating a new resource.
      */
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    /*
+    public function store(Request $request)
+{
+    if (RoleHelper::AdminSup()) {
+        $user = Auth::user();
+
+        // Check if user is superadmin
+        $isSuperAdmin = RoleHelper::SuperAdmin();
+
+        // Switch to tenant database
+        DatabaseHelper::Config();
+
+        // Set user_id_add based on user type
+        if ($isSuperAdmin) {
+            // For superadmin, set user_id_add to 0
+            $userIdAdd = 0;
+        } else {
+            // For regular users, get the tenant user
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+            $userIdAdd = $userAuth->id;
+        }
+
+        $obj = new Objectif();
+        $obj->setConnection('temp');
+        $obj->projet_id   = $request->projet_id;
+        $obj->user_id     = $request->user_id;
+        $obj->user_id_add = $userIdAdd;
+        $obj->visites     = $request->visites;
+        $obj->appels      = $request->appels;
+        $obj->reservations = $request->reservations;
+
+        $obj->save();
+
+        return response()->json(['objectif' => $obj], 200);
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+}*/
     public function store(Request $request)
     {
 
@@ -88,12 +124,12 @@ class ObjectifController extends Controller
 
             DatabaseHelper::Config();
             $user     = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
             $obj      = new Objectif();
             $obj->setConnection('temp');
             $obj->projet_id   = $request->projet_id;
             $obj->user_id     = $request->user_id;
-            $obj->user_id_add = $userAuth->value('id');
+            $obj->user_id_add = $userAuth->id;
             $obj->visites = $request->visites;
             $obj->appels = $request->appels;
             $obj->reservations = $request->reservations;
@@ -147,7 +183,7 @@ class ObjectifController extends Controller
             $obj            = Objectif::on('temp')->findOrfail($id);
             $obj->projet_id = $request->projet_id;
             $obj->user_id   = $request->user_id;
-            
+
             $obj->visites = $request->visites;
             $obj->appels = $request->appels;
             $obj->reservations = $request->reservations;

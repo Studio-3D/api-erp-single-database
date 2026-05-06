@@ -31,7 +31,7 @@ class SourceSeeder extends Seeder
         ];
         foreach ($items as $item)
         {
-            Source::factory()->create($item);
+            Source::create($item);
         }
     }
 }

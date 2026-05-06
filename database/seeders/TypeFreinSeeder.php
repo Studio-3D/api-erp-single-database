@@ -26,7 +26,7 @@ class TypeFreinSeeder extends Seeder
         ];
         foreach ($items as $item)
         {
-            TypeFrein::factory()->create($item);
+            TypeFrein::create($item);
         }
     }
 }

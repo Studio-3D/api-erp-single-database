@@ -160,7 +160,7 @@ class TrancheController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $tranche = Tranche::on('temp')->with('projet','bloc','immeuble','bien')->withCount(['bloc', 'immeuble', 'bien'])->findOrfail($id);
+            $tranche = Tranche::on('temp')->with('projet','projet.typologies','projet.vues','projet.typesBien','bloc','immeuble','bien')->withCount(['bloc', 'immeuble', 'bien'])->findOrfail($id);
             return response()->json(['tranche' => $tranche], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -196,13 +196,17 @@ class TrancheController extends Controller
                                 $societe=Societe::findOrfail( $societe_id);
                                 $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
                                 $request->validate([
-                                            'nom' => [
-                                                Rule::unique('temp.'.$DatabaseName.'.tranches')
-                                                ->where('projet_id',$tranche->projet_id)      
-                                                ->ignore($tranche->id)
-                                                ->whereNull('deleted_at'),
-                                            ],
-                                        ]);
+                                    'nom' => [
+                                        'string',
+                                        Rule::unique('temp.' . $DatabaseName . '.tranches', 'nom')
+                                            ->where('projet_id', $tranche->projet_id)
+                                            ->ignore($tranche->id)
+                                            ->whereNull('deleted_at'),
+                                    ],
+                                ], [
+                                    'nom.required' => 'Le champ nom de la tranche est obligatoire.',
+                                    'nom.unique' => 'Cette tranche existe déjà dans ce projet.',
+                                ]);
 
 
             }

@@ -14,7 +14,7 @@ class UserSeeder extends Seeder
     public function run(): void
     {
        
-        \App\Models\User::factory()->create([
+        \App\Models\User::create([
 
             'societe_id' => 1,
             'name' => 'super_admin',

@@ -148,7 +148,7 @@ class ClientController extends Controller
             } else {
                 if (RoleHelper::Superadmin() && Auth::guard('api')->user()->societe_id == 1) {
                     $clients = Client::all();
-                } else if (RoleHelper::AC()) {
+                } else if (RoleHelper::AC()||RoleHelper::RespoCommercial()) {
                     $clients = $query->orderBy('nom', 'asc')
                         ->get();
                 }
@@ -353,10 +353,14 @@ class ClientController extends Controller
      */
     public function store(StoreClientRequest $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = new Client();
             $client->setConnection('temp');
+             // Ensure email is null if empty string
+            if (isset($request->email) && trim($request->email) === '') {
+                $request->merge(['email' => null]);
+            }
             $client->type_client = $request->type_client;
             if ($request->type_client == TypeClient::Société->value) {
                 $client->partenaire_id = $request->partenaire_id;
@@ -398,7 +402,7 @@ class ClientController extends Controller
                     $prospect            = Prospect::on('temp')->findorfail($client->prospect_id);
                     $prospect->client_id = $client->id;
                     $prospect->save();
-                    // Append statut 10: Converti en client
+                    /* Append statut 10: Converti en client
                     $sp = new \App\Models\StatutProspect();
                     $sp->setConnection('temp');
                     $sp->prospect_id = $prospect->id;
@@ -409,7 +413,7 @@ class ClientController extends Controller
                     $userAuth = \App\Models\User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
                     if ($userAuth) { $sp->user_id_traite = $userAuth->id; }
                     $sp->commentaire = 'Prospect converti en client';
-                    $sp->save();
+                    $sp->save();*/
                 }
                 //store info to database client (non-blocking)
                 try {
@@ -419,7 +423,7 @@ class ClientController extends Controller
                         'prenom' => $request->prenom,
                         'email' => $request->email,
                         'password' => Hash::make($client->password),
-                        'gender' => $request->civilite,
+                      //  'gender' => $request->civilite,
                         'client_id' => $client->id
                     ]);
                 } catch (\Throwable $e) {
@@ -439,7 +443,7 @@ class ClientController extends Controller
     /**
      * Display the specified resource.
      */
-   public function show(Request $request, $id)
+ public function show(Request $request, $id)
 {
     if (Auth::guard('api')->check()) {
         DatabaseHelper::Config();
@@ -449,53 +453,59 @@ class ClientController extends Controller
                 'prospect',
                 'prospect.appels',
                 'reservations' => function($resQuery) {
-                    $resQuery->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
+                    $resQuery->select('reservations.id', 'reservations.code_reservation', 'reservations.prix','reservations.date_reservation','reservations.mode_financement','reservations.statut', 'reservations.bien_id')
                         ->withSum('avances', 'montant')
+                        ->with([
+                                'bien' => function($query) {
+                                    $query->with([
+                                        'immeuble' => function($q) {
+                                            $q->select('id', 'nom')
+                                            ->without(['projet', 'tranche', 'bloc']);
+                                        },
+                                        'bloc' => function($q) {
+                                            $q->select('id', 'nom')
+                                            ->without(['projet', 'tranche']);
+                                        },
+                                        'tranche' => function($q) {
+                                            $q->select('id', 'nom')
+                                            ->without(['projet']);
+                                        }
+                                    ])->without('projet', 'typologie', 'vue', 'compositionBien', 'typeBien');
+                                }
+                            ])
                         ->where('etat', 1)
                         ->where('statut', 1)
-                        ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')
-                        ->without('user', 'projet', 'historiques', 'piece_jointe', 'bien', 'aquereurs', 'aquereurs_ancien');
+                        ->whereRaw('reservations.prix >= COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')
+                        ->without('user', 'projet', 'historiques', 'piece_jointe', 'aquereurs', 'aquereurs_ancien');
                 }
             ])
             ->findOrFail($id);
 
-        $reservations = $client->reservations()->with([
-            'bien', 'user', 'projet', 'aquereurs.client'
-        ])->get();
+        // Use the reservations from the client relation
 
         $visites = Visite::on('temp')
             ->where('etat', 1)
             ->where('prospect_id', $client->prospect_id)
             ->latest('created_at')
             ->get();
-
-        $groupedVisites = $visites->groupBy('origin_id')->map(function ($visite) {
-            $firstVisite = $visite->first();
+        //->groupBy('origin_id')
+        $groupedVisites = $visites->map(function ($visite) {
+            $firstVisite = $visite;//->first()
             return [
                 'id'                  => $firstVisite->id,
                 'origin_id'           => $firstVisite->origin_id,
                 'nom_cc'              => $firstVisite->user ? $firstVisite->user->name : null,
                 'prenom_cc'           => $firstVisite->user ? $firstVisite->user->prenom : null,
                 'date'                => $firstVisite->created_at,
-                'cin'                 => $firstVisite->prospect ? $firstVisite->prospect->cin : null,
-                'nom'                 => $firstVisite->prospect ? $firstVisite->prospect->nom : null,
-                'prenom'              => $firstVisite->prospect ? $firstVisite->prospect->prenom : null,
-                'telephone'           => $firstVisite->prospect ? $firstVisite->prospect->telephone : null,
-                'telephone2'          => $firstVisite->prospect ? $firstVisite->prospect->telephone_num2 : null,
                 'prospect_id'         => $firstVisite->prospect ? $firstVisite->prospect->id : null,
                 'interet'             => $firstVisite->interet,
                 'statut'              => $firstVisite->statut,
-                'propriete_dite_bien' => $firstVisite->bien ? $firstVisite->bien->propriete_dite_bien : '',
-                'etat_bien'           => $firstVisite->bien ? $firstVisite->bien->etat : '',
-                'bien_id'             => $firstVisite->bien_id ?? '',
-                'visit_count'         => $visite->count(),
-                'reservation'         => $firstVisite->reservation ?? null,
+                'bien' => $firstVisite->bien ? $firstVisite->bien : '',
             ];
         });
 
         return response()->json([
             'client'       => $client,
-            'reservations' => $reservations,
             'visites'      => $groupedVisites->values(),
         ], 200);
     }
@@ -532,7 +542,7 @@ class ClientController extends Controller
      */
     public function update(UpdateClientRequest $request, $id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->findOrFail($id);
             $update = $request->all();
@@ -550,7 +560,7 @@ class ClientController extends Controller
      */
     public function destroy($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->with('prospect', 'aquereur_desistement', 'reclamation', 'aquereur')->findOrFail($id);
 
@@ -592,7 +602,7 @@ class ClientController extends Controller
 
     public function getClient_by_projet(Request $request, $projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page    = $request->input('page', 1);
@@ -613,7 +623,7 @@ class ClientController extends Controller
 
     public function search_client_by_cin($cin,$projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->where('cin', $cin)->where('projet_id',$projet_id)
                 ->get()->first();
@@ -638,7 +648,7 @@ class ClientController extends Controller
     }
     public function search_client_by_phone($phone,$projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')
                 ->where(function ($query) use ($phone) {
@@ -679,7 +689,7 @@ class ClientController extends Controller
 
     public function search_client_by_email($email,$projet_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $client = Client::on('temp')->where('email', $email)->where('projet_id',$projet_id)
                 ->get()->first();

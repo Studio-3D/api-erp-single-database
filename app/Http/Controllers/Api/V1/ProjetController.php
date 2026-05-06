@@ -8,6 +8,13 @@ use App\Http\Helpers\RoleHelper;
 use App\Http\Helpers\UserProjetHelper;
 use App\Http\Requests\StoreProjetRequest;
 use App\Http\Requests\UpdateProjetRequest;
+
+use App\Models\TypeBien;
+use App\Models\Vue;
+use App\Models\Typologie;
+use App\Models\Partenaire;
+
+
 use App\Models\Avance;
 use App\Models\Bien;
 use App\Models\Bloc;
@@ -271,7 +278,7 @@ class ProjetController extends Controller
     {
         if (Auth::guard('api')->check()) {
             DatabaseHelper::Config();
-            $projet = Projet::on('temp')->with('tranche', 'bloc', 'immeuble', 'typesBien', 'bien','typologies','vues')->withCount(['bloc', 'tranche', 'immeuble', 'bien'])->findOrfail($id);
+            $projet = Projet::on('temp')->with('tranche', 'bloc', 'immeuble', 'typesBien', 'bien','typologies','vues','partenaires')->withCount(['bloc', 'tranche', 'immeuble', 'bien'])->findOrfail($id);
             return response()->json(['projet' => $projet], 200);
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -295,54 +302,125 @@ class ProjetController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateProjetRequest $request, $id)
-    {
-        if (RoleHelper::AdminSup()) {
-            DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_2');
+   public function update(UpdateProjetRequest $request, $id)
+{
+    if (RoleHelper::AdminSup()) {
+        DatabaseHelper::Config();
+        Config::set('broadcasting.default', 'pusher_2');
 
-            $projet                                 = Projet::on('temp')->findOrfail($id);
-            $projet->nom                            = $request->nom;
-            $projet->code                           = $request->code;
-            $projet->adresse                        = $request->adresse;
-            $projet->date_autorisation_construction = $request->date_autorisation_construction;
-            $projet->date_permis_habiter            = $request->date_permis_habiter;
-            $projet->titre_foncier                  = $request->titre_foncier;
-            $projet->surface_terrain                = $request->surface_terrain;
-            $projet->prix_acquisition               = $request->prix_acquisition;
-            $projet->limite_annulation_reservation  = $request->limite_annulation_reservation;
-            $projet->type_id                        = $request->type_id;
-            $projet->prolongation_reservation       = $request->prolongation_reservation ?: 0;
-            $projet->nbre_tranches                  = $request->nbre_tranches ?: 0;
-            $projet->nbre_blocs                     = $request->nbre_blocs ?: 0;
-            $projet->nbre_immeubles                 = $request->nbre_immeubles ?: 0;
-            $projet->nbre_biens                     = $request->nbre_biens ?: 0;
-            $projet->max_etages                     = $request->max_etages;
-            if ($projet->save()) {
+        $projet = Projet::on('temp')->findOrfail($id);
+        $projet->nom = $request->nom;
+        $projet->code = $request->code;
+        $projet->adresse = $request->adresse;
+        $projet->date_autorisation_construction = $request->date_autorisation_construction;
+        $projet->date_permis_habiter = $request->date_permis_habiter;
+        $projet->titre_foncier = $request->titre_foncier;
+        $projet->surface_terrain = $request->surface_terrain;
+        $projet->prix_acquisition = $request->prix_acquisition;
+        $projet->limite_annulation_reservation = $request->limite_annulation_reservation;
+        $projet->type_id = $request->type_id;
+        $projet->prolongation_reservation = $request->prolongation_reservation ?: 0;
+        $projet->nbre_tranches = $request->nbre_tranches ?: 0;
+        $projet->nbre_blocs = $request->nbre_blocs ?: 0;
+        $projet->nbre_immeubles = $request->nbre_immeubles ?: 0;
+        $projet->nbre_biens = $request->nbre_biens ?: 0;
+        $projet->max_etages = $request->max_etages;
 
-                // Supprime les anciens liens user_projet liés à ce projet
-                UserProjet::on('temp')->where('projet_id', $id)->delete();
+        if ($projet->save()) {
+            // Delete old user_projet links
+            UserProjet::on('temp')->where('projet_id', $id)->delete();
 
-                if (! empty($request->selectedUsers)) {
-                    // Décoder la chaîne JSON en tableau PHP
-                    $array_user = json_decode($request->selectedUsers, true);
+            if (!empty($request->selectedUsers)) {
+                $array_user = json_decode($request->selectedUsers, true);
+                if (is_array($array_user)) {
+                    foreach ($array_user as $userId) {
+                        UserProjetHelper::createUserProjet($projet->id, $userId);
+                    }
+                }
+            }
 
-                    // Vérifier que c'est bien un tableau
-                    if (is_array($array_user)) {
-                        // Créer les liens user_projet pour chaque utilisateur sélectionné
-                        foreach ($array_user as $userId) {
-                            UserProjetHelper::createUserProjet($projet->id, $userId);
-                        }
-                    }}}
+            broadcast(new NewProjectEvent($projet->id));
 
+            // Decode the data
+            $dataArray_donneesTypeBien = json_decode($request->input('donneesTypeBien', '[]'), true);
+            $dataArray_donneesVue = json_decode($request->input('donneesVue', '[]'), true);
+            $dataArray_donneesTypologie = json_decode($request->input('donneesTypologie', '[]'), true);
+            $dataArray_partenaires = json_decode($request->input('partenaires', '[]'), true);
 
+            // ===== DELETE EXISTING DATA BEFORE ADDING NEW ONES =====
 
+            // Delete existing type_biens for this project
+            if ($dataArray_donneesTypeBien && is_array($dataArray_donneesTypeBien)) {
+                TypeBien::on('temp')->where('projet_id', $projet->id)->forceDelete();
+            }
 
+            // Delete existing vues for this project
+            if ($dataArray_donneesVue && is_array($dataArray_donneesVue)) {
+                Vue::on('temp')->where('projet_id', $projet->id)->forceDelete();
+            }
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            // Delete existing typologies for this project
+            if ($dataArray_donneesTypologie && is_array($dataArray_donneesTypologie)) {
+                Typologie::on('temp')->where('projet_id', $projet->id)->forceDelete();
+            }
+
+            // Delete existing partenaires for this project
+            if ($dataArray_partenaires && is_array($dataArray_partenaires)) {
+                Partenaire::on('temp')->where('projet_id', $projet->id)->forceDelete();
+            }
+
+            // ===== ADD NEW DATA WITH VALIDATION =====
+
+            // Add type biens - only process valid entries
+            if ($dataArray_donneesTypeBien && is_array($dataArray_donneesTypeBien)) {
+                foreach ($dataArray_donneesTypeBien as $typeBien) {
+                    // Skip if it's not an array or missing required fields
+                    if (is_array($typeBien) && isset($typeBien['type'])) {
+                        TypeBienController::AjouterTypeBien($typeBien['type'], $projet->id);
+                    } elseif (is_string($typeBien) && !empty($typeBien)) {
+                        // If it's just a string, use it directly
+                        TypeBienController::AjouterTypeBien($typeBien, $projet->id);
+                    }
+                }
+            }
+
+            // Add vues - only process valid entries
+            if ($dataArray_donneesVue && is_array($dataArray_donneesVue)) {
+                foreach ($dataArray_donneesVue as $vue) {
+                    if (is_array($vue) && isset($vue['vue'])) {
+                        VueController::AjouterVue($vue['vue'], $projet->id);
+                    } elseif (is_string($vue) && !empty($vue)) {
+                        VueController::AjouterVue($vue, $projet->id);
+                    }
+                }
+            }
+
+            // Add typologies - only process valid entries
+            if ($dataArray_donneesTypologie && is_array($dataArray_donneesTypologie)) {
+                foreach ($dataArray_donneesTypologie as $typologie) {
+                    if (is_array($typologie) && isset($typologie['typologie'])) {
+                        TypologieController::AjouterTypologie($typologie['typologie'], $projet->id);
+                    } elseif (is_string($typologie) && !empty($typologie)) {
+                        TypologieController::AjouterTypologie($typologie, $projet->id);
+                    }
+                }
+            }
+
+            // Add partenaires
+            if ($dataArray_partenaires && is_array($dataArray_partenaires)) {
+                foreach ($dataArray_partenaires as $partenaire) {
+                    PartenaireController::AjouterPartenaire($partenaire, $projet->id);
+                }
+            }
+
+            return response()->json(['message' => 'Projet updated successfully', 'projet' => $projet], 200);
         }
+
+        return response()->json(['error' => 'Failed to update project'], 500);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
     /**
      * Remove the specified resource from storage.

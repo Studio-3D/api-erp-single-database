@@ -25,7 +25,6 @@ use App\Models\Encaissement;
 
 
 class ComptabiliteController extends Controller
-
 {
     public function store_coefficient_tva(Request $request){
         DatabaseHelper::Config();
@@ -84,10 +83,6 @@ class ComptabiliteController extends Controller
 
                    }
     }
-
-
-
-
 
 
     public function calculer_tva(StoreTvaRequest $request,$tranche_id)

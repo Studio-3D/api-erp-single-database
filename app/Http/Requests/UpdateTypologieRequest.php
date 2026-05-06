@@ -24,34 +24,54 @@ class UpdateTypologieRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
      */
     public function rules(): array
-{
-    $societe_id = Auth::guard('api')->user()->societe_id;
-    $societe = Societe::findOrFail($societe_id);
-    $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
-    DatabaseHelper::Config();
+    {
+        $societe_id = Auth::guard('api')->user()->societe_id;
+        $societe = Societe::findOrFail($societe_id);
+        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
+        DatabaseHelper::Config();
 
-    // Récupérer l'ID directement (pas d'objet)
-    $id = $this->route('typologie');
+        // Récupérer l'ID directement (pas d'objet)
+        $id = $this->route('typologie');
 
-    return [
-        'typologie' => [
-            'required',
-            Rule::unique('temp.' . $DatabaseName . '.typologies', 'typologie')
-                ->whereNull('deleted_at')
-                ->where('projet_id', $this->projet_id)
-                ->ignore($id),  // Ici on passe directement l'ID
-        ],
-        'projet_id' => 'integer',
-    ];
-}
+        return [
+            'typologie' => [
+                'required',
+                Rule::unique('temp.' . $DatabaseName . '.typologies', 'typologie')
+                    ->whereNull('deleted_at')
+                    ->where('projet_id', $this->projet_id)
+                    ->ignore($id),  // Ici on passe directement l'ID
+            ],
+            'projet_id' => 'integer',
+        ];
+    }
 
-
-
-
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
     public function messages(): array
     {
         return [
+            // Typologie
+            'typologie.required' => 'Le champ typologie est obligatoire.',
             'typologie.unique' => 'Cette typologie existe déjà dans ce projet.',
+
+            // Projet ID
+            'projet_id.integer' => 'L\'identifiant du projet doit être un nombre entier.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'typologie' => 'typologie',
+            'projet_id' => 'projet',
         ];
     }
 }

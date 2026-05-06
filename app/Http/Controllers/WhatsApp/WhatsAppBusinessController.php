@@ -18,7 +18,34 @@ use App\Models\Societe;
 
 class WhatsAppBusinessController extends Controller
 {
-    // WhatsApp Business API Webhook (Meta/Facebook format)
+
+public function webhook_whatsapp_business(Request $request)
+{
+      $mode = $request->query('hub_mode', $request->query('hub.mode'));
+        $verifyToken = $request->query('hub_verify_token', $request->query('hub.verify_token'));
+        $challenge = $request->query('hub_challenge', $request->query('hub.challenge'));
+     
+    // Alternative method if Input facade doesn't work:
+    // $mode = $request->input('hub.mode');
+    // $verifyToken = $request->input('hub.verify_token');
+    // $challenge = $request->input('hub.challenge');
+
+    Log::warning("token", ['verifyToken' => $verifyToken]);
+
+    if ($mode === 'subscribe') {
+        // Your existing verification logic...
+        $fallback = env('WHATSAPP_WEBHOOK_VERIFY_TOKEN');
+        if ($fallback && hash_equals($fallback, (string) $verifyToken)) {
+            Log::info("WhatsApp webhook verification successful via fallback env token");
+            return response($challenge, 200);
+        }
+
+        // ... rest of your verification logic
+    }
+
+    // Rest of your webhook handling...
+}
+    /* WhatsApp Business API Webhook (Meta/Facebook format)
     public function webhook_whatsapp_business(Request $request)
     {
         // Handle webhook verification (required by Meta)
@@ -26,6 +53,7 @@ class WhatsAppBusinessController extends Controller
         $mode = $request->query('hub_mode', $request->query('hub.mode'));
         $verifyToken = $request->query('hub_verify_token', $request->query('hub.verify_token'));
         $challenge = $request->query('hub_challenge', $request->query('hub.challenge'));
+            Log::warning("token", ['verifyToken' => $verifyToken]);
 
         if ($mode === 'subscribe') {
             // First: environment fallback (fast path, same as Facebook/Instagram pattern)
@@ -88,7 +116,7 @@ class WhatsAppBusinessController extends Controller
         }
 
         return response()->json(['status' => 'success']);
-    }
+    }*/
 
     private function getAllWhatsAppWebhookTokens()
     {

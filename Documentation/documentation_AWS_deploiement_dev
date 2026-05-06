@@ -1,0 +1,432 @@
+# Déploiement d’une API Laravel sur AWS Elastic Beanstalk avec Docker et CodePipeline
+
+> **Objectif** : Fournir une documentation **pas à pas**, exploitable par une personne **débutante sur AWS**, pour reproduire exactement le déploiement fonctionnel que nous avons atteint (Docker + Elastic Beanstalk + CodePipeline), sans tâtonnements.
+
+---
+
+## Pré-requis locaux (machine du développeur)
+
+### Outils requis
+
+Sur ta machine locale, assure-toi d’avoir :
+
+- Git installé
+- Un compte AWS avec droits : Elastic Beanstalk, CodePipeline, IAM, EC2
+- Un repository GitHub contenant ton projet Laravel
+
+---
+
+## 1. DOCUMENTATION — ÉTAPE RDS (BASE DE DONNÉES)
+
+1️⃣ Accéder au service RDS
+
+    1. Connecte-toi à AWS Console
+    2. En haut, vérifie la région
+        ⚠️ OBLIGATOIRE : la même région que Elastic Beanstalk (ex : eu-west-1)
+    3. Dans la barre de recherche AWS :
+        -Tape RDS
+        -Clique sur Amazon RDS
+
+2️⃣ Créer la base de données 1. Clique sur Databases (menu gauche) 2. Clique sur Create database
+
+3️⃣ Choix du moteur (TRÈS IMPORTANT)
+Section : Choose a database creation method
+✅ Sélectionne : Standard create
+Section : Engine options
+
+        -Engine type : MySQL
+        -Version :
+            -Choisis MySQL 8.0.x
+            -(Laravel est 100% compatible)
+    Clique Next (ou descends).
+
+4️⃣ Template
+Section : Templates
+-Sélectionne : Free tier
+✔️ Suffisant pour dev
+✔️ Fonctionne aussi en prod (petits projets)
+
+5️⃣ Paramètres de la base (IDENTITÉ)
+Section : Settings
+DB instance identifier
+Exemple :
+erp-studio3d-dev
+Master username
+Exemple :admin
+Master password :Mets un mot de passe fort ("Studio3d2026")
+⚠️ Note-le quelque part (on en aura besoin)
+
+6️⃣ Configuration instance
+Section : DB instance size
+-DB instance class :
+Laisse : db.t3.micro (Free tier)
+-Storage
+Type : gp2
+Size : 20 GiB
+❌ Décoche Enable storage autoscaling
+
+7️⃣ Réseau (PARTIE LA PLUS IMPORTANTE)
+-Section : Connectivity
+-Virtual Private Cloud (VPC)
+Sélectionne :✅ Default VPC (ou le VPC où se trouve Elastic Beanstalk)
+-Public access
+❌ No (La DB ne doit PAS être publique)
+VPC security group
+Sélectionne : Create new
+Nom : rds-erp-studio3d-dev-sg
+
+8️⃣ Paramètres additionnels
+Section : Additional configuration
+Initial database name : erp_studio3d
+❌ Disable :
+-Automated backups (en dev)
+-Monitoring
+-Performance Insights
+
+9️⃣ Créer la base
+
+👉 Clique sur Create database
+⏳ Attends 3–10 minutes
+
+🔟 Récupérer les informations RDS (OBLIGATOIRE)
+
+Quand le statut devient Available :
+
+    -Clique sur ta DB
+    -Onglet Connectivity & security
+    -Copie :
+
+        Endpoint
+            erp-studio3d-dev-db.xxxxx.eu-west-1.rds.amazonaws.com
+        Port
+            3306
+
+📝 Garde ces infos :
+
+    DB_HOST
+    DB_PORT
+    DB_NAME
+    DB_USERNAME
+    DB_PASSWORD
+
+1️⃣1️⃣ Autoriser Elastic Beanstalk à accéder à RDS
+Étape critique (souvent oubliée)
+
+    1. Va dans EC2
+    2. Menu gauche → Security Groups
+    3. Trouve le security group de :
+        -Elastic Beanstalk (nom commence par awseb-...)
+    4. Copie son Security Group ID
+
+1️⃣2️⃣Modifier le SG RDS
+
+    1. Retourne dans Security Groups
+    2. Clique sur : rds-erp-studio3d-dev-sg
+    3. Onglet Inbound rules
+    4. Clique Edit inbound rules
+    5. Add rule :
+        Type : MySQL/Aurora
+        Port : 3306
+        Source :
+            -Custom
+            -Colle le Security Group EB
+    6. Save rules
+
+✅ Maintenant :
+-RDS accepte uniquement Elastic Beanstalk
+
+## 2. Préparation du repository Laravel (local)
+
+### 2.1 Structure minimale attendue du repo
+
+À la racine du projet, tu dois avoir :
+
+```
+Dockerfile
+.dockerignore
+composer.json
+artisan
+app/
+bootstrap/
+config/
+public/
+resources/
+routes/
+storage/
+```
+
+> ⚠️ Important : **tout ancien dossier `.ebextensions/` ou config Nginx non utilisée doit être supprimé** pour éviter les conflits.
+
+---
+
+### 2.2 Dockerfile (à la racine du repo)
+
+Créer ou vérifier le fichier `Dockerfile` :
+
+```Dockerfile
+FROM php:8.2-fpm
+
+RUN apt-get update && apt-get install -y \
+    git curl unzip libpng-dev libonig-dev libxml2-dev zip \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+
+WORKDIR /var/www/html
+
+COPY . .
+
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+RUN composer install --no-dev --optimize-autoloader
+
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+EXPOSE 9000
+CMD ["php-fpm"]
+```
+
+---
+
+### 2.3 Fichier `.dockerignore`
+
+À la racine du repo :
+
+```
+.git
+node_modules
+vendor
+.env
+```
+
+---
+
+## 3. Création de l’environnement Elastic Beanstalk (Docker)
+
+### 3.1 Accéder à Elastic Beanstalk
+
+1. Se connecter à **AWS Console**
+2. Dans la barre de recherche en haut, taper **Elastic Beanstalk**
+3. Cliquer sur **Elastic Beanstalk**
+
+---
+
+### 3.2 Créer une nouvelle application
+
+1. Cliquer sur **Create application**
+2. Application name : `erp-studio3d`
+3. Platform :
+    - Platform : **Docker**
+    - Platform branch : **Docker running on 64bit Amazon Linux 2023**
+    - Platform version : **Recommended**
+
+---
+
+### 3.3 Créer l’environnement
+
+    1. Environment name :
+        studio3d-erp-api-dev-docker
+    2. Environment type :
+        Load balanced
+    3. Load balancer type :
+        Application Load Balancer
+    4. Preset :
+        Custom configuration
+    5. Application code :
+        Sample application (temporairement)
+    6. Cliquer sur Create environment
+
+    ⏳ Attendre que l’environnement soit Health = Green
+    ---
+
+## 4. Configuration du Health Check (OBLIGATOIRE AVEC LOAD BALANCER)
+
+### 4.1 Route de health check Laravel
+
+        Dans routes/api.php :
+
+        Route::get('/health', function () {
+            return response()->json([
+                'status' => 'OK',
+                'env' => app()->environment(),
+            ]);
+        });
+
+### 4.2 Configuration du Target Group
+
+    Dans AWS :
+        -EC2 → Target Groups
+        -Sélectionner le Target Group Elastic Beanstalk
+        -Health check path :
+            /api/health
+        -Vérifier que toutes les instances sont Healthy
+
+## 5. Configuration du nom de domaine (DNS o2switch)
+
+### 5.1 Création du sous-domaine API
+
+    Dans le gestionnaire DNS o2switch :
+        -Type : CNAME
+        -Nom : api-dev
+        -Cible :
+            awseb-XXXX.eu-west-1.elb.amazonaws.com
+    ⚠️ Règles importantes :
+
+        -Ne PAS créer de A record
+        -Ne PAS toucher au domaine principal immogestion.online
+        -Un seul CNAME pour api-dev
+
+## 6. Certificat SSL (HTTPS) avec AWS ACM
+
+### 6.1 Création du certificat
+
+    -Aller dans AWS Certificate Manager (ACM)
+    -Request a public certificate
+    -Domain name :
+        api-dev.immogestion.online
+    -Validation method : DNS
+    -Copier l’enregistrement CNAME fourni par AWS
+    -L’ajouter dans le DNS o2switch
+    -Attendre le statut : ISSUED
+
+## 7. Configuration HTTPS sur le Load Balancer
+
+### 7.1 Listener HTTP (port 80)
+
+    -Action : Redirect
+    -Redirect to :
+        Protocol : HTTPS
+        Port : 443
+    -Status code : 301
+
+### 7.2 Listener HTTPS (port 443)
+
+    -Certificat SSL :
+        api-dev.immogestion.online
+    -Action : Forward vers le Target Group Elastic Beanstalk
+
+## 8. Configuration sécurité (Security Groups)
+
+### 8.1 Security Group du Load Balancer
+
+    Inbound rules :
+        HTTP — Port 80 — Source : 0.0.0.0/0
+        HTTPS — Port 443 — Source : 0.0.0.0/0
+
+### 8.2 Security Group des instances EC2
+
+    Inbound rules :
+        HTTP — Port 80
+        Source : Security Group du Load Balancer
+    ❌ Ne jamais ouvrir EC2 directement vers Internet
+
+## 9. Configuration Laravel (.env)
+
+### 9.1 APP_URL (MODIFIÉ)
+
+    Dans .env :
+        PP_URL=https://api-dev.immogestion.online
+
+    Optionnel mais recommandé :
+        SESSION_SECURE_COOKIE=true
+
+### 9.2 Trust Proxies (OBLIGATOIRE AVEC ALB)
+
+    Dans app/Http/Middleware/TrustProxies.php :
+
+        protected $proxies = '*';
+
+        protected $headers =
+            Illuminate\Http\Request::HEADER_X_FORWARDED_FOR |
+            Illuminate\Http\Request::HEADER_X_FORWARDED_HOST |
+            Illuminate\Http\Request::HEADER_X_FORWARDED_PORT |
+            Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO;
+
+### 9.3 Forcer HTTPS dans Laravel
+
+    Dans App\Providers\AppServiceProvider.php :
+
+            use Illuminate\Support\Facades\URL;
+
+            public function boot()
+            {
+                if (app()->environment(['dev', 'staging', 'production'])) {
+                    URL::forceScheme('https');
+                }
+            }
+
+## 10. Création de la pipeline CodePipeline
+
+### 10.1 Accéder à CodePipeline
+
+1. AWS Console
+2. Rechercher **CodePipeline**
+3. Cliquer sur **Create pipeline**
+
+---
+
+### 10.2 Configuration de la pipeline
+
+1. Pipeline name : `erp-studio3d-dev`
+2. Pipeline type : **V2**
+3. Execution mode : **Queued**
+4. Cliquer sur **Next**
+
+---
+
+### 10.3 Stage Source (GitHub)
+
+1. Source provider : **GitHub (via GitHub App)**
+2. Repository : ton repo
+3. Branch : `dev`
+4. Output artifacts : `SourceArtifact`
+5. Save
+
+---
+
+### 10.4 Stage Deploy (Elastic Beanstalk)
+
+#### Ajouter l’action Deploy
+
+1. Cliquer sur **Add stage** → Nom : `Deploy`
+2. Cliquer sur **Add action group**
+
+Paramètres :
+
+- Action provider : **AWS Elastic Beanstalk**
+- Region : `eu-west-1`
+- Input artifacts : **SourceArtifact** ⚠️ obligatoire
+- Application name : `erp-studio3d`
+- Environment name : `studio3d-erp-api-dev-docker`
+
+Cliquer sur **Done**, puis **Save**.
+
+---
+
+## 11. Vérification finale
+
+### 11.1 Vérifier la pipeline
+
+- CodePipeline → vérifier que **Source** et **Deploy** sont en vert
+
+### 11.2 Test de l’API
+
+    URL :
+        https://api-dev.immogestion.online/api/health
+
+    Résultat attendu :
+
+    {
+    "status": "OK",
+    "env": "dev"
+    }
+
+---
+
+## 8. Bonnes pratiques pour la suite
+
+    -Toujours utiliser Load Balanced + HTTPS
+    -Un environnement EB par environnement Laravel (dev / prod)
+    -Toujours configurer TrustProxies avec un ALB
+    -Ne jamais exposer EC2 directement
+
+---
+
+✅ **Cette procédure a été validée avec succès et peut être reproduite telle quelle.**

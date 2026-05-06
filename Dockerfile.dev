@@ -1,28 +1,46 @@
-FROM php:8.2-cli
+FROM public.ecr.aws/docker/library/php:8.2-fpm
 
-WORKDIR /var/www/html
-
-# Install dependencies
+# Installation des dépendances
 RUN apt-get update && apt-get install -y \
     git \
-    zip \
+    curl \
     unzip \
     libpng-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
+    libonig-dev \
+    libxml2-dev \
     libzip-dev \
-    libicu-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd pdo pdo_mysql zip intl
+    zip \
+    nginx \
+    supervisor \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 
+# Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Configuration Nginx
+RUN rm /etc/nginx/sites-enabled/default
+COPY docker/nginx.conf /etc/nginx/sites-available/laravel
+RUN ln -sf /etc/nginx/sites-available/laravel /etc/nginx/sites-enabled/
+
+# Configuration Supervisor
+COPY docker/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
+
+# Répertoire de travail
+WORKDIR /var/www/html
+
+# Copie des fichiers
 COPY . .
 
-RUN chmod +x /var/www/html/dev.sh
-RUN chown www-data:www-data /var/www/html/dev.sh
+# Installation PHP
+RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-RUN composer install
+# Permissions
+RUN mkdir -p storage bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-EXPOSE 8000
+# Port exposé
+EXPOSE 80
 
-CMD ["/bin/bash", "/var/www/html/dev.sh"]
+# Commande de démarrage
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisor.conf"]

@@ -135,7 +135,7 @@ class ReclamationSavController extends Controller
      */
    public function store(StoreReclamationRequest $request)
 {
-    if(RoleHelper::AdminSup()){
+    if(RoleHelper::AdminSup()||RoleHelper::SAV()){
         DatabaseHelper::Config();
         $user = Auth::user();
         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -167,7 +167,7 @@ class ReclamationSavController extends Controller
 
         if($rec->save()){
             // Increment the prestataire's nb_reclamation
-            $prestataire->increment('nb_reclamations');
+           // $prestataire->increment('nb_reclamations');
 
             // Store attached files
             if ($request->files_reclamation) {
@@ -221,13 +221,13 @@ class ReclamationSavController extends Controller
 */
             return response()->json([
                 'recl' => $rec,
-                'prestataire_assigne' => [
+                /*'prestataire_assigne' => [
                     'id' => $prestataire->id,
                     'nom' => $prestataire->nom,
                     'prenom' => $prestataire->prenom,
                     'email' => $prestataire->email,
                     'nb_reclamations' => $prestataire->nb_reclamations
-                ]
+                ]*/
             ], 200);
         }
 
@@ -257,7 +257,7 @@ class ReclamationSavController extends Controller
      */
    public function traiter_reclamation($id, Request $request)
 {
-    if(RoleHelper::AdminSup()){
+    if(RoleHelper::AdminSup()||RoleHelper::SAV()){
         DatabaseHelper::Config();
         $rec = Reclamation::on('temp')->findOrFail($id);
         $rec->statut = 2;
@@ -373,7 +373,7 @@ class ReclamationSavController extends Controller
     public function resoudre_reclamation($id, Request $request)
 {
 
-    if(RoleHelper::AdminSup()){
+    if(RoleHelper::AdminSup()||RoleHelper::SAV()){
         DatabaseHelper::Config();
         $rec = Reclamation::on('temp')->findOrFail($id);
         $rec->date_fin_intervention = $request->input('date_fin_intervention');
@@ -394,7 +394,7 @@ class ReclamationSavController extends Controller
      */
     public function update(UpdateReclamationRequest $request,$id)
     {
-        if(RoleHelper::ACSup()){
+    if(RoleHelper::AdminSup()||RoleHelper::SAV()){
             DatabaseHelper::Config();
             $rec=Reclamation::on('temp')->findOrFail($id);
             $user = Auth::user();
@@ -469,7 +469,7 @@ class ReclamationSavController extends Controller
      */
     public function destroy(string $id)
     {
-        if(RoleHelper::AdminSup()){
+    if(RoleHelper::AdminSup()||RoleHelper::SAV()){
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();

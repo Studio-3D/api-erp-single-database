@@ -20,7 +20,7 @@ class Client extends Model
 
     public function reservations()
     {
-        return $this->belongsToMany(Reservation::class, 'aquereurs', 'client_id', 'reservation_id');
+        return $this->belongsToMany(Reservation::class, 'aquereurs', 'client_id', 'reservation_id')->orderby('date_reservation','desc');
     }
 
     public function aquereur()

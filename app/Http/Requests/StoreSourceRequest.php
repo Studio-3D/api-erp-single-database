@@ -26,19 +26,38 @@ class StoreSourceRequest extends FormRequest
     public function rules(): array
     {
         $societe_id = Auth::guard('api')->user()->societe_id;
-        $societe=Societe::findOrfail( $societe_id);
-        $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
+        $societe = Societe::findOrfail($societe_id);
+        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
-        return [
-            'source'=>['required',Rule::unique('temp.'.$DatabaseName.'.sources','source')->whereNull('deleted_at')],
 
+        return [
+            'source' => ['required', Rule::unique('temp.' . $DatabaseName . '.sources', 'source')->whereNull('deleted_at')],
         ];
     }
 
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
     public function messages(): array
     {
         return [
-            'source.unique' => 'la source que vous avez saisie existe déja',
+            // Source
+            'source.required' => 'Le champ source est obligatoire.',
+            'source.unique' => 'La source que vous avez saisie existe déjà.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'source' => 'source',
         ];
     }
 }

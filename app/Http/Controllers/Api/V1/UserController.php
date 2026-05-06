@@ -35,7 +35,7 @@ class UserController extends Controller
      */
     public function get_commerciaux($projet_id)
     {
-        if (RoleHelper::Admin()||RoleHelper::RespoCommercial()) {
+        if (RoleHelper::AdminSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             //->where('role',3)
             $users = UserProjet::on('temp')->with('user')
@@ -50,6 +50,26 @@ class UserController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    public function get_users()
+    {
+        if (RoleHelper::Superadmin()) {
+            if (Auth::guard('api')->user()->societe_id == 1) {
+                $users = User::all();
+                return response()->json(['users' => $users]);
+            } else {
+                DatabaseHelper::Config();
+                $users = User::on('temp')->where('role','>',1)->get();
+                return response()->json(['users' => $users]);
+            }
+
+        } else if (RoleHelper::Admin()) {
+            DatabaseHelper::Config();
+            $users = User::on('temp')->where('role','>',1)->get();
+            return response()->json(['users' => $users], 200);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
     public function list_commerciaux_objectif($projet_id)
     {
 
@@ -289,12 +309,14 @@ class UserController extends Controller
 
     public function update(UpdateUserRequest $request, $id)
     {
-        $user = User::findOrFail($id);
+       $user = User::findOrFail($id);
         if ($request->has('cin')) {
             $request->validate([
                 'cin' => [
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],
+            ], [
+                'cin.unique' => 'Ce CIN appartient déjà à un autre utilisateur.',
             ]);
         }
         if ($request->has('email')) {
@@ -302,6 +324,8 @@ class UserController extends Controller
                 'email' => [
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],
+            ], [
+                'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur.',
             ]);
         }
         DB::connection()->beginTransaction();
@@ -312,19 +336,23 @@ class UserController extends Controller
                 $societe=Societe::findOrfail( $societe_id);
                 $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
                 DatabaseHelper::Config();
-                if ($request->has('cin')) {
+               if ($request->has('cin')) {
                     $request->validate([
                         'cin' => [
-                                Rule::unique('temp.'.$DatabaseName.'.users')->ignore($user->id)->whereNull('deleted_at'),
-                                ],
-
+                            Rule::unique('temp.' . $DatabaseName . '.users', 'cin')->ignore($user->id)->whereNull('deleted_at'),
+                        ],
+                    ], [
+                        'cin.unique' => 'Ce CIN appartient déjà à un autre utilisateur.',
                     ]);
                 }
+
                 if ($request->has('email')) {
                     $request->validate([
                         'email' => [
-                                Rule::unique('temp.'.$DatabaseName.'.users')->ignore($user->id)->whereNull('deleted_at'),
-                                ],
+                            Rule::unique('temp.' . $DatabaseName . '.users', 'email')->ignore($user->id)->whereNull('deleted_at'),
+                        ],
+                    ], [
+                        'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur.',
                     ]);
                 }
                 $user                = User::on('temp')->where('user_id_origin', Auth::guard('api')->user()->id)->first();
@@ -374,12 +402,14 @@ class UserController extends Controller
                 }
             } else if (RoleHelper::AdminSup()) {
 
-                $user = User::findOrFail($id);
+               $user = User::findOrFail($id);
                 if ($request->has('cin')) {
                     $request->validate([
                         'cin' => [
                             Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                         ],
+                    ], [
+                        'cin.unique' => 'Ce CIN appartient déjà à un autre utilisateur.',
                     ]);
                 }
                 if ($request->has('email')) {
@@ -387,6 +417,8 @@ class UserController extends Controller
                         'email' => [
                             Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                         ],
+                    ], [
+                        'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur.',
                     ]);
                 }
                 $old_email           = $user->email;

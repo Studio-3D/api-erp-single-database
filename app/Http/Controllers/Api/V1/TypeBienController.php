@@ -257,23 +257,27 @@ class TypeBienController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+
+
     public static function AjouterTypeBien($typeBien, $projet_id)
-    {
-
-            $typeBienController = new TypeBienController();
-            $typeBienRequest = new StoreTypeBienRequest;
-                $dataTypebien = [
-                    'type' => $typeBien,
-                    'projet_id' => $projet_id,
-                ];
-                $typeBienRequest->merge($dataTypebien);
-                $typeBienController->store($typeBienRequest);
-
-
-
+{
+    // If $typeBien is an array, extract the type field
+    if (is_array($typeBien)) {
+        $typeValue = $typeBien['type'] ?? null;
+    } else {
+        $typeValue = $typeBien;
     }
 
+    if (empty($typeValue)) {
+        return; // Skip empty values
+    }
 
+    $typebien = new TypeBien();
+    $typebien->setConnection('temp');
+    $typebien->type = $typeValue;
+    $typebien->projet_id = $projet_id;
+    $typebien->save();
+}
 
 
 

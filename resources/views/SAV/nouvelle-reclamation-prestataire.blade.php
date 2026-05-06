@@ -184,7 +184,7 @@
                         <span class="detail-value">{{ $bien['reference'] ?? '' }}</span>
                     </div>
 
-                   
+
 
                     <div class="detail-item">
                         <span class="detail-label">Type de service :</span>

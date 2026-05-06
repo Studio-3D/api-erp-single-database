@@ -75,7 +75,7 @@ class FreinController extends Controller
             'has_selectedEtages' => $request->has('selectedEtages'),
             'selectedEtages_value' => $request->selectedEtages
         ]);
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $frein = new Frein();
             $frein->setConnection('temp');
@@ -197,7 +197,7 @@ class FreinController extends Controller
      */
     public function update(UpdateFreinRequest $request, $id)
     {
-        if(RoleHelper::ACSup()){
+        if(RoleHelper::ACSup()||RoleHelper::RespoCommercial()){
             DatabaseHelper::Config();
             $frein=Frein::on('temp')->findOrFail($id);
             if (str_contains($request->freins, 'AUTRE')==true||str_contains($request->freins, 'autre')==true) {
@@ -301,7 +301,7 @@ class FreinController extends Controller
      */
     public function destroy($id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $frein = Frein::on('temp')->findOrFail($id);
             if ($frein->tranche) {
@@ -610,7 +610,7 @@ class FreinController extends Controller
 
     public function traiter_bien_frein(Traite_Bien_freinRequest $request, $frein_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -891,7 +891,7 @@ class FreinController extends Controller
 
     public function desactiver_freins($param,Request $request)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $exit=0;
             foreach ($request->list_freins as $key => $list) {

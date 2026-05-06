@@ -322,7 +322,7 @@
                           <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                             <tbody>
                               <tr>
-                                <td> <a href="http://localhost:3000/login" target="_blank">Login</a> </td>
+                                <td> <a href="{{ env('APP_URL') }}/login" target="_blank">Login</a></td>
                               </tr>
                             </tbody>
                           </table>

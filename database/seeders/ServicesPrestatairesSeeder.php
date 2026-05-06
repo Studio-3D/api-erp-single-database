@@ -29,7 +29,7 @@ class ServicesPrestatairesSeeder extends Seeder
         ];
         foreach ($items as $item)
         {
-            ServicesPrestataires::factory()->create($item);
+            ServicesPrestataires::create($item);
         }
     }
 }

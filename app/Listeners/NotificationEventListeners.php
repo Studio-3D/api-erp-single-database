@@ -7,7 +7,7 @@ use Illuminate\Queue\InteractsWithQueue;
 
 
 
-class NotificationEventListener implements ShouldQueue
+class NotificationEventListeners implements ShouldQueue
 {
     use InteractsWithQueue;
 

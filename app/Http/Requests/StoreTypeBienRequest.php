@@ -24,26 +24,51 @@ class StoreTypeBienRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
      */
     public function rules(): array
-    {   $societe_id = Auth::guard('api')->user()->societe_id;
-        $societe=Societe::findOrfail( $societe_id);
-        $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
+    {
+        $societe_id = Auth::guard('api')->user()->societe_id;
+        $societe = Societe::findOrfail($societe_id);
+        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
+
         return [
-            'type' => ['required', Rule::unique('temp.'.$DatabaseName.'.type_biens','type')
-            ->whereNull('deleted_at')
-            ->where(function ($query) {
-                $query->where('type', $this->type)
-                    ->where('projet_id', $this->projet_id);})
-        ],
-            'projet_id'=>'required|integer'
-
+            'type' => ['required', Rule::unique('temp.' . $DatabaseName . '.type_biens', 'type')
+                ->whereNull('deleted_at')
+                ->where(function ($query) {
+                    $query->where('type', $this->type)
+                        ->where('projet_id', $this->projet_id);
+                })],
+            'projet_id' => 'required|integer'
         ];
-
     }
+
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
     public function messages(): array
     {
         return [
-            'type.unique' => 'Ce type de bien est deja exist dans ce projet',
+            // Type
+            'type.required' => 'Le champ type de bien est obligatoire.',
+            'type.unique' => 'Ce type de bien existe déjà dans ce projet.',
+
+            // Projet ID
+            'projet_id.required' => 'Le champ projet est obligatoire.',
+            'projet_id.integer' => 'L\'identifiant du projet doit être un nombre entier.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'type' => 'type de bien',
+            'projet_id' => 'projet',
         ];
     }
 }

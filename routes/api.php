@@ -160,6 +160,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('commerciaux_objectif/{projet_id}', [V1UserController::class, 'list_commerciaux_objectif'])->name('');
         Route::get('commerciaux/{projet_id}', [V1UserController::class, 'list_commerciaux'])->name('');
         Route::get('get_commerciaux/{projet_id}', [V1UserController::class, 'get_commerciaux'])->name('get_commerciaux');
+        Route::get('get_users', [V1UserController::class, 'get_users'])->name('get_users');
         Route::post('/utilisateurs/{id}', [V1UserController::class, 'update']);
         Route::put('/update_personal_info/{id}', [V1UserController::class, 'update_personal_info']);
         Route::put('/update_password/{id}', [V1UserController::class, 'update_password']);
@@ -182,11 +183,13 @@ Route::middleware('auth:api')->group(function () {
         Route::resource('vues', V1VueController::class);
         Route::get('projets/{idprojet}/vues', [V1VueController::class, 'indexByProjet']);
         Route::get('get_vuesByProjet/{id}', [V1VueController::class, 'get_vuesByProjet'])->name('get_vuesByProjet');
+        Route::post('store_multiple_vues', [V1VueController::class, 'store_multiple_vues'])->name('');
 
         //l'API Typologie
         Route::resource('typologies', V1TypologieController::class);
         Route::get('projets/{idprojet}/typologies', [V1TypologieController::class, 'indexByProjet']);
         Route::get('get_typologiesByProjet/{id}', [V1TypologieController::class, 'get_typologiesByProjet'])->name('get_typologiesByProjet');
+        Route::post('store_multiple_typologies', [V1TypologieController::class, 'store_multiple_typologies'])->name('');
 
         //l'API Typefrins
         Route::resource('typefreins', V1TypeFreinController::class);
@@ -195,11 +198,13 @@ Route::middleware('auth:api')->group(function () {
         //l'API source
         Route::resource('sources', V1SourceController::class);
         Route::get('get_sources', [V1SourceController::class, 'index'])->name('get_sources');
+        Route::post('store_multiple_sources', [V1SourceController::class, 'store_multiple_sources'])->name('');
 
         //l'API partenaire
         Route::resource('partenaires', V1PartenaireController::class);
         Route::get('projets/{idprojet}/partenaires', [V1PartenaireController::class, 'indexByProjet']);
         Route::get('get_partenaires/{projet_id}', [V1PartenaireController::class, 'get_partenaires'])->name('get_partenaires');
+        Route::post('store_multiple_partenaires', [V1PartenaireController::class, 'store_multiple_partenaires'])->name('');
 
         //l'API partenare
         Route::resource('projets', V1ProjetController::class);
@@ -242,6 +247,8 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API visite
         Route::resource('visites', V1VisiteController::class);
+
+        Route::get('projets/{idprojet}/visites_by_prospect_client', [V1VisiteController::class, 'index_visites_by_prospect_client']);
         Route::get('edit_visite/{id}', [V1VisiteController::class, 'edit_visite']);
         Route::get('projets/{idprojet}/visites', [V1VisiteController::class, 'indexByProjet']);
         Route::put('update_visite_bien_pre_reserve/{origin_id}', [V1VisiteController::class, 'update_visite_bien_pre_reserve'])->name('');
@@ -530,15 +537,13 @@ Route::middleware('auth:api')->group(function () {
     /*************************************User***************************** */
     Route::resource('user', UserController::class);
 
-    Route::get('getUsersBySocieteId/{id}', [UserController::class, 'getUsersBySocieteId'])->name('getUsersBySocieteId');
-    Route::put('activateUser/{id}', [UserController::class, 'activateUser'])->name('api.activateUser');
-    Route::post('restoreUser/{id}', [UserController::class, 'restoreUser'])->name('restoreUser');
-    Route::get('getTrashedUsers', [UserController::class, 'getTrashedUsers'])->name('getTrashedUsers');
+   // Route::get('getUsersBySocieteId/{id}', [UserController::class, 'getUsersBySocieteId'])->name('getUsersBySocieteId');
+  //  Route::post('restoreUser/{id}', [UserController::class, 'restoreUser'])->name('restoreUser');
+   // Route::get('getTrashedUsers', [UserController::class, 'getTrashedUsers'])->name('getTrashedUsers');
     Route::get('dashboard', [UserController::class, 'dashboard'])->name('dashboard');
-    Route::get('getTrashedUsersBySociete/{id}', [UserController::class, 'getTrashedUsersBySociete'])->name('getTrashedUsersBySociete');
+  //  Route::get('getTrashedUsersBySociete/{id}', [UserController::class, 'getTrashedUsersBySociete'])->name('getTrashedUsersBySociete');
     Route::post('logout', [UserController::class, 'logout'])->name('logout');
     Route::post('addUserProjet/{id}', [UserController::class, 'addUserProjet'])->name('addUserProjet');
-    Route::get('get_users', [UserController::class, 'get_users'])->name('get_users');
     /*  Route::post('sendEmail', [UserController::class, 'sendEmail']);
     Route::post('resendEmail', [UserController::class, 'resendEmail']);
      */

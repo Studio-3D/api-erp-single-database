@@ -351,7 +351,7 @@ class AvanceController extends Controller
                 }
 
 
-        } elseif (RoleHelper::Com()) {
+        } elseif (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
             $aa=1;
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -442,7 +442,7 @@ class AvanceController extends Controller
 
     public function traiter_avance($id, Request $request)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Comptable()) {
+        if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
 
             DatabaseHelper::Config();
             $user = Auth::user();
@@ -597,7 +597,7 @@ class AvanceController extends Controller
     public function store(StoreAvanceRequest $request)
     {
 
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
                     DatabaseHelper::Config();
                     DB::connection('temp')->beginTransaction();
                 try {
@@ -1049,7 +1049,7 @@ class AvanceController extends Controller
      */
     public function show($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $avance = Avance::on('temp')->with('last_statut')->withcount('historiques')->findOrFail($id);
             return response()->json(['avance' => $avance], 200);
@@ -1537,7 +1537,7 @@ class AvanceController extends Controller
      */
     public function destroy($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::config();
             $avance = Avance::on('temp')->findOrFail($id);
             $dd=$avance;
@@ -1607,7 +1607,7 @@ class AvanceController extends Controller
 
     public function soft_destroy_avances_by_reservationId($reservation_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::config();
             $avances = Avance::on('temp')->where('reservation_id', $reservation_id)->get();
             foreach ($avances as $avance) {
@@ -1634,7 +1634,7 @@ class AvanceController extends Controller
     }
     public function destoryUsingReservationId($reservation_id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
             $avances = Avance::on('temp') ->where(function ($query)use ($reservation_id){
                 $query->where('reservation_id',$reservation_id)
@@ -1668,7 +1668,7 @@ class AvanceController extends Controller
         if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC()||RoleHelper::Comptable())) {
             DatabaseHelper::Config();
 
-            if (RoleHelper::AdminSup()||RoleHelper::Comptable()||RoleHelper::RespoCommercial()) {
+            if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
                 //avance en attente et avance  stored by admin(validé) mais sans encaissement
                 $query = Avance::on('temp')->with('last_statut','reservation')
                     ->where('mode_paiement','!=',7)->where('montant','>',0) ->orderBy('created_at', 'desc')
@@ -1697,7 +1697,7 @@ class AvanceController extends Controller
                         }
                     }
 
-            } else if (RoleHelper::Com()) {
+            } else if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
 
@@ -1726,7 +1726,7 @@ class AvanceController extends Controller
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
 
-            if (RoleHelper::AdminSup_RC()||RoleHelper::Comptable()) {
+            if (RoleHelper::AdminSup()||RoleHelper::Comptable()) {
                 //ADMIN
                     $query =Avance::on('temp')->with('last_statut','reservation')
                     ->where('mode_paiement','!=',7)->where('montant','>',0)
@@ -1738,7 +1738,7 @@ class AvanceController extends Controller
                                 ->where('statut',StatutReservationEnum::Validé->value);
                     });
             } else
-            if (RoleHelper::Com()) {
+            if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
 
@@ -1813,7 +1813,7 @@ class AvanceController extends Controller
     public function get_echeances_menu($projet_id, Request $request)
     {
 
-        if (Auth::guard('api')->check() && (RoleHelper::ACSup()||RoleHelper::Comptable())) {
+        if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC()||RoleHelper::Comptable())) {
             DatabaseHelper::Config();
 
 
@@ -1831,7 +1831,7 @@ class AvanceController extends Controller
                     ->count();
 
             } else
-            if (RoleHelper::Com()) {
+            if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                     $echeances = Avance::on('temp')

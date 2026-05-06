@@ -105,9 +105,8 @@ class Facebook_InstagramController extends Controller
                             'pageId_InstagramId' => $pageId,
                             'caption' => $description,
                             'text' => $text,
-                        //  'url' => $url, // Use dynamic URL instead of
-                        //url=https://immogestion.online/coline_dev/storage/reservations/C529FF99-F5B3-44A2-9B61-BD895DE0555B.jpeg
-                            'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
+                          'url' => $url, // Use dynamic URL instead of
+                           // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
                             'network' => 'facebook',
                             'accessToken' => $accessToken
                         ];
@@ -137,9 +136,8 @@ class Facebook_InstagramController extends Controller
                             'caption' => $request->description,
                             'text' => 'media',
                             'type_media' => $type_media,
-                            //https://immogestion.online/coline_dev/storage/reservations/C529FF99-F5B3-44A2-9B61-BD895DE0555B.jpeg
-                            'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1604085572504-a392ddf0d86a?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8b3JhbmdlJTIwZmxvd2VyfGVufDB8fDB8fHww'),
-                        // 'url' => $url, // Use dynamic URL instead of hardcoded
+                           // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
+                             'url' => $url, // Use dynamic URL instead of hardcoded
                             'network' => 'instagram',
                             'accessToken' => $accessToken
                         ];
@@ -2231,7 +2229,7 @@ class Facebook_InstagramController extends Controller
                         $table->id();
                         $table->string('page_fcb_id');
                         $table->longText('acces_token_page');//long term
-                        $table->longText('acces_token_page_short_term');
+                        $table->longText('acces_token_page_short_terme');
                         $table->unsignedBigInteger('projet_id');
                         $table->string('webhook_verify_token')->nullable();
                         $table->boolean('webhook_enabled')->default(false);
@@ -2277,7 +2275,7 @@ class Facebook_InstagramController extends Controller
                 $configId = DB::connection('temp')->table('facebook_configurations')->insertGetId([
                     'page_fcb_id' => $request->page_fcb_id,
                     'acces_token_page' => $request->acces_token_page,//long term
-                    'acces_token_page_short_term' => $request->acces_token_page_short_term,
+                    'acces_token_page_short_terme' => $request->acces_token_page_short_term,
                     'projet_id' => $request->projet_id,
                     'webhook_enabled' => false, // Explicitly set to false
                     'webhook_verify_token' => null,
@@ -2335,7 +2333,7 @@ class Facebook_InstagramController extends Controller
                     ->update([
                         'page_fcb_id' => $request->page_fcb_id,
                         'acces_token_page' => $request->acces_token_page,//long terme
-                        'acces_token_page_short_term' => $request->acces_token_page_short_term,
+                        'acces_token_page_short_terme' => $request->acces_token_page_short_term,
                         'projet_id' => $request->projet_id,
                         'updated_at' => now()
                     ]);
@@ -2442,7 +2440,7 @@ class Facebook_InstagramController extends Controller
                         $table->id();
                         $table->string('instagram_id');
                         $table->longText('acces_token_user');//long term
-                        $table->longText('acces_token_user_short_term');
+                        $table->longText('acces_token_user_short_terme');
                         $table->unsignedBigInteger('projet_id');
                         $table->string('webhook_verify_token')->nullable();
                         $table->boolean('webhook_enabled')->default(false);
@@ -2488,7 +2486,7 @@ class Facebook_InstagramController extends Controller
                 $configId = DB::connection('temp')->table('instagram_configurations')->insertGetId([
                     'instagram_id' => $request->instagram_id,
                     'acces_token_user' => $request->acces_token_user,
-                    'acces_token_user_short_term' => $request->acces_token_user_short_term,
+                    'acces_token_user_short_terme' => $request->acces_token_user_short_term,
                     'projet_id' => $request->projet_id,
                     'webhook_enabled' => true, // Explicitly set to false
                     'webhook_verify_token' => null,
@@ -2545,7 +2543,7 @@ class Facebook_InstagramController extends Controller
                     ->update([
                         'instagram_id' => $request->instagram_id,
                         'acces_token_user' => $request->acces_token_user,//long term
-                        'acces_token_user_short_term' => $request->acces_token_user_short_term,
+                        'acces_token_user_short_terme' => $request->acces_token_user_short_term,
                         'projet_id' => $request->projet_id,
                         'updated_at' => now()
                     ]);

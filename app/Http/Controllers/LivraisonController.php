@@ -49,7 +49,7 @@ class LivraisonController extends Controller
     /**************************************RDV**********************************************/
     public function get_rdvs_reservation($reservation_id, Request $request)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
@@ -75,7 +75,7 @@ class LivraisonController extends Controller
             DatabaseHelper::Config();
 
             // Ensuite vérifiez le rôle
-            if (!RoleHelper::ACSup()&&!RoleHelper::Notaire()&&!RoleHelper::RespoLivraison()) {
+            if (!RoleHelper::ACSup_RC()&&!RoleHelper::Notaire()&&!RoleHelper::RespoLivraison()) {
                 return response()->json(['error' => 'Unauthorized'], 403);
             }
             $start = Carbon::createFromTimestamp($request->input('start')/1000);
@@ -103,7 +103,7 @@ public function store_rdv_reservation($id, Request $request)
         'type' => 'required|string',
     ]);
 
-    if (RoleHelper::ACSup()||RoleHelper::Notaire()) {
+    if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()) {
         $user = Auth::user();
         DatabaseHelper::Config();
         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
@@ -174,7 +174,7 @@ public function store_rdv_reservation($id, Request $request)
                 // Broadcast event to all users subscribed to this reservation
                 broadcast(new RdvEvent($id));
                   // send notif to notaire
-                  if(RoleHelper::ACSup()){
+                  if(RoleHelper::ACSup_RC()){
                         $res=Reservation::on('temp')->findOrFail($id);
                         if($res->notaire_id!=null){
                              $data_notif = [
@@ -292,7 +292,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
         'rdv' => 'required|date',
     ]);
 
-    if (!RoleHelper::ACSup()&&!RoleHelper::Notaire()&&!RoleHelper::RespoLivraison()) {
+    if (!RoleHelper::ACSup_RC()&&!RoleHelper::Notaire()&&!RoleHelper::RespoLivraison()) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 
@@ -404,7 +404,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
     public function update_rdv_reservation($id, Request $request)
     {
 
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::ACSup_RC()) {
 
             $user = Auth::user();
             DatabaseHelper::Config();
@@ -463,7 +463,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
     public function get_rdv_notaire_menu($projet_id, Request $request)
     {
 
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+        if (Auth::guard('api')->check() && RoleHelper::ACSup_RC()) {
             DatabaseHelper::Config();
 
             if (RoleHelper::AdminSup()) {
@@ -498,7 +498,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
 
     public function destroy_rdv_reservation($rdv_id)
     {
-            if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+            if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
             DatabaseHelper::Config();
             $rdv = Rendez_vous::on('temp')->findorfail($rdv_id);
             $dateDebut=$rdv->rdv;
@@ -528,7 +528,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
 
     public function traiter_rdv_reservation($id, Request $request)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -600,7 +600,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
     public function store_compromis_vente($id, Request $request)
     {
 
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
             $user = Auth::user();
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -728,7 +728,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
     public function update_compromis($id, Request $request)
     {
 
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
             $user = Auth::user();
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -848,48 +848,74 @@ public function updateReservationCreneau($reservation_id, Request $request)
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-
     public function scanner_compromis(Request $request)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
-            DatabaseHelper::Config();
-            $user = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get()->first();
-            if ($request->hasFile('fichier_scanner')) {
+        try {
+            if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+                DatabaseHelper::Config();
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get()->first();
 
-                $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
-                $societe = Societe::findOrfail($user_societes->societe_id);
-                $comp = Compromis_vente::on('temp')->with('reservation')->findOrfail($request->input("comp_id"));
-                $comp->setConnection('temp');
+                if ($request->hasFile('fichier_scanner')) {
+                    $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+                    $societe = Societe::findOrfail($user_societes->societe_id);
+                    $comp = Compromis_vente::on('temp')->with('reservation')->findOrfail($request->input("comp_id"));
+                    $comp->setConnection('temp');
+                    $codeReservation = $comp->reservation->code_reservation;
 
-                // Récupérer le nom du fichier
-                $comp->compromis_signee = $request->file('fichier_scanner')->getClientOriginalName();
-                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/compromis_vente');
-                File::makeDirectory($directory, 0755, true, true);
-                $request->file('fichier_scanner')->move($directory, $request->file('fichier_scanner')->getClientOriginalName());
-                // Créer StatutClient après le scan
+                    // Get the file
+                    $file = $request->file('fichier_scanner');
+                    $originalName = $file->getClientOriginalName();
+
+                    // Create directory
+                    $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/compromis_vente/' . $codeReservation);
+
+                    if (!File::exists($directory)) {
+                        File::makeDirectory($directory, 0755, true, true);
+                    }
+
+                    // Move the file
+                    $file->move($directory, $originalName);
+
+                    // Verify file was moved
+                    if (!File::exists($directory . '/' . $originalName)) {
+                        return response()->json(['error' => 'Failed to move file'], 500);
+                    }
+
+                    // Store only the filename in database
+                    $comp->compromis_signee = $originalName;
+
+                    // Create StatutClient after the scan
                     $this->createStatutClientForScanner($comp->reservation_id, $userAuth, 'compromis');
-                     //store historique
+
+                    // Store historique
                     $histo = new HistoReservation();
                     $histo->setConnection('temp');
                     $histo->reservation_id = $comp->reservation_id;
                     $histo->user_id = $userAuth->id;
-                    $histo->action = 11;//Attesation de vente
-                    $histo->bien_id=$comp->reservation->bien_id;
+                    $histo->action = 11; // Attestation de vente
+                    $histo->bien_id = $comp->reservation->bien_id;
                     $histo->description = null;
                     $histo->save();
-                      //actualiser compromise de reservation
-                    Config::set('broadcasting.default', 'pusher_9');
-                    // Broadcast event to all users subscribed to this reservation
-                    broadcast(new AttestationVenteEvent($comp->reservation_id));
-                if (!$comp->save()) {
-                    return response()->json(['error' => 'Échec de scanner les fichiers'], 500);
-                }
-            }
 
-            return response()->json(['success' => 'Fichiers scannés avec succès'], 200);
+                    // Broadcast event
+                    Config::set('broadcasting.default', 'pusher_9');
+                    broadcast(new AttestationVenteEvent($comp->reservation_id));
+
+                    if (!$comp->save()) {
+                        return response()->json(['error' => 'Failed to save file name to database'], 500);
+                    }
+
+                    return response()->json(['success' => 'Fichier scanné avec succès'], 200);
+                }
+
+                return response()->json(['error' => 'No file uploaded'], 400);
+            }
+            return response()->json(['error' => 'Unauthorized'], 401);
+        } catch (\Exception $e) {
+            \Log::error('Scanner compromis error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-        return response()->json(['error' => 'Unauthorized'], 401);
     }
     /*************************************************Contrat de vente********************* */
 
@@ -908,7 +934,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
     }
     public function store_contrat_vente($id, Request $request)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
 
             $user = Auth::user();
             DatabaseHelper::Config();
@@ -978,7 +1004,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
     public function update_contrat($id, Request $request)
     {
 
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
             $user = Auth::user();
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -1011,7 +1037,7 @@ public function updateReservationCreneau($reservation_id, Request $request)
 
     public function scanner_contrat(Request $request)
     {
-        if (RoleHelper::ACSup()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
+        if (RoleHelper::ACSup_RC()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()) {
             DatabaseHelper::Config();
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get()->first();

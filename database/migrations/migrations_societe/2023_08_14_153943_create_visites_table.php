@@ -17,8 +17,8 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('origin_id')->nullable(); // pour garder l'historique de visite
             $table->string('commentaire')->nullable(); // car en peut recoit des vistes sans commentaire.
-            $table->enum('interet',[InteretEnum::Intéressé->value,InteretEnum::Réceptif->value,InteretEnum::Perdu->value])->comment('1=>interesse 2=>recpetif 3=>perdu 4=>injoignable');
-            $table->enum('statut',[StatutVisiteEnum::Pré_Réservation->value,StatutVisiteEnum::Vendu->value,StatutVisiteEnum::Pré_Réservation_Perdu->value,StatutVisiteEnum::Réservation_Perdu->value,StatutVisiteEnum::Pré_Réservation_Vendu->value])->nullable()->comment('1=>Pre reservation 2=>Vendu 3=>Pre reservation perdu 4=> reservation perdu  5=>Pré_Réservation_Vendu');
+            $table->enum('interet',[InteretEnum::Intéressé->value,InteretEnum::Réceptif->value,InteretEnum::Perdu->value,InteretEnum::Suivi_dossier->value])->comment('1=>interesse 2=>recpetif 3=>perdu 5=>Suivi dossier');
+            $table->enum('statut',[StatutVisiteEnum::Pré_Réservation->value,StatutVisiteEnum::Vendu->value,StatutVisiteEnum::Pré_Réservation_Perdu->value,StatutVisiteEnum::Réservation_Perdu->value,StatutVisiteEnum::Pré_Réservation_Vendu->value,StatutVisiteEnum::Nouvelle_Avance->value])->nullable()->comment('1=>Pre reservation 2=>Vendu 3=>Pre reservation perdu 4=> reservation perdu  5=>Pré_Réservation_Vendu 6=>Nouvelle    Avance');
             $table->boolean('etat')->default(true)->nullable();
             $table->foreignId('old_v_id')->nullable();
             $table->string('description')->nullable();

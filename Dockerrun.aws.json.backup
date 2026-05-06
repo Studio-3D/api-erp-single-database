@@ -1,0 +1,12 @@
+{
+    "AWSEBDockerrunVersion": "1",
+    "Image": {
+        "Name": "403746501389.dkr.ecr.eu-west-1.amazonaws.com/erp-studio3d-api:IMAGE_TAG_PLACEHOLDER",
+        "Update": "true"
+    },
+    "Ports": [
+        {
+            "ContainerPort": 80
+        }
+    ]
+}

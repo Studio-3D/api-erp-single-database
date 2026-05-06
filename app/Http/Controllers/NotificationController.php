@@ -367,7 +367,7 @@ public function get_notifications(Request $request, $projet_id) {
         DatabaseHelper::Config();
         $userId = Auth::guard('api')->user()->id;
 
-         if(RoleHelper::AdminSup()||RoleHelper::RespoCommercial()){
+         if(RoleHelper::AdminSup()){
             // All notifications (filter out type 99)
             $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                 ->where(function ($query) {

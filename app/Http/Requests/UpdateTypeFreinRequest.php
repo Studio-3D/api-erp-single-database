@@ -24,37 +24,55 @@ class UpdateTypeFreinRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
      */
     public function rules(): array
-{
-    $societe_id = Auth::guard('api')->user()->societe_id;
-    $societe = Societe::findOrFail($societe_id);
-    $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
-    DatabaseHelper::Config();
+    {
+        $societe_id = Auth::guard('api')->user()->societe_id;
+        $societe = Societe::findOrFail($societe_id);
+        $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
+        DatabaseHelper::Config();
 
-    $typeFrein = $this->route('typefrein'); // Récupère l'ID ou l'instance
+        $typeFrein = $this->route('typefrein'); // Récupère l'ID ou l'instance
 
-    if (is_object($typeFrein)) {
-        $idToIgnore = $typeFrein->id;
-    } else {
-        $idToIgnore = $typeFrein;
+        if (is_object($typeFrein)) {
+            $idToIgnore = $typeFrein->id;
+        } else {
+            $idToIgnore = $typeFrein;
+        }
+
+        return [
+            'description' => [
+                'required',
+                'min:3',
+                Rule::unique('temp.' . $DatabaseName . '.type_freins', 'description')
+                    ->whereNull('deleted_at')
+                    ->ignore($idToIgnore),
+            ],
+        ];
     }
 
-    return [
-        'description' => [
-            'required',
-            'min:3',
-            Rule::unique('temp.' . $DatabaseName . '.type_freins', 'description')
-                ->whereNull('deleted_at')
-                ->ignore($idToIgnore),
-        ],
-    ];
-}
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            // Description
+            'description.required' => 'La description est obligatoire.',
+            'description.min' => 'La description doit contenir au moins :min caractères.',
+            'description.unique' => 'Cette description existe déjà, veuillez en choisir une autre.',
+        ];
+    }
 
-public function messages(): array
-{
-    return [
-        'description.required' => 'La description est obligatoire.',
-        'description.min' => 'La description doit contenir au moins 3 caractères.',
-        'description.unique' => 'Cette description existe déjà, veuillez en choisir une autre.',
-    ];
-}
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'description' => 'description',
+        ];
+    }
 }

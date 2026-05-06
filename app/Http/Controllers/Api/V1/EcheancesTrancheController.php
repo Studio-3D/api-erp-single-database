@@ -103,10 +103,46 @@ class EcheancesTrancheController extends Controller
         //
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    /**Store a newly created resource in storage.
+
     public function store(Request $request)
+    {
+         if (RoleHelper::AdminSup()) {
+            $user = Auth::user();
+            // Check if user is superadmin
+            $isSuperAdmin = RoleHelper::SuperAdmin();
+
+            // Switch to tenant database
+            DatabaseHelper::Config();
+
+            // Set user_id_add based on user type
+            if ($isSuperAdmin) {
+                // For superadmin, set user_id_add to 0
+                $userId = 0;
+            } else {
+                // For regular users, get the tenant user
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                $userId = $userAuth->id;
+            }
+              $dataArray_inputs = json_decode($request->input('inputs_date_montant'), true);
+            if ($dataArray_inputs) {
+                foreach ($dataArray_inputs as $inputs) {
+                    $ech = new EcheancesTranche();
+                    $ech->setConnection('temp');
+                    $ech->tranche_id = $request->tranche_id;
+                    $ech->date = $inputs['date'];
+                    $ech->montant =$inputs['montant'];
+                    $ech->user_id= $userId;
+                    $ech->save();
+                }
+            }
+            return response()->json('is Done');
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+
+    }*/
+          public function store(Request $request)
     {
         if (RoleHelper::AdminSup()) {
             $user = Auth::user();
@@ -152,9 +188,48 @@ class EcheancesTrancheController extends Controller
         //
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    /* public function update(Request $request, $id)
+    {
+       if (RoleHelper::AdminSup()) {
+            $user = Auth::user();
+            // Check if user is superadmin
+            $isSuperAdmin = RoleHelper::SuperAdmin();
+
+            // Switch to tenant database
+            DatabaseHelper::Config();
+
+            // Set user_id_add based on user type
+            if ($isSuperAdmin) {
+                // For superadmin, set user_id_add to 0
+                $userId = 0;
+            } else {
+                // For regular users, get the tenant user
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                $userId = $userAuth->id;
+            }
+             $ech_s=EcheancesTranche::on('temp')->where('tranche_id',$request->tranche_id)->get();
+            if(count($ech_s)>0){
+                foreach($ech_s as $ech){
+                    $ech->delete();
+                }
+            }
+            $dataArray_inputs = json_decode($request->input('inputs_date_montant'), true);
+            if ($dataArray_inputs) {
+                foreach ($dataArray_inputs as $inputs) {
+                    $ech = new EcheancesTranche();
+                    $ech->setConnection('temp');
+                    $ech->tranche_id = $request->tranche_id;
+                    $ech->date = $inputs['date'];
+                    $ech->montant =$inputs['montant'];
+                    $ech->user_id=$userId;
+                    $ech->save();
+                }
+            }
+            return response()->json('is Done');
+
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }**/
     public function update(Request $request, $id)
     {
         if (RoleHelper::AdminSup()) {
@@ -185,7 +260,6 @@ class EcheancesTrancheController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-
     /**
      * Remove the specified resource from storage.
      */
@@ -206,4 +280,3 @@ class EcheancesTrancheController extends Controller
         }
     }
 }
-

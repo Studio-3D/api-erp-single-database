@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
+use App\Http\Helpers\StringHelper;
 
 class SocieteController extends Controller
 {
@@ -32,20 +33,21 @@ class SocieteController extends Controller
     {
         $this->societeService = $societeService;
     }
+
     public function store(StoreSocieteRequest $request)
-    {
-        if (! RoleHelper::Superadmin()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-        // Passe directement l'objet $request
-        $response = $this->societeService->createSociete($request);
-
-        return response()->json([
-            'societe' => $response->original['societe'], // Récupère la société créée
-            'message' => 'Société ajoutée avec succès',
-        ], 200);
+{
+    if (! RoleHelper::Superadmin()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+    // Passe directement l'objet $request
+    $societe = $this->societeService->createSociete($request);
+
+    return response()->json([
+        'societe' => $societe, // Directly use the societe object
+        'message' => 'Société ajoutée avec succès',
+    ], 200);
+}
 
     public function show($id)
     {
@@ -126,7 +128,9 @@ class SocieteController extends Controller
         $originalRaisonSociale = $societe->raison_sociale_concatene;
 
         $societe->raison_sociale = $request->raison_sociale;
-        $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
+        $raison_sociale_normalized = StringHelper::normalize($request->raison_sociale);
+        $raison_sociale_concatene = str_replace(' ', '', $raison_sociale_normalized);
+       // $raison_sociale_concatene = str_replace(' ', '', $request->raison_sociale);
         $societe->raison_sociale_concatene = $raison_sociale_concatene;
 
         // Store other updates

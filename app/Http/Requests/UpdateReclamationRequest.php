@@ -6,7 +6,8 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-#[AllowDynamicProperties] class UpdateReclamationRequest extends FormRequest
+#[AllowDynamicProperties]
+class UpdateReclamationRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -29,8 +30,43 @@ use Illuminate\Support\Facades\Auth;
         $rules['date_reclamation'] = 'required';
         $rules['problemes'] = 'required';
 
-
         return $rules;
+    }
 
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            // Bien ID
+            'bien_id.required' => 'Le champ bien est obligatoire.',
+
+            // Client ID
+            'client_id.required' => 'Le champ client est obligatoire.',
+
+            // Date réclamation
+            'date_reclamation.required' => 'Le champ date de réclamation est obligatoire.',
+
+            // Problèmes
+            'problemes.required' => 'Le champ description des problèmes est obligatoire.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'bien_id' => 'bien',
+            'client_id' => 'client',
+            'date_reclamation' => 'date de réclamation',
+            'problemes' => 'description des problèmes',
+        ];
     }
 }

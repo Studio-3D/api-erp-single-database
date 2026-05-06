@@ -82,7 +82,7 @@ class PrestatairesController extends Controller
     public function search_prestataire_by_param($param_1, $value)
     {
         //cin ou email
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::SAV()) {
             DatabaseHelper::Config();
             $prestataire = Prestataire::on('temp')->where($param_1, $value)
                 ->get()->first();
@@ -96,7 +96,7 @@ class PrestatairesController extends Controller
     public function store(Request $request)
     {
 
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::SAV()) {
             DatabaseHelper::Config();
             $pre = new Prestataire();
             $pre->setConnection('temp');
@@ -141,7 +141,7 @@ class PrestatairesController extends Controller
 
     public function get_info_cin_prestataire_unique($id, $cin)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::SAV()) {
             DatabaseHelper::Config();
             //cin unique
             $pres_count = Prestataire::on('temp')->where('cin', $cin)->where('id', '!=', $id)->count();
@@ -158,7 +158,7 @@ class PrestatairesController extends Controller
      */
     public function show($id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::SAV()) {
             DatabaseHelper::Config();
             $pre = Prestataire::on('temp')->findOrFail($id);
             return response()->json(['prestataire' => $pre], 200);
@@ -179,7 +179,7 @@ class PrestatairesController extends Controller
      */
     public function update(Request $request, $id)
     {
-        if (RoleHelper::ACSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::SAV()) {
             DatabaseHelper::Config();
             $pre = Prestataire::on('temp')->findOrfail($id);
             $pre->setConnection('temp');
@@ -205,7 +205,7 @@ class PrestatairesController extends Controller
      */
     public function destroy(string $id)
     {
-        if (RoleHelper::AdminSup()) {
+        if (RoleHelper::AdminSup()||RoleHelper::SAV()) {
             DatabaseHelper::Config();
             $pre          = Prestataire::on('temp')->findOrFail($id);
             $reclamations = Reclamation::on('temp')->where('prestataire_id', $id)->get();

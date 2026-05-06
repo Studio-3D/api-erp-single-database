@@ -114,13 +114,13 @@ class UserController extends Controller
                 return response()->json(['users' => $users]);
             } else {
                 DatabaseHelper::Config();
-                $users = User::on('temp')->get();
+                $users = User::on('temp')->where('role', '!=', 1)->get();
                 return response()->json(['users' => $users]);
             }
 
         } else if (RoleHelper::Admin()) {
             DatabaseHelper::Config();
-            $users = User::on('temp')->get();
+            $users = User::on('temp')->where('role', '!=', 1)->get();
             return response()->json(['users' => $users], 200);
         }
 
@@ -131,8 +131,8 @@ class UserController extends Controller
     {
         if (RoleHelper::Admin()) {
             DatabaseHelper::Config();
-            //->where('role',3)
-            $users = User::on('temp')->get();
+
+            $users = User::on('temp')->where('role',3)->get();
             return response()->json(['users' => $users], 200);
         }
 
@@ -162,7 +162,7 @@ class UserController extends Controller
             DatabaseHelper::Config();
             $perPage = $request->input('pageSize', config('app.default_item_number_perpage')); // Get the number of items per page
             $page = $request->input('page', 1);
-            $users = User::on('temp')->orderBy('created_at', 'desc')
+            $users = User::on('temp')->where('role', '!=', 1)->orderBy('created_at', 'desc')
                 ->paginate($perPage, ['*'], 'page', $page);
 
             return response()->json(['users' => $users], 200);
@@ -284,25 +284,35 @@ class UserController extends Controller
         ], 200);
     }
 
-    public function update(UpdateUserRequest $request, $id)
+   public function update(UpdateUserRequest $request, $id)
     {
-        $user = User::findOrFail($id);
-        if ($request->has('cin')) {
-            $request->validate([
-                'cin' => [
-                    'string',
-                    Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
-                ],
-            ]);
-        }
-        if ($request->has('email')) {
-            $request->validate([
-                'email' => [
-                    'string',
-                    Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
-                ],
-            ]);
-        }
+    $user = User::findOrFail($id);
+
+    if ($request->has('cin')) {
+        $request->validate([
+            'cin' => [
+                'string',
+                Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+            ],
+        ], [
+            'cin.string' => 'Le CIN doit être une chaîne de caractères.',
+            'cin.unique' => 'Ce CIN appartient déjà à un autre utilisateur.',
+        ]);
+    }
+
+    if ($request->has('email')) {
+        $request->validate([
+            'email' => [
+                'string',
+                'email',
+                Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
+            ],
+        ], [
+            'email.string' => 'L\'email doit être une chaîne de caractères.',
+            'email.email' => 'Veuillez saisir une adresse email valide.',
+            'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur.',
+        ]);
+    }
         if ($request->is_profil) {
             $user = Auth::user();
             DatabaseHelper::Config();
@@ -592,7 +602,7 @@ class UserController extends Controller
             ]);
 
             // Construct the reset URL you can chenbge the url
-            $resetUrl = 'http://localhost:3000/reset-password/' . $token;
+            $resetUrl = env('APP_URL').'/reset-password/' . $token;
 
             // Send an email to the user with the reset URL
             Mail::to($user)->send(new ResetPasswordMail($resetUrl, $confirmationCode));

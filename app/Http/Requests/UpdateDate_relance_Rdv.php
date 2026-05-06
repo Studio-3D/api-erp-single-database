@@ -23,7 +23,33 @@ class UpdateDate_relance_Rdv extends FormRequest
     {
         return [
             'commentaire' => 'required',
-           // 'date' => 'required',
+            // 'date' => 'required',
+        ];
+    }
+
+    /**
+     * Get the validation error messages in French.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            // Commentaire
+            'commentaire.required' => 'Le champ commentaire est obligatoire.',
+        ];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'commentaire' => 'commentaire',
+            // 'date' => 'date',
         ];
     }
 }
