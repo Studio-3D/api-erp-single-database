@@ -19,7 +19,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:destroy_notif')->dailyAt('00:00');
         $schedule->command(command: 'emails:send-scheduled')->dailyAt('07:00'); // Exécute tous les jours à minuit
         $schedule->command(command: 'app:echeance-email')->dailyAt('07:00'); // Exécute tous les jours à minuit
-        $schedule->command('app:import_fichiers')->everyMinute();
+        $schedule->command('app:import_fichiers')->everyMinute()->withoutOverlapping(300) ->runInBackground();
         $schedule->command('app:edit_biens_et_titre_foncier_en_masse')->everyMinute();
         $schedule->command('app:clear-webhook_events-table')->sundays()->at('07:00'); // Runs every Sunday at midnight
         $schedule->command(command: 'whatsapp:send-reminder')->dailyAt('00:00'); // Exécute tous les jours à minuit

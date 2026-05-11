@@ -24,6 +24,10 @@ class PropositionUpdated implements ShouldBroadcast
     {
         $this->bienId = $bienId;
         $this->userId = $userId;
+        \Log::info('PropositionUpdated event constructed', [
+            'bienId' => $bienId,
+            'userId' => $userId
+        ]);
     }
 
     /**
@@ -33,6 +37,10 @@ class PropositionUpdated implements ShouldBroadcast
      */
     public function broadcastOn()
     {
+        \Log::info('PropositionUpdated broadcastOn called', [
+            'channel' => 'proposition-updates'
+        ]);
+
         return new Channel('proposition-updates');
     }
 }

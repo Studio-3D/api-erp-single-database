@@ -19,3 +19,8 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('rdv-updates', function ($user) {
     return true; // Or your custom authorization logic
 });
+
+Broadcast::channel('proposition-updates', function ($user) {
+    \Log::info('Channel authorization', ['user_id' => $user->id]);
+    return true;
+});

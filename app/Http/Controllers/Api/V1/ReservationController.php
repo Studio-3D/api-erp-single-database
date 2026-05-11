@@ -562,7 +562,6 @@ private function processReservationFiles($reservation, $request, $societe)
                         ? (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_remise)
                         : null;
                 }
-                $reservation->prix_remise_lettre = (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_remise);
                 $reservation->prix_forfetaire = $request->prix_forfetaire;
                 $reservation->prix_forfetaire_lettre = (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_forfetaire);
 

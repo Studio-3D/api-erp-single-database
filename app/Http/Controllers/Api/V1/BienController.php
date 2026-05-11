@@ -1105,36 +1105,54 @@ class BienController extends Controller
         }
 
     }
-    public function setPropostionBien($bien_id, $old_id)
-    {
-        if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
-            DatabaseHelper::Config();
-            Config::set('broadcasting.default', 'pusher_4');
+  public function setPropostionBien($bien_id, $old_id)
+{
+    if (Auth::guard('api')->check() && RoleHelper::ACSup()) {
+        DatabaseHelper::Config();
+        Config::set('broadcasting.default', 'pusher_4');
 
-           if ($old_id != 0) {
-                Bien_Helper::libererBien($old_id, null, null,true);
-            }
-            $bien       = Bien::on('temp')->findOrFail($bien_id);
-            if($bien->etat!='RESERVATION' && $bien->etat!='PRE_RESERVATION'){
-                    $bien->etat = EtatBien::ENCOURS_DE_PROPOSITION->value;
-                        if ($bien->save()) {
-                            $bien_propose = new Proposition();
-                            $bien_propose->setConnection('temp');
-                            $bien_propose->bien_id = $bien_id;
-                            $bien_propose->user_id = Auth::guard('api')->user()->id;
-                            $bien_propose->save();
-                            event(new PropositionUpdated($bien_id, $bien_propose->user_id));
-                        }
+        \Log::info('setPropostionBien called', [
+            'bien_id' => $bien_id,
+            'old_id' => $old_id,
+            'connection' => config('broadcasting.default')
+        ]);
 
-                    return response()->json(['message' => $bien], 200);
-            }
-
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        if ($old_id != 0) {
+            Bien_Helper::libererBien($old_id, null, null, true);
         }
 
+        $bien = Bien::on('temp')->findOrFail($bien_id);
+
+        if($bien->etat != 'RESERVATION' && $bien->etat != 'PRE_RESERVATION'){
+            $bien->etat = EtatBien::ENCOURS_DE_PROPOSITION->value;
+
+            if ($bien->save()) {
+                $bien_propose = new Proposition();
+                $bien_propose->setConnection('temp');
+                $bien_propose->bien_id = $bien_id;
+                $bien_propose->user_id = Auth::guard('api')->user()->id;
+                $bien_propose->save();
+
+                \Log::info('Attempting to broadcast PropositionUpdated event', [
+                    'bienId' => $bien_id,
+                    'userId' => $bien_propose->user_id,
+                    'channel' => 'proposition-updates'
+                ]);
+
+                try {
+                    event(new PropositionUpdated($bien_id, $bien_propose->user_id));
+                    \Log::info('Event broadcast successfully');
+                } catch (\Exception $e) {
+                    \Log::error('Failed to broadcast event: ' . $e->getMessage());
+                }
+
+                return response()->json(['message' => $bien], 200);
+            }
+        }
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
     public function getEtatBien($bien_id)
     {
