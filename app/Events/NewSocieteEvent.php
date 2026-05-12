@@ -14,6 +14,7 @@ class NewSocieteEvent implements ShouldBroadcastNow  // CHANGE THIS
 
     public $societeData;
 
+
     public function __construct($societeData)
     {
         $this->societeData = $societeData;

@@ -46,6 +46,7 @@ class NotificationEvent implements ShouldBroadcastNow  // CHANGE THIS
     }
 
     /**
+     *
      * Données envoyées au frontend
      */
     public function broadcastWith(): array

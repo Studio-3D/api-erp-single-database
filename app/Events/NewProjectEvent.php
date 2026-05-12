@@ -48,6 +48,7 @@ class NewProjectEvent implements ShouldBroadcastNow  // CHANGE THIS
         ];
     }
 
+
      public function broadcastConnection()
     {
         return 'pusher_2';

@@ -32,6 +32,7 @@ class NotifMenuEvent implements ShouldBroadcastNow  // CHANGE THIS
             'channel' => 'NotifMenu'
         ]);
 
+
         return new Channel('NotifMenu');
     }
         public function broadcastConnection()

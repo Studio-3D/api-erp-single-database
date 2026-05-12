@@ -55,6 +55,7 @@ class AvancesEvent implements ShouldBroadcastNow  // CHANGE THIS INTERFACE
         return 'AvancesEvent';
     }
 
+
     public function broadcastWith()
     {
         return [

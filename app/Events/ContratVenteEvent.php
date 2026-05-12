@@ -44,6 +44,7 @@ class ContratVenteEvent implements ShouldBroadcastNow  // CHANGE THIS
         return 'pusher_10';
     }
 
+
     public function broadcastAs()
     {
         return 'ContratVenteEvent';

@@ -45,6 +45,7 @@ class AttestationVenteEvent implements ShouldBroadcastNow  // CHANGE THIS INTERF
         return 'AttestationVenteEvent';
     }
 
+
     public function broadcastWith()
     {
         return [

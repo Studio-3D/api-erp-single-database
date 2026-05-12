@@ -49,6 +49,7 @@ class RdvEvent implements ShouldBroadcastNow  // CHANGE THIS
         return 'RdvEvent';
     }
 
+
     public function broadcastWith()
     {
         return [

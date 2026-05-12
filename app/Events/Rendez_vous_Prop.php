@@ -53,6 +53,7 @@ class Rendez_vous_Prop implements ShouldBroadcastNow  // CHANGE THIS
         return 'Rendez_vous_Prop';
     }
 
+
     public function broadcastWith()
     {
         return [

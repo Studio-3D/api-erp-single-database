@@ -14,8 +14,11 @@ class Kernel extends ConsoleKernel
     {
 
         $schedule->command('app:delete-societe-database-command')->everyMinute();
-        $schedule->command('app:clear-proposition-table')->everyMinute();
-        $schedule->command('app:liberer_bien_pre_reserve')->everyMinute();
+        $schedule->command('app:clear-proposition-table')
+            ->everyTenMinutes()
+            ->withoutOverlapping(300)
+            ->runInBackground();
+         $schedule->command('app:liberer_bien_pre_reserve')->everyMinute();
         $schedule->command('app:destroy_notif')->dailyAt('00:00');
         $schedule->command(command: 'emails:send-scheduled')->dailyAt('07:00'); // Exécute tous les jours à minuit
         $schedule->command(command: 'app:echeance-email')->dailyAt('07:00'); // Exécute tous les jours à minuit
