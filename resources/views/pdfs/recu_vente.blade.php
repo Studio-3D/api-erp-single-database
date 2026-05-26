@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>REÇU DE VERSEMENT</title>
+    <title>REÇU</title>
     <style>
         * {
             margin: 0;

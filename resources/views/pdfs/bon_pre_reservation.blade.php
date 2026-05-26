@@ -136,7 +136,7 @@
                 </td>
                 <td class="company-cell">
                     <div class="company-info">
-                        <div class="company-name">{{ $societe['raison_sociale'] ?? 'ste_sup_admin' }}</div>
+                        <div class="company-name">{{ $societe['raison_sociale'] ?? ' ' }}</div>
                         @if(!empty($societe['tel']))
                             <div>Tél: {{ $societe['tel'] }}</div>
                         @endif
@@ -158,7 +158,7 @@
         <!-- CONTENT -->
         <div class="content">
             <p>
-                La société <strong>{{ $societe['raison_sociale'] ?? 'ste_sup_admin' }}</strong>, confirme la pré-réservation du bien immobilier suivant :
+                La société <strong>{{ $societe['raison_sociale'] ?? ' ' }}</strong>, confirme la pré-réservation du bien immobilier suivant :
             </p>
             <p>
                 Le bien identifié sous la référence <strong>{{ $propriete_dite_bien ?: 'B' . $code_pre_reservation }}</strong> est situé

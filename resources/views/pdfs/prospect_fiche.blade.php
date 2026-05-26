@@ -225,7 +225,7 @@
                 @endif
             </div>
             <div class="company-info">
-                <div class="company-name">{{ $societe['raison_sociale'] ?? 'ste_sup_admin' }}</div>
+                <div class="company-name">{{ $societe['raison_sociale'] ?? ' ' }}</div>
                 @if(!empty($societe['tel']))
                     <div>Tél: {{ $societe['tel'] }}</div>
                 @endif
@@ -253,13 +253,13 @@
                     <div class="personal-cell">
                         <div class="personal-item">
                             <div class="info-label">Nom complet</div>
-                            <div class="info-value">{{ trim(($prospect['nom'] ?? '') . ' ' . ($prospect['prenom'] ?? '')) ?: 'NNNNNNNOM PRENOM' }}</div>
+                            <div class="info-value">{{ trim(($prospect['nom'] ?? '') . ' ' . ($prospect['prenom'] ?? '')) ?: ' ' }}</div>
                         </div>
                     </div>
                     <div class="personal-cell">
                         <div class="personal-item">
                             <div class="info-label">CIN / Passeport</div>
-                            <div class="info-value">{{ $prospect['cin'] ?? 'cin_de_nn' }}</div>
+                            <div class="info-value">{{ $prospect['cin'] ?? ' ' }}</div>
                         </div>
                     </div>
                 </div>
@@ -267,7 +267,7 @@
                     <div class="personal-cell">
                         <div class="personal-item">
                             <div class="info-label">Téléphone principal</div>
-                            <div class="info-value">{{ $prospect['telephone'] ?? '2344773388' }}</div>
+                            <div class="info-value">{{ $prospect['telephone'] ?? ' ' }}</div>
                         </div>
                     </div>
                     <div class="personal-cell">
@@ -370,10 +370,10 @@
                     @foreach($visites as $visite)
                     <tr>
                         <td>{{ \Carbon\Carbon::parse($visite['date'])->format('d/m/Y H:i') }}</td>
-                        <td>{{ trim(($visite['nom_cc'] ?? '') . ' ' . ($visite['prenom_cc'] ?? '')) ?: 'admhhhhin_se adminse' }}</td>
-                        <td>{{ $formatInteret($visite['interet'] ?? null) ?: 'Intéressé' }}</td>
-                        <td>{{ $formatStatutVisite($visite['statut'] ?? null) ?: ($visite['statut_label'] ?? 'Vendu') }}</td>
-                        <td>{{ $getBienInfo($visite['bien'] ?? null) ?: ($visite['bien_id'] ?? 'T01 - GH01 - B21') }}</td>
+                        <td>{{ trim(($visite['nom_cc'] ?? '') . ' ' . ($visite['prenom_cc'] ?? '')) ?: ' ' }}</td>
+                        <td>{{ $formatInteret($visite['interet'] ?? null) ?: ' ' }}</td>
+                        <td>{{ $formatStatutVisite($visite['statut'] ?? null) ?: ($visite['statut_label'] ?? ' ') }}</td>
+                        <td>{{ $getBienInfo($visite['bien'] ?? null) ?: ($visite['bien_id'] ?? ' ') }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -422,13 +422,13 @@
         <div class="message-box">
             <div class="message-text">
                 Ce document fait office de suivi commercial. Toute information contenue dans ce document
-                est confidentielle et réservée à l'usage interne de {{ $societe['raison_sociale'] ?? 'ste_sup_admin' }}.
+                est confidentielle et réservée à l'usage interne de {{ $societe['raison_sociale'] ?? ' ' }}.
             </div>
         </div>
 
         <!-- Footer -->
         <div class="footer">
-            Document généré le {{ $currentDate ?? date('d/m/Y H:i') }} — {{ $societe['raison_sociale'] ?? 'ste_sup_admin' }} —
+            Document généré le {{ $currentDate ?? date('d/m/Y H:i') }} — {{ $societe['raison_sociale'] ?? ' ' }} —
             Tous droits réservés {{ date('Y') }}
         </div>
     </div>

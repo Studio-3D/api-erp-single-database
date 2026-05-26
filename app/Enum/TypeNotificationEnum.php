@@ -17,5 +17,6 @@ enum TypeNotificationEnum:int
    case FacebookMention=91;
    case FacebookMessage=90;
    case InstagramMessage=100;
-
+    case WhatsAppMessage = 50;     // Nouveau message WhatsApp
+    case WhatsAppProspect = 51;    // Nouveau prospect WhatsApp
 }

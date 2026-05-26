@@ -166,7 +166,7 @@
                 </td>
                 <td class="company-cell">
                     <div class="company-info">
-                        <div class="company-name">{{ $societe['raison_sociale'] ?? 'ste_sup_admin' }}</div>
+                        <div class="company-name">{{ $societe['raison_sociale'] ?? ' ' }}</div>
                         @if(!empty($societe['tel']))
                             <div>Tél: {{ $societe['tel'] }}</div>
                         @endif
@@ -193,11 +193,11 @@
             </div>
             <div class="info-row">
                 <span class="info-label">Bien immobilier :</span>
-                <span class="info-value">{{ $bienCompletNom ?: 'Non spécifié' }}</span>
+                <span class="info-value">{{ $bienCompletNom ?: '' }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Client(s) :</span>
-                <span class="info-value">{{ $clientNames ?: 'Non spécifié' }}</span>
+                <span class="info-value">{{ $clientNames ?: '' }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Mode de paiement :</span>
@@ -230,7 +230,7 @@
                 sous la référence n° {{ $numero_paiement }}
             @endif,
             concernant le bien immobilier désigné sous la référence
-            <span class="bold">{{ $bienCompletNom ?: 'Non spécifié' }}</span>.
+            <span class="bold">{{ $bienCompletNom ?: '' }}</span>.
         </div>
 
         <div class="text">
@@ -263,7 +263,7 @@
                     <td class="signature-right">
                         <div class="signature-line">
                             Signature de la Société<br>
-                            <strong>{{ $societe['raison_sociale'] ?? 'ste_sup_admin' }}</strong><br>
+                            <strong>{{ $societe['raison_sociale'] ?? ' ' }}</strong><br>
                             Représentant légal
                         </div>
                      </td>

@@ -1,255 +1,588 @@
 <?php
 
 namespace App\Http\Controllers\WhatsApp;
+use App\Http\Helpers\RoleHelper;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
+use App\Http\Helpers\NotificationHelper;
 use App\Http\Helpers\DatabaseHelper;
-use App\Http\Helpers\RoleHelper;
 use App\Models\WebhookEvent;
+use App\Models\Notification;
+use App\Models\User;
 use App\Events\NotificationEvent;
+use App\Enum\TypeNotificationEnum;
+use App\Enum\RoleEnum;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Config;
-use App\Models\Societe;
+use App\Events\NewWhatsAppMessageEvent;  // AJOUTER CETTE LIGNE
+use Twilio\Rest\Client as ClientTwilio;  // ← AJOUTER CETTE LIGNE ICI
 
 class WhatsAppBusinessController extends Controller
 {
-
- /*public function webhook_whatsapp_business(Request $request)
+    /**
+ * Marquer les messages comme lus pour une conversation spécifique
+ */
+public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
 {
-      $mode = $request->query('hub_mode', $request->query('hub.mode'));
-        $verifyToken = $request->query('hub_verify_token', $request->query('hub.verify_token'));
-        $challenge = $request->query('hub_challenge', $request->query('hub.challenge'));
+    try {
+        DatabaseHelper::Config();
 
-    // Alternative method if Input facade doesn't work:
-    // $mode = $request->input('hub.mode');
-    // $verifyToken = $request->input('hub.verify_token');
-    // $challenge = $request->input('hub.challenge');
-
-    Log::warning("token", ['verifyToken' => $verifyToken]);
-
-    if ($mode === 'subscribe') {
-        // Your existing verification logic...
-        $fallback = env('WHATSAPP_WEBHOOK_VERIFY_TOKEN');
-        if ($fallback && hash_equals($fallback, (string) $verifyToken)) {
-            Log::info("WhatsApp webhook verification successful via fallback env token");
-            return response($challenge, 200);
+        // Vérifier si la table existe
+        if (!Schema::connection('temp')->hasTable('whatsapp_messages')) {
+            return response()->json(['success' => false, 'message' => 'Table non trouvée'], 404);
         }
 
-        // ... rest of your verification logic
+        // Mettre à jour les messages non lus
+        $updated = DB::connection('temp')
+            ->table('whatsapp_messages')
+            ->where('projet_id', $projetId)
+            ->where('from_number', $phoneNumber)
+            ->whereNull('read_at')
+            ->where('status', 'received')
+            ->update([
+                'read_at' => now(),
+                'status' => 'read',
+                'updated_at' => now()
+            ]);
+
+        Log::info("✅ Messages marqués comme lus pour le numéro: {$phoneNumber}, projet: {$projetId}, {$updated} message(s) mis à jour");
+
+        return response()->json([
+            'success' => true,
+            'updated_count' => $updated,
+            'message' => "{$updated} message(s) marqué(s) comme lu(s)"
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur lors du marquage des messages comme lus: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+    /**
+     * Configurer la base de données pour une société spécifique
+     */
+    private function configureDatabaseForSociete($societeId)
+    {
+        try {
+            $societe = \App\Models\Societe::find($societeId);
+            if (!$societe) {
+                throw new \Exception("Société non trouvée: {$societeId}");
+            }
+
+            $databaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe->id;
+            $connection = DatabaseHelper::Connection_database($databaseName);
+            config(['database.connections.temp' => $connection]);
+            DB::purge('temp');
+            DB::reconnect('temp');
+
+            Log::info("Database configured for société: {$societe->id} - {$databaseName}");
+
+        } catch (\Exception $e) {
+            Log::error("Error configuring database: " . $e->getMessage());
+            throw $e;
+        }
     }
 
-    // Rest of your webhook handling...
+  public function webhook_whatsapp_business(Request $request)
+{
+    try {
+        Log::info('Message reçu de Twilio', $request->all());
+
+        // Nettoyer les numéros
+        $to = ltrim(str_replace('whatsapp:', '', $request->input('To')), '+');
+        $from = ltrim(str_replace('whatsapp:', '', $request->input('From')), '+');
+        $body = $request->input('Body');
+        $messageSid = $request->input('MessageSid');
+        $profileName = $request->input('ProfileName', 'Utilisateur WhatsApp');
+
+        Log::info("Recherche configuration pour numéro: {$to}");
+
+        // ========== PARCOURIR TOUTES LES SOCIÉTÉS ==========
+        $societes = \App\Models\Societe::all();
+
+        $foundConfig = null;
+        $foundDatabaseName = null;
+        $foundSocieteId = null;
+
+        foreach ($societes as $societe) {
+            $databaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe->id;
+
+            Log::info("Recherche dans la base: " . $databaseName);
+
+            try {
+                $connection = DatabaseHelper::Connection_database($databaseName);
+                config(['database.connections.temp_search' => $connection]);
+                DB::connection('temp_search')->setDatabaseName($connection['database']);
+                DB::reconnect('temp_search');
+
+                if (Schema::connection('temp_search')->hasTable('whatsapp_configurations')) {
+                    $config = DB::connection('temp_search')
+                        ->table('whatsapp_configurations')
+                        ->where('phone_number_id', $to)
+                        ->whereNull('deleted_at')
+                        ->first();
+
+                    if ($config) {
+                        $foundConfig = $config;
+                        $foundDatabaseName = $databaseName;
+                        $foundSocieteId = $societe->id;
+                        Log::info("✅ Configuration trouvée dans: " . $databaseName);
+                        break;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning("Erreur dans société {$societe->id}: " . $e->getMessage());
+                continue;
+            }
+        }
+
+        if (config()->has('database.connections.temp_search')) {
+            DB::purge('temp_search');
+            config(['database.connections.temp_search' => null]);
+        }
+
+        if (!$foundConfig) {
+            Log::warning("❌ Aucune configuration trouvée pour le numéro: {$to}");
+            return response()->json(['status' => 'error', 'message' => 'Configuration not found'], 200);
+        }
+
+        $connection = DatabaseHelper::Connection_database($foundDatabaseName);
+        config(['database.connections.temp' => $connection]);
+        DB::connection('temp')->setDatabaseName($connection['database']);
+        DB::reconnect('temp');
+
+        Log::info("✅ Connecté à la base: " . $foundDatabaseName);
+
+        if (!Schema::connection('temp')->hasTable('whatsapp_messages')) {
+            Schema::connection('temp')->create('whatsapp_messages', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('projet_id');
+                $table->string('from_number');
+                $table->string('to_number');
+                $table->text('message');
+                $table->string('message_sid')->unique();
+                $table->string('profile_name')->nullable();
+                $table->timestamp('read_at')->nullable();
+                $table->timestamp('delivered_at')->nullable();
+                $table->string('status')->default('received');
+                $table->timestamps();
+            });
+            Log::info("Table whatsapp_messages créée");
+        }
+
+        $existingMessage = DB::connection('temp')
+            ->table('whatsapp_messages')
+            ->where('message_sid', $messageSid)
+            ->first();
+
+        if ($existingMessage) {
+            Log::info("Message déjà traité: {$messageSid}");
+            return response()->json(['status' => 'already_processed']);
+        }
+
+        // ========== TROUVER OU CRÉER LE PROSPECT ==========
+        $prospect = DB::connection('temp')
+            ->table('prospects')
+            ->where('telephone', $from)
+            ->orWhere('telephone_num2', $from)
+            ->first();
+
+        $prospectId = null;
+        $isNewProspect = false;
+
+        if ($prospect) {
+            $prospectId = $prospect->id;
+            Log::info("📞 Prospect existant trouvé: {$from} (ID: {$prospectId})");
+
+            // ========== 🔥 NOUVEAU : Marquer nos messages envoyés à ce prospect comme LUS ==========
+            $ourMessages = DB::connection('temp')
+                ->table('whatsapp_messages')
+                 ->where('from_number',$foundConfig->phone_number_id)  // Notre numéro fixe
+                ->where('projet_id', $foundConfig->projet_id)
+                ->where('to_number', $from)
+                ->whereIn('status', ['sent', 'delivered'])
+                ->get();
+
+            if ($ourMessages->count() > 0) {
+                DB::connection('temp')
+                    ->table('whatsapp_messages')
+                    ->where('projet_id', $foundConfig->projet_id)
+                    ->where('to_number', $from)
+                     ->where('from_number', $foundConfig->phone_number_id)
+                    ->whereIn('status', ['sent', 'delivered'])
+                    ->update([
+                        'status' => 'read',
+                        'read_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                foreach ($ourMessages as $msg) {
+                    try {
+                        $messageData = (array)$msg;
+                        $messageData['status'] = 'read';
+                        $messageData['read_at'] = now()->toISOString();
+                        broadcast(new NewWhatsAppMessageEvent($messageData, $foundConfig->projet_id, $from))->toOthers();
+                        Log::info("📡 Broadcast read pour message envoyé {$msg->id}");
+                    } catch (\Exception $e) {
+                        Log::warning("⚠️ Erreur broadcast: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // ========== Marquer les messages précédents du prospect comme lus ==========
+            $unreadMessages = DB::connection('temp')
+                ->table('whatsapp_messages')
+                ->where('projet_id', $foundConfig->projet_id)
+                ->where('from_number', $from)
+                ->where(function($q) {
+                    $q->where('status', 'delivered')
+                      ->orWhere(function($sub) {
+                          $sub->where('status', 'received')
+                              ->whereNull('read_at');
+                      });
+                })
+                ->get();
+
+            if ($unreadMessages->count() > 0) {
+                DB::connection('temp')
+                    ->table('whatsapp_messages')
+                    ->where('projet_id', $foundConfig->projet_id)
+                    ->where('from_number', $from)
+                    ->where(function($q) {
+                        $q->where('status', 'delivered')
+                          ->orWhere(function($sub) {
+                              $sub->where('status', 'received')
+                                  ->whereNull('read_at');
+                          });
+                    })
+                    ->update([
+                        'status' => 'read',
+                        'read_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                foreach ($unreadMessages as $msg) {
+                    try {
+                        $messageData = (array)$msg;
+                        $messageData['status'] = 'read';
+                        $messageData['read_at'] = now()->toISOString();
+                        broadcast(new NewWhatsAppMessageEvent($messageData, $foundConfig->projet_id, $from))->toOthers();
+                        Log::info("📡 Broadcast read pour message {$msg->id}");
+                    } catch (\Exception $e) {
+                        Log::warning("⚠️ Erreur broadcast read: " . $e->getMessage());
+                    }
+                }
+            }
+        } else {
+            // Création d'un nouveau prospect
+            $sourceId = null;
+            if (Schema::connection('temp')->hasTable('sources')) {
+                $sourceId = DB::connection('temp')
+                    ->table('sources')
+                    ->where('source', 'WhatsApp')
+                    ->orWhere('source', 'whatsapp')
+                    ->value('id');
+            }
+
+            $prospectData = [
+                'telephone' => $from,
+                'telephone_num2' => null,
+                'nom' => $profileName,
+                'prenom' => '',
+                'email' => null,
+                'projet_id' => $foundConfig->projet_id,
+                'origin' => 'WhatsApp',
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            if ($sourceId) {
+                $prospectData['source'] = $sourceId;
+            }
+
+            $prospectId = DB::connection('temp')->table('prospects')->insertGetId($prospectData);
+            $isNewProspect = true;
+            Log::info("✅ Nouveau prospect créé: {$from} (ID: {$prospectId})");
+        }
+
+        // ========== STOCKER LE NOUVEAU MESSAGE ==========
+        $messageData = [
+            'projet_id' => $foundConfig->projet_id,
+            'from_number' => $from,
+            'to_number' => $to,
+            'message' => $body,
+            'message_sid' => $messageSid,
+            'profile_name' => $profileName,
+            'status' => 'received',
+            'created_at' => now(),
+            'updated_at' => now()
+        ];
+
+        $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId($messageData);
+        $messageData['id'] = $messageId;
+        $messageData['created_at'] = $messageData['created_at']->toISOString();
+
+        Config::set('broadcasting.default', 'pusher_whatsapp');
+        try {
+            broadcast(new NewWhatsAppMessageEvent($messageData, $foundConfig->projet_id, $from))->toOthers();
+            Log::info("✅ Broadcast Pusher envoyé pour le message: {$messageSid}");
+        } catch (\Exception $e) {
+            Log::warning("⚠️ Erreur broadcast Pusher: " . $e->getMessage());
+        }
+
+        $web = new WebhookEvent();
+        $web->setConnection('temp');
+        $web->platform = 'whatsapp';
+        $web->type = 'whatsapp_message';
+        $web->data = $request->all();
+        $web->save();
+
+        broadcast(new NotificationEvent(0));
+
+        $this->createWhatsAppNotification($prospectId, $from, $profileName, $body, $foundConfig->projet_id, $isNewProspect);
+
+        Log::info("✅ Message WhatsApp traité avec succès: {$messageSid}");
+
+        return response()->json(['status' => 'success']);
+
+    } catch (\Exception $e) {
+        Log::error('❌ Erreur webhook WhatsApp: ' . $e->getMessage(), [
+            'trace' => $e->getTraceAsString()
+        ]);
+        return response()->json(['status' => 'error'], 200);
+    }
+}
+/**
+ * Créer une notification pour les commerciaux
+ */
+private function createWhatsAppNotification($prospectId, $phoneNumber, $profileName, $message, $projetId, $isNewProspect = false)
+{
+    try {
+        if ($isNewProspect) {
+            $description = "📱 *NOUVEAU CONTACT WHATSAPP*\n\n";
+            $description .= "📞 Numéro: {$phoneNumber}\n";
+            $description .= "👤 Nom: {$profileName}\n";
+            $description .= "💬 Message: " . (strlen($message) > 100 ? substr($message, 0, 100) . '...' : $message);
+            $type = 51;
+        } else {
+            $description = "💬 *NOUVEAU MESSAGE WHATSAPP*\n\n";
+            $description .= "📞 De: {$phoneNumber}\n";
+            $description .= "👤 Client: {$profileName}\n";
+            $description .= "💬 Message: " . (strlen($message) > 100 ? substr($message, 0, 100) . '...' : $message);
+            $type = 50;
+        }
+
+        $link = "/whatsapp-messenger?phone={$phoneNumber}&projet_id={$projetId}&prospect_id={$prospectId}";
+        $notification = new Notification();
+        $notification->setConnection('temp');
+        $notification->date = now();
+        $notification->type = $type;
+        $notification->description_type = $description;
+        $notification->lien = $link;
+        $notification->role = 2; // ADMIN_COMMERCIAL
+        $notification->projet_id = $projetId;
+        $notification->prospect_id = $prospectId;
+        $notification->save();
+
+        Config::set('broadcasting.default', 'pusher_notify');
+        broadcast(new NotificationEvent($notification->id));
+
+        Log::info("✅ Notification WhatsApp créée pour prospect {$prospectId}");
+
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur création notification: " . $e->getMessage());
+    }
+}
+
+    /**
+     * Créer une notification pour les commerciaux
+     */
+
+    /**
+     * Récupérer les conversations WhatsApp
+     */
+    /**
+ * Récupérer les conversations WhatsApp
+ */
+public function getConversations(Request $request, $projetId)
+{
+    DatabaseHelper::Config();
+
+    // Récupérer tous les messages groupés par expéditeur
+    $conversations = DB::connection('temp')
+        ->table('whatsapp_messages')
+        ->where('projet_id', $projetId)
+        ->select(
+            'from_number as phone_number',
+            'profile_name',
+            DB::raw('MAX(created_at) as last_message_date'),
+            DB::raw('COUNT(*) as message_count'),
+            DB::raw('SUM(CASE WHEN status = "received" AND read_at IS NULL THEN 1 ELSE 0 END) as unread_count')
+        )
+        ->groupBy('from_number', 'profile_name')
+        ->orderBy('last_message_date', 'desc')
+        ->get()
+        ->map(function ($conv) use ($projetId) {
+            // Récupérer le dernier message
+            $lastMessage = DB::connection('temp')
+                ->table('whatsapp_messages')
+                ->where('projet_id', $projetId)
+                ->where('from_number', $conv->phone_number)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            // Récupérer le prospect associé
+            $prospect = DB::connection('temp')
+                ->table('prospects')
+                ->where('telephone', $conv->phone_number)
+                ->orWhere('telephone_num2', $conv->phone_number)
+                ->first();
+
+            return [
+                'phone_number' => $conv->phone_number,
+                'profile_name' => $conv->profile_name,
+                'prospect_id' => $prospect->id ?? null,
+                'prospect_nom' => $prospect->nom ?? $conv->profile_name,
+                'last_message' => $lastMessage->message ?? null,
+                'last_message_date' => $conv->last_message_date,
+                'message_count' => $conv->message_count,
+                'unread_count' => (int) $conv->unread_count,  // ← Ajout du compteur non lu
+                'last_message_from_me' => $lastMessage && $lastMessage->from_number == $conv->phone_number
+            ];
+        });
+
+    return response()->json(['conversations' => $conversations]);
+}
+
+    /**
+     * Récupérer une conversation spécifique
+     */
+    public function getConversation(Request $request, $projetId, $phoneNumber)
+    {
+        DatabaseHelper::Config();
+
+        $messages = DB::connection('temp')
+            ->table('whatsapp_messages')
+            ->where('projet_id', $projetId)
+            ->where(function($query) use ($phoneNumber) {
+                $query->where('from_number', $phoneNumber)
+                      ->orWhere('to_number', $phoneNumber);
+            })
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $prospect = DB::connection('temp')
+            ->table('prospects')
+            ->where('telephone', $phoneNumber)
+            ->orWhere('telephone_num2', $phoneNumber)
+            ->first();
+
+        return response()->json([
+            'conversation' => [
+                'phone_number' => $phoneNumber,
+                'profile_name' => $messages->first()->profile_name ?? 'Client',
+                'prospect_id' => $prospect->id ?? null,
+                'prospect_nom' => $prospect->nom ?? null,
+                'messages' => $messages
+            ]
+        ]);
+    }
+
+    /**
+     * Envoyer une réponse WhatsApp
+     */
+public function sendReply(Request $request, $projetId, $phoneNumber)
+{
+    DatabaseHelper::Config();
+
+    $request->validate([
+        'message' => 'nullable|string|max:1600',
+        'media_url' => 'nullable|url',
+        'media_type' => 'nullable|string|in:image,audio'
+    ]);
+
+    $messageText = $request->input('message', '');
+    $mediaUrl = $request->input('media_url');
+    $mediaType = $request->input('media_type', 'image');
+
+    if (empty($messageText) && empty($mediaUrl)) {
+        return response()->json(['error' => 'Un message ou un média est requis'], 400);
+    }
+
+    $config = DB::connection('temp')
+        ->table('whatsapp_configurations')
+        ->where('projet_id', $projetId)
+        ->whereNull('deleted_at')
+        ->first();
+
+    if (!$config) {
+        return response()->json(['error' => 'Configuration WhatsApp non trouvée'], 404);
+    }
+
+    $twilio = new ClientTwilio($config->account_sid, $config->access_token);
+
+    try {
+        // 🔥 CORRECTION: Construire le message correctement
+        if (!empty($mediaUrl)) {
+            // Envoi avec média (image ou audio)
+            $sentMessage = $twilio->messages->create(
+                "whatsapp:" . $phoneNumber,
+                [
+                    'from' => "whatsapp:" . $config->phone_number_id,
+                    'mediaUrl' => [$mediaUrl],
+                    'body' => $messageText ?: null
+                ]
+            );
+        } else {
+            // Envoi texte seulement
+            $sentMessage = $twilio->messages->create(
+                "whatsapp:" . $phoneNumber,
+                [
+                    'from' => "whatsapp:" . $config->phone_number_id,
+                    'body' => $messageText
+                ]
+            );
+        }
+
+        $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId([
+            'projet_id' => $projetId,
+            'from_number' => $config->phone_number_id,
+            'to_number' => $phoneNumber,
+            'message' => $messageText ?: ($mediaType === 'audio' ? '🎤 Message vocal' : '📷 Image'),
+            'message_sid' => $sentMessage->sid,
+            'profile_name' => auth()->user()->name ?? 'Commercial',
+            'status' => 'sent',
+            'media_url' => $mediaUrl,
+            'media_type' => $mediaType,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        Log::info("Message envoyé à {$phoneNumber}, SID: " . $sentMessage->sid);
+
+        return response()->json([
+            'success' => true,
+            'sid' => $sentMessage->sid,
+            'message_id' => $messageId
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error("Erreur envoi message: " . $e->getMessage());
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
 }
 
 
-    private function getAllWhatsAppWebhookTokens()
-    {
-        $tokens = [];
 
-        try {
-            // IDENTICAL base reset as Facebook controller
-            config(['database.connections.temp' => config('database.connections.mysql')]);
-            DB::purge('temp');
-            DB::reconnect('temp');
-
-            $societes = Societe::all();
-            Log::info("Checking " . $societes->count() . " sociétés for WhatsApp tokens");
-
-            foreach ($societes as $societe) {
-                try {
-                    // IDENTICAL switching logic
-                    $this->configureDatabaseForSociete($societe);
-
-                    if (Schema::connection('temp')->hasTable('whatsapp_configurations')) {
-                        $waTokens = DB::connection('temp')
-                            ->table('whatsapp_configurations')
-                            ->whereNotNull('webhook_verify_token')
-                            ->whereNull('deleted_at')
-                            ->pluck('webhook_verify_token')
-                            ->toArray();
-
-                        $tokens = array_merge($tokens, $waTokens);
-                    }
-                } catch (\Exception $e) {
-                    Log::warning("Error checking société {$societe->id} for WhatsApp tokens: " . $e->getMessage());
-                    continue;
-                }
-            }
-
-            $tokens = array_unique(array_filter($tokens));
-            Log::info("Total unique WhatsApp tokens found: " . count($tokens));
-            return $tokens;
-
-        } catch (\Exception $e) {
-            Log::error('Error getting WhatsApp webhook tokens: ' . $e->getMessage());
-            return [];
-        }
-    }
-
-    private function findSocieteByPhoneNumberId($phoneNumberId)
-    {
-        try {
-            // Reset temp connection to base mysql before scanning tenants (mirrors token search)
-            config(['database.connections.temp' => config('database.connections.mysql')]);
-            DB::purge('temp');
-            DB::reconnect('temp');
-
-            $societes = Societe::all();
-
-            foreach ($societes as $societe) {
-                try {
-                    // Switch to this société's tenant DB using the same logic as token search
-                    $this->configureDatabaseForSociete($societe);
-
-                    if (Schema::connection('temp')->hasTable('whatsapp_configurations')) {
-                        $config = DB::connection('temp')
-                            ->table('whatsapp_configurations')
-                            ->where('phone_number_id', $phoneNumberId)
-                            ->whereNull('deleted_at')
-                            ->first();
-
-                        if ($config) {
-                            return $societe->id;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::warning("Error checking société {$societe->id} for phone number: " . $e->getMessage());
-                    continue;
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Error finding société by phone number ID: ' . $e->getMessage());
-        }
-
-        return null;
-    }
-
-    private function isWhatsAppWebhookEnabledForPhone($phoneNumberId)
-    {
-        try {
-            $config = DB::connection('temp')
-                ->table('whatsapp_configurations')
-                ->where('phone_number_id', $phoneNumberId)
-                ->whereNull('deleted_at')
-                ->first();
-
-            return $config && $config->webhook_enabled;
-        } catch (\Exception $e) {
-            Log::error('Error checking WhatsApp webhook status: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    private function processWhatsAppWebhookChange($change, $societeId)
-    {
-        $value = $change['value'] ?? [];
-
-        // Store webhook event
-        try {
-            $web = new WebhookEvent();
-            $web->setConnection('temp');
-            $web->platform = 'whatsapp';
-            $web->type = 'whatsapp_message';
-            $web->data = $change;
-            $web->save();
-
-            broadcast(new NotificationEvent(0));
-
-            Log::info("WhatsApp webhook event saved successfully for société {$societeId}");
-
-        } catch (\Exception $e) {
-            Log::error("Error saving WhatsApp webhook event for société {$societeId}: " . $e->getMessage());
-        }
-
-        // Process incoming messages
-        if (isset($value['messages'])) {
-            $phoneNumberId = $value['metadata']['phone_number_id'] ?? null;
-            foreach ($value['messages'] as $message) {
-                $contact = $value['contacts'][0] ?? [];
-                $this->processIncomingWhatsAppMessage($message, $contact, $societeId, $phoneNumberId);
-            }
-        }
-    }
-
-    private function getProjetIdForPhoneNumber($phoneNumberId)
-    {
-        if (!$phoneNumberId) return null;
-        try {
-            $config = DB::connection('temp')
-                ->table('whatsapp_configurations')
-                ->where('phone_number_id', $phoneNumberId)
-                ->whereNull('deleted_at')
-                ->first();
-
-            if (!$config) {
-                return null;
-            }
-
-            // If multiple WhatsApp configs share the same projet_id, disable auto-linking
-            $sameProjetCount = DB::connection('temp')
-                ->table('whatsapp_configurations')
-                ->where('projet_id', $config->projet_id)
-                ->whereNull('deleted_at')
-                ->count();
-
-            if ($config->projet_id && $sameProjetCount > 1) {
-                // Ambiguous projet mapping -> user should choose on prospect page
-                return null;
-            }
-
-            return $config->projet_id;
-        } catch (\Exception $e) {
-            Log::error('Error retrieving projet_id for WhatsApp phone number: ' . $e->getMessage());
-            return null;
-        }
-    }
-
-    private function processIncomingWhatsAppMessage($message, $contact, $societeId, $phoneNumberId = null)
-    {
-        $from = $message['from'];
-        $text = $message['text']['body'] ?? '';
-        $name = $contact['profile']['name'] ?? 'Unknown';
-        $messageId = $message['id'];
-
-        Log::info("Processing WhatsApp message from: $from ($name) - Message: $text");
-
-        // Resolve projet_id based on WhatsApp configuration for the phone number id
-        $projetId = $this->getProjetIdForPhoneNumber($phoneNumberId);
-
-        // Auto-register prospect with linked project
-        $this->registerProspectFromWhatsApp($from, $text, $name, $societeId, $projetId);
-    }
-
-    private function registerProspectFromWhatsApp($phone, $message, $name, $societeId, $projetId = null)
-    {
-        try {
-            // Check if prospect already exists
-            $existingProspect = \App\Models\Prospect::on('temp')
-                ->where('telephone', $phone)
-                ->first();
-
-            if (!$existingProspect) {
-                \App\Http\Controllers\Api\V1\ProspectController::Store_WhatsApp(
-                    $phoneNumberId,
-                    $phone,
-                    $message,
-                    $name,
-                    $societeId,
-                    $projetId
-                );
-                Log::info("New prospect registered from WhatsApp: $phone");
-            } else {
-                Log::info("Existing prospect sent WhatsApp message: $phone");
-            }
-        } catch (\Exception $e) {
-            Log::error("Error registering WhatsApp prospect: " . $e->getMessage());
-        }
-    }
 
     // Configuration management (following Facebook pattern)
     public function get_whatsapp_configurations()
@@ -282,7 +615,7 @@ class WhatsAppBusinessController extends Controller
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-    }*/
+    }
         //Here
     public function store_whatsapp_configuration(Request $request)
     {
@@ -344,7 +677,7 @@ class WhatsAppBusinessController extends Controller
         }
     }
 
-    /*public function get_whatsapp_webhooks()
+    public function get_whatsapp_webhooks()
     {
         if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin()) {
             DatabaseHelper::Config();
@@ -422,7 +755,7 @@ class WhatsAppBusinessController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
-      /*   //here
+        //here
     public function delete_whatsapp_webhook($configId)
     {
         if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin()) {
@@ -493,7 +826,7 @@ class WhatsAppBusinessController extends Controller
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-    }*/
+    }
         //here
     public function update_whatsapp_configuration(Request $request, $configId)
     {
@@ -568,52 +901,40 @@ class WhatsAppBusinessController extends Controller
         }
     }
 
+    public function uploadMedia(Request $request)
+{
+    try {
+        DatabaseHelper::Config();
 
-     /*Configure the temp DB connection for a given société (mirrors Facebook controller)
+        $request->validate([
+            'file' => 'required|file|max:10240', // 10MB max
+            'type' => 'required|in:image,audio'
+        ]);
 
-    private function configureDatabaseForSociete($societe)
-    {
-        try {
-            $raison_sociale_concatene = $societe->raison_sociale_concatene ??
-                str_replace(' ', '', $societe->raison_sociale ?? ('Societe' . $societe->id));
-            $databaseName = 'Erp_' . $raison_sociale_concatene . '_' . $societe->id;
+        $file = $request->file('file');
+        $type = $request->input('type');
 
-            $baseConfig = config('database.connections.mysql');
-            $baseConfig['database'] = $databaseName;
+        $folder = $type === 'image' ? 'whatsapp_images' : 'whatsapp_audios';
+        $path = $file->store($folder, 'public');
+        $url = asset('storage/' . $path);
 
-            config(['database.connections.temp' => $baseConfig]);
-            DB::purge('temp');
-            DB::reconnect('temp');
+        return response()->json([
+            'success' => true,
+            'url' => $url,
+            'type' => $type,
+            'mime_type' => $file->getMimeType(),
+            'size' => $file->getSize()
+        ]);
 
-            $actualDbName = DB::connection('temp')->getDatabaseName();
-            if ($actualDbName !== $databaseName) {
-                Log::warning("Database name mismatch! Expected: {$databaseName}, Actual: {$actualDbName}");
-            }
-        } catch (\Exception $e) {
-            Log::error("Error configuring database for société {$societe->id}: " . $e->getMessage());
-            throw $e;
-        }
+    } catch (\Exception $e) {
+        Log::error('Upload error: ' . $e->getMessage());
+        return response()->json(['error' => $e->getMessage()], 500);
     }
-
-
-    // Send WhatsApp message using Business API
-    public function sendWhatsAppMessage($to, $message, $accessToken, $phoneNumberId)
-    {
-        try {
-            $response = Http::withToken($accessToken)
-                ->timeout(60)
-                ->post("https://graph.facebook.com/v18.0/{$phoneNumberId}/messages", [
-                    'messaging_product' => 'whatsapp',
-                    'to' => $to,
-                    'text' => ['body' => $message]
-                ]);
-
-            Log::info("WhatsApp Business message sent to $to: " . $response->body());
-            return $response->json();
-        } catch (\Exception $e) {
-            Log::error("Error sending WhatsApp Business message: " . $e->getMessage());
-            return ['error' => $e->getMessage()];
-        }
-    }*/
 }
+
+}
+
+
+
+
 

@@ -144,6 +144,15 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/whatsapp-configurations/{id}/webhook', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'delete_whatsapp_webhook']);
         Route::put('/whatsapp-configurations/{id}/webhook/toggle', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'toggle_whatsapp_webhook']);
 
+
+        Route::get('/whatsapp/conversations/{projetId}', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'getConversations']);
+        Route::get('/whatsapp/conversation/{projetId}/{phoneNumber}', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'getConversation']);
+        Route::post('whatsapp/reply/{projetId}/{phoneNumber}', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'sendReply']);
+        Route::post('/whatsapp/mark-read/{projetId}/{phoneNumber}', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'markMessagesAsRead']);
+        Route::post('/upload/whatsapp-media', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'uploadMedia']);
+        // routes/api.php
+        Route::post('/whatsapp/status-callback', [\App\Http\Controllers\WhatsApp\WhatsAppBusinessController::class, 'statusCallback']);
+
         // Webhook configuration routes
         Route::get('/webhook_configuration', [Facebook_InstagramController::class, 'webhook_configuration']);
         Route::post('/store_webhook_configuration', [Facebook_InstagramController::class, 'store_webhook_configuration']);
@@ -576,7 +585,16 @@ Route::middleware('auth:api')->group(function () {
     Route::get('notifications_menu_horizontal_vente_admin/{projet_id}', [NotificationController::class, 'get_notif_menu_horizontal_vente_admin'])->name('');
     Route::get('notifications_menu_horizontal_vente_commercial/{projet_id}', [NotificationController::class, 'get_notif_menu_horizontal_vente_comm'])->name('');
 
-    /********************************DesistemenController*********** */
+      /********************************DesistemenController*********** */
+    /******************************PDFSS******************* */
+    Route::post('/generate_recu_vente_pdf', [PDFController::class, 'generateRecuVentePDF']);
+    Route::post('/generate-compromis-pdf', [PDFController::class, 'generateCompromisPDF']);
+    Route::post('/generate-prospect-pdf', [PDFController::class, 'generateProspectPDF']);
+    Route::post('/generate-client-pdf', [PDFController::class, 'generateClientPDF']);
+    Route::post('/generate_bon_pre_reservation_pdf ', [PDFController::class, 'generateBonPreReservationPDF']);
+    Route::post('/generate_penalite_pdf ', [PDFController::class, 'generatePenalitePDF']);
+    Route::post('/generate_rdv_pdf ', [PDFController::class, 'generateRdvPDF']);
+    Route::post('/generate_contrat_vente_pdf ', [PDFController::class, 'generateContratVentePDF']);
 
     /***********************************Livraison*******************/
     /*******rdv notaire*** */
@@ -593,7 +611,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('creneaux-occupes', [LivraisonController::class, 'getCreneauxOccupes']);
     Route::post('/update-reservation-creneau/{reservation_id}', [LivraisonController::class, 'updateReservationCreneau']);
     /************compromis vente******/
-    Route::post('/generate-compromis-pdf', [PDFController::class, 'generateCompromisPDF']);
     Route::post('store_compromis_vente/{rdv_id}', [LivraisonController::class, 'store_compromis_vente'])->name('');
     Route::get('show_compromis/{id}', [LivraisonController::class, 'show_compromis'])->name('');
     Route::put('update_compromis/{comp_id}', [LivraisonController::class, 'update_compromis'])->name('');

@@ -118,7 +118,17 @@ return [
             'scheme' => 'https',
             ],
         ],
-
+             'pusher_whatsapp' => [
+        'driver' => 'pusher',
+        'key' => env('PUSHER_APP_KEY_whtsp', 'c3e1f5ef9cde8f7376d2'),
+        'secret' => env('PUSHER_APP_SECRET_whtsp', 'aae1889e06b26be769f8'),
+        'app_id' => env('PUSHER_APP_ID_whtsp', '2070020'),
+        'options' => [
+            'cluster' => env('PUSHER_APP_CLUSTER_whtsp', 'eu'),
+            'encrypted' => true,
+            'useTLS' => true,
+        ],
+        ],
          'pusher_document' => [
             'driver' => 'pusher',
             'key' => env('PUSHER_APP_KEY_DOCUMENT'),
