@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Schema;
 class DatabaseHelper
 {
 
- 
+
     // ✅ Déclaration des propriétés statiques (obligatoire)
     public static $TEMPLATE_ECHEANCE_PAIEMENT;
     public static $TEMPLATE_RAPPEL_RDV_PROSPECT;
@@ -48,7 +48,7 @@ class DatabaseHelper
     {
         self::$TEMPLATE_ECHEANCE_PAIEMENT = env('TEMPLATE_ECHEANCE_PAIEMENT', null);
         self::$TEMPLATE_RAPPEL_RDV_PROSPECT = env('TEMPLATE_RAPPEL_RDV_PROSPECT', null);
-        
+
         if (empty(self::$TEMPLATE_ECHEANCE_PAIEMENT)) {
             Log::warning("TEMPLATE_ECHEANCE_PAIEMENT non configuré dans .env");
         }
@@ -447,7 +447,7 @@ public static function sendWhatsAppTemplate($phone, $templateSid, $variables = [
         return false;
     }
     try {
-        
+
          // Log des variables avant envoi
         Log::info("Preparing WhatsApp template", [
             'template_sid' => $templateSid,
@@ -757,7 +757,7 @@ private static function envoyerEmail_whtsap_ProspectVisite($data, $databaseName)
                 if (isset($data['visites'][0]->rdv_relation->rdv)) {
                     $rdvDate = $data['visites'][0]->rdv_relation->rdv;
                 }
-                
+
                 Mail::to($prospect->email)->send(new ScheduledEmail(
                     2, $prospect, $projet, $bien, null, null, 'visite', $telephone, $rdvDate
                 ));
@@ -785,7 +785,7 @@ private static function envoyerEmailUserVisite($user, $relanceUserIds, $rdvUserI
         $prospectName = $visite->prospect->nom.' '.$visite->prospect->prenom ?? null;
         $prospectPhone =  $visite->prospect->telephone ?? null;
         $prospectPhone2 =  $visite->prospect->telephone_num2 ?? null;
-        
+
          // Construction du téléphone du prospect pour le commercial
         $prospectPhone = null;
         if ($visite->prospect->telephone) {
@@ -809,7 +809,7 @@ private static function envoyerEmailUserVisite($user, $relanceUserIds, $rdvUserI
                 if ($visite->rdv_relation && $visite->rdv_relation->rdv) {
                     $rdvDate = $visite->rdv_relation->rdv;
                 }
-                
+
                 Mail::to($user->email)->send(new ScheduledEmail(
                     2, $user, $projet, $bien, $prospectName, null, 'visite', $prospectPhone, $rdvDate
                 ));
@@ -830,7 +830,7 @@ private static function envoyerEmail_whasap_ProspectAppel($data, $databaseName)
 
     try {
         $projet = $data['traitements'][0]->appel->projet->nom ?? null;
-        
+
         // Récupérer la date RDV depuis la relation rdv() du TraitementAppel
         $rdvDate = null;
         if (isset($data['traitements'][0])) {
@@ -843,7 +843,7 @@ private static function envoyerEmail_whasap_ProspectAppel($data, $databaseName)
                 Log::warning("No rdv relation found for traitement_id: {$traitement->id}");
             }
         }
-        
+
         $telephone = null;
         if ($prospect->telephone) {
             $telephone = $prospect->telephone;
@@ -862,7 +862,7 @@ private static function envoyerEmail_whasap_ProspectAppel($data, $databaseName)
             if (isset($data['traitements'][0]) && $data['traitements'][0]->rdv) {
                 $rdvDate = $data['traitements'][0]->rdv->rdv;
             }
-            
+
             Mail::to($prospect->email)->send(new ScheduledEmail(
                 2, $prospect, $projet, null, null, null, 'appel', $telephone, $rdvDate
             ));
@@ -899,7 +899,7 @@ private static function sendWhatsAppToProspect($prospect, $data, $projet, $datab
         // Utiliser la date passée en paramètre si disponible
         if ($rdvDateString) {
             $rdvDate = $rdvDateString;
-        } 
+        }
         // Pour les visites
         elseif (isset($data['visites'][0]->rdv_relation->rdv)) {
             $rdvDate = $data['visites'][0]->rdv_relation->rdv;
@@ -1010,7 +1010,7 @@ private static function envoyerEmail_whatsap_UserAppel($user, $traitements, $rel
                 if ($traitement->rdv && $traitement->rdv->rdv) {
                     $rdvDate = $traitement->rdv->rdv;
                 }
-                
+
                 Mail::to($user->email)->send(new ScheduledEmail(
                     2, $user, $projet, null, $prospectName, null, 'appel', $prospectPhone, $rdvDate
                 ));
@@ -1112,7 +1112,7 @@ public static function envoyer_email_whatsapp_echeance($databases)
                     // Récupérer les téléphones (priorité client, puis prospect)
                     $telephone1 = self::getClientTelephone1($client);
                     $telephone2 = self::getClientTelephone2($client);
-                    
+
                     if ($telephone1 || $telephone2) {
                         $projet = $avance->reservation->projet->nom ?? '';
                         $bien = $avance->reservation->bien->propriete_dite_bien ?? '';
@@ -1135,7 +1135,7 @@ public static function envoyer_email_whatsapp_echeance($databases)
 
                                     // Envoyer au numéro principal
                                     if ($telephone1 && !empty($telephone1)) {
-                                
+
                                         try {
                                             DatabaseHelper::sendWhatsAppTemplate(
                                                 $telephone1,
@@ -1147,11 +1147,11 @@ public static function envoyer_email_whatsapp_echeance($databases)
                                         } catch (\Exception $e) {
                                             Log::error("Échec de l'envoi WhatsApp à {$telephone1}: " . $e->getMessage());
                                         }
-                                    
+
                                     }
                                     // Envoyer au second numéro si différent
                                     if ($telephone2 && !empty($telephone2) && $telephone2 != $telephone1) {
-                                    
+
                                             try {
                                             DatabaseHelper::sendWhatsAppTemplate(
                                                 $telephone2,
@@ -1163,9 +1163,9 @@ public static function envoyer_email_whatsapp_echeance($databases)
                                             } catch (\Exception $e) {
                                                 Log::error("Échec de l'envoi WhatsApp à {$telephone1}: " . $e->getMessage());
                                             }
-                                        
+
                                     }
-                  
+
                             }
                     }
                     else {
@@ -1214,15 +1214,15 @@ public static function envoyer_email_whatsapp_echeance($databases)
 
                     // Récupérer l'email (priorité client, puis prospect)
                     $emailTo = self::getClientEmail($client);
-                    
+
                     if ($emailTo) {
                         try {
                             $projet = $avance->reservation->projet->nom ?? null;
                             $bien = $avance->reservation->bien->propriete_dite_bien ?? null;
-                            
+
                             Mail::to($emailTo)->send(new ScheduledEmail(4, $client, $projet, $bien, null, $avance));
                             Log::info("Email d'échéance envoyé à {$emailTo} (Client ID: {$client->id}) dans {$databaseName}");
-                            
+
                         } catch (\Exception $e) {
                             Log::error("Échec de l'envoi de l'email à {$emailTo}: " . $e->getMessage());
                         }
@@ -1245,17 +1245,17 @@ private static function getClientTelephone1($client)
     if (!$client) {
         return null;
     }
-    
+
     // Priorité au téléphone du client
     if (!empty($client->telephone_num1)) {
         return $client->telephone_num1;
     }
-    
+
     // Sinon, téléphone du prospect associé
     if ($client->prospect && !empty($client->prospect->telephone)) {
         return $client->prospect->telephone;
     }
-    
+
     return null;
 }
 
@@ -1267,17 +1267,17 @@ private static function getClientTelephone2($client)
     if (!$client) {
         return null;
     }
-    
+
     // Priorité au second téléphone du client
     if (!empty($client->telephone_num2)) {
         return $client->telephone_num2;
     }
-    
+
     // Sinon, second téléphone du prospect associé
     if ($client->prospect && !empty($client->prospect->telephone_num2)) {
         return $client->prospect->telephone_num2;
     }
-    
+
     return null;
 }
 
@@ -1289,17 +1289,17 @@ private static function getClientEmail($client)
     if (!$client) {
         return null;
     }
-    
+
     // Priorité à l'email du client
     if (!empty($client->email)) {
         return $client->email;
     }
-    
+
     // Sinon, email du prospect associé
     if ($client->prospect && !empty($client->prospect->email)) {
         return $client->prospect->email;
     }
-    
+
     return null;
 }
 
@@ -1311,16 +1311,16 @@ private static function getClientName($client)
     if (!$client) {
         return 'Client';
     }
-    
+
     // Priorité au nom du client
     if (!empty($client->nom) && !empty($client->prenom)) {
         return trim($client->nom . ' ' . $client->prenom);
     }
-    
+
     if (!empty($client->nom)) {
         return $client->nom;
     }
-    
+
     // Sinon, nom du prospect associé
     if ($client->prospect) {
         if (!empty($client->prospect->nom) && !empty($client->prospect->prenom)) {
@@ -1330,7 +1330,7 @@ private static function getClientName($client)
             return $client->prospect->nom;
         }
     }
-    
+
     return 'Client';
 }
 
@@ -1361,7 +1361,7 @@ private static function getClientName($client)
             ];
 
             // Ajouter les détails d'erreur si statut = 3
-            if($imp->statut == '3' && $imp->message_echou) {
+            if($imp->message_echou) {
                 $errorDetails = json_decode($imp->message_echou, true);
                 if($errorDetails) {
                     $emailData['message_echou'] = $errorDetails;
@@ -1445,6 +1445,7 @@ private static function getClientName($client)
 
                             if ($store == 1 && $importResult) {
                                 $imp->refresh();
+
 
                                 \Log::info("Import {$imp->id} completed: {$importResult['success']} success, {$importResult['errors']} errors");
 

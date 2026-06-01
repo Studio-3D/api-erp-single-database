@@ -413,7 +413,7 @@ private function createWhatsAppNotification($prospectId, $phoneNumber, $profileN
     /**
  * Récupérer les conversations WhatsApp
  */
-public function getConversations(Request $request, $projetId)
+ public function getConversations(Request $request, $projetId)
 {
     DatabaseHelper::Config();
 
@@ -506,15 +506,15 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
 
     $request->validate([
         'message' => 'nullable|string|max:1600',
-        'media_url' => 'nullable|url',
-        'media_type' => 'nullable|string|in:image,audio'
+       // 'media_url' => 'nullable|url',
+       // 'media_type' => 'nullable|string|in:image,audio'
     ]);
 
     $messageText = $request->input('message', '');
-    $mediaUrl = $request->input('media_url');
-    $mediaType = $request->input('media_type', 'image');
+   // $mediaUrl = $request->input('media_url');
+  //  $mediaType = $request->input('media_type', 'image');
 
-    if (empty($messageText) && empty($mediaUrl)) {
+    if (empty($messageText)) {
         return response()->json(['error' => 'Un message ou un média est requis'], 400);
     }
 
@@ -531,7 +531,7 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
     $twilio = new ClientTwilio($config->account_sid, $config->access_token);
 
     try {
-        // 🔥 CORRECTION: Construire le message correctement
+        /* 🔥 CORRECTION: Construire le message correctement
         if (!empty($mediaUrl)) {
             // Envoi avec média (image ou audio)
             $sentMessage = $twilio->messages->create(
@@ -551,8 +551,15 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
                     'body' => $messageText
                 ]
             );
-        }
-
+        }*/
+        // Envoi texte seulement
+            $sentMessage = $twilio->messages->create(
+                "whatsapp:" . $phoneNumber,
+                [
+                    'from' => "whatsapp:" . $config->phone_number_id,
+                    'body' => $messageText
+                ]
+            );
         $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId([
             'projet_id' => $projetId,
             'from_number' => $config->phone_number_id,
@@ -561,8 +568,8 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
             'message_sid' => $sentMessage->sid,
             'profile_name' => auth()->user()->name ?? 'Commercial',
             'status' => 'sent',
-            'media_url' => $mediaUrl,
-            'media_type' => $mediaType,
+          //  'media_url' => $mediaUrl,
+           // 'media_type' => $mediaType,
             'created_at' => now(),
             'updated_at' => now()
         ]);

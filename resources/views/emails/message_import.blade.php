@@ -203,10 +203,18 @@
                 <p>Toutes les données ont été importées correctement.</p>
             </div>
 
-            <div class="stats">
+           <div class="stats">
                 <div class="stat-item">
-                    <span class="stat-number stat-success">{{ $total_lignes ?? 0 }}</span>
-                    <span>Lignes importées</span>
+                    <span class="stat-number stat-success">{{ $message_echou['lignes_reussies'] ?? 0 }}</span>
+                    <span>Lignes réussies</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number stat-warning">{{ $message_echou['lignes_echouees'] ?? 0 }}</span>
+                    <span>Lignes en erreur</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">{{ $message_echou['total_lignes'] ?? 0 }}</span>
+                    <span>Total lignes</span>
                 </div>
             </div>
 
