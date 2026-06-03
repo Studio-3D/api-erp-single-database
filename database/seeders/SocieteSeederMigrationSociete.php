@@ -12,8 +12,8 @@ class SocieteSeederMigrationSociete extends Seeder
     {
         // Récupérer les données depuis .env ou utiliser des valeurs par défaut
         $societeData = [
-            'raison_sociale' => env('SOCIETE_RAISON_SOCIALE', 'ste_sup_admin'),
-            'raison_sociale_concatene' => env('SOCIETE_CODE', 'ste_sup_admin'),
+            'raison_sociale' => env('SOCIETE_RAISON_SOCIALE', 'societe'),
+            'raison_sociale_concatene' => env('SOCIETE_RAISON_SOCIALE_CONCAT', 'societe'),
             'adresse' => env('SOCIETE_ADRESSE', 'Adresse par défaut'),
             'capital' => env('SOCIETE_CAPITAL', 1000000.00),
             'id_fiscal' => env('SOCIETE_ID_FISCAL', 12345678.00),

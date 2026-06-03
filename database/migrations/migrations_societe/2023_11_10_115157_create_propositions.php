@@ -14,8 +14,7 @@ return new class extends Migration
         Schema::create('propositions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('bien_id')->constrained('biens')->onDelete('cascade');
-            $table->bigInteger('user_id')->unsigned();
-            $table->foreign('user_id')->references('user_id_origin')->on('users');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });

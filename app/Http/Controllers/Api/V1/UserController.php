@@ -252,10 +252,11 @@ class UserController extends Controller
                     }
 
                  if ($user->save()) {
-
+                        $user->user_id_origin=$user->id;
+                        $user->save();
                     $dataArray_projets = json_decode($request->input('selectedProjets', '[]'), true);
 
-                    $this->createSubUser($request, $user->id, $user->photo, $dataArray_projets == null ? [] : $dataArray_projets);
+                   // $this->createSubUser($request, $user->id, $user->photo, $dataArray_projets == null ? [] : $dataArray_projets);
 
                     //send accces par email to user
 
@@ -296,7 +297,7 @@ class UserController extends Controller
             $user = User::on('temp')
                // ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
                // ->withCount(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
-                ->where('user_id_origin', $id)
+                ->where('id', $id)
                 ->first();
             $projets=Projet::on('temp')->without('typeProjet','userProjet','societe')->get();
             $projets_de_user=userProjet::on('temp')->with('projet')->where('user_id',$user->id)->get()->pluck('projet');
@@ -315,248 +316,199 @@ class UserController extends Controller
         ], 200);
     }
 
-    public function update(UpdateUserRequest $request, $id)
-    {
-       $user = User::findOrFail($id);
-        if ($request->has('cin')) {
+
+/**
+ * Update user information
+ *
+ * @param UpdateUserRequest $request
+ * @param int $id
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function update(UpdateUserRequest $request, $id)
+{
+    try {
+        // Récupérer l'utilisateur
+        $user = User::findOrFail($id);
+
+        // ========== 1. VALIDATIONS ==========
+        // Validation du CIN
+        if ($request->has('cin') && !empty($request->cin)) {
             $request->validate([
                 'cin' => [
+                    'string',
+                    'max:255',
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],
             ], [
                 'cin.unique' => 'Ce CIN appartient déjà à un autre utilisateur.',
+                'cin.string' => 'Le CIN doit être une chaîne de caractères.',
+                'cin.max' => 'Le CIN ne doit pas dépasser 255 caractères.',
             ]);
         }
-        if ($request->has('email')) {
+
+        // Validation de l'email
+        if ($request->has('email') && !empty($request->email)) {
             $request->validate([
                 'email' => [
+                    'required',
+                    'email',
+                    'max:255',
                     Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
                 ],
             ], [
                 'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur.',
+                'email.required' => 'L\'email est requis.',
+                'email.email' => 'Veuillez saisir une adresse email valide.',
             ]);
         }
-        DB::connection()->beginTransaction();
-        try{
-            if ($request->is_profil) {
-                $user = Auth::user();
-                $societe_id = Auth::guard('api')->user()->societe_id;
-                $societe=Societe::findOrfail( $societe_id);
-                $DatabaseName='Erp_'.$societe->raison_sociale_concatene.'_'.$societe_id;
-                DatabaseHelper::Config();
-               if ($request->has('cin')) {
-                    $request->validate([
-                        'cin' => [
-                            Rule::unique('temp.' . $DatabaseName . '.users', 'cin')->ignore($user->id)->whereNull('deleted_at'),
-                        ],
-                    ], [
-                        'cin.unique' => 'Ce CIN appartient déjà à un autre utilisateur.',
-                    ]);
-                }
 
-                if ($request->has('email')) {
-                    $request->validate([
-                        'email' => [
-                            Rule::unique('temp.' . $DatabaseName . '.users', 'email')->ignore($user->id)->whereNull('deleted_at'),
-                        ],
-                    ], [
-                        'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur.',
-                    ]);
-                }
-                $user                = User::on('temp')->where('user_id_origin', Auth::guard('api')->user()->id)->first();
-                $user->name          = $request->input('name');
-                $user->prenom        = $request->input('prenom');
-                $user->gender        = $request->input('gender');
-                $user->role          = $request->input('role');
-                $user->phone         = $request->input('phone');
-                $user->cin           = $request->input('cin');
-                $user->fonction      = $request->input('fonction');
-                $user->date_embauche = $request->input('date_embauche');
-                $user->niveau_etude  = $request->input('niveau_etude');
-                $user->adresse       = $request->input('adresse');
-                $user->cnss          = $request->input('cnss');
-                $user->is_actif      = $request->input('is_actif'); // Default to 1 if not provided
-                $user->solde_conge   = $request->input('solde_conge');
-                $user_origin         = User::where('id', $user->user_id_origin)->first();
-                $societe             = Societe::findOrfail($user_origin->societe_id);
-                $photo               = '';
-                if ($request->hasFile('photo')) {
-                     // Supprimer l'ancienne photo
-                        if ($user->photo) {
-                            FichierHelper::supprimer_fichier(
-                                $societe->raison_sociale_concatene,
-                                $user->societe_id,
-                                'users',
-                                $user->photo
-                            );
-                        }
-                    // Upload nouvelle photo
-                    $filename = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
-                    FichierHelper::ajouter_fichier(
-                        $request->photo,
-                        $societe->raison_sociale_concatene,
-                        $user->societe_id,
-                        'users',
-                        $filename
-                    );
-                    $user->photo = $filename;
-                }
-
-                if ($user->save()) {
-                    //Modifier dans la BDD Mère
-                    $user_origin = User::findOrFail($id);
-                    if ($user_origin) {
-                        $user_origin->update($request->all());
-                        if ($request->hasFile('photo')) {
-                            $user_origin->photo = $photo;
-                            $user_origin->save();
-                        }
-                    }
-                // Commit transaction if everything is successful
-                DB::connection()->commit();
-                    return response()->json(['message' => 'profil modifié avec succès'], 200);
-
-                }
-            } else if (RoleHelper::AdminSup()  ) {
-
-               $user = User::findOrFail($id);
-                if ($request->has('cin')) {
-                    $request->validate([
-                        'cin' => [
-                            Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
-                        ],
-                    ], [
-                        'cin.unique' => 'Ce CIN appartient déjà à un autre utilisateur.',
-                    ]);
-                }
-                if ($request->has('email')) {
-                    $request->validate([
-                        'email' => [
-                            Rule::unique('users')->ignore($user->id)->whereNull('deleted_at'),
-                        ],
-                    ], [
-                        'email.unique' => 'Cette adresse email est déjà utilisée par un autre utilisateur.',
-                    ]);
-                }
-                $old_email           = $user->email;
-                $user->name          = $request->input('name');
-                $user->prenom        = $request->input('prenom');
-                $user->email         = $request->input('email');
-                $user->gender        = $request->input('gender');
-                $user->role          = $request->input('role');
-                $user->phone         = $request->input('phone');
-                $user->cin           = $request->input('cin');
-                $user->fonction      = $request->input('fonction');
-                $user->date_embauche = $request->input('date_embauche');
-                $user->niveau_etude  = $request->input('niveau_etude');
-                $user->adresse       = $request->input('adresse');
-                $user->cnss          = $request->input('cnss');
-                $user->is_actif      = $request->input('is_actif'); // Default to 1 if not provided
-                $user->solde_conge   = $request->input('solde_conge');
-                $photo               = '';
-                if ($request->hasFile('photo')) {
-                     // Supprimer l'ancienne photo avec FichierHelper
-                        if ($user->photo != null) {
-                            $societe = Societe::findOrFail($user->societe_id);
-                            FichierHelper::supprimer_fichier(
-                                $societe->raison_sociale_concatene,
-                                $user->societe_id,
-                                'users',
-                                $user->photo
-                            );
-                        }
-                    $photo   = time() . '.' . $request->name . '_' . $request->prenom . '.' . $request->photo->extension();
-                    $societe = Societe::findOrfail($user->societe_id);
-                    // Utiliser FichierHelper au lieu de move
-                    FichierHelper::ajouter_fichier(
-                        $request->photo,
-                        $societe->raison_sociale_concatene,
-                        $user->societe_id,
-                        'users',
-                        $photo
-                    );
-                    $user->photo = $photo;
-                }
-                if ($user->save()) {
-
-                    // Update the user in the 'temp' database connection (assuming this is what you intend to do)
-                    DatabaseHelper::Config($user->societe_id);
-                    $user_societes = User::on('temp')->where('user_id_origin', $user->id)->first();
-
-                    if ($user_societes) {
-                        $user_societes->update($request->all());
-                        if ($request->hasFile('photo')) {
-                            $user_societes->photo = $photo;
-                            $user_societes->save();
-                        }
-                    }
-                    //update user database fils
-                    $user = User::on('temp')->findOrFail($user_societes->id);
-                    $user->setConnection('temp');
-                    $user->name            = $request->name;
-                    $user->prenom          = $request->prenom;
-                    $user->email           = $request->email;
-                    $user->gender          = $request->gender;
-                    $user->role            = $request->role;
-                    $user->phone           = $request->phone;
-                    $user->cin             = $request->cin;
-                    $user->fonction        = $request->fonction;
-                    $user->date_embauche   = $request->date_embauche;
-                    $user->niveau_etude    = $request->niveau_etude;
-                    $user->adresse         = $request->adresse;
-                    $user->cnss            = $request->cnss;
-                    $user->is_actif        = $request->is_actif;
-                    $user->nb_appel_recu   = $request->nb_appel_recu;
-                    $user->nb_appel_traite = $request->nb_appel_traite;
-                    $user->solde_conge     = $request->solde_conge;
-                    $user->save();
-
-                    if (RoleHelper::AdminSup()  ) {
-                        //modifier user projet
-                        $user_projets = UserProjet::on('temp')->where('user_id', $user_societes->id)->delete();
-
-                            if (! empty($request->selectedProjets)) {
-                                $projets_array = explode(',', $request->selectedProjets); // $projets_array sera ['5', '2']
-                                foreach ($projets_array as $id_projet) {
-                                    UserProjetHelper::createUserProjet($id_projet, $user_societes->id);
-                                }
-                            }
-                       /* } else {
-                            //par projet global
-                            //[{'projet_values'],{'prjet_2_value}]
-                            $dataArray_projets = json_decode($request->input('selectedProjets', '[]'), true);
-                            foreach ($dataArray_projets as $valeur) {
-                                UserProjetHelper::createUserProjet($valeur['id'], $user_societes->id);
-                            }
-                        }*/
-                    }
-
-                    if ($old_email != $request->email) {
-                        $to_email = $user->email;
-                        $data     = ['password' => 'Votre Ancien Password', 'sexe' => $request->gender, 'nom' => $request->name, 'prenom' => $request->prenom, 'email' => $request->email];
-                        Mail::send('User.mail', $data, function ($message) use ($to_email) {
-                            $message->to($to_email)
-                                ->subject('Codes Accés au Immo Gestion');
-                            $message->from(env('MAIL_USERNAME'), 'Immo Gestion');
-
-                        });
-                    }
-                }
-                // Commit transaction if everything is successful
-                DB::connection()->commit();
-                return response()->json(['message' => 'Utilisateur modifié avec succès par super admin'], 200);
-
-            } else {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
-        } catch (\Exception $e) {
-            // Rollback transaction on error
-            DB::connection()->rollBack();
-
-            \Log::error("Visite creation failed: " . $e->getMessage());
-            return response()->json(['error' => 'Visite creation failed: ' . $e->getMessage()], 500);
+        // ========== 2. MISE À JOUR DES CHAMPS ==========
+        // Mise à jour des informations de base
+        if ($request->has('name')) {
+            $user->name = $request->input('name');
         }
+
+        if ($request->has('prenom')) {
+            $user->prenom = $request->input('prenom');
+        }
+
+        if ($request->has('email')) {
+            $user->email = $request->input('email');
+        }
+
+        if ($request->has('gender')) {
+            $user->gender = $request->input('gender');
+        }
+
+        if ($request->has('role')) {
+            $user->role = $request->input('role');
+        }
+
+        if ($request->has('phone')) {
+            $user->phone = $request->input('phone');
+        }
+
+        if ($request->has('cin')) {
+            $user->cin = $request->input('cin');
+        }
+
+        if ($request->has('fonction')) {
+            $user->fonction = $request->input('fonction');
+        }
+
+        if ($request->has('date_embauche')) {
+            $user->date_embauche = $request->input('date_embauche');
+        }
+
+        if ($request->has('niveau_etude')) {
+            $user->niveau_etude = $request->input('niveau_etude');
+        }
+
+        if ($request->has('adresse')) {
+            $user->adresse = $request->input('adresse');
+        }
+
+        if ($request->has('cnss')) {
+            $user->cnss = $request->input('cnss');
+        }
+
+        if ($request->has('is_actif')) {
+            $user->is_actif = $request->input('is_actif');
+        }
+
+        if ($request->has('solde_conge')) {
+            $user->solde_conge = $request->input('solde_conge');
+        }
+
+        if ($request->has('nb_appel_recu')) {
+            $user->nb_appel_recu = $request->input('nb_appel_recu');
+        }
+
+        if ($request->has('nb_appel_traite')) {
+            $user->nb_appel_traite = $request->input('nb_appel_traite');
+        }
+
+        // ========== 3. GESTION DE LA PHOTO ==========
+        if ($request->hasFile('photo') && $request->file('photo')->isValid()) {
+            // Récupérer la société de l'utilisateur
+            $societe = Societe::findOrFail($user->societe_id);
+
+            // Supprimer l'ancienne photo si elle existe
+            if ($user->photo && !empty($user->photo)) {
+                try {
+                    FichierHelper::supprimer_fichier(
+                        $societe->raison_sociale_concatene,
+                        $user->societe_id,
+                        'users',
+                        $user->photo
+                    );
+                    \Log::info("Ancienne photo supprimée: " . $user->photo);
+                } catch (\Exception $e) {
+                    \Log::warning("Erreur suppression ancienne photo: " . $e->getMessage());
+                }
+            }
+
+            // Générer un nom de fichier sécurisé
+            $nameForFile = $request->has('name') ? $request->name : $user->name;
+            $prenomForFile = $request->has('prenom') ? $request->prenom : $user->prenom;
+
+            // Nettoyer les caractères spéciaux
+            $safeName = preg_replace('/[^a-zA-Z0-9]/', '_', $nameForFile);
+            $safePrenom = preg_replace('/[^a-zA-Z0-9]/', '_', $prenomForFile);
+
+            // Créer le nom du fichier
+            $extension = $request->photo->getClientOriginalExtension();
+            $filename = time() . '_' . $safeName . '_' . $safePrenom . '.' . $extension;
+
+            // Upload de la nouvelle photo
+            FichierHelper::ajouter_fichier(
+                $request->photo,
+                $societe->raison_sociale_concatene,
+                $user->societe_id,
+                'users',
+                $filename
+            );
+
+            $user->photo = $filename;
+            \Log::info("Nouvelle photo uploadée: " . $filename);
+        }
+
+        // ========== 4. SAUVEGARDE SIMPLE (SANS TRANSACTION) ==========
+        $user->save();
+
+        // ========== 5. RÉPONSE ==========
+        $message = ($request->has('is_profil') && $request->is_profil)
+            ? 'Profil modifié avec succès'
+            : 'Utilisateur modifié avec succès';
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'user' => $user->fresh()
+        ], 200);
+
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        \Log::error("Utilisateur {$id} non trouvé");
+        return response()->json([
+            'success' => false,
+            'message' => 'Utilisateur non trouvé'
+        ], 404);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur de validation',
+            'errors' => $e->errors()
+        ], 422);
+
+    } catch (\Exception $e) {
+        \Log::error("Update user failed: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur: ' . $e->getMessage()
+        ], 500);
     }
+}
 
    public function update_personal_info(Request $request, $id)
 {
@@ -622,9 +574,9 @@ class UserController extends Controller
         }
 
         if ($user->save()) {
-            // Update in temp database if exists
+            /*Update in temp database if exists
             DatabaseHelper::Config($user->societe_id);
-            $user_temp = User::on('temp')->where('user_id_origin', $user->id)->first();
+            $user_temp = User::on('temp')->where('id', $user->id)->first();
 
             if ($user_temp) {
                 $user_temp->name = $user->name;
@@ -637,7 +589,7 @@ class UserController extends Controller
                 }
 
                 $user_temp->save();
-            }
+            }*/
         }
 
         DB::connection()->commit();
@@ -675,7 +627,7 @@ public function update_password(Request $request, $id)
 
             // Update in temp database if exists
             DatabaseHelper::Config($user->societe_id);
-            $user_temp = User::on('temp')->where('user_id_origin', $user->id)->first();
+            $user_temp = User::on('temp')->where('id', $user->id)->first();
 
             if ($user_temp) {
                 $user_temp->password = $user->password;
@@ -711,16 +663,16 @@ public function update_password(Request $request, $id)
 
             if ($user->delete()) {
 
-                DatabaseHelper::Config($user->societe_id);
-                $user_societes = User::on('temp')->where('user_id_origin', $user->id);
+                 /*DatabaseHelper::Config($user->societe_id);
+                $user_societes = User::on('temp')->where('id', $user->id);
                 $user_societes->update(['is_actif' => 0]);
-                /* if ($user_societes->photo != null) {
+                if ($user_societes->photo != null) {
                 $image_path = public_path('img/users/' . $user_societes->photo);
                 if (file_exists($image_path)) {
                 File::delete($image_path);
                 }
-                } */
-                $user_societes->delete();
+                }
+                $user_societes->delete();*/
                 return response()->json(['message' => 'utilisateur supprimé avec succès'], 200);
             } else {
                 return response()->json(['message' => "Oups l'utilisatuer n'a pas été supprimé"], 404);
@@ -800,7 +752,7 @@ public function update_password(Request $request, $id)
             $user->is_actif = 1;
             if ($user->save()) {
                 DatabaseHelper::Config($user->societe_id);
-                $user_societes = User::on('temp')->where('user_id_origin', $user->id);
+                $user_societes = User::on('temp')->where('id', $user->id);
                 $user_societes->update(['is_actif' => 1]);
                 return response()->json(['message' => 'utilisateur activé avec succès'], 200);
 
@@ -816,7 +768,7 @@ public function update_password(Request $request, $id)
             $user->is_actif = 0;
             if ($user->save()) {
                 DatabaseHelper::Config($user->societe_id);
-                $user_societes = User::on('temp')->where('user_id_origin', $user->id);
+                $user_societes = User::on('temp')->where('id', $user->id);
                 $user_societes->update(['is_actif' => 0]);
                 return response()->json(['message' => 'utilisateur désactivé avec succès'], 200);
 

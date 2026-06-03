@@ -164,7 +164,7 @@ class SocieteController extends Controller
                 $societe->logo = $logo;
             }
             $societe->save();
-            if ($request->has('raison_sociale')) {
+            /*if ($request->has('raison_sociale')) {
                 $newRaisonSociale = $societe->raison_sociale_concatene;
                 if ($originalRaisonSociale !== $newRaisonSociale) {
                     $newDatabaseName = 'Erp_' . $newRaisonSociale . '_' . $id;
@@ -173,7 +173,7 @@ class SocieteController extends Controller
                     $databaseHelper = new DatabaseHelper();
                     $databaseHelper->renameDatabase($oldDatabaseName, $newDatabaseName);
                 }
-            }
+            }*/
 
           //  Config::set('broadcasting.default', 'pusher_1');
             // $societes = Societe::all();

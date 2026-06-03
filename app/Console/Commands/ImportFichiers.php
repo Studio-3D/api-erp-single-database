@@ -38,7 +38,7 @@ class ImportFichiers extends Command
     {
         $databases = DB::table('societes')
         ->whereNull('deleted_at')
-        ->whereNot('id', 1)   // Filtrer uniquement la société avec id = 292
+        //->whereNot('id', 1)   // Filtrer uniquement la société avec id = 292
         ->get();
 
         DatabaseHelper::import_fichiers($databases);

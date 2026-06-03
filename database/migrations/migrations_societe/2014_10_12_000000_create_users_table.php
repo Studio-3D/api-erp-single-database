@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->integer('user_id_origin')->nullable();
             $table->foreignId('societe_id')->constrained('societes')->onDelete('cascade');
-            //$table->integer('user_id_origin')->unique();//id de l'utilisateur dans la base de donnée mère
             $table->string('name');
             $table->string('prenom');
             $table->string('email');

@@ -121,7 +121,7 @@ class SocieteController extends Controller
         // Save societe first
         $societe->save();
 
-        // Check if raison_sociale changed and rename folders
+        /* Check if raison_sociale changed and rename folders
         if ($request->has('raison_sociale')) {
             $newRaisonSociale = $societe->raison_sociale_concatene;
 
@@ -136,7 +136,7 @@ class SocieteController extends Controller
                 // Rename folders
                 $this->renameSocieteFolders($originalRaisonSociale, $newRaisonSociale, $id);
             }
-        }
+        }*/
 
         //Config::set('broadcasting.default', 'pusher_1');
        // broadcast(new NewSocieteEvent($societe->id));
