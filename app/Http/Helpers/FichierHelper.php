@@ -22,15 +22,14 @@ class FichierHelper
      * Obtenir le chemin de base pour les fichiers
      * CORRIGÉ : Évite le double public_html
      */
-    private static function getBasePath()
-    {
-        if (self::isCloudways()) {
-            // Sur Cloudways, base_path() retourne déjà /home/.../smhgztcdes/public_html
-            // Il ne faut pas ajouter 'public_html' à nouveau
-            return base_path('docs');
-        }
-        return public_path('docs');
+   private static function getBasePath()
+{
+    if (self::isCloudways()) {
+        // CORRECTION : Utiliser public_html/public/docs
+        return base_path('public_html/public/docs');
     }
+    return public_path('docs');
+}
 
     /**
      * Ajouter un fichier
