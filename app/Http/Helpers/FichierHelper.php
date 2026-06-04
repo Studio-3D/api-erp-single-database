@@ -4,83 +4,71 @@ namespace App\Http\Helpers;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class FichierHelper
 {
     /**
-     * Check if we are in production environment
-     *
-     * @return bool
+     * Vérifier si on est sur Cloudways
      */
-    private static function isProduction()
+    private static function isCloudways()
     {
-        return app()->environment('production');
+        // Détecter Cloudways par différents indicateurs
+        return (isset($_SERVER['cw_allowed_ip']) ||
+                file_exists('/home/master/.cloudways') ||
+                getenv('CLOUDWAYS_APP_NAME') !== false ||
+                strpos(__DIR__, '/home/1633242.cloudwaysapps.com/') !== false);
     }
 
     /**
-     * Get the appropriate disk for file operations
-     *
-     * @return string
+     * Vérifier si on est en local
      */
-    private static function getDisk()
+    private static function isLocal()
     {
-        return self::isProduction() ? 's3' : 'local';
+        return app()->environment('local') ||
+               app()->environment('development') ||
+               $_SERVER['SERVER_NAME'] === 'localhost';
     }
 
     /**
-     * Get the base path for files
-     *
-     * @return string
+     * Obtenir le chemin de base pour les fichiers
      */
     private static function getBasePath()
     {
-        if (self::isProduction()) {
-            return ''; // S3 doesn't need base path
+        // Si on est sur Cloudways, utiliser le chemin Cloudways
+        if (self::isCloudways()) {
+            return base_path('public_html/docs');
         }
+
+        // Sinon, chemin local standard
         return public_path('docs');
     }
 
     /**
-     * Add a file (supports both local and S3)
-     *
-     * @param \Illuminate\Http\UploadedFile $file
-     * @param string $societe
-     * @param int $id
-     * @param string $doss
-     * @param string $nom_file
-     * @return string
+     * Ajouter un fichier
      */
     public static function ajouter_fichier($file, $societe, $id, $doss, $nom_file)
     {
         $relativePath = $societe . '_' . $id . '/' . $doss;
-        $fullRelativePath = $relativePath . '/' . $nom_file;
+        $directory = self::getBasePath() . '/' . $relativePath;
 
-        if (self::isProduction()) {
-            // Production: Upload to S3
-            Storage::disk('s3')->putFileAs($relativePath, $file, $nom_file);
-        } else {
-            // Local: Save to public/docs
-            $directory = public_path('docs/' . $relativePath);
-
-            if (!File::exists($directory)) {
-                File::makeDirectory($directory, 0755, true);
-            }
-
-            $file->move($directory, $nom_file);
+        // Créer le dossier s'il n'existe pas
+        if (!File::exists($directory)) {
+            File::makeDirectory($directory, 0755, true);
         }
 
-        return $fullRelativePath;
+        // Déplacer le fichier
+        $file->move($directory, $nom_file);
+
+        // Corriger les permissions
+        if (self::isCloudways()) {
+            chmod($directory . '/' . $nom_file, 0644);
+        }
+
+        return $relativePath . '/' . $nom_file;
     }
 
     /**
-     * Delete a file (supports both local and S3)
-     *
-     * @param string $societe
-     * @param int $id
-     * @param string $doss
-     * @param string $nom_file
-     * @return bool
+     * Supprimer un fichier
      */
     public static function supprimer_fichier($societe, $id, $doss, $nom_file)
     {
@@ -88,33 +76,17 @@ class FichierHelper
             return true;
         }
 
+        $filePath = self::getBasePath() . '/' . $societe . '_' . $id . '/' . $doss . '/' . $nom_file;
 
-        $relativePath = $societe . '_' . $id . '/' . $doss . '/' . $nom_file;
-
-        if (self::isProduction()) {
-            // Production: Delete from S3
-            if (Storage::disk('s3')->exists($relativePath)) {
-                return Storage::disk('s3')->delete($relativePath);
-            }
-        } else {
-            // Local: Delete from public/docs
-            $filePath = public_path('docs/' . $relativePath);
-            if (File::exists($filePath)) {
-                return File::delete($filePath);
-            }
+        if (File::exists($filePath)) {
+            return File::delete($filePath);
         }
 
         return false;
     }
 
     /**
-     * Get file URL (supports both local and S3)
-     *
-     * @param string $societe
-     * @param int $id
-     * @param string $doss
-     * @param string $nom_file
-     * @return string|null
+     * Récupérer l'URL d'un fichier
      */
     public static function get_file_url($societe, $id, $doss, $nom_file)
     {
@@ -122,32 +94,20 @@ class FichierHelper
             return null;
         }
 
-        $relativePath = $societe . '_' . $id . '/' . $doss . '/' . $nom_file;
+        $relativePath = 'docs/' . $societe . '_' . $id . '/' . $doss . '/' . $nom_file;
 
-        if (self::isProduction()) {
-            // Production: Get S3 URL
-            if (Storage::disk('s3')->exists($relativePath)) {
-                return Storage::disk('s3')->url($relativePath);
-            }
-        } else {
-            // Local: Get local URL
-            $filePath = public_path('docs/' . $relativePath);
-            if (File::exists($filePath)) {
-                return asset('docs/' . $relativePath);
-            }
+        // Vérifier si le fichier existe
+        $filePath = self::getBasePath() . '/' . $societe . '_' . $id . '/' . $doss . '/' . $nom_file;
+
+        if (File::exists($filePath)) {
+            return asset($relativePath);
         }
 
         return null;
     }
 
     /**
-     * Check if file exists (supports both local and S3)
-     *
-     * @param string $societe
-     * @param int $id
-     * @param string $doss
-     * @param string $nom_file
-     * @return bool
+     * Vérifier si un fichier existe
      */
     public static function fichier_existe($societe, $id, $doss, $nom_file)
     {
@@ -155,57 +115,54 @@ class FichierHelper
             return false;
         }
 
-        $relativePath = $societe . '_' . $id . '/' . $doss . '/' . $nom_file;
-
-        if (self::isProduction()) {
-            return Storage::disk('s3')->exists($relativePath);
-        } else {
-            $filePath = public_path('docs/' . $relativePath);
-            return File::exists($filePath);
-        }
+        $filePath = self::getBasePath() . '/' . $societe . '_' . $id . '/' . $doss . '/' . $nom_file;
+        return File::exists($filePath);
     }
 
     /**
-     * Rename a societe's folder structure (local only - for S3, you'd need to copy objects)
-     *
-     * @param string $ancienNom
-     * @param string $nouveauNom
-     * @param int $societeId
-     * @return bool
+     * Renommer le dossier d'une société
      */
     public static function renommer_dossier_societe($ancienNom, $nouveauNom, $societeId)
     {
-        if (self::isProduction()) {
-            // For S3, we need to copy all objects from old prefix to new prefix
-            $oldPrefix = $ancienNom . '_' . $societeId . '/';
-            $newPrefix = $nouveauNom . '_' . $societeId . '/';
+        $ancienDossierBase = $ancienNom . '_' . $societeId;
+        $nouveauDossierBase = $nouveauNom . '_' . $societeId;
 
-            $files = Storage::disk('s3')->files($oldPrefix);
+        $basePath = self::getBasePath();
 
-            foreach ($files as $file) {
-                $newFile = str_replace($oldPrefix, $newPrefix, $file);
-                Storage::disk('s3')->copy($file, $newFile);
-                Storage::disk('s3')->delete($file);
-            }
+        $ancienChemin = $basePath . '/' . $ancienDossierBase;
+        $nouveauChemin = $basePath . '/' . $nouveauDossierBase;
 
-            return true;
-        } else {
-            // Local: Rename directories
-            $ancienDossierBase = $ancienNom . '_' . $societeId;
-            $nouveauDossierBase = $nouveauNom . '_' . $societeId;
-
-            $dossiers = ['docs'];
-
-            foreach ($dossiers as $dossierType) {
-                $ancienChemin = public_path($dossierType . '/' . $ancienDossierBase);
-                $nouveauChemin = public_path($dossierType . '/' . $nouveauDossierBase);
-
-                if (File::exists($ancienChemin)) {
-                    File::move($ancienChemin, $nouveauChemin);
-                }
-            }
-
+        if (File::exists($ancienChemin)) {
+            File::move($ancienChemin, $nouveauChemin);
             return true;
         }
+
+        return false;
+    }
+
+    /**
+     * Récupérer tous les fichiers d'un dossier
+     */
+    public static function get_files($societe, $id, $doss)
+    {
+        $directory = self::getBasePath() . '/' . $societe . '_' . $id . '/' . $doss;
+
+        if (!File::exists($directory)) {
+            return [];
+        }
+
+        $files = [];
+        $allFiles = File::files($directory);
+
+        foreach ($allFiles as $file) {
+            $files[] = [
+                'name' => $file->getFilename(),
+                'path' => asset('docs/' . $societe . '_' . $id . '/' . $doss . '/' . $file->getFilename()),
+                'size' => $file->getSize(),
+                'last_modified' => date('Y-m-d H:i:s', $file->getMTime())
+            ];
+        }
+
+        return $files;
     }
 }
