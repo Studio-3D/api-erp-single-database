@@ -287,7 +287,19 @@ class UserController extends Controller
     {
         $userAuth = Auth::guard('api')->user();
 
-        if (RoleHelper::Superadmin() && $userAuth->societe_id == 1) {
+        if (RoleHelper::Admin() || RoleHelper::AgentAdmin()||(RoleHelper::Superadmin())) {
+            DatabaseHelper::Config();
+            $user = User::on('temp')
+               // ->with(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+               // ->withCount(['projets', 'reservations', 'desistements', 'visites', 'avances', 'compromis_ventes', 'traitement_appels', 'contrat_ventes'])
+                ->where('id', $id)
+                ->first();
+            $projets=Projet::on('temp')->without('typeProjet','userProjet','societe')->get();
+            $projets_de_user=userProjet::on('temp')->with('projet')->where('user_id',$user->id)->get()->pluck('projet');
+            } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+        /*if (RoleHelper::Superadmin() && $userAuth->societe_id == 1) {
             // Récupérer l'utilisateur et compter ses relations
             $user = User::find($id);
             $projets=[];
@@ -303,7 +315,7 @@ class UserController extends Controller
             $projets_de_user=userProjet::on('temp')->with('projet')->where('user_id',$user->id)->get()->pluck('projet');
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
-        }
+        }*/
 
         if (! $user) {
             return response()->json(['message' => 'Utilisateur non trouvé'], 404);
