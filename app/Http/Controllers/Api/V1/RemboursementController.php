@@ -199,25 +199,17 @@ class RemboursementController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-   public function traiter_demande_pre_rembourse($id, Request $request)
+  public function traiter_demande_pre_rembourse($id, Request $request)
 {
     if(RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::Comptable()) {
         DatabaseHelper::Config();
         Config::set('broadcasting.default', 'pusher_notify');
 
         $user = Auth::user();
-
-        // Récupérer l'utilisateur dans la base temp
-        $userTemp = User::on('temp')->where('user_id_origin', $user->id)->first();
-
-        if (!$userTemp) {
-            return response()->json(['error' => 'Utilisateur non trouvé'], 404);
-        }
-
         $societe = Societe::findOrfail($user->societe_id);
         $remboursement = Remboursement::on('temp')->findOrFail($id);
 
-        // Utiliser l'ID de l'utilisateur original (c'est souvent ce qui est attendu)
+        // Utiliser directement l'ID de l'utilisateur original
         $remboursement->statut = 2;
         $remboursement->user_id_remis = $user->id;
         $remboursement->user_id_valider = $user->id;
