@@ -199,79 +199,73 @@ class RemboursementController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function traiter_demande_pre_rembourse($id,Request $request)
-    {
+   public function traiter_demande_pre_rembourse($id, Request $request)
+{
+    if(RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::Comptable()) {
+        DatabaseHelper::Config();
+        Config::set('broadcasting.default', 'pusher_notify');
 
-        if(RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ||RoleHelper::Comptable()) {
-            DatabaseHelper::Config();
-           Config::set('broadcasting.default', 'pusher_notify');
-            $user = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
-            $user_societes = User::where('id', $userAuth->user_id_origin)->first();
-            $societe = Societe::findOrfail($user_societes->societe_id);
+        $user = Auth::user();
 
-            $remboursement = Remboursement::on('temp')->findOrFail($id);
-            //$remboursement->statut=1;
-            $remboursement->statut=2;
-            //added
-            $remboursement->user_id_remis=$userAuth->id;
+        // Récupérer l'utilisateur dans la base temp
+        $userTemp = User::on('temp')->where('user_id_origin', $user->id)->first();
 
-            $remboursement->user_id_valider=$userAuth->id;
-            $remboursement->date_rembourse=$request->date_remboursement;
-            $remboursement->mode_rembourse_client=$request->mode_rembourse_client;
-            $remboursement->pour_le_compte=$request->pour_le_compte;
-            $remboursement->num_paiement=$request->num_paiement;
-            $codeReservation = $remboursement->reservation->code_reservation;
+        if (!$userTemp) {
+            return response()->json(['error' => 'Utilisateur non trouvé'], 404);
+        }
 
-            // MODIFICATION: Utiliser FichierHelper pour fichier_autorisation
-            if ($request->hasFile('fichier_autorisation')) {
-                $file = $request->file('fichier_autorisation');
-                $fileName = $file->getClientOriginalName();
+        $societe = Societe::findOrfail($user->societe_id);
+        $remboursement = Remboursement::on('temp')->findOrFail($id);
 
-                FichierHelper::ajouter_fichier(
-                    $file,
-                    $societe->raison_sociale_concatene,
-                    $societe->id,
-                    'remboursements/fichiers_autorisations/' . $codeReservation,
-                    $fileName
-                );
-                $remboursement->fichier_autorisation = $fileName;
-            }
-            // MODIFICATION: Utiliser FichierHelper pour cheque_recu
-            if ($request->hasFile('cheque_recu')) {
-                $file = $request->file('cheque_recu');
-                $fileName = $file->getClientOriginalName();
+        // Utiliser l'ID de l'utilisateur original (c'est souvent ce qui est attendu)
+        $remboursement->statut = 2;
+        $remboursement->user_id_remis = $user->id;
+        $remboursement->user_id_valider = $user->id;
 
-                FichierHelper::ajouter_fichier(
-                    $file,
-                    $societe->raison_sociale_concatene,
-                    $societe->id,
-                    'remboursements/cheques_recus/' . $codeReservation,
-                    $fileName
-                );
-                $remboursement->cheque = $fileName;
-                $remboursement->cheque_client_signe = $fileName;
-            }
-            $remboursement->save();
-            //4 demande pre rembourse
-            broadcast(new NotifMenuEvent(4));
-                /*if($remboursement->save()){
-                    //store new notification validé
-                    NotificationHelper::storeNotification(
-                        '/remboursements/accuses_reception', Carbon::now(),20,'pré remboursement /le chèque de remboursement du Bien est prêt',Auth::guard('api')->user()->id,null,null,null,$reservation->projet_id,null,null
-                        );
-                        broadcast(new NotificationEvent($id));
-                }*/
+        $remboursement->date_rembourse = $request->date_remboursement;
+        $remboursement->mode_rembourse_client = $request->mode_rembourse_client;
+        $remboursement->pour_le_compte = $request->pour_le_compte;
+        $remboursement->num_paiement = $request->num_paiement;
 
-            return response()->json(['message' => 'le chèque de remboursement  est prêt.'], 200);
+        $codeReservation = $remboursement->reservation->code_reservation;
 
+        // Gestion des fichiers...
+        if ($request->hasFile('fichier_autorisation')) {
+            $file = $request->file('fichier_autorisation');
+            $fileName = $file->getClientOriginalName();
+            FichierHelper::ajouter_fichier(
+                $file,
+                $societe->raison_sociale_concatene,
+                $societe->id,
+                'remboursements/fichiers_autorisations/' . $codeReservation,
+                $fileName
+            );
+            $remboursement->fichier_autorisation = $fileName;
+        }
 
+        if ($request->hasFile('cheque_recu')) {
+            $file = $request->file('cheque_recu');
+            $fileName = $file->getClientOriginalName();
+            FichierHelper::ajouter_fichier(
+                $file,
+                $societe->raison_sociale_concatene,
+                $societe->id,
+                'remboursements/cheques_recus/' . $codeReservation,
+                $fileName
+            );
+            $remboursement->cheque = $fileName;
+            $remboursement->cheque_client_signe = $fileName;
+        }
 
-       } else {
-           return response()->json(['error' => 'Unauthorized'], 401);
-       }
+        $remboursement->save();
 
+        broadcast(new NotifMenuEvent(4));
+
+        return response()->json(['message' => 'le chèque de remboursement est prêt.'], 200);
     }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
 
     public function traiter_accuse($id,Request $request)
     {
