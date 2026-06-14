@@ -53,14 +53,11 @@ class UserController extends Controller
     public function get_users()
     {
         if (RoleHelper::Superadmin()) {
-            if (Auth::guard('api')->user()->societe_id == 1) {
-                $users = User::all();
-                return response()->json(['users' => $users]);
-            } else {
+
                 DatabaseHelper::Config();
                 $users = User::on('temp')->where('role','>',1)->where('is_actif',1)->get();
                 return response()->json(['users' => $users]);
-            }
+
 
         } else if (RoleHelper::Admin()||RoleHelper::AgentAdmin()) {
             DatabaseHelper::Config();
@@ -289,8 +286,8 @@ class UserController extends Controller
                     ];
                     Mail::send('User.mail', $data, function ($message) use ($to_email) {
                         $message->to($to_email)
-                            ->subject('Bienvenue chez Greenland - Votre compte a été créé');
-                        $message->from(env('MAIL_USERNAME'), 'Greenland ');
+                            ->subject('Bienvenue chez Tracimo - Votre compte a été créé');
+                        $message->from(env('MAIL_USERNAME'), 'Tracimo ');
                     });
                 }
                 // Commit transaction if everything is successful
@@ -548,8 +545,8 @@ public function update(UpdateUserRequest $request, $id)
 
             Mail::send('User.mail_update', $emailData, function ($message) use ($to_email) {
                 $message->to($to_email)
-                    ->subject('Mise à jour de votre compte Greenland ');
-                $message->from(env('MAIL_USERNAME'), 'Greenland');
+                    ->subject('Mise à jour de votre compte Tracimo ');
+                $message->from(env('MAIL_USERNAME'), 'Tracimo');
             });
         }
 

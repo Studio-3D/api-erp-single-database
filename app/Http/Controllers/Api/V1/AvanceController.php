@@ -813,7 +813,7 @@ class AvanceController extends Controller
                                         Mail::send('emails.demande_validation_avance', $data, function ($message) use ($to_email, $avance) {
                                             $message->to($to_email)
                                                 ->subject('Demande Validation Avance : '.$avance->num_recu.' - Réservation : '.$avance->reservation->code_reservation);
-                                            $message->from(env('MAIL_USERNAME'), 'Greenland ');
+                                            $message->from(env('MAIL_USERNAME'), 'Tracimo ');
                                         });
 
                                         Log::info("Email de demande de validation avance envoyé à l'admin: {$admin->email}");
@@ -1486,7 +1486,7 @@ class AvanceController extends Controller
                                             Mail::send('emails.demande_validation_avance', $data, function ($message) use ($to_email, $avance) {
                                                 $message->to($to_email)
                                                     ->subject('Demande Validation Avance : '.$avance->num_recu.' - Réservation : '.$avance->reservation->code_reservation);
-                                                $message->from(env('MAIL_USERNAME'), 'Greenland ');
+                                                $message->from(env('MAIL_USERNAME'), 'Tracimo ');
                                             });
 
                                             Log::info("Email de demande de validation avance envoyé à l'admin/comptable: {$admin->email}");

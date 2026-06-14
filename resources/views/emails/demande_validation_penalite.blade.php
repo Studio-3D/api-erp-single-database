@@ -186,11 +186,11 @@
                 au contrat et à la politique de l'entreprise avant validation.
             </div>
 
-            <p><strong>L'équipe Greenland </strong></p>
+            <p><strong>L'équipe Tracimo </strong></p>
         </div>
 
         <div class="footer">
-            &copy; {{ date('Y') }} Greenland  - Tous droits réservés<br>
+            &copy; {{ date('Y') }} Tracimo  - Tous droits réservés<br>
             <small>Cet email a été généré automatiquement, merci de ne pas y répondre.</small>
         </div>
     </div>

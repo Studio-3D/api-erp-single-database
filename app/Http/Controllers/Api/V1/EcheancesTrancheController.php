@@ -38,7 +38,7 @@ class EcheancesTrancheController extends Controller
 
     public function indexByProjet(Request $request, $projet_id)
     {
-        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
+        if (RoleHelper::ACSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
             $size = $request->input('size', null);
             $page = $request->input('page', null);
             DatabaseHelper::Config();
@@ -144,7 +144,7 @@ class EcheancesTrancheController extends Controller
     }*/
           public function store(Request $request)
     {
-        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin()) {
             $user = Auth::user();
             DatabaseHelper::Config();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
@@ -172,7 +172,7 @@ class EcheancesTrancheController extends Controller
      */
     public function show($id)
     {
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
+        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ) {
             DatabaseHelper::Config();
             $ech = EcheancesTranche::on('temp')->findOrFail($id);
             return response()->json(['ech' => $ech], 200);
@@ -232,7 +232,7 @@ class EcheancesTrancheController extends Controller
     }**/
     public function update(Request $request, $id)
     {
-        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ) {
             DatabaseHelper::Config();
             $user = Auth::user();
             DatabaseHelper::Config();
@@ -265,7 +265,7 @@ class EcheancesTrancheController extends Controller
      */
     public function destroy(string $id)
     {
-        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin() ) {
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin()  ) {
             DatabaseHelper::Config();
             $ech_s=EcheancesTranche::on('temp')->where('tranche_id',$id)->get();
             if(count($ech_s)>0){

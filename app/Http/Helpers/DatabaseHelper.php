@@ -1374,7 +1374,7 @@ private static function getClientName($client)
             Mail::send('emails.message_import', $emailData, function ($message) use ($to_email, $imp) {
                 $message->to($to_email)
                     ->subject('Résultat importation fichier : ' . $imp->created_at->format('d/m/Y H:i'));
-                $message->from(env('MAIL_USERNAME'), 'Greenland ');
+                $message->from(env('MAIL_USERNAME'), 'Tracimo ');
             });
 
             \Log::info("Email de résultat d'importation envoyé à: {$to_email}");

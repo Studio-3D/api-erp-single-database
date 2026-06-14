@@ -479,7 +479,7 @@ private function processReservationFiles($reservation, $request, $societe)
                             Mail::send('emails.demande_validation_reservation', $data, function ($message) use ($to_email, $reservation) {
                                 $message->to($to_email)
                                     ->subject('Demande Validation Réservation : '.$reservation->code_reservation);
-                                $message->from(env('MAIL_USERNAME'), 'Greenland ');
+                                $message->from(env('MAIL_USERNAME'), 'Tracimo ');
                             });
 
                             Log::info("Email de demande de validation envoyé à l'admin: {$admin->email}");

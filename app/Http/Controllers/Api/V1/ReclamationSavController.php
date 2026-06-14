@@ -343,7 +343,7 @@ class ReclamationSavController extends Controller
                 Mail::send('SAV.nouvelle-reclamation-prestataire', $data, function($message) use($to_email, $prestataire, $rec) {
                     $message->to($to_email)
                         ->subject('Nouvelle Réclamation #' . $rec->id . ' - Intervention Requise');
-                    $message->from(env('MAIL_USERNAME'), 'Greenland  - SAV');
+                    $message->from(env('MAIL_USERNAME'), 'Tracimo  - SAV');
                 });
 
                 // Log email sent

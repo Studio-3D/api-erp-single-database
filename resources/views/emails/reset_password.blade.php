@@ -69,7 +69,7 @@
             Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.
         </p>
 
-        <p><strong>L'équipe Greenland  </strong></p>
+        <p><strong>L'équipe Tracimo  </strong></p>
     </div>
 </body>
 </html>

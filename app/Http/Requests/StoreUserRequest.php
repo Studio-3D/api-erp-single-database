@@ -29,9 +29,10 @@ class StoreUserRequest extends FormRequest
                 'required',
                 'email',
                 'max:254',
-                // Check uniqueness across all users
-                Rule::unique('users', 'email')->where(function ($query) {
-                    return $query->whereNotNull('email');
+               Rule::unique('users', 'email')->where(function ($query) {
+                return $query->whereNotNull('email')
+                             ->whereNull('deleted_at');
+
                 }),
             ],
             'password' => 'required|min:6|same:password_confirmation',
