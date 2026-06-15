@@ -60,10 +60,10 @@ class HomeController extends Controller
                             ->orwhere('type',2)
                             ->orwhere('type',5)
                         ;})
-                        ->where(function ($query) {
+                       /* ->where(function ($query) {
                         $query->where('role',RoleEnum::ADMIN->value)
                             ->orwhere('user_id',Auth::guard('api')->user()->id)
-                        ;})
+                        ;})*/
                         ->orderBy('id','desc')->withTrashed();
                         if ($projet_id!=0) {
                             $query_notif->where('projet_id',  $projet_id );
