@@ -7,11 +7,11 @@ storage/*.key
 /public/hot
 /public/build
 
-!/public/docs/logo/*
-
 # Dossiers à versionner partiellement
 !/public/docs/exemplaires-import-biens/
 !/import_prospects.xlsx
+!/public/docs/logo/
+!/public/docs/logo/*
 
 # Mais on ignore tout le reste de /public/docs/
 /public/docs/*
