@@ -7,6 +7,8 @@ storage/*.key
 /public/hot
 /public/build
 
+!/public/docs/logo/*
+
 # Dossiers à versionner partiellement
 !/public/docs/exemplaires-import-biens/
 !/import_prospects.xlsx

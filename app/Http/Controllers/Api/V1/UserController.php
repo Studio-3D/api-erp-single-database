@@ -284,10 +284,11 @@ class UserController extends Controller
                     'role' => $roleLabel,
                     'role_value' => $request->role
                     ];
-                    Mail::send('User.mail', $data, function ($message) use ($to_email) {
+                Mail::mailer('tracimo')->send('User.mail', $data, function ($message) use ($to_email) {
                         $message->to($to_email)
-                            ->subject('Bienvenue chez Tracimo - Votre compte a été créé');
-                        $message->from(env('MAIL_USERNAME'), 'Tracimo ');
+                            ->subject('Bienvenue chez Tracimo');
+                        $message->from(env('MAIL_USERNAME_TRACIMO'), env('MAIL_FROM_NAME_TRACIMO', 'Tracimo'));
+
                     });
                 }
                 // Commit transaction if everything is successful
@@ -542,11 +543,11 @@ public function update(UpdateUserRequest $request, $id)
                 'email_changed' => ($old_email != $request->email),
                 'role_changed' => ($request->has('role') && $old_role != $request->role)
             ];
-
-            Mail::send('User.mail_update', $emailData, function ($message) use ($to_email) {
+Mail::mailer('tracimo')->send('User.mail_update', $emailData, function ($message) use ($to_email) {
                 $message->to($to_email)
                     ->subject('Mise à jour de votre compte Tracimo ');
-                $message->from(env('MAIL_USERNAME'), 'Tracimo');
+                 $message->from(env('MAIL_USERNAME_TRACIMO'), env('MAIL_FROM_NAME_TRACIMO', 'Tracimo'));
+
             });
         }
 

@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Mise à jour de votre compte Tracimo </title>
+    <title>Mise à jour de votre compte Tracimo</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -17,12 +17,28 @@
             border-radius: 10px;
         }
         .header {
-            background-color: #4F46E5;
+            background-color: #231651;
             color: white;
-            padding: 20px;
+            padding: 20px 20px;
             text-align: center;
             border-radius: 10px 10px 0 0;
             margin: -20px -20px 20px -20px;
+        }
+        .header img {
+            max-width: 120px;
+            height: auto;
+            display: block;
+            margin: 0 auto 10px auto;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .header p {
+            margin: 5px 0 0 0;
+            font-size: 13px;
+            opacity: 0.9;
         }
         .credentials {
             background-color: #f5f5f5;
@@ -40,7 +56,7 @@
         }
         .role-badge {
             display: inline-block;
-            background-color: #4F46E5;
+            background-color: #231651;
             color: white;
             padding: 5px 12px;
             border-radius: 20px;
@@ -58,14 +74,26 @@
             padding: 15px;
             border-radius: 8px;
             margin: 20px 0;
-            border-left: 4px solid #4F46E5;
+            border-left: 4px solid #231651;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h2>Tracimo </h2>
+            @php
+                // Try to embed if it's an email (when $message object exists)
+                if (isset($message) && method_exists($message, 'embed')) {
+                    $logo = $message->embed(public_path('docs/logo/tracimo_blue.png'));
+                } else {
+                    // Fallback to asset URL
+                    $logo = asset('docs/logo/tracimo_blue.png');
+                }
+            @endphp
+
+            <img src="{{ $logo }}" alt="Tracimo Logo">
+            <h1>Mise à jour de votre compte</h1>
+            <p>Vos informations ont été modifiées avec succès</p>
         </div>
 
         <p>Bonjour <strong>{{ $nom ?? '' }} {{ $prenom ?? '' }}</strong>,</p>
@@ -98,11 +126,11 @@
 
         <br>
         <p>Cordialement,</p>
-        <p><strong>L'équipe Tracimo  </strong></p>
+        <p><strong>L'équipe Tracimo</strong></p>
 
         <div class="footer">
             <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
-            <p>&copy; {{ date('Y') }} Tracimo   - Tous droits réservés.</p>
+            <p>&copy; {{ date('Y') }} Tracimo - Tous droits réservés.</p>
         </div>
     </div>
 </body>

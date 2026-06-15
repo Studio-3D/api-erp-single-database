@@ -45,6 +45,17 @@ return [
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN'),
         ],
+         // Add tracimo mailer
+        'tracimo' => [
+            'transport' => 'smtp',
+            'host' => env('MAIL_HOST_TRACIMO', 'smtp.gmail.com'),
+            'port' => env('MAIL_PORT_TRACIMO', 465),
+            'encryption' => env('MAIL_ENCRYPTION_TRACIMO', 'ssl'),
+            'username' => env('MAIL_USERNAME_TRACIMO'),
+            'password' => env('MAIL_PASSWORD_TRACIMO'),
+            'timeout' => null,
+            'local_domain' => env('MAIL_EHLO_DOMAIN'),
+        ],
 
         'ses' => [
             'transport' => 'ses',
