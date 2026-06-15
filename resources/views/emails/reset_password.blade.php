@@ -20,7 +20,20 @@
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-
+        .header {
+            background-color: #231651;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+            margin: -30px -30px 20px -30px;
+        }
+        .header img {
+            max-width: 120px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
         .step {
             font-weight: bold;
             margin: 10px 0;
@@ -36,20 +49,45 @@
             border: none;
             border-top: 1px solid #eee;
         }
+        .btn {
+            background-color: #231651;
+            color: #FFFFFF;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background-color: #1a0f3d;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 style="color: #4F46E5;">🔐 Réinitialisation de votre mot de passe</h2>
+        <div class="header">
+            @php
+                // Try to embed if it's an email (when $message object exists)
+                if (isset($message) && method_exists($message, 'embed')) {
+                    $logo = $message->embed(public_path('docs/logo/tracimo_blue.png'));
+                } else {
+                    // Fallback to asset URL
+                    $logo = asset('docs/logo/tracimo_blue.png');
+                }
+            @endphp
+            <img src="{{ $logo }}" alt="Tracimo Logo">
+        </div>
+
+        <h2 style="color: #231651; margin-top: 0;">🔐 Réinitialisation de votre mot de passe</h2>
 
         <p><strong>Bonjour,</strong></p>
 
         <p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous :</p>
 
-        <div style="text-align: center;">
-            <a href="{{ $resetUrl }}" style="background-color: #4F46E5; color: #FFFFFF; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 14px;">Réinitialiser mon mot de passe</a>
+        <div style="text-align: center; margin: 25px 0;">
+            <a href="{{ $resetUrl }}" class="btn" style="background-color: #231651; color: #FFFFFF; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 14px;">Réinitialiser mon mot de passe</a>
         </div>
-
 
         <div class="warning">
             <strong>📌 Note :</strong> Ce lien expirera dans une heure et ne pourra être utilisé qu'une seule fois.
@@ -69,7 +107,7 @@
             Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.
         </p>
 
-        <p><strong>L'équipe Tracimo  </strong></p>
+        <p><strong>L'équipe Tracimo</strong></p>
     </div>
 </body>
 </html>

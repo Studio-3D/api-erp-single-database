@@ -778,9 +778,31 @@ class AvanceController extends Controller
                         //si avance est cree without reservaation au depart
                         //si commercial==> demande validation du paiement
                         // && $avance->reservation->statut==StatutReservationEnum::Validé->value
-                       if($request->avance_with_reservation==false ){
-                            if ((RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) && $request->montant>0 ) {
-                            //send mail to admin et comptable avec etat
+                        // Check if avance was created with reservation
+
+                        $isAvanceWithReservation = $request->has('avance_with_reservation') ? $request->avance_with_reservation : false;
+                       //si avance est cree without reservation au depart
+                        //si commercial==> demande validation du paiement
+                     // Add this debug before the condition
+                            \Log::info('Avance creation debug', [
+                                'isAvanceWithReservation' => $isAvanceWithReservation,
+                                'user_role' => [
+                                    'isCom' => RoleHelper::Com(),
+                                    'isNotaire' => RoleHelper::Notaire(),
+                                    'isRespoLivraison' => RoleHelper::RespoLivraison(),
+                                    'isRespoCommercial' => RoleHelper::RespoCommercial()
+                                ],
+                                'montant' => $request->montant,
+                                'user_id' => $userAuth->value('id')
+                            ]);
+                        if (!$isAvanceWithReservation) {
+                             \Log::info('Entering notification block - avance created without reservation');
+                                // Check if current user is Commercial or related roles
+                                    $isCommercialRole = RoleHelper::Com() || RoleHelper::Notaire() || RoleHelper::RespoLivraison() || RoleHelper::RespoCommercial();
+                                    \Log::info('Is commercial role? ' . ($isCommercialRole ? 'Yes' : 'No'));
+
+                                    if ($isCommercialRole && $request->montant > 0) {                            //send mail to admin et comptable avec etat
+                                     \Log::info('Sending notifications to admins and comptables');
 
                             // Get all admin and comptable users for this project
                             $admins = User::on('temp')
@@ -791,6 +813,7 @@ class AvanceController extends Controller
                                     $query->where('projet_id', $projet_id);
                                 })
                                 ->get();
+                          \Log::info('Found ' . $admins->count() . ' admins/comptables to notify');
 
                             // Send emails to all admin and comptable users
                             if($admins->count() > 0){
@@ -851,8 +874,10 @@ class AvanceController extends Controller
                                     'traite_appel_id' => null
                                 ];
 
+
                                 $notif_helper = new NotificationHelper();
                                 $notif_helper->storeNotification(new \Illuminate\Http\Request($data_notif));
+                                \Log::info("Notification created for user: {$admin->user_id_origin}");
 
                                 // Broadcast to specific user's channel
                                 broadcast(new NotificationEvent($admin->user_id_origin));
@@ -861,6 +886,8 @@ class AvanceController extends Controller
                             Config::set('broadcasting.default', 'pusher_notify');
                             //2 traitement avance (update menu counter for pending validations)
                             broadcast(new NotifMenuEvent(2));
+                                    \Log::info('NotifMenuEvent broadcasted');
+
                             }
                         }
                         $num_recu='';

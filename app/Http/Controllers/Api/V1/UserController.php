@@ -923,7 +923,7 @@ public function update_password(Request $request, $id)
         $resetUrl = env('FRONTEND_URL').'/reset-password/' . $token;
 
         // Send an email to the user with the reset URL
-        Mail::to($user->email)->send(new ResetPasswordMail($resetUrl, $confirmationCode));
+        Mail::mailer('tracimo')->to($user->email)->send(new ResetPasswordMail($resetUrl, $confirmationCode));
 
         return response()->json(['message' => 'Un email avec les instructions a été envoyé si l\'adresse est associée à un compte']);
         // }
