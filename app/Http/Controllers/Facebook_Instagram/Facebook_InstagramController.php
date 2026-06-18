@@ -981,7 +981,8 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 $raison_sociale_concatene = $societe->raison_sociale_concatene ??
                                         str_replace(' ', '', $societe->raison_sociale ?? 'Societe' . $societe->id);
 
-                $databaseName = "Erp_" . $raison_sociale_concatene . "_" . $societe->id;
+              // $databaseName = "Erp_" . $raison_sociale_concatene . "_" . $societe->id;
+                 $databaseName = env('DB_DATABASE');
 
                 Log::info("Configuring database connection for société {$societe->id}: {$databaseName}");
 
@@ -2523,6 +2524,7 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                         return [
                             'id' => $config->id,
                             'acces_token_page' => $config->acces_token_page,
+                            'acces_token_page_short_term' => $config->acces_token_page_short_terme,
                             'page_fcb_id' => $config->page_fcb_id,
                             'projet_id' => $config->projet_id,
                             'created_at' => $config->created_at,
