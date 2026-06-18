@@ -390,6 +390,7 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 'text' => 'media',
                 'type_media' => $type_media,
                 'url' => $url,
+                //'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
                 'network' => 'instagram',
                 'accessToken' => $accessToken
             ];
@@ -403,41 +404,10 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
             return $response;
         }
 
-        if (in_array(1, $selectedNetworks)) {
-            Log::info("💬 [postTo_Social_Network] WhatsApp network selected");
 
-            $instanceId = env('INSTANCE_ID_ULTRA_MSG');
-            $token = env('TOKEN_ULTRA_MSG');
-            $to = $request->phoneNumber;
-            $description = $request->description;
-            $mode = $request->mode;
-
-            Log::info("📱 [postTo_Social_Network] WhatsApp config", [
-                'instanceId' => $instanceId ? 'SET' : 'NOT SET',
-                'token' => $token ? 'SET' : 'NOT SET',
-                'to' => $to,
-                'mode' => $mode
-            ]);
-
-            if ($mode != "null") {
-                $response = Http::timeout(60)->post("https://api.ultramsg.com/$instanceId/messages/image", [
-                    'token' => $token,
-                    'to' => $to,
-                    'image' => $url,
-                    'caption' => $description,
-                ]);
-
-                Log::info("📤 [postTo_Social_Network] WhatsApp response", [
-                    'status' => $response->status(),
-                    'body' => $response->json()
-                ]);
-
-                return response()->json($response->json());
-            }
-        }
 
         // Only return invalid if no valid networks were processed
-        if (!array_intersect($selectedNetworks, [1, 2, 3])) {
+        if (!array_intersect($selectedNetworks, [2, 3])) {
             Log::warning("⚠️ [postTo_Social_Network] No valid network selected", [
                 'selectedNetworks' => $selectedNetworks
             ]);
@@ -630,174 +600,301 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
 
 
 
-         public function store(Request $request)
-            {
-                $pageIdInstagramId = $request->pageId_InstagramId;
-                $accessToken = $request->accessToken;
-                $network = $request->network;
-                $text = $request->text;
-                $url = str_replace('\/\/', '/', $request->url);
-                $caption = $request->caption;
+      public function store(Request $request)
+{
+    $pageIdInstagramId = $request->pageId_InstagramId;
+    $accessToken = $request->accessToken;
+    $network = $request->network;
+    $text = $request->text;
+    $rawUrl = $request->url;
 
-                $client = new Client([
-                    'timeout'  => 60.0, // Increase to 60 seconds
+    // ✅ Nettoyer l'URL (remplacer les espaces, etc.)
+    $cleanedUrl = str_replace(' ', '%20', $rawUrl);
+    $cleanedUrl = str_replace(['\\', '"', '<', '>'], '', $cleanedUrl);
+    $url = str_replace('\/\/', '/', $cleanedUrl);
+    $caption = $request->caption;
+
+    Log::info("📸 [store] Processing", [
+        'network' => $network,
+        'raw_url' => $rawUrl,
+        'cleaned_url' => $url
+    ]);
+
+    $client = new Client([
+        'timeout' => 60.0,
+    ]);
+
+    // ✅ Pour Instagram, vérifier et redimensionner l'image si nécessaire
+    if ($network == 'instagram' && $request->type_media != 'video_url') {
+        try {
+            Log::info("🖼️ [store] Processing image for Instagram");
+
+            // Télécharger l'image
+            $imageContent = file_get_contents($url);
+            if ($imageContent === false) {
+                throw new \Exception('Impossible de télécharger l\'image depuis l\'URL');
+            }
+
+            // Créer une image avec Intervention
+            $image = Image::make($imageContent);
+
+            $width = $image->width();
+            $height = $image->height();
+            $aspectRatio = $width / $height;
+
+            Log::info("📐 [store] Original image dimensions", [
+                'width' => $width,
+                'height' => $height,
+                'aspect_ratio' => $aspectRatio
+            ]);
+
+            // Instagram accepte les ratios entre 0.8 (4:5) et 1.91 (1.91:1)
+            $minRatio = 0.8;
+            $maxRatio = 1.91;
+
+            if ($aspectRatio < $minRatio || $aspectRatio > $maxRatio) {
+                Log::warning("⚠️ [store] Aspect ratio not supported, resizing", [
+                    'current' => $aspectRatio,
+                    'min' => $minRatio,
+                    'max' => $maxRatio
                 ]);
-                $apiUrl = "https://graph.facebook.com/v22.0/{$pageIdInstagramId}/{$text}";
 
-                // Set request parameters
-                $params = [];
-                    // Verify that URL is publicly accessible
-                    if (!filter_var($url, FILTER_VALIDATE_URL)) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Invalid or inaccessible image URL'
-                        ], 400);
-                    }
-                if ($network == 'facebook') {
-                    if ($text == 'videos') {
-                        $params = [
-                            'multipart' => [
-                                [
-                                    'name' => 'description',
-                                    'contents' => $caption,
-                                ],
-                                [
-                                    'name' => 'title',
-                                    'contents' => $caption,
-                                ],
-                                [
-                                    'name' => 'file_url',
-                                    'contents' =>$url,
-                                ],
-                                [
-                                    'name' => 'access_token',
-                                    'contents' => $accessToken,
-                                ],
-                            ],
-                        ];
-                    } elseif ($text == 'photos') {
-                        $params = [
-                            'json' => [
-                                'caption' => $caption,
-                                'url' =>$url ,
-                                'access_token' => $accessToken,
-                            ]
-                        ];
-                    }
-                } elseif ($network == 'instagram') {
-                    // Step 1: Upload the media
-                    if ($request->type_media == 'video_url') {
-                        $params = [
-                            'json' => [
-                                'media_type' => 'REELS',
-                                'caption' => $caption,
-                                'video_url' => $url,
-                                'access_token' => $accessToken,
-                            ]
-                        ];
-                    } else {
-                        $params = [
-                            'json' => [
-                                'caption' => $caption,
-                                'image_url' => $url,
-                                'access_token' => $accessToken,
-                            ]
-                        ];
-                    }
+                // Calculer les nouvelles dimensions
+                if ($aspectRatio < $minRatio) {
+                    // Trop vertical (hauteur > largeur)
+                    $newWidth = $width;
+                    $newHeight = $width / $minRatio;
+                } else {
+                    // Trop horizontal (largeur > hauteur)
+                    $newWidth = $height * $maxRatio;
+                    $newHeight = $height;
                 }
 
-                try {
-                    // Send POST request to create the post
-                    $response = $client->post($apiUrl, $params);
+                // Redimensionner l'image en conservant le ratio
+                $image->resize($newWidth, $newHeight, function ($constraint) {
+                    $constraint->aspectRatio();
+                });
 
-                    $responseBody = json_decode($response->getBody(), true);
-                    $statusCode = $response->getStatusCode();
+                // Créer un canvas avec fond blanc pour centrer l'image
+                $canvas = Image::canvas($newWidth, $newHeight, '#ffffff');
+                $canvas->insert($image, 'center');
 
-                    // Return the actual response data
-                /*  return response()->json([
-                        'success' => $statusCode >= 200 && $statusCode < 300,
-                        'status_code' => $statusCode,
-                        'data' => $responseBody,
-                        'network' => $network
-                    ]);*/
-                    if (isset($responseBody['id'])) {
-                        // Instagram requires a second step to publish the media
+                // ✅ Utiliser le dossier public/docs/temp/
+                $tempDir = public_path('docs/temp');
+                if (!File::exists($tempDir)) {
+                    File::makeDirectory($tempDir, 0755, true);
+                }
 
-                        if ($network == 'instagram') {
-                            $mediaId = $responseBody['id'];
-                                // Step 2: Poll Media Status (Wait Until "FINISHED")
-                                $maxAttempts = 10;
-                                $attempt = 0;
-                                do {
-                                    sleep(5); // Wait 5 seconds before checking status
-                                    $statusUrl = "https://graph.facebook.com/v22.0/{$mediaId}?fields=status_code&access_token={$accessToken}";
-                                    $statusResponse = $client->get($statusUrl);
-                                    $statusBody = json_decode($statusResponse->getBody(), true);
+                $tempFileName = uniqid() . '.jpg';
+                $tempPath = $tempDir . '/' . $tempFileName;
+                $canvas->save($tempPath, 90);
 
-                                    if ($statusBody['status_code'] == "FINISHED") {
-                                        break;
-                                    }
+                Log::info("✅ [store] Image resized and saved", [
+                    'temp_path' => $tempPath,
+                    'temp_url' => asset('docs/temp/' . $tempFileName),
+                    'new_width' => $newWidth,
+                    'new_height' => $newHeight,
+                    'new_ratio' => $newWidth / $newHeight
+                ]);
 
-                                    $attempt++;
-                                } while ($attempt < $maxAttempts);
+                // Utiliser l'URL publique de l'image redimensionnée
+                $url = asset('docs/temp/' . $tempFileName);
 
-                                if ($statusBody['status_code'] !== "FINISHED") {
-                                    return response()->json([
-                                        'success' => false,
-                                        'message' => 'Media processing not completed',
-                                        'status' => $statusBody
-                                    ], 500);
-                                }
-                                // step 3 ==> do media publish
-                            $publishUrl = "https://graph.facebook.com/v22.0/{$pageIdInstagramId}/media_publish";
-                            $publishParams = [
-                                'json' => [
-                                    'creation_id' => $responseBody['id'],
-                                    'access_token' => $accessToken,
-                                ]
-                            ];
+                // Stocker le chemin du fichier pour le nettoyage
+                $tempFilePath = $tempPath;
+                $tempFileName = $tempFileName;
 
-                            $publishResponse = $client->post($publishUrl, $publishParams);
-                            $publishResponseBody = json_decode($publishResponse->getBody(), true);
+            } else {
+                Log::info("✅ [store] Aspect ratio is valid", [
+                    'ratio' => $aspectRatio
+                ]);
+                $tempFilePath = null;
+                $tempFileName = null;
+            }
+        } catch (\Exception $e) {
+            Log::error("❌ [store] Image processing error: " . $e->getMessage());
+            $tempFilePath = null;
+            $tempFileName = null;
+            // Continuer avec l'image originale si le traitement échoue
+        }
+    } else {
+        $tempFilePath = null;
+        $tempFileName = null;
+    }
 
-                            if (isset($publishResponseBody['id'])) {
-                                return response()->json([
-                                    'success' => true,
-                                    'message' => 'Post successfully published on Instagram!',
-                                    'post_id' => $publishResponseBody['id'],
-                                    'network' => 'instagram',
-                                    'url' => $publishResponseBody['id']
-                                ], 200);
-                            } else {
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => 'Failed to publish the Instagram post.',
-                                    'error' => $publishResponseBody
-                                ], 500);
-                            }
-                        }
+    $apiUrl = "https://graph.facebook.com/v22.0/{$pageIdInstagramId}/{$text}";
 
-                        return response()->json([
-                            'success' => true,
-                            'message' => 'Post created successfully!',
-                            'post_id' => $responseBody['id'],
-                            'network' => $network,  // Could be 'facebook' or 'instagram'
-                            'url' => $url  // URL of the media post
-                        ], 200);
-                    } else {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Failed to create post',
-                            'error' => $responseBody
-                        ], 500);
+    // Set request parameters
+    $params = [];
+
+    // ✅ Vérifier que l'URL est accessible
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid or inaccessible image URL'
+        ], 400);
+    }
+
+    if ($network == 'facebook') {
+        if ($text == 'videos') {
+            $params = [
+                'multipart' => [
+                    [
+                        'name' => 'description',
+                        'contents' => $caption,
+                    ],
+                    [
+                        'name' => 'title',
+                        'contents' => $caption,
+                    ],
+                    [
+                        'name' => 'file_url',
+                        'contents' => $url,
+                    ],
+                    [
+                        'name' => 'access_token',
+                        'contents' => $accessToken,
+                    ],
+                ],
+            ];
+        } elseif ($text == 'photos') {
+            $params = [
+                'json' => [
+                    'caption' => $caption,
+                    'url' => $url,
+                    'access_token' => $accessToken,
+                ]
+            ];
+        }
+    } elseif ($network == 'instagram') {
+        // Step 1: Upload the media
+        if ($request->type_media == 'video_url') {
+            $params = [
+                'json' => [
+                    'media_type' => 'REELS',
+                    'caption' => $caption,
+                    'video_url' => $url,
+                    'access_token' => $accessToken,
+                ]
+            ];
+        } else {
+            // ✅ Pour Instagram, utiliser l'URL de l'image (redimensionnée ou originale)
+            $params = [
+                'json' => [
+                    'caption' => $caption,
+                    'image_url' => $url,
+                    'access_token' => $accessToken,
+                ]
+            ];
+        }
+    }
+
+    try {
+        // Send POST request to create the post
+        $response = $client->post($apiUrl, $params);
+
+        $responseBody = json_decode($response->getBody(), true);
+        $statusCode = $response->getStatusCode();
+
+        if (isset($responseBody['id'])) {
+            // Instagram requires a second step to publish the media
+            if ($network == 'instagram') {
+                $mediaId = $responseBody['id'];
+
+                // Step 2: Poll Media Status (Wait Until "FINISHED")
+                $maxAttempts = 10;
+                $attempt = 0;
+                $statusBody = [];
+
+                do {
+                    sleep(5); // Wait 5 seconds before checking status
+                    $statusUrl = "https://graph.facebook.com/v22.0/{$mediaId}?fields=status_code&access_token={$accessToken}";
+                    $statusResponse = $client->get($statusUrl);
+                    $statusBody = json_decode($statusResponse->getBody(), true);
+
+                    if ($statusBody['status_code'] == "FINISHED") {
+                        break;
                     }
-                } catch (\Exception $e) {
+
+                    $attempt++;
+                } while ($attempt < $maxAttempts);
+
+                if ($statusBody['status_code'] !== "FINISHED") {
+                    // ✅ Nettoyer le fichier temporaire
+                    if ($tempFilePath && File::exists($tempFilePath)) {
+                        File::delete($tempFilePath);
+                        Log::info("🗑️ [store] Temporary file deleted", ['path' => $tempFilePath]);
+                    }
+
                     return response()->json([
                         'success' => false,
-                        'message' => 'Error: ' . $e->getMessage()
+                        'message' => 'Media processing not completed',
+                        'status' => $statusBody
+                    ], 500);
+                }
+
+                // step 3 ==> do media publish
+                $publishUrl = "https://graph.facebook.com/v22.0/{$pageIdInstagramId}/media_publish";
+                $publishParams = [
+                    'json' => [
+                        'creation_id' => $responseBody['id'],
+                        'access_token' => $accessToken,
+                    ]
+                ];
+
+                $publishResponse = $client->post($publishUrl, $publishParams);
+                $publishResponseBody = json_decode($publishResponse->getBody(), true);
+
+                // ✅ Nettoyer le fichier temporaire
+                if ($tempFilePath && File::exists($tempFilePath)) {
+                    File::delete($tempFilePath);
+                    Log::info("🗑️ [store] Temporary file deleted", ['path' => $tempFilePath]);
+                }
+
+                if (isset($publishResponseBody['id'])) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Post successfully published on Instagram!',
+                        'post_id' => $publishResponseBody['id'],
+                        'network' => 'instagram',
+                        'url' => $publishResponseBody['id']
+                    ], 200);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to publish the Instagram post.',
+                        'error' => $publishResponseBody
                     ], 500);
                 }
             }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Post created successfully!',
+                'post_id' => $responseBody['id'],
+                'network' => $network,
+                'url' => $url
+            ], 200);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create post',
+                'error' => $responseBody
+            ], 500);
+        }
+    } catch (\Exception $e) {
+        // ✅ Nettoyer le fichier temporaire en cas d'erreur
+        if (isset($tempFilePath) && $tempFilePath && File::exists($tempFilePath)) {
+            File::delete($tempFilePath);
+            Log::info("🗑️ [store] Temporary file deleted on error", ['path' => $tempFilePath]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage()
+        ], 500);
+    }
+}
 
 
         /******************************Webhook Configuration*************************/
