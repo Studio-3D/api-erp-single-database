@@ -2835,6 +2835,8 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                             'instagram_id' => $config->instagram_id,
                             'projet_id' => $config->projet_id,
                             'created_at' => $config->created_at,
+                            'acces_token_user'=>$config->acces_token_user,
+                            'acces_token_user_short_term'=>$config->acces_token_user_short_terme,
                             'projet' => $config->projet_nom ? ['nom' => $config->projet_nom] : null
 
                         ];
