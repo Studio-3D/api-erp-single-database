@@ -37,191 +37,520 @@ class Facebook_InstagramController extends Controller
         //pour commenter /***"https://graph.facebook.com/{page-post-id}/comments?message=I%20want%20chocolate%20cake%20! &access_token=page-access-token"  */
         //get comments           //https://graph.facebook.com/v22.0/{page-post-id}537798629425112_122104722890793117/comments?access_token=EAAI3GumKq0oBO3e3PWinEHAOpbupHdC115jYneAbK2jWQsgAW0UfSj3da54JW9ZCZBfRKn6zm1lteZBzopLobZALsZBiHkdRPuqhFSfEjY1AxTwj8vkLeUO4rjiQpnAZBDshxdL8HmkwvSXFscFcLhe42G1DtQhD0RTRRVMhZCLgtHmBAVDw4UFFY46abpNsgVcp1fHLM8iZBLbRyzmCxt3ye08b&debug=all&format=json&method=get&origin_graph_explorer=1&pretty=0&suppress_http_code=1&transport=cors
 
+              private function getFacebookConfigForCurrentUser($projetId = null)
+{
+    try {
+        Log::info("🔍 [getFacebookConfigForCurrentUser] START", [
+            'projetId' => $projetId,
+            'user_id' => Auth::id()
+        ]);
 
-        public function postTo_Social_Network(StoreSocialNetworkRequest $request){
-                try {
-                    $user = Auth::user();
-                    DatabaseHelper::Config();
-                    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-                    $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
-                    $societe = Societe::findOrfail($user_societes->societe_id);
+        $user = Auth::user();
 
-                    $network = $request->reseaux_sociaux;
-                    $mode = $request->mode;
-                    $file = $request->file('mediaFile');
-                    $description = $request->description;
-                    $type_media = null;
-                    $selectedNetworks = explode(',', $network);
-
-                   // En mode parcourir, l'utilisateur sélectionne un fichier qui est ensuite uploadé dans le stockage. Après l'upload, on récupère son URL ainsi que son type (photo ou vidéo).                    if ($mode == 'parcourir') {
-                    if ($mode == 'parcourir') {
-                        if ($request->hasFile('mediaFile')) {
-
-                            //get type file photos  or videos
-
-                           $mimeType = $request->file('mediaFile')->getMimeType(); // Get MIME type of file
-
-                           if (str_starts_with($mimeType, 'image/')) {
-                                $text = 'photos'; // File is a photo
-                                $type_media='image_url';
-                           } elseif (str_starts_with($mimeType, 'video/')) {
-                                $text = 'videos'; // File is a video
-                                $type_media='video_url';
-                           } else {
-                                $text = 'unknown'; // Neither image nor video
-                           }
-
-
-                               // Get the uploaded file
-                           $fileName = $file->getClientOriginalName();
-                           $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram');
-                           //  $directory = public_path('docs/' . 'societe_principal' . '_' . 10 . '/upload_fcb_instagram');
-                           File::makeDirectory($directory, 0755, true, true);
-                           $file->move($directory, $fileName);
-                               // Generate the file URL
-                           $fileUrl = asset('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram/' . $fileName);
-                           //$url=str_replace('\/\/', '/', $fileUrl);
-                           //https://immogestion.online/coline_dev/storage/reservations/10.png
-                           //https://immogestion.online/coline_dev/storage/reservations/11.png
-                           //https://v.ftcdn.net/01/75/19/28/700_F_175192845_cRe1fUwouwX7vF3GJpRGwACZjl8CC1We_ST.mp4
-                           $url=str_replace('\/\/', '/', $fileUrl);
-                       }
-                    }
-                    /* 1 ==> WhatsApp, 2 ==> Instagram, 3 ==> Facebook */
-                    if (in_array(3, $selectedNetworks)) {
-
-                        $config = $this->getFacebookConfigForCurrentUser($request->projet_id);
-                        if (!$config) {
-                            throw new \Exception('Facebook configuration not found for project ID: ' . $request->projet_id);
-                        }
-                        $pageId = $config->page_fcb_id;
-                        $accessToken = $config->acces_token_page;
-                        if ($mode == 'existante') {
-                            $url = str_replace('\/\/', '/', $request->img_existant_url);
-                            $text = 'photos';
-                        }
-
-                        $data = [
-                            'pageId_InstagramId' => $pageId,
-                            'caption' => $description,
-                            'text' => $text,
-                          'url' => $url, // Use dynamic URL instead of
-                           // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
-                            'network' => 'facebook',
-                            'accessToken' => $accessToken
-                        ];
-
-                            $response = $this->store($request->merge($data));
-                            return $response;
-                    }
-
-                    // REPLACE the hardcoded Instagram section:
-                    if (in_array(2, $selectedNetworks)) {
-                        // REPLACE with:
-                        $config = $this->getInstagramConfigForCurrentUser($request->projet_id);
-
-                        if (!$config) {
-                            throw new \Exception('Instagram configuration not found for project ID: ' . $request->projet_id);
-                        }
-                        $pageId = $config->instagram_id;
-                        $accessToken = $config->acces_token_user;
-
-                        if ($mode == 'existante') {
-                            $url = $request->img_existant_url;
-                            $type_media = 'image_url';
-                        }
-
-                        $data = [
-                            'pageId_InstagramId' => $pageId,
-                            'caption' => $request->description,
-                            'text' => 'media',
-                            'type_media' => $type_media,
-                           // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
-                             'url' => $url, // Use dynamic URL instead of hardcoded
-                            'network' => 'instagram',
-                            'accessToken' => $accessToken
-                        ];
-                        $response = $this->store($request->merge($data));
-                            return $response;
-                    }
-
-                    if (in_array(1, $selectedNetworks)) {
-                        $instanceId =env('INSTANCE_ID_ULTRA_MSG');  // Replace with your instance ID
-                        $token = env('TOKEN_ULTRA_MSG');  // Replace with your token
-                        $to = $request->phoneNumber;  // Ensure $request contains phoneNumber
-                        $description = $request->description;  // Ensure $description is set from the request
-                        $mode = $request->mode;  // Ensure $mode is set from the request
-
-                        if ($mode != "null") {
-                            // Send image
-                            // Make sure the image URL and description are correct
-                            $response = Http::timeout(60)->post("https://api.ultramsg.com/$instanceId/messages/image", [
-                                'token' => $token,
-                                'to' => $to,
-                                'image' => $url,
-                                'caption' => $description,
-                            ]);
-
-                            return response()->json($response->json());  // Return the API response as JSON
-                        } /*else {
-                            // Send text message
-                            $response = Http::timeout(60)->post("https://api.ultramsg.com/$instanceId/messages/chat", [
-                                'token' => $token,
-                                'to' => $to,
-                                'body' => $description,  // Text message content
-                            ]);
-
-                            return response()->json($response->json());  // Return the API response as JSON
-                        }*/
-                    }
-
-                    // Only return invalid if no valid networks were processed
-                    if (!array_intersect($selectedNetworks, [1, 2, 3])) {
-                        return response()->json(['success' => false, 'message' => 'Invalid social network selection'], 400);
-                    }
-
-
-                } catch (\Exception $e) {
-                    return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
-                }
+        if (!$projetId) {
+            Log::warning("⚠️ [getFacebookConfigForCurrentUser] No project ID provided");
+            return null;
         }
 
-        private function getFacebookConfigForCurrentUser($projetId = null)
-        {
-            try {
-                $user = Auth::user();
+        Log::info("📋 [getFacebookConfigForCurrentUser] Getting user accessible projects", [
+            'user_id' => $user->id,
+            'projetId' => $projetId
+        ]);
 
-                if (!$projetId) {
-                    Log::warning("No project ID provided for Facebook configuration retrieval");
-                    return null;
-                }
+        // Get user's accessible projects to ensure they have permission
+        $userProjects = $this->getUserAccessibleProjects($user);
+        $projectIds = $userProjects->pluck('projet_id')->toArray();
 
-                  // Get user's accessible projects to ensure they have permission
-                $userProjects = $this->getUserAccessibleProjects($user);
-                $projectIds = $userProjects->pluck('projet_id')->toArray();
+        Log::info("📊 [getFacebookConfigForCurrentUser] User projects", [
+            'user_id' => $user->id,
+            'project_ids' => $projectIds,
+            'count' => count($projectIds),
+            'target_projet_id' => $projetId
+        ]);
 
-                if (!in_array($projetId, $projectIds)) {
-                    Log::warning("User {$user->id} does not have access to project {$projetId}");
-                    return null;
-                }
-                // Get Facebook configuration for the specific project
-                $config = DB::table('facebook_configurations')
-                    ->where('projet_id', $projetId)
+        if (!in_array($projetId, $projectIds)) {
+            Log::warning("🚫 [getFacebookConfigForCurrentUser] User does not have access to project", [
+                'user_id' => $user->id,
+                'projetId' => $projetId,
+                'accessible_projects' => $projectIds
+            ]);
+            return null;
+        }
+
+        Log::info("✅ [getFacebookConfigForCurrentUser] User has access to project", [
+            'projetId' => $projetId
+        ]);
+
+        // Get Facebook configuration for the specific project
+        Log::info("🔎 [getFacebookConfigForCurrentUser] Querying facebook_configurations table", [
+            'projet_id' => $projetId,
+            'table' => 'facebook_configurations'
+        ]);
+
+        $config = DB::table('facebook_configurations')
+            ->where('projet_id', $projetId)
+            ->whereNull('deleted_at')
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if (!$config) {
+            Log::warning("❌ [getFacebookConfigForCurrentUser] No Facebook configuration found", [
+                'projet_id' => $projetId,
+                'query' => "SELECT * FROM facebook_configurations WHERE projet_id = {$projetId} AND deleted_at IS NULL"
+            ]);
+
+            // Vérifier si la table existe
+            if (Schema::hasTable('facebook_configurations')) {
+                Log::info("📋 [getFacebookConfigForCurrentUser] Table facebook_configurations exists");
+
+                // Compter le nombre total d'enregistrements
+                $totalRecords = DB::table('facebook_configurations')->count();
+                Log::info("📊 [getFacebookConfigForCurrentUser] Total records in facebook_configurations", [
+                    'total' => $totalRecords
+                ]);
+
+                // Vérifier tous les projet_id existants
+                $allProjetIds = DB::table('facebook_configurations')
+                    ->select('projet_id', 'id')
                     ->whereNull('deleted_at')
-                    ->orderBy('created_at', 'desc')
+                    ->get();
+
+                Log::info("📊 [getFacebookConfigForCurrentUser] All project IDs in table", [
+                    'records' => $allProjetIds->toArray()
+                ]);
+
+                // Vérifier spécifiquement pour projet_id = 1
+                $configForProject1 = DB::table('facebook_configurations')
+                    ->where('projet_id', 1)
+                    ->whereNull('deleted_at')
                     ->first();
 
-                if (!$config) {
-                    Log::info("No Facebook configuration found for project {$projetId}");
+                Log::info("📊 [getFacebookConfigForCurrentUser] Config for project_id = 1", [
+                    'exists' => $configForProject1 ? 'YES' : 'NO',
+                    'data' => $configForProject1
+                ]);
+
+            } else {
+                Log::error("💥 [getFacebookConfigForCurrentUser] Table facebook_configurations does NOT exist!");
+            }
+
+            return null;
+        }
+
+        Log::info("✅ [getFacebookConfigForCurrentUser] Configuration found successfully", [
+            'projet_id' => $config->projet_id,
+            'page_fcb_id' => $config->page_fcb_id,
+            'has_token' => !empty($config->acces_token_page),
+            'config_id' => $config->id,
+            'webhook_enabled' => $config->webhook_enabled
+        ]);
+
+        return $config;
+
+    } catch (\Exception $e) {
+        Log::error("💥 [getFacebookConfigForCurrentUser] EXCEPTION", [
+            'projetId' => $projetId,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        return null;
+    }
+}
+public function postTo_Social_Network(StoreSocialNetworkRequest $request){
+    try {
+        Log::info("🚀 [postTo_Social_Network] START", [
+            'reseaux_sociaux' => $request->reseaux_sociaux,
+            'projet_id' => $request->projet_id,
+            'mode' => $request->mode,
+            'user_id' => Auth::id()
+        ]);
+
+        $user = Auth::user();
+        DatabaseHelper::Config();
+
+        Log::info("👤 [postTo_Social_Network] User authenticated", [
+            'user_id' => $user->id,
+            'email' => $user->email
+        ]);
+
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        Log::info("🔍 [postTo_Social_Network] UserAuth from temp", [
+            'count' => $userAuth->count(),
+            'data' => $userAuth->toArray()
+        ]);
+
+        $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+        Log::info("🏢 [postTo_Social_Network] User societe", [
+            'user_societes_id' => $user_societes->id ?? null,
+            'societe_id' => $user_societes->societe_id ?? null
+        ]);
+
+        $societe = Societe::findOrfail($user_societes->societe_id);
+        Log::info("🏢 [postTo_Social_Network] Societe found", [
+            'societe_id' => $societe->id,
+            'raison_sociale' => $societe->raison_sociale
+        ]);
+
+        $network = $request->reseaux_sociaux;
+        $mode = $request->mode;
+        $file = $request->file('mediaFile');
+        $description = $request->description;
+        $type_media = null;
+        $selectedNetworks = explode(',', $network);
+
+        Log::info("📋 [postTo_Social_Network] Request data", [
+            'network' => $network,
+            'selectedNetworks' => $selectedNetworks,
+            'mode' => $mode,
+            'description_length' => strlen($description),
+            'has_file' => $request->hasFile('mediaFile')
+        ]);
+
+        // En mode parcourir, l'utilisateur sélectionne un fichier qui est ensuite uploadé dans le stockage. Après l'upload, on récupère son URL ainsi que son type (photo ou vidéo).
+        if ($mode == 'parcourir') {
+            Log::info("📁 [postTo_Social_Network] Mode parcourir detected");
+
+            if ($request->hasFile('mediaFile')) {
+                Log::info("📎 [postTo_Social_Network] File detected", [
+                    'original_name' => $request->file('mediaFile')->getClientOriginalName(),
+                    'size' => $request->file('mediaFile')->getSize(),
+                    'mime_type' => $request->file('mediaFile')->getMimeType()
+                ]);
+
+                //get type file photos or videos
+                $mimeType = $request->file('mediaFile')->getMimeType();
+
+                if (str_starts_with($mimeType, 'image/')) {
+                    $text = 'photos';
+                    $type_media = 'image_url';
+                    Log::info("🖼️ [postTo_Social_Network] File type: IMAGE");
+                } elseif (str_starts_with($mimeType, 'video/')) {
+                    $text = 'videos';
+                    $type_media = 'video_url';
+                    Log::info("🎬 [postTo_Social_Network] File type: VIDEO");
+                } else {
+                    $text = 'unknown';
+                    Log::warning("⚠️ [postTo_Social_Network] Unknown file type", ['mime_type' => $mimeType]);
                 }
 
-                return $config;
+                // Get the uploaded file
+                $fileName = $file->getClientOriginalName();
+                $directory = public_path('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram');
+                File::makeDirectory($directory, 0755, true, true);
+                $file->move($directory, $fileName);
 
-            } catch (\Exception $e) {
-                Log::error("Error getting Facebook config for project {$projetId}: " . $e->getMessage());
-                return null;
+                // Generate the file URL
+                $fileUrl = asset('docs/' . $societe->raison_sociale_concatene . '_' . $societe->id . '/upload_fcb_instagram/' . $fileName);
+                $url = str_replace('\/\/', '/', $fileUrl);
+
+                Log::info("✅ [postTo_Social_Network] File uploaded successfully", [
+                    'directory' => $directory,
+                    'fileUrl' => $fileUrl,
+                    'url' => $url
+                ]);
+            } else {
+                Log::warning("⚠️ [postTo_Social_Network] No file in request despite mode=parcourir");
             }
         }
+
+        /* 1 ==> WhatsApp, 2 ==> Instagram, 3 ==> Facebook */
+        if (in_array(3, $selectedNetworks)) {
+            Log::info("📘 [postTo_Social_Network] Facebook network selected", [
+                'projet_id' => $request->projet_id
+            ]);
+
+            Log::info("🔍 [postTo_Social_Network] Calling getFacebookConfigForCurrentUser", [
+                'projet_id' => $request->projet_id,
+                'user_id' => $user->id
+            ]);
+
+            $config = $this->getFacebookConfigForCurrentUser($request->projet_id);
+
+            Log::info("📊 [postTo_Social_Network] Config result", [
+                'found' => $config ? 'YES' : 'NO',
+                'config_data' => $config ? [
+                    'id' => $config->id,
+                    'page_fcb_id' => $config->page_fcb_id,
+                    'projet_id' => $config->projet_id,
+                    'has_token' => !empty($config->acces_token_page)
+                ] : null
+            ]);
+
+            if (!$config) {
+                // Vérification supplémentaire - essayer de récupérer directement
+                Log::error("❌ [postTo_Social_Network] Config not found via getFacebookConfigForCurrentUser");
+
+                // Tentative de récupération directe
+                Log::info("🔍 [postTo_Social_Network] Attempting direct DB query");
+                $directConfig = DB::table('facebook_configurations')
+                    ->where('projet_id', $request->projet_id)
+                    ->whereNull('deleted_at')
+                    ->first();
+
+                Log::info("📊 [postTo_Social_Network] Direct query result", [
+                    'found' => $directConfig ? 'YES' : 'NO',
+                    'data' => $directConfig
+                ]);
+
+                // Vérifier tous les enregistrements dans la table
+                $allConfigs = DB::table('facebook_configurations')
+                    ->whereNull('deleted_at')
+                    ->get();
+
+                Log::info("📊 [postTo_Social_Network] All configurations in table", [
+                    'count' => $allConfigs->count(),
+                    'data' => $allConfigs->map(function($item) {
+                        return [
+                            'id' => $item->id,
+                            'projet_id' => $item->projet_id,
+                            'page_fcb_id' => $item->page_fcb_id
+                        ];
+                    })->toArray()
+                ]);
+
+                // Vérifier si le projet existe
+                $projectExists = DB::table('projets')
+                    ->where('id', $request->projet_id)
+                    ->whereNull('deleted_at')
+                    ->first();
+
+                Log::info("📊 [postTo_Social_Network] Project check", [
+                    'projet_id' => $request->projet_id,
+                    'exists' => $projectExists ? 'YES' : 'NO',
+                    'project_data' => $projectExists
+                ]);
+
+                throw new \Exception('Facebook configuration not found for project ID: ' . $request->projet_id);
+            }
+
+            $pageId = $config->page_fcb_id;
+            $accessToken = $config->acces_token_page;
+
+            Log::info("✅ [postTo_Social_Network] Facebook config found", [
+                'pageId' => $pageId,
+                'has_token' => !empty($accessToken),
+                'token_preview' => $accessToken ? substr($accessToken, 0, 20) . '...' : 'EMPTY'
+            ]);
+
+            if ($mode == 'existante') {
+                $url = str_replace('\/\/', '/', $request->img_existant_url);
+                $text = 'photos';
+                Log::info("📸 [postTo_Social_Network] Mode existante", [
+                    'img_existant_url' => $request->img_existant_url,
+                    'url' => $url
+                ]);
+            }
+
+            $data = [
+                'pageId_InstagramId' => $pageId,
+                'caption' => $description,
+                'text' => $text,
+                //'url' => $url,
+                  'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
+                'network' => 'facebook',
+                'accessToken' => $accessToken
+            ];
+
+            Log::info("📤 [postTo_Social_Network] Calling store() for Facebook", [
+                'pageId' => $pageId,
+                'caption_length' => strlen($description),
+                'url' => $url
+            ]);
+
+            $response = $this->store($request->merge($data));
+            return $response;
+        }
+
+        // REPLACE the hardcoded Instagram section:
+        if (in_array(2, $selectedNetworks)) {
+            Log::info("📷 [postTo_Social_Network] Instagram network selected", [
+                'projet_id' => $request->projet_id
+            ]);
+
+            $config = $this->getInstagramConfigForCurrentUser($request->projet_id);
+
+            if (!$config) {
+                Log::error("❌ [postTo_Social_Network] Instagram config not found", [
+                    'projet_id' => $request->projet_id
+                ]);
+                throw new \Exception('Instagram configuration not found for project ID: ' . $request->projet_id);
+            }
+
+            $pageId = $config->instagram_id;
+            $accessToken = $config->acces_token_user;
+
+            if ($mode == 'existante') {
+                $url = $request->img_existant_url;
+                $type_media = 'image_url';
+            }
+
+            $data = [
+                'pageId_InstagramId' => $pageId,
+                'caption' => $request->description,
+                'text' => 'media',
+                'type_media' => $type_media,
+                'url' => $url,
+                'network' => 'instagram',
+                'accessToken' => $accessToken
+            ];
+
+            Log::info("📤 [postTo_Social_Network] Calling store() for Instagram", [
+                'pageId' => $pageId,
+                'has_token' => !empty($accessToken)
+            ]);
+
+            $response = $this->store($request->merge($data));
+            return $response;
+        }
+
+        if (in_array(1, $selectedNetworks)) {
+            Log::info("💬 [postTo_Social_Network] WhatsApp network selected");
+
+            $instanceId = env('INSTANCE_ID_ULTRA_MSG');
+            $token = env('TOKEN_ULTRA_MSG');
+            $to = $request->phoneNumber;
+            $description = $request->description;
+            $mode = $request->mode;
+
+            Log::info("📱 [postTo_Social_Network] WhatsApp config", [
+                'instanceId' => $instanceId ? 'SET' : 'NOT SET',
+                'token' => $token ? 'SET' : 'NOT SET',
+                'to' => $to,
+                'mode' => $mode
+            ]);
+
+            if ($mode != "null") {
+                $response = Http::timeout(60)->post("https://api.ultramsg.com/$instanceId/messages/image", [
+                    'token' => $token,
+                    'to' => $to,
+                    'image' => $url,
+                    'caption' => $description,
+                ]);
+
+                Log::info("📤 [postTo_Social_Network] WhatsApp response", [
+                    'status' => $response->status(),
+                    'body' => $response->json()
+                ]);
+
+                return response()->json($response->json());
+            }
+        }
+
+        // Only return invalid if no valid networks were processed
+        if (!array_intersect($selectedNetworks, [1, 2, 3])) {
+            Log::warning("⚠️ [postTo_Social_Network] No valid network selected", [
+                'selectedNetworks' => $selectedNetworks
+            ]);
+            return response()->json(['success' => false, 'message' => 'Invalid social network selection'], 400);
+        }
+
+        Log::info("✅ [postTo_Social_Network] END - No error");
+
+    } catch (\Exception $e) {
+        Log::error("💥 [postTo_Social_Network] EXCEPTION", [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString(),
+            'request_data' => $request->all()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+       public function debugFacebookConfigs()
+{
+    try {
+        Log::info("🔍 [DEBUG] Starting Facebook config debug");
+
+        // 1. Vérifier si la table existe
+        $tableExists = Schema::hasTable('facebook_configurations');
+        Log::info("📋 [DEBUG] Table exists?", ['exists' => $tableExists]);
+
+        if (!$tableExists) {
+            return response()->json([
+                'error' => 'Table facebook_configurations does not exist'
+            ], 404);
+        }
+
+        // 2. Récupérer toutes les configurations
+        $allConfigs = DB::table('facebook_configurations')->get();
+        Log::info("📊 [DEBUG] All configs", [
+            'count' => $allConfigs->count(),
+            'data' => $allConfigs->toArray()
+        ]);
+
+        // 3. Récupérer les configurations non supprimées
+        $activeConfigs = DB::table('facebook_configurations')
+            ->whereNull('deleted_at')
+            ->get();
+        Log::info("✅ [DEBUG] Active configs", [
+            'count' => $activeConfigs->count(),
+            'data' => $activeConfigs->toArray()
+        ]);
+
+        // 4. Récupérer pour projet_id = 1
+        $configProject1 = DB::table('facebook_configurations')
+            ->where('projet_id', 1)
+            ->whereNull('deleted_at')
+            ->first();
+        Log::info("🎯 [DEBUG] Config for project 1", [
+            'found' => $configProject1 ? 'YES' : 'NO',
+            'data' => $configProject1
+        ]);
+
+        // 5. Vérifier les projets
+        $projects = DB::table('projets')
+            ->whereNull('deleted_at')
+            ->get();
+        Log::info("🏢 [DEBUG] All projects", [
+            'count' => $projects->count(),
+            'data' => $projects->toArray()
+        ]);
+
+        // 6. Vérifier les permissions de l'utilisateur
+        $user = Auth::user();
+        $userProjects = DB::table('user_projets')
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->get();
+        Log::info("👤 [DEBUG] User projects", [
+            'user_id' => $user->id,
+            'count' => $userProjects->count(),
+            'data' => $userProjects->toArray()
+        ]);
+
+        return response()->json([
+            'table_exists' => $tableExists,
+            'total_configs' => $allConfigs->count(),
+            'active_configs_count' => $activeConfigs->count(),
+            'active_configs' => $activeConfigs->toArray(),
+            'config_project_1' => $configProject1,
+            'projects' => $projects->toArray(),
+            'user_projects' => $userProjects->toArray(),
+            'current_user' => [
+                'id' => $user->id,
+                'email' => $user->email
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error("💥 [DEBUG] Exception", [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
 
         private function getInstagramConfigForCurrentUser($projetId = null)
         {
