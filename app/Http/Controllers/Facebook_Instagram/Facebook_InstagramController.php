@@ -106,7 +106,7 @@ class Facebook_InstagramController extends Controller
                             'caption' => $description,
                             'text' => $text,
                           'url' => $url, // Use dynamic URL instead of
-                          //  'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
+                           // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
                             'network' => 'facebook',
                             'accessToken' => $accessToken
                         ];
@@ -186,44 +186,42 @@ class Facebook_InstagramController extends Controller
                 }
         }
 
-       private function getFacebookConfigForCurrentUser($projetId = null)
-            {
-                try {
-                    $user = Auth::user();
+        private function getFacebookConfigForCurrentUser($projetId = null)
+        {
+            try {
+                $user = Auth::user();
 
-                    if (!$projetId) {
-                        Log::warning("No project ID provided for Facebook configuration retrieval");
-                        return null;
-                    }
-
-                    // Get user's accessible projects to ensure they have permission
-                    $userProjects = $this->getUserAccessibleProjects($user);
-                    $projectIds = $userProjects->pluck('projet_id')->toArray();
-
-                    if (!in_array($projetId, $projectIds)) {
-                        Log::warning("User {$user->id} does not have access to project {$projetId}");
-                        return null;
-                    }
-
-                    // 🔥 CHANGEMENT ICI : Utiliser la connexion par défaut (mysql) au lieu de 'temp'
-                    $config = DB::connection('mysql')  // ← Changement important
-                        ->table('facebook_configurations')
-                        ->where('projet_id', $projetId)
-                        ->whereNull('deleted_at')
-                        ->orderBy('created_at', 'desc')
-                        ->first();
-
-                    if (!$config) {
-                        Log::info("No Facebook configuration found for project {$projetId}");
-                    }
-
-                    return $config;
-
-                } catch (\Exception $e) {
-                    Log::error("Error getting Facebook config for project {$projetId}: " . $e->getMessage());
+                if (!$projetId) {
+                    Log::warning("No project ID provided for Facebook configuration retrieval");
                     return null;
                 }
+
+                  // Get user's accessible projects to ensure they have permission
+                $userProjects = $this->getUserAccessibleProjects($user);
+                $projectIds = $userProjects->pluck('projet_id')->toArray();
+
+                if (!in_array($projetId, $projectIds)) {
+                    Log::warning("User {$user->id} does not have access to project {$projetId}");
+                    return null;
+                }
+                // Get Facebook configuration for the specific project
+                $config = DB::table('facebook_configurations')
+                    ->where('projet_id', $projetId)
+                    ->whereNull('deleted_at')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+
+                if (!$config) {
+                    Log::info("No Facebook configuration found for project {$projetId}");
+                }
+
+                return $config;
+
+            } catch (\Exception $e) {
+                Log::error("Error getting Facebook config for project {$projetId}: " . $e->getMessage());
+                return null;
             }
+        }
 
         private function getInstagramConfigForCurrentUser($projetId = null)
         {
@@ -245,8 +243,7 @@ class Facebook_InstagramController extends Controller
                 }
 
                 // Get Instagram configuration for the specific project
-                $config = DB::connection('mysql')
-                    ->table('instagram_configurations')
+                $config = DB::table('instagram_configurations')
                     ->where('projet_id', $projetId)
                     ->whereNull('deleted_at')
                     ->orderBy('created_at', 'desc')
