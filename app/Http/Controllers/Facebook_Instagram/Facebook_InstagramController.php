@@ -345,8 +345,8 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 'pageId_InstagramId' => $pageId,
                 'caption' => $description,
                 'text' => $text,
-                //'url' => $url,
-                  'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
+                'url' => $url,
+                 // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
                 'network' => 'facebook',
                 'accessToken' => $accessToken
             ];
