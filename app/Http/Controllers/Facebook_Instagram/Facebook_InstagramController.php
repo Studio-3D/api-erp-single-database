@@ -600,7 +600,7 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
 
 
 
-      public function store(Request $request)
+ public function store(Request $request)
 {
     $pageIdInstagramId = $request->pageId_InstagramId;
     $accessToken = $request->accessToken;
@@ -624,10 +624,13 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
         'timeout' => 60.0,
     ]);
 
-    // ✅ Pour Instagram, vérifier et redimensionner l'image si nécessaire
+    $tempFilePath = null;
+    $tempFileName = null;
+
+    // ✅ Pour Instagram, vérifier et redimensionner l'image si nécessaire (avec GD)
     if ($network == 'instagram' && $request->type_media != 'video_url') {
         try {
-            Log::info("🖼️ [store] Processing image for Instagram");
+            Log::info("🖼️ [store] Processing image for Instagram with GD");
 
             // Télécharger l'image
             $imageContent = file_get_contents($url);
@@ -635,11 +638,14 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 throw new \Exception('Impossible de télécharger l\'image depuis l\'URL');
             }
 
-            // Créer une image avec Intervention
-            $image = Image::make($imageContent);
+            // Créer une image avec GD
+            $image = imagecreatefromstring($imageContent);
+            if ($image === false) {
+                throw new \Exception('Format d\'image non supporté');
+            }
 
-            $width = $image->width();
-            $height = $image->height();
+            $width = imagesx($image);
+            $height = imagesy($image);
             $aspectRatio = $width / $height;
 
             Log::info("📐 [store] Original image dimensions", [
@@ -663,23 +669,31 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 if ($aspectRatio < $minRatio) {
                     // Trop vertical (hauteur > largeur)
                     $newWidth = $width;
-                    $newHeight = $width / $minRatio;
+                    $newHeight = (int)($width / $minRatio);
                 } else {
                     // Trop horizontal (largeur > hauteur)
-                    $newWidth = $height * $maxRatio;
+                    $newWidth = (int)($height * $maxRatio);
                     $newHeight = $height;
                 }
 
+                // Créer une nouvelle image redimensionnée avec fond blanc
+                $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
+
+                // Remplir avec du blanc
+                $white = imagecolorallocate($resizedImage, 255, 255, 255);
+                imagefill($resizedImage, 0, 0, $white);
+
                 // Redimensionner l'image en conservant le ratio
-                $image->resize($newWidth, $newHeight, function ($constraint) {
-                    $constraint->aspectRatio();
-                });
+                imagecopyresampled(
+                    $resizedImage, $image,
+                    (int)(($newWidth - $width) / 2),
+                    (int)(($newHeight - $height) / 2),
+                    0, 0,
+                    $width, $height,
+                    $width, $height
+                );
 
-                // Créer un canvas avec fond blanc pour centrer l'image
-                $canvas = Image::canvas($newWidth, $newHeight, '#ffffff');
-                $canvas->insert($image, 'center');
-
-                // ✅ Utiliser le dossier public/docs/temp/
+                // Créer le dossier temp
                 $tempDir = public_path('docs/temp');
                 if (!File::exists($tempDir)) {
                     File::makeDirectory($tempDir, 0755, true);
@@ -687,9 +701,15 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
 
                 $tempFileName = uniqid() . '.jpg';
                 $tempPath = $tempDir . '/' . $tempFileName;
-                $canvas->save($tempPath, 90);
 
-                Log::info("✅ [store] Image resized and saved", [
+                // Sauvegarder en JPEG
+                imagejpeg($resizedImage, $tempPath, 90);
+
+                // Libérer la mémoire
+                imagedestroy($image);
+                imagedestroy($resizedImage);
+
+                Log::info("✅ [store] Image resized and saved with GD", [
                     'temp_path' => $tempPath,
                     'temp_url' => asset('docs/temp/' . $tempFileName),
                     'new_width' => $newWidth,
@@ -699,27 +719,18 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
 
                 // Utiliser l'URL publique de l'image redimensionnée
                 $url = asset('docs/temp/' . $tempFileName);
-
-                // Stocker le chemin du fichier pour le nettoyage
                 $tempFilePath = $tempPath;
-                $tempFileName = $tempFileName;
 
             } else {
                 Log::info("✅ [store] Aspect ratio is valid", [
                     'ratio' => $aspectRatio
                 ]);
-                $tempFilePath = null;
-                $tempFileName = null;
+                imagedestroy($image);
             }
         } catch (\Exception $e) {
             Log::error("❌ [store] Image processing error: " . $e->getMessage());
-            $tempFilePath = null;
-            $tempFileName = null;
             // Continuer avec l'image originale si le traitement échoue
         }
-    } else {
-        $tempFilePath = null;
-        $tempFileName = null;
     }
 
     $apiUrl = "https://graph.facebook.com/v22.0/{$pageIdInstagramId}/{$text}";
@@ -884,7 +895,7 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
         }
     } catch (\Exception $e) {
         // ✅ Nettoyer le fichier temporaire en cas d'erreur
-        if (isset($tempFilePath) && $tempFilePath && File::exists($tempFilePath)) {
+        if ($tempFilePath && File::exists($tempFilePath)) {
             File::delete($tempFilePath);
             Log::info("🗑️ [store] Temporary file deleted on error", ['path' => $tempFilePath]);
         }
