@@ -632,7 +632,7 @@ class Bien_Helper
             }
         }
 
-        // 3. Validation Orientation Enum
+        /* 3. Validation Orientation Enum
         if (array_key_exists("Orientation", $row) && $row['Orientation'] !== null && $row['Orientation'] !== '') {
             $validOrientations = [
                 'N' => 1, 'E' => 2, 'S' => 3, 'O' => 4,
@@ -642,6 +642,11 @@ class Bien_Helper
             if (!array_key_exists($row['Orientation'], $validOrientations)) {
                 $errors[] = "Orientation invalide. Valeurs acceptées: " . implode(', ', array_keys($validOrientations)) . ". Trouvé: " . $row['Orientation'];
             }
+        }*/
+         if (array_key_exists("Orientation", $row) && $row['Orientation'] !== null && $row['Orientation'] !== '') {
+            $bien->orientation = $row['Orientation'];
+        } else {
+            $bien->orientation = 'N';
         }
 
         // 4. Validation Statut Enum
@@ -866,7 +871,7 @@ class Bien_Helper
         }
 
         // Set Orientation with enum validation
-        if (array_key_exists("Orientation", $row) && $row['Orientation'] != null) {
+          if (array_key_exists("Orientation", $row) && $row['Orientation'] !== null && $row['Orientation'] !== '') {
             $bien->orientation = $row['Orientation'];
         } else {
             $bien->orientation = 'N';
