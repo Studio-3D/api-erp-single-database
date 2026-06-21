@@ -510,7 +510,9 @@ class BienController extends Controller
             $bien->typologie_id                 = $request->typologie_id;
             $bien->prix_parking                 = $request->prix_parking;
             $bien->num_parking                  = $request->num_parking;
+            $bien->nb_parking                  = $request->nb_parking;
             $bien->num_box                      = $request->num_box;
+            $bien->nb_box                      = $request->nb_box;
             $bien->prix_box                     = $request->prix_box;
             $bien->superficie_terrasse_calculer = $request->superficie_terrasse_calculer;
             $bien->superficie_balcon_calculer   = $request->superficie_balcon_calculer;
@@ -1225,7 +1227,7 @@ class BienController extends Controller
                     'id'                           => $b_pr->id,
                     'propriete_dite_bien'          => $nom . '-' . $b_pr->propriete_dite_bien,
                     'etat'                         => $b_pr->etat,
-                    'prix'                         => $b_pr->prix,
+                    'prix'                         => $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box),
                     'avance_minimale'              => $b_pr->avance_minimale,
                     'prix_unitaire'                => $b_pr->prix_unitaire,
                     'superficie_vendable' => $b_pr->superficie_vendable,
@@ -1235,6 +1237,7 @@ class BienController extends Controller
                     'superficie_habitable'         => $b_pr->superficie_habitable,
                     'prix_box'                     => $b_pr->prix_box,
                     'prix_parking'                 => $b_pr->prix_parking,
+                    'nb_parking'                 => $b_pr->nb_parking,
                     'is_proposed'                  => $b_pr->is_proposed,
                 ];
             }
@@ -1294,7 +1297,7 @@ class BienController extends Controller
                         'id'                           => $bien->id,
                         'propriete_dite_bien'          => $nom . '-' . $bien->propriete_dite_bien,
                         'etat'                         => $bien->etat,
-                        'prix'                         => $bien->prix,
+                        'prix'                         => $bien->prix+($bien->prix_parking*$bien->nb_parking)+($bien->prix_box*$bien->nb_box),
                         'avance_minimale'              => $bien->avance_minimale,
                         'prix_unitaire'                => $bien->prix_unitaire,
                         'superficie_terrasse_calculer' => $bien->superficie_terrasse_calculer,
@@ -1304,6 +1307,7 @@ class BienController extends Controller
                         'superficie_vendable'         => $bien->superficie_vendable,
                         'prix_box'                     => $bien->prix_box,
                         'prix_parking'                 => $bien->prix_parking,
+                        'nb_parking'                 => $bien->nb_parking,
                         'is_proposed'                  => $bien->is_proposed,
                     ];
                 };
@@ -1350,32 +1354,32 @@ class BienController extends Controller
                 if ($b_pr->prix <= $b_pr->encaissements_sum_montant) {
                     //tranches bloc w immeuble
                     if ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
-                        array_push($biens, array('id' => $b_pr->id, 'clients' => $b_pr->reservation->aquereurs, 'prix' => $b_pr->prix, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
+                        array_push($biens, array('id' => $b_pr->id, 'clients' => $b_pr->reservation->aquereurs, 'prix' =>  $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box), 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
                     }
                     //tranche bloc
                     elseif ($b_pr->tranche_id != null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
-                        array_push($biens, array('id' => $b_pr->id, 'prix' => $b_pr->prix, 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->bloc->nom . '-' . $b_pr->propriete_dite_bien));
+                        array_push($biens, array('id' => $b_pr->id, 'prix' =>  $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box), 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->bloc->nom . '-' . $b_pr->propriete_dite_bien));
                     }
 
                     //tranche immeuble
                     elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
-                        array_push($biens, array('id' => $b_pr->id, 'prix' => $b_pr->prix, 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
+                        array_push($biens, array('id' => $b_pr->id, 'prix' =>  $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box), 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
                     }
                     //bloc immeuble
                     elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id != null) {
-                        array_push($biens, array('id' => $b_pr->id, 'prix' => $b_pr->prix, 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
+                        array_push($biens, array('id' => $b_pr->id, 'prix' =>  $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box), 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->bloc->nom . '-' . $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
                     }
                     //bloc
                     elseif ($b_pr->tranche_id == null && $b_pr->bloc_id != null && $b_pr->immeuble_id == null) {
-                        array_push($biens, array('id' => $b_pr->id, 'prix' => $b_pr->prix, 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->bloc->nom . '-' . $b_pr->propriete_dite_bien));
+                        array_push($biens, array('id' => $b_pr->id, 'prix' =>  $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box), 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->bloc->nom . '-' . $b_pr->propriete_dite_bien));
                     }
                     //immeuble
                     elseif ($b_pr->tranche_id == null && $b_pr->bloc_id == null && $b_pr->immeuble_id != null) {
-                        array_push($biens, array('id' => $b_pr->id, 'prix' => $b_pr->prix, 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
+                        array_push($biens, array('id' => $b_pr->id, 'prix' => $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box), 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->immeuble->nom . '-' . $b_pr->propriete_dite_bien));
                     }
                     //tranche
                     elseif ($b_pr->tranche_id != null && $b_pr->bloc_id == null && $b_pr->immeuble_id == null) {
-                        array_push($biens, array('id' => $b_pr->id, 'prix' => $b_pr->prix, 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->propriete_dite_bien));
+                        array_push($biens, array('id' => $b_pr->id, 'prix' =>  $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box), 'clients' => $b_pr->reservation->aquereurs, 'encaissement' => $b_pr->encaissements_sum_montant, 'propriete_dite_bien' => $b_pr->tranche->nom . '-' . $b_pr->propriete_dite_bien));
                     }
 
                 }

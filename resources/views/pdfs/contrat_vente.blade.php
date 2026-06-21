@@ -389,11 +389,11 @@
                             }
                         @endphp
                         {{ $compositionText ?: 'Non spécifiée' }}.
-                        @if(!empty($bien['num_parking']))
-                            Le bien dispose de {{ $bien['num_parking'] }} place{{ $bien['num_parking'] > 1 ? 's' : '' }} de parking au sous-sol.
+                        @if(!empty($bien['nb_parking']))
+                            Le bien dispose de {{ $bien['nb_parking'] }} place{{ $bien['nb_parking'] > 1 ? 's' : '' }} de parking au sous-sol.
                         @endif
-                        @if(!empty($bien['num_box']))
-                            Il comprend également un box numéro {{ $bien['num_box'] }}.
+                       @if(!empty($bien['nb_box']))
+                            Le bien dispose de {{ $bien['nb_box'] }} boxe{{ $bien['nb_box'] > 1 ? 's' : '' }} .
                         @endif
                     </div>
                 @endif

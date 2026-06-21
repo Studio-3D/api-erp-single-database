@@ -261,6 +261,7 @@ class Bien_Helper
         // Continue with the rest of your existing code...
         if (array_key_exists("Prix parking", $row) && $row['Prix parking'] != null) {
             $bien->prix_parking = self::validateNumericValue($row['Prix parking'], "Prix parking");
+            $bien->nb_parking=1;
         } else {
             $bien->prix_parking = 0;
         }

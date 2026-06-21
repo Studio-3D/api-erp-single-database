@@ -327,15 +327,15 @@
             </div>
             @endif
 
-            @if(!empty($reservationDetails['bien']['num_parking']))
+            @if(!empty($reservationDetails['bien']['nb_parking']))
             <div class="paragraph">
-                Et {{ $reservationDetails['bien']['num_parking'] }} place(s) de parking au sous-sol
+                Et {{ $reservationDetails['bien']['nb_parking'] }} place(s) de parking au sous-sol
             </div>
             @endif
 
-            @if(!empty($reservationDetails['bien']['num_box']))
+            @if(!empty($reservationDetails['bien']['nb_box']))
             <div class="paragraph">
-                Et {{ $reservationDetails['bien']['num_box'] }} Box
+                Et {{ $reservationDetails['bien']['nb_box'] }} Box
             </div>
             @endif
         </div>
