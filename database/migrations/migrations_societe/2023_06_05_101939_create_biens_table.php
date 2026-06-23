@@ -38,9 +38,11 @@ return new class extends Migration
                 OrientationEnum::NORD_SUD_EST->name,
                 OrientationEnum::NORD_EST_OUEST->name
             ]);
-                        $table->boolean('conventionne')->default(false);
+            $table->boolean('conventionne')->default(false);
             $table->double('prix_unitaire', 12, 2);
             $table->double('prix', 20, 2);
+            $table->integer('nb_parking')->nullable();
+            $table->integer('nb_box')->nullable();
             $table->double('prix_parking', 12, 2)->nullable();;
             $table->string('num_parking')->nullable();;
             $table->string('num_box')->nullable();;

@@ -593,6 +593,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/generate_penalite_pdf ', [PDFController::class, 'generatePenalitePDF']);
     Route::post('/generate_rdv_pdf ', [PDFController::class, 'generateRdvPDF']);
     Route::post('/generate_contrat_vente_pdf ', [PDFController::class, 'generateContratVentePDF']);
+    Route::post('/generate_contrat_vente_reservation_pdf ', [PDFController::class, 'generateContratVentePDF_reservation']);
 
     /***********************************Livraison*******************/
     /*******rdv notaire*** */

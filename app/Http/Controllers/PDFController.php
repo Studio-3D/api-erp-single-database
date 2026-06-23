@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class PDFController extends Controller
 {
@@ -1057,8 +1058,184 @@ public function generateContratVentePDF(Request $request)
     }
 }
 
+    /****************contrat de vente reservation**************************/
 
+ public function generateContratVentePDF_reservation(Request $request)
+    {
+        try {
+            $data = $request->input('data');
 
+            if (!$data) {
+                return response()->json(['error' => 'No data provided'], 400);
+            }
+
+            $societe = $data['societe'] ?? [];
+
+            // Process logo (IMOZINE logo - left side)
+            $logoBase64 = null;
+            if (isset($societe['logo']) &&
+                isset($societe['raison_sociale_concatene']) &&
+                isset($societe['id'])) {
+
+                $logoFilename = $societe['logo'];
+                $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $logoFilename;
+
+                $fileContent = null;
+
+                if (app()->environment('production')) {
+                    if (Storage::disk('s3')->exists($logoPath)) {
+                        $fileContent = Storage::disk('s3')->get($logoPath);
+                    }
+                } else {
+                    $localPath = public_path('docs/' . $logoPath);
+                    if (file_exists($localPath)) {
+                        $fileContent = file_get_contents($localPath);
+                    }
+                }
+
+                if ($fileContent !== null) {
+                    $extension = pathinfo($logoFilename, PATHINFO_EXTENSION);
+                    $mimeType = match($extension) {
+                        'png' => 'image/png',
+                        'jpg', 'jpeg' => 'image/jpeg',
+                        'gif' => 'image/gif',
+                        'svg' => 'image/svg+xml',
+                        default => 'image/png'
+                    };
+                    $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
+                }
+            }
+
+            // Try to load green_ang.png from logos folder
+            $greenLandBase64 = null;
+            if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
+                $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
+                $fileContent = null;
+
+                if (app()->environment('production')) {
+                    if (Storage::disk('s3')->exists($greenLandPath)) {
+                        $fileContent = Storage::disk('s3')->get($greenLandPath);
+                    }
+                } else {
+                    $localPath = public_path('docs/' . $greenLandPath);
+                    if (file_exists($localPath)) {
+                        $fileContent = file_get_contents($localPath);
+                    }
+                }
+
+                if ($fileContent !== null) {
+                    $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
+                }
+            }
+
+            $reservation = $data['reservation'] ?? [];
+            $bien = $reservation['bien'] ?? [];
+
+            // Get total price from reservation
+            $totalPrice = $reservation['prix'] ?? 0;
+
+            // Get parking and box prices from BIEN
+            $prixParking = $bien['prix_parking'] ?? 0;
+            $prixBox = $bien['prix_box'] ?? 0;
+            $nbParking = $bien['nb_parking'] ?? 0;
+            $nbBox = $bien['nb_box'] ?? 0;
+
+            // Calculate prices
+            $parkingTotal = $prixParking * $nbParking;
+            $boxTotal = $prixBox * $nbBox;
+            $apartmentPrice = $totalPrice - $parkingTotal - $boxTotal;
+
+            // Get surface areas from BIEN
+            $surfaceParking = $bien['superficie_parking'] ?? 0;
+            $surfaceBox = $bien['superficie_box'] ?? 0;
+            $surfaceVendable = $bien['superficie_vendable'] ?? 0;
+
+            // Payment schedule
+            $paymentSchedule = $data['payment_schedule'] ?? [
+                ['step' => 1, 'label' => 'À la signature (dépôt de garantie)', 'percentage' => 5],
+                ['step' => 2, 'label' => 'Achèvement des fondations', 'percentage' => 15],
+                ['step' => 3, 'label' => 'Achèvement du gros œuvre (toutes dalles)', 'percentage' => 25],
+                ['step' => 4, 'label' => 'Achèvement maçonnerie et cloisonnement', 'percentage' => 20],
+                ['step' => 5, 'label' => 'Achèvement corps d\'état secondaires', 'percentage' => 15],
+                ['step' => 6, 'label' => 'Achèvement des travaux de finition', 'percentage' => 10],
+                ['step' => 7, 'label' => 'Obtention du certificat de conformité', 'percentage' => 5],
+                ['step' => 8, 'label' => 'Signature acte définitif — remise des clés', 'percentage' => 5],
+            ];
+
+            // Calculate payment amounts
+            foreach ($paymentSchedule as &$schedule) {
+                $schedule['amount'] = ($totalPrice * $schedule['percentage']) / 100;
+            }
+
+            // Prepare data for PDF
+            $pdfData = [
+                'logoBase64' => $logoBase64,
+                'greenLandBase64' => $greenLandBase64,
+                'societe' => $societe,
+                'reservation' => $reservation,
+                'bien' => $bien,
+                'apartmentPrice' => $apartmentPrice,
+                'parkingTotal' => $parkingTotal,
+                'boxTotal' => $boxTotal,
+                'totalPrice' => $totalPrice,
+                'prixParking' => $prixParking,
+                'prixBox' => $prixBox,
+                'nbParking' => $nbParking,
+                'nbBox' => $nbBox,
+                'surfaceParking' => $surfaceParking,
+                'surfaceBox' => $surfaceBox,
+                'surfaceVendable' => $surfaceVendable,
+                'sum_avances_valides' => $data['sum_avances_valides'] ?? 0,
+                'num_recu' => $data['num_recu'] ?? 'temp',
+                'currentDate' => now()->format('d/m/Y'),
+                'paymentSchedule' => $paymentSchedule,
+                'page' => 1,
+                'totalPages' => 5,
+                'formatDate' => function($date) {
+                    if (!$date) return '';
+                    return Carbon::parse($date)->format('d/m/Y');
+                },
+                'formatCivilite' => function($civilite) {
+                    switch ($civilite) {
+                        case "1": return "Monsieur";
+                        case "2": return "Madame";
+                        case "3": return "Mademoiselle";
+                        default: return "Monsieur / Madame";
+                    }
+                },
+                'formatCurrency' => function($amount) {
+                    if ($amount <= 0) return '……… DH';
+                    return number_format($amount, 0, ',', ' ') . ' DH';
+                },
+                'formatPercentage' => function($amount, $percentage) {
+                    if ($amount <= 0) return '……… DH';
+                    return number_format(($amount * $percentage / 100), 0, ',', ' ') . ' DH';
+                }
+            ];
+
+            $pdf = Pdf::loadView('pdfs.contrat_vente_reservation', $pdfData);
+            $pdf->setPaper('A4', 'portrait');
+            $pdf->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => false,
+                'isPhpEnabled' => true,
+                'defaultFont' => 'dejavu sans',
+                'margin_top' => 10,
+                'margin_bottom' => 10,
+                'margin_left' => 15,
+                'margin_right' => 15,
+            ]);
+
+            // Fix: Use a variable for the filename
+            $numRecu = $data['num_recu'] ?? 'temp';
+            return $pdf->download("contrat_vente_{$numRecu}.pdf");
+
+        } catch (\Exception $e) {
+            Log::error('Contrat Vente PDF Generation Error: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+        }
+    }
 
 
 

@@ -582,9 +582,8 @@ private function processReservationFiles($reservation, $request, $societe)
                 $this->processClients($reservation, $request,$userAuth);
 
                 // Process payment if specified
-                if ($request->avance) {
                     $this->processPayment($reservation, $request);
-                }
+
 }
 
             /**
@@ -753,94 +752,224 @@ private function processReservationFiles($reservation, $request, $societe)
             /**
              * Process payment data
              */
-            private function processPayment($reservation, $request)
-            {
-                $avanceController = new AvanceController();
-                $avanceRequest = new StoreAvanceRequest();
-                $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-                $mnt_lettre = $inWords->format($request->avance);
-                // Process avance files immediately and store file names
-                    $avanceFileNames = [];
-                    if ($request->file('files_avance')) {
-                        $avanceFileNames = $this->processAvanceFiles($reservation, $request);
-                    }
+ private function processPayment($reservation, $request)
+{
+    // Check if we have avances data (new format from frontend)
+    $avancesData = json_decode($request->input('avances'), true);
 
-                $dataAvance = [
-                    'avance_with_reservation' => true,
-                    'desistement_id' => null,
-                    'dossier_id_transfert' => null,
-                    'sr' => $request->sr,
-                    'type_encaissement' => 1,
-                    'montant' => $request->avance,
-                    'mode_paiement' => $request->mode_paiement,
-                    'numero_paiement' => $request->numero_paiement,
-                    'date_reglement' => $request->date_reglement,
-                    'echeance' => $request->echeance,
-                    'banque_id' => $request->banque_id,
-                    'montant_par_lettre' => $mnt_lettre,
-                    'reservation_id' => $reservation->id,
-                    'commentaireAvance' => $request->commentaireAvance,
-                    'num_remise' => $request->num_remise,
-                    'date_encaissement' => $request->date_encaissement,
-                    //'files_avance' => $request->file('files_avance'),
-                    'processed_files' => $avanceFileNames, // Pass processed file names instead of file objects
-                    'prix_bien' => $request->prix,
-                    'prix_reservation' => $request->prix_final,
+    if ($avancesData && is_array($avancesData) && count($avancesData) > 0) {
+        // Process multiple avances
+        foreach ($avancesData as $index => $avanceData) {
+            // Make sure in_contrat is set
+            $avanceData['in_contrat'] = true;
+            $this->createSingleAvance($reservation, $avanceData, $request, $index);
+        }
+    } elseif ($request->avance) {
+        // Fallback: Single avance from old format
+        $avanceData = [
+            'montant' => $request->avance,
+            'mode_paiement' => $request->mode_paiement,
+            'banque_id' => $request->banque_id,
+            'numero_paiement' => $request->numero_paiement,
+            'echeance' => $request->echeance,
+            'check_montant' => $request->check_montant ?? false,
+            'commentaire' => $request->commentaireAvance,
+            'num_remise' => $request->num_remise,
+            'date_encaissement' => $request->date_encaissement,
+            'in_contrat' => true,
+        ];
+        $this->createSingleAvance($reservation, $avanceData, $request, 0);
+    }
+}
 
-                ];
-                // Add a small delay to ensure proper ordering in database
-                        sleep(1); // 1 second delay
-                $avanceRequest->merge($dataAvance);
-                $avanceController->store($avanceRequest);
+private function createSingleAvance($reservation, $avanceData, $request, $index)
+{
+    $avanceController = new AvanceController();
+    $avanceRequest = new StoreAvanceRequest();
+    $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
+
+    $montant = $avanceData['montant'] ?? 0;
+    $mnt_lettre = $inWords->format($montant);
+
+    // Process avance files for this specific avance
+    $avanceFileNames = [];
+
+    // Debug: Log all uploaded files
+    \Log::info('All uploaded files:', array_keys($request->allFiles()));
+
+    // Try to get files for this avance index
+    $allFiles = $request->file('files_avance');
+
+    if ($allFiles && is_array($allFiles) && isset($allFiles[$index])) {
+        // Format: files_avance[0][0], files_avance[0][1] - nested array
+        $files = $allFiles[$index];
+        if (!empty($files) && is_array($files)) {
+            // Filter out null/empty values
+            $files = array_filter($files, function($file) {
+                return $file && $file->isValid();
+            });
+
+            if (!empty($files)) {
+                $avanceFileNames = $this->processAvanceFilesByIndex($reservation, $files, $index);
+                \Log::info('Processing ' . count($files) . ' files for avance ' . ($index + 1));
             }
+        }
+    } elseif ($request->hasFile("files_avance_{$index}")) {
+        // Fallback: files_avance_0, files_avance_1, etc.
+        $files = $request->file("files_avance_{$index}");
+        if (!is_array($files)) {
+            $files = [$files];
+        }
+        $avanceFileNames = $this->processAvanceFilesByIndex($reservation, $files, $index);
+    } elseif ($request->hasFile('files_avance')) {
+        // Fallback: single files_avance with all files (non-nested)
+        $allFiles = $request->file('files_avance');
+        if (!is_array($allFiles)) {
+            $allFiles = [$allFiles];
+        }
+        // If there's only one file and it's not nested, use it
+        if (isset($allFiles[0]) && !is_array($allFiles[0])) {
+            $avanceFileNames = $this->processAvanceFilesByIndex($reservation, $allFiles, $index);
+        }
+    }
+
+    // Add in_contrat to dataAvance
+    $dataAvance = [
+        'avance_with_reservation' => true,
+        'desistement_id' => null,
+        'dossier_id_transfert' => null,
+        'sr' => $request->sr ?? 0,
+        'type_encaissement' => 1,
+        'montant' => $montant,
+        'mode_paiement' => $avanceData['mode_paiement'] ?? null,
+        'numero_paiement' => $avanceData['numero_paiement'] ?? null,
+        'date_reglement' => $request->date_reglement ?? now(),
+        'echeance' => $avanceData['echeance'] ?? null,
+        'banque_id' => $avanceData['banque_id'] ?? null,
+        'montant_par_lettre' => $mnt_lettre,
+        'reservation_id' => $reservation->id,
+        'commentaireAvance' => $avanceData['commentaire'] ?? null,
+        'num_remise' => $avanceData['num_remise'] ?? null,
+        'date_encaissement' => $avanceData['date_encaissement'] ?? null,
+        'processed_files' => $avanceFileNames,
+        'prix_bien' => $request->prix,
+        'prix_reservation' => $request->prix_final,
+        'in_contrat' => true, // Add this key
+    ];
+
+    \Log::info('Creating avance with data:', [
+        'montant' => $montant,
+        'mode_paiement' => $dataAvance['mode_paiement'],
+        'files_count' => count($avanceFileNames),
+        'in_contrat' => $dataAvance['in_contrat']
+    ]);
+
+    $avanceRequest->merge($dataAvance);
+    $avanceController->store($avanceRequest);
+}
+private function processAvanceFilesByIndex($reservation, $files, $index)
+{
+    $processedFiles = [];
+    $societe_id = Auth::guard('api')->user()->societe_id;
+    $societe = Societe::findOrfail($societe_id);
+
+    \Log::info('Processing files for avance ' . ($index + 1) . ', file count: ' . count($files));
+
+    foreach ($files as $file) {
+        // Skip if file is null or invalid
+        if (!$file || !$file->isValid()) {
+            \Log::warning('Skipping invalid file for avance ' . ($index + 1));
+            continue;
+        }
+
+        try {
+            $fileName = $file->getClientOriginalName();
+            $fileType = $file->getClientOriginalExtension();
+
+            \Log::info('Processing file for avance ' . ($index + 1) . ': ' . $fileName);
+
+            // Store the file
+            FichierHelper::ajouter_fichier(
+                $file,
+                $societe->raison_sociale_concatene,
+                $societe->id,
+                'paiements/' . $reservation->code_reservation,
+                $fileName
+            );
+
+            $processedFiles[] = [
+                'file_name' => $fileName,
+                'file_type' => $fileType,
+            ];
+
+            \Log::info('Avance file processed successfully: ' . $fileName . ' for avance ' . ($index + 1));
+
+        } catch (\Exception $e) {
+            \Log::error('Error processing avance file for avance ' . ($index + 1) . ': ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    return $processedFiles;
+}
+private function processAvanceFiles($reservation, $request)
+{
+    // This is now only used as a fallback for old format
+    // The new method uses processAvanceFilesByIndex
+
+    $processedFiles = [];
+    $societe_id = Auth::guard('api')->user()->societe_id;
+    $societe = Societe::findOrfail($societe_id);
+
+    if (!$request->hasFile('files_avance')) {
+        return $processedFiles;
+    }
+
+    $files = $request->file('files_avance');
+
+    // Check if files are sent as array or single file
+    if (!is_array($files)) {
+        $files = [$files];
+    }
+
+    foreach ($files as $file) {
+        if (!$file->isValid()) {
+            \Log::error('Avance file upload error: ' . $file->getError());
+            continue;
+        }
+
+        try {
+            $fileName = $file->getClientOriginalName();
+            $fileType = $file->getClientOriginalExtension();
+
+            FichierHelper::ajouter_fichier(
+                $file,
+                $societe->raison_sociale_concatene,
+                $societe->id,
+                'paiements/' . $reservation->code_reservation,
+                $fileName
+            );
+
+            $processedFiles[] = [
+                'file_name' => $fileName,
+                'file_type' => $fileType,
+            ];
+
+            \Log::info('Avance file processed successfully: ' . $fileName);
+
+        } catch (\Exception $e) {
+            \Log::error('Error processing avance file: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    return $processedFiles;
+}
 
             /**
              * Process file uploads
              */
 
-
-                private function processAvanceFiles($reservation, $request)
-                {
-                    $processedFiles = [];
-                    $societe_id = Auth::guard('api')->user()->societe_id;
-                    $societe = Societe::findOrfail($societe_id);
-
-                    foreach ($request->file('files_avance') as $file) {
-                        if (!$file->isValid()) {
-                            \Log::error('Avance file upload error: ' . $file->getError());
-                            continue;
-                        }
-
-                        try {
-                            // Get file name and type
-                            $fileName = $file->getClientOriginalName();
-                            $fileType = $file->getClientOriginalExtension();
-
-                             // MODIFICATION: Utiliser FichierHelper
-                                FichierHelper::ajouter_fichier(
-                                    $file,
-                                    $societe->raison_sociale_concatene,
-                                    $societe->id,
-                                    'paiements/' . $reservation->code_reservation,
-                                    $fileName
-                                );
-
-                            $processedFiles[] = [
-                                'file_name' => $fileName,
-                                'file_type' => $fileType,
-                                'file_path' => $filePath,
-                            ];
-
-                            \Log::info('Avance file processed successfully: ' . $fileName);
-
-                        } catch (\Exception $e) {
-                            \Log::error('Error processing avance file: ' . $e->getMessage());
-                            throw $e;
-                        }
-                    }
-
-                    return $processedFiles;
-                }
 
                 public function search_reservation_by_code($code)
                 {
@@ -985,106 +1114,116 @@ private function getAllHistoriquesWithAncien($reservationId)
                             ])
                             ->orderBy('created_at', 'desc');
                     },*/
-    public function show($id)
-    {
-        if (RoleHelper::ACSup_RC()  || RoleHelper::AgentAdmin()||RoleHelper::NotaireRespoL()||RoleHelper::Comptable()) {
-            DatabaseHelper::Config();
+   public function show($id)
+{
+    if (RoleHelper::ACSup_RC()  || RoleHelper::AgentAdmin()||RoleHelper::NotaireRespoL()||RoleHelper::Comptable()) {
+        DatabaseHelper::Config();
 
-            $reservation = Reservation::on('temp')
-                ->withSum('avances','montant')
-                ->without('avances_valides')
-                ->with([
-                    'bien' => function($query) {
-                        $query->with([
-                            'immeuble' => function($q) {
-                                $q->select('id', 'nom')
-                                ->without(['projet', 'tranche','bloc']);
-                            },
-                            'bloc' => function($q) {
-                                $q->select('id', 'nom')
-                                ->without(['projet', 'tranche']);
-                            },
-                            'tranche' => function($q) {
-                                $q->select('id', 'nom')
-                                ->without(['projet']);
-                            }
-                        ]);
-                    // $query->without('projet','typologie','vue','compositionBien','typeBien');
-                    },
-                    'last_statut' => function($query) {
-                        $query->without('reservation','user');
-                    },
-                    'compromis_vente' => function($query) {
-                        $query-> select('*')->without('reservation','user');
-                    },
-                    'contrat_vente' => function($query) {
-                        $query->without('reservation','user');
-                    },
-                    'first_avance' => function($query) {
-                        $query->without('reservation','user');
-                    },
-                    'projet' => function($query) {
-                        $query->select('id', 'nom', 'adresse')
-                            ->without('user_projet', 'type_projet');
-                    },//'aquereurs','aquereurs_ancien'
-                    'notaire' => function($query) {
-                        $query->select('id', 'user_id_origin','name', 'prenom')
-                            ->without('societe');
-                    },//'aquereurs','aquereurs_ancien'
+        $reservation = Reservation::on('temp')
+            ->withSum('avances','montant')
+            ->without('avances_valides')
+            ->with([
+                'bien' => function($query) {
+                    $query->with([
+                        'immeuble' => function($q) {
+                            $q->select('id', 'nom')
+                            ->without(['projet', 'tranche','bloc']);
+                        },
+                        'bloc' => function($q) {
+                            $q->select('id', 'nom')
+                            ->without(['projet', 'tranche']);
+                        },
+                        'tranche' => function($q) {
+                            $q->select('id', 'nom')
+                            ->without(['projet']);
+                        }
+                    ]);
+                },
+                'last_statut' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'compromis_vente' => function($query) {
+                    $query->select('*')->without('reservation','user');
+                },
+                'contrat_vente' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'first_avance' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'projet' => function($query) {
+                    $query->select('id', 'nom', 'adresse')
+                        ->without('user_projet', 'type_projet');
+                },
+                'notaire' => function($query) {
+                    $query->select('id', 'user_id_origin','name', 'prenom')
+                        ->without('societe');
+                },
+            ])
+            ->findOrFail($id);
 
-                ])
-                ->findOrFail($id);
+        // Hide avances_valides from response
+        $reservation->makeHidden('avances_valides');
 
+        $sum_avances_valides = 0;
+        $sum_avance_valide_in_contrat = 0;
 
-            // Hide avances_valides from response
-            $reservation->makeHidden('avances_valides');
-
-            $sum_avances_valides = 0;
-
-            // Conditionally replace aquereurs with aquereurs_ancien if etat > 1
-            if ($reservation->etat > 1) {
-                $reservation->load('remboursement_dd_with_transfert');
+        // Conditionally replace aquereurs with aquereurs_ancien if etat > 1
+        if ($reservation->etat > 1) {
+            $reservation->load('remboursement_dd_with_transfert');
             // Load aquereurs_ancien relationship
-                $reservation->load('aquereurs_ancien');
-                // Replace aquereurs with aquereurs_ancien for the response
-                $reservation->aquereurs = $reservation->aquereurs_ancien;
-                // Hide the original aquereurs_ancien from response if needed
-                $reservation->load('desistements_ancien');
+            $reservation->load('aquereurs_ancien');
+            // Replace aquereurs with aquereurs_ancien for the response
+            $reservation->aquereurs = $reservation->aquereurs_ancien;
+            // Hide the original aquereurs_ancien from response if needed
+            $reservation->load('desistements_ancien');
 
-                // Load piece_jointe_desiste when etat > 1
-                $reservation->load('piece_jointe_desiste');
-                // Hide piece_jointe from response
-                $reservation->makeHidden('piece_jointe');
-                foreach ($reservation->avances_desist as $av) {
-                    if ($av->statut == StatutReservationEnum::Validé->value) {
-                        $sum_avances_valides += $av->montant;
+            // Load piece_jointe_desiste when etat > 1
+            $reservation->load('piece_jointe_desiste');
+            // Hide piece_jointe from response
+            $reservation->makeHidden('piece_jointe');
+
+            foreach ($reservation->avances_desist as $av) {
+                if ($av->statut == StatutReservationEnum::Validé->value) {
+                    $sum_avances_valides += $av->montant;
+                    // Check if avance has in_contrat = 1
+                    if (isset($av->in_contrat) && $av->in_contrat == 1) {
+                        $sum_avance_valide_in_contrat += $av->montant;
                     }
                 }
-            } else if($reservation->etat == 1) {
-                // Load piece_jointe when etat == 1
-                $reservation->load('piece_jointe');
-                // Hide piece_jointe_desiste from response
-                $reservation->makeHidden('piece_jointe_desiste');
-                // Load desistement_att_validation_rejete only when etat == 1
-                $reservation->load('desistement_att_validation_rejete');
-                foreach ($reservation->avances_valides as $av) {
-                    $sum_avances_valides += $av->montant;
+            }
+        } else if($reservation->etat == 1) {
+            // Load piece_jointe when etat == 1
+            $reservation->load('piece_jointe');
+            // Hide piece_jointe_desiste from response
+            $reservation->makeHidden('piece_jointe_desiste');
+            // Load desistement_att_validation_rejete only when etat == 1
+            $reservation->load('desistement_att_validation_rejete');
+
+            foreach ($reservation->avances_valides as $av) {
+                $sum_avances_valides += $av->montant;
+                // Check if avance has in_contrat = 1
+                if (isset($av->in_contrat) && $av->in_contrat == 1) {
+                    $sum_avance_valide_in_contrat += $av->montant;
                 }
             }
-            // Get all historiques (with ancien if applicable)
-            $allHistoriques = $this->getAllHistoriquesWithAncien($id);
-
-            // Set the relation on reservation object
-            $reservation->setRelation('historiques', $allHistoriques);
-            return response()->json([
-                'reservation' => $reservation,
-                'sum_avances_valides' => $sum_avances_valides
-            ], 200);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
         }
-    }
 
+        // Get all historiques (with ancien if applicable)
+        $allHistoriques = $this->getAllHistoriquesWithAncien($id);
+
+        // Set the relation on reservation object
+        $reservation->setRelation('historiques', $allHistoriques);
+
+        return response()->json([
+            'reservation' => $reservation,
+            'sum_avances_valides' => $sum_avances_valides,
+            'sum_avance_valide_in_contrat' => $sum_avance_valide_in_contrat
+        ], 200);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+}
 
     public function get_etat_dossier($id)
     {

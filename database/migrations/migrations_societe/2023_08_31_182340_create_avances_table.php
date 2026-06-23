@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('fichier')->nullable();
             $table->string('recu_scanne')->nullable();
             $table->boolean('sr')->default(false);
+            $table->boolean('in_contrat')->default(false);
             $table->string('commentaireAvance')->nullable();
             $table->enum('statut',[StatutReservationEnum::Validé->value,StatutReservationEnum::Refusé->value,StatutReservationEnum::En_Attente->value])->comment('1=>valide 2=>refusé 3=>en_attent');
             $table->foreignId('banque_id')->nullable()->constrained('banques')->onDelete('cascade');
