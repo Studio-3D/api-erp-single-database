@@ -1034,158 +1034,149 @@ class VisiteController extends Controller
                                                     }
                                                 }
                                             }
-                                            // Add this debug before the condition
-                                            \Log::info('=== CHECKING VISITE STATUT ===');
-                                            \Log::info('Visite statut value: ' . $visite->statut);
-                                            \Log::info('Visite statut type: ' . gettype($visite->statut));
-                                            \Log::info('StatutVisiteEnum::Vendu->value: ' . StatutVisiteEnum::Vendu->value);
-                                            \Log::info('StatutVisiteEnum::Vendu->value type: ' . gettype(StatutVisiteEnum::Vendu->value));
-                                            \Log::info('Interet: ' . $visite->interet);
-                                            \Log::info('InteretEnum::Intéressé->value: ' . InteretEnum::Intéressé->value);
-                                            \Log::info('Condition result: ' . ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value ? 'TRUE' : 'FALSE'));
-                                                                                        //store code pre reserve to table ==>PreReservation
+
+                                            //store code pre reserve to table ==>PreReservation
                                             if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
                                                 $bien_c = new BienController();
                                                 $bien_c->prereserverBien($visite->bien_id, $visite->id, null, null);
 
-                                            } elseif ($visite->interet == InteretEnum::Intéressé->value && (string)$visite->statut == (string)StatutVisiteEnum::Vendu->value) {
-                                            \Log::info('=== STARTING RESERVATION CREATION ===');
-                                            \Log::info('Visite ID: ' . $visite->id);
-                                            \Log::info('Bien ID: ' . $list_biens['bien_id']);
-                                            \Log::info('Code Reservation: ' . $list_biens['code_reservation']);
+                                            }} elseif ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
+    \Log::info('=== STARTING RESERVATION CREATION ===');
+    \Log::info('Visite ID: ' . $visite->id);
+    \Log::info('Bien ID: ' . $list_biens['bien_id']);
+    \Log::info('Code Reservation: ' . $list_biens['code_reservation']);
 
-                                            $reservationController = new ReservationController();
-                                            $reservationRequest    = new StoreReservationRequest();
+    $reservationController = new ReservationController();
+    $reservationRequest    = new StoreReservationRequest();
 
-                                            // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
-                                            $avancesData = [];
-                                            \Log::info('Starting avance extraction from list_biens');
+    // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
+    $avancesData = [];
+    \Log::info('Starting avance extraction from list_biens');
 
-                                            // Find all avance fields in the bien data (nouveau format)
-                                            foreach ($list_biens as $fieldName => $fieldValue) {
-                                                // Check if this is an avance field (avance_nouveau_0_0, avance_nouveau_0_1, etc.)
-                                                if (strpos($fieldName, 'avance_nouveau_') === 0) {
-                                                    \Log::info('Found avance field: ' . $fieldName . ' = ' . $fieldValue);
+    // Find all avance fields in the bien data (nouveau format)
+    foreach ($list_biens as $fieldName => $fieldValue) {
+        // Check if this is an avance field (avance_nouveau_0_0, avance_nouveau_0_1, etc.)
+        if (strpos($fieldName, 'avance_nouveau_') === 0) {
+            \Log::info('Found avance field: ' . $fieldName . ' = ' . $fieldValue);
 
-                                                    // Extract the suffix from the field name
-                                                    $fieldParts = explode('_', $fieldName);
-                                                    array_shift($fieldParts);
-                                                    $suffix = implode('_', $fieldParts);
+            // Extract the suffix from the field name
+            $fieldParts = explode('_', $fieldName);
+            array_shift($fieldParts);
+            $suffix = implode('_', $fieldParts);
 
-                                                    // Build the correct field names
-                                                    $modePaiementKey = 'mode_paiement_' . $suffix;
-                                                    $banqueIdKey = 'banque_id_' . $suffix;
-                                                    $numeroPaiementKey = 'numero_paiement_' . $suffix;
-                                                    $echeanceKey = 'echeance_' . $suffix;
-                                                    $checkMontantKey = 'check_montant_' . $suffix;
-                                                    $commentaireKey = 'commentaireAvance_' . $suffix;
-                                                    $numRemiseKey = 'num_remise_' . $suffix;
-                                                    $dateEncaissementKey = 'date_encaissement_' . $suffix;
+            // Build the correct field names
+            $modePaiementKey = 'mode_paiement_' . $suffix;
+            $banqueIdKey = 'banque_id_' . $suffix;
+            $numeroPaiementKey = 'numero_paiement_' . $suffix;
+            $echeanceKey = 'echeance_' . $suffix;
+            $checkMontantKey = 'check_montant_' . $suffix;
+            $commentaireKey = 'commentaireAvance_' . $suffix;
+            $numRemiseKey = 'num_remise_' . $suffix;
+            $dateEncaissementKey = 'date_encaissement_' . $suffix;
 
-                                                    \Log::info('Looking for mode_paiement at key: ' . $modePaiementKey);
-                                                    \Log::info('Mode paiement value: ' . ($list_biens[$modePaiementKey] ?? 'NULL'));
+            \Log::info('Looking for mode_paiement at key: ' . $modePaiementKey);
+            \Log::info('Mode paiement value: ' . ($list_biens[$modePaiementKey] ?? 'NULL'));
 
-                                                    // Only add if the avance has a value
-                                                    if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
-                                                        $modePaiement = $list_biens[$modePaiementKey] ?? null;
+            // Only add if the avance has a value
+            if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
+                $modePaiement = $list_biens[$modePaiementKey] ?? null;
 
-                                                        $avanceData = [
-                                                            'montant' => $fieldValue,
-                                                            'mode_paiement' => $modePaiement,
-                                                            'banque_id' => $list_biens[$banqueIdKey] ?? null,
-                                                            'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
-                                                            'echeance' => $list_biens[$echeanceKey] ?? null,
-                                                            'check_montant' => $list_biens[$checkMontantKey] ?? false,
-                                                            'commentaire' => $list_biens[$commentaireKey] ?? null,
-                                                            'num_remise' => $list_biens[$numRemiseKey] ?? null,
-                                                            'date_encaissement' => $list_biens[$dateEncaissementKey] ?? null,
-                                                        ];
+                $avanceData = [
+                    'montant' => $fieldValue,
+                    'mode_paiement' => $modePaiement,
+                    'banque_id' => $list_biens[$banqueIdKey] ?? null,
+                    'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
+                    'echeance' => $list_biens[$echeanceKey] ?? null,
+                    'check_montant' => $list_biens[$checkMontantKey] ?? false,
+                    'commentaire' => $list_biens[$commentaireKey] ?? null,
+                    'num_remise' => $list_biens[$numRemiseKey] ?? null,
+                    'date_encaissement' => $list_biens[$dateEncaissementKey] ?? null,
+                ];
 
-                                                        \Log::info('Extracted avance data:', $avanceData);
+                \Log::info('Extracted avance data:', $avanceData);
 
-                                                        if (!empty($avanceData['montant'])) {
-                                                            $avancesData[] = $avanceData;
-                                                            \Log::info('Added avance to list. Total avances: ' . count($avancesData));
-                                                        }
-                                                    }
-                                                }
-                                            }
+                if (!empty($avanceData['montant'])) {
+                    $avancesData[] = $avanceData;
+                    \Log::info('Added avance to list. Total avances: ' . count($avancesData));
+                }
+            }
+        }
+    }
 
-                                            // If no avances found in the new structure, fallback to old single avance
-                                            if (empty($avancesData) && !empty($list_biens['avance_res'])) {
-                                                \Log::info('No avances found in new structure, using fallback avance_res');
-                                                $avancesData[] = [
-                                                    'montant' => $list_biens['avance_res'] ?? null,
-                                                    'mode_paiement' => $list_biens['mode_paiement'] ?? null,
-                                                    'banque_id' => $list_biens['banque_id'] ?? null,
-                                                    'numero_paiement' => $list_biens['numero_paiement'] ?? null,
-                                                    'echeance' => $list_biens['echeance'] ?? null,
-                                                    'check_montant' => $list_biens['check_montant'] ?? false,
-                                                    'commentaire' => $list_biens['commentaireAvance'] ?? null,
-                                                    'num_remise' => $list_biens['num_remise'] ?? null,
-                                                    'date_encaissement' => $list_biens['date_encaissement'] ?? null,
-                                                ];
-                                            }
+    // If no avances found in the new structure, fallback to old single avance
+    if (empty($avancesData) && !empty($list_biens['avance_res'])) {
+        \Log::info('No avances found in new structure, using fallback avance_res');
+        $avancesData[] = [
+            'montant' => $list_biens['avance_res'] ?? null,
+            'mode_paiement' => $list_biens['mode_paiement'] ?? null,
+            'banque_id' => $list_biens['banque_id'] ?? null,
+            'numero_paiement' => $list_biens['numero_paiement'] ?? null,
+            'echeance' => $list_biens['echeance'] ?? null,
+            'check_montant' => $list_biens['check_montant'] ?? false,
+            'commentaire' => $list_biens['commentaireAvance'] ?? null,
+            'num_remise' => $list_biens['num_remise'] ?? null,
+            'date_encaissement' => $list_biens['date_encaissement'] ?? null,
+        ];
+    }
 
-                                            \Log::info('Total avances collected: ' . count($avancesData));
-                                            \Log::info('Avances data:', $avancesData);
+    \Log::info('Total avances collected: ' . count($avancesData));
+    \Log::info('Avances data:', $avancesData);
 
-                                            // 🔥 FIX: Define $avanceFiles BEFORE using it
-                                            $avanceFiles = [];
-                                            foreach ($avancesData as $index => $avance) {
-                                                if (isset($list_biens['selectedFiles_avc']) && is_array($list_biens['selectedFiles_avc'])) {
-                                                    $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
-                                                }
-                                            }
+    // 🔥 FIX: Define $avanceFiles BEFORE using it
+    $avanceFiles = [];
+    foreach ($avancesData as $index => $avance) {
+        if (isset($list_biens['selectedFiles_avc']) && is_array($list_biens['selectedFiles_avc'])) {
+            $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
+        }
+    }
 
-                                            // 🔥 Log the final avances data
-                                            \Log::info('Final avances data to send:', ['avancesData' => $avancesData]);
+    // 🔥 Log the final avances data
+    \Log::info('Final avances data to send:', ['avancesData' => $avancesData]);
 
-                                            $dataReservation = [
-                                                'nb_acquereurs'        => 1,
-                                                'code_reservation'     => $list_biens['code_reservation'],
-                                                'prix'                 => $list_biens['prix'],
-                                                'mode_financement'     => $list_biens['mode_financement'],
-                                                'date_reservation'     => $list_biens['date_reservation'],
-                                                'commentaire'          => $list_biens['commentaire_res'],
-                                                'visite_id'            => $visite->id,
-                                                'prix_unitaire'        => $list_biens['prix_unitaire'],
-                                                'prix_remise'          => $list_biens['prix_remise'],
-                                                'prix_forfetaire'      => $list_biens['prix_forfetaire'],
-                                                'bien_id'              => $list_biens['bien_id'],
-                                                'projet_id'            => $request->selectedProjet,
-                                                'verifierPourcentages' => true,
-                                                'origin'               => 'visite',
-                                                'cin'                  => $request->cin,
-                                                'nom'                  => $request->nom,
-                                                'prenom'               => $request->prenom,
-                                                'telephone_num1'       => $request->telephone,
-                                                'telephone_num2'       => $request->telephone_num2 == "null" ? null : $request->telephone_num2,
-                                                'notifie'              => $request->notifie == "" ? 0 : 1,
-                                                'prospect_id'          => $prospect->id,
-                                                'civilite'             => '1',
-                                                'type_client'          => 1,
-                                                'situation_familliale' => 1,
-                                                'sr'                   => $list_biens['sr'] ?? false,
-                                                'type_encaissement'    => 1,
-                                                'avances'              => json_encode($avancesData),
-                                                'files_avance'         => $avanceFiles,
-                                            ];
+    $dataReservation = [
+        'nb_acquereurs'        => 1,
+        'code_reservation'     => $list_biens['code_reservation'],
+        'prix'                 => $list_biens['prix'],
+        'mode_financement'     => $list_biens['mode_financement'],
+        'date_reservation'     => $list_biens['date_reservation'],
+        'commentaire'          => $list_biens['commentaire_res'],
+        'visite_id'            => $visite->id,
+        'prix_unitaire'        => $list_biens['prix_unitaire'],
+        'prix_remise'          => $list_biens['prix_remise'],
+        'prix_forfetaire'      => $list_biens['prix_forfetaire'],
+        'bien_id'              => $list_biens['bien_id'],
+        'projet_id'            => $request->selectedProjet,
+        'verifierPourcentages' => true,
+        'origin'               => 'visite',
+        'cin'                  => $request->cin,
+        'nom'                  => $request->nom,
+        'prenom'               => $request->prenom,
+        'telephone_num1'       => $request->telephone,
+        'telephone_num2'       => $request->telephone_num2 == "null" ? null : $request->telephone_num2,
+        'notifie'              => $request->notifie == "" ? 0 : 1,
+        'prospect_id'          => $prospect->id,
+        'civilite'             => '1',
+        'type_client'          => 1,
+        'situation_familliale' => 1,
+        'sr'                   => $list_biens['sr'] ?? false,
+        'type_encaissement'    => 1,
+        'avances'              => json_encode($avancesData),
+        'files_avance'         => $avanceFiles,
+    ];
 
-                                            \Log::info('Reservation data being sent:', ['dataReservation' => $dataReservation]);
+    \Log::info('Reservation data being sent:', ['dataReservation' => $dataReservation]);
 
-                                            try {
-                                                $reservationRequest->merge($dataReservation);
-                                                \Log::info('Calling ReservationController->store()');
-                                                $reservationController->store($reservationRequest);
-                                                \Log::info('ReservationController->store() completed successfully');
-                                            } catch (\Exception $e) {
-                                                \Log::error('Error in ReservationController->store(): ' . $e->getMessage());
-                                                \Log::error('Trace: ' . $e->getTraceAsString());
-                                                throw $e;
-                                            }
-                                          }
-
+    try {
+        $reservationRequest->merge($dataReservation);
+        \Log::info('Calling ReservationController->store()');
+        $reservationController->store($reservationRequest);
+        \Log::info('ReservationController->store() completed successfully');
+    } catch (\Exception $e) {
+        \Log::error('Error in ReservationController->store(): ' . $e->getMessage());
+        \Log::error('Trace: ' . $e->getTraceAsString());
+        throw $e;
+    }
+}
                                         //convert appel to visite
                                         //store visite_id to ==>traitement_appel
                                         if ($request->id_t_appel != null) {
@@ -1197,231 +1188,226 @@ class VisiteController extends Controller
                                         }
 
                                     }
-                                }
 
                                 }
                             }
 
                             //list des bien transfere vendu
-                           //list des bien transfere vendu
-                                if ($list_bien_transfere_vendu != null) {
-                                    //list des biens interesse
-                                    foreach ($list_bien_transfere_vendu as $key => $list_biens) {
-                                        $visite = new Visite();
-                                        $visite->setConnection('temp');
-                                        if ($last_number == null) {
-                                            $visite->description = 'CREATION VISITE 1';
-                                        } else {
-                                            $visite->description = 'CREATION VISITE ' . intval($last_number) + 1;
-                                        }
-                                        $visite->origin_id   = $origin_id;
-                                        $visite->user_id     = $userAuth->value('id');
-                                        $visite->prospect_id = $prospect->id;
-                                        $visite->projet_id   = $request->selectedProjet;
-                                        $visite->commentaire = $list_biens['commentaire'];
-                                        $visite->interet     = $request->interet;
-                                        $visite->bien_id     = $list_biens['bien_id'];
-                                        $visite->statut      = $list_biens['statut'];
+                            if ($list_bien_transfere_vendu != null) {
+                                //list des biens interesse
+                                foreach ($list_bien_transfere_vendu as $key => $list_biens) {
+                                    $visite = new Visite();
+                                    $visite->setConnection('temp');
+                                    if ($last_number == null) {
+                                        $visite->description = 'CREATION VISITE 1';
+                                    } else {
+                                        $visite->description = 'CREATION VISITE ' . intval($last_number) + 1;
+                                    }
+                                    $visite->origin_id   = $origin_id;
+                                    $visite->user_id     = $userAuth->value('id');
+                                    $visite->prospect_id = $prospect->id;
+                                    $visite->projet_id   = $request->selectedProjet;
+                                    $visite->commentaire = $list_biens['commentaire'];
+                                    $visite->interet     = $request->interet;
+                                    $visite->bien_id     = $list_biens['bien_id'];
+                                    $visite->statut      = $list_biens['statut'];
 
-                                        if ($visite->save()) {
-                                            //push les vistes_id to array pour supprimer les relances where id not int array_v_id
-                                            array_push($array_v_id, $visite->id);
+                                    if ($visite->save()) {
+                                        //push les vistes_id to array pour supprimer les relances where id not int array_v_id
+                                        array_push($array_v_id, $visite->id);
 
-                                            //first visite bien==>show=1 et related_sho meme id du visite
-                                            if ($list_bien_interesse == null) {
-                                                if ($key == 0) {
-                                                    $main_visite_id = $visite->id;
-                                                    if ($visite->origin_id == null) {
-                                                        $visite->origin_id = $visite->id;
-                                                    }
-                                                    $visite->related_show_id = $visite->id;
-                                                    $first_v_id              = $visite->id;
-                                                    $first_v_origin_id       = $visite->origin_id;
-                                                    $visite->show            = 1;
-                                                } else {
-                                                    $visite->related_show_id = $first_v_id;
-                                                    $visite->origin_id       = $first_v_origin_id;
+                                        //first visite bien==>show=1 et related_sho meme id du visite
+                                        if ($list_bien_interesse == null) {
+                                            if ($key == 0) {
+                                                $main_visite_id = $visite->id;
+                                                if ($visite->origin_id == null) {
+                                                    $visite->origin_id = $visite->id;
                                                 }
+                                                $visite->related_show_id = $visite->id;
+                                                $first_v_id              = $visite->id;
+                                                $first_v_origin_id       = $visite->origin_id;
+                                                $visite->show            = 1;
                                             } else {
                                                 $visite->related_show_id = $first_v_id;
                                                 $visite->origin_id       = $first_v_origin_id;
                                             }
+                                        } else {
+                                            $visite->related_show_id = $first_v_id;
+                                            $visite->origin_id       = $first_v_origin_id;
+                                        }
 
-                                            if ($visite->save()) {
-                                                //STORE HISTORIQUE DU BIEN
-                                                if ($list_biens['bien_id'] != null) {
-                                                    if ($visite->statut == StatutVisiteEnum::Vendu->value) {
-                                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
-                                                    } else if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                                                        HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
-                                                    }
+                                        if ($visite->save()) {
+                                            //STORE HISTORIQUE DU BIEN
+                                            if ($list_biens['bien_id'] != null) {
+                                                if ($visite->statut == StatutVisiteEnum::Vendu->value) {
+                                                    HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
+                                                } else if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
+                                                    HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite pré reservé du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $visite->bien_id, Auth::guard('api')->user()->id, $visite->id, null, null, null);
                                                 }
-                                                //store relances et rdv et notifications
-                                                if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                                                    if ($list_biens['date_relance'] != null) {
-                                                        $data_notif = [
-                                                            'lien'        => '/crm/visites/' . $visite->origin_id,
-                                                            'date'        => $list_biens['date_relance'],
-                                                            'type'        => 1,
-                                                            'description' => 'RELANCE VISITE',
-                                                            'user_id'     => Auth::guard('api')->user()->id,
-                                                            'role'        => null,
-                                                            'visite_id'   => $visite->getAttribute('id'),
-                                                            'prospect_id' => $visite->prospect_id,
-                                                            'projet_id'   => $visite->projet_id,
+                                            }
+                                            //store relances et rdv et notifications
+                                            if ($visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
+                                                if ($list_biens['date_relance'] != null) {
+                                                    $data_notif = [
+                                                        'lien'        => '/crm/visites/' . $visite->origin_id,
+                                                        'date'        => $list_biens['date_relance'],
+                                                        'type'        => 1,
+                                                        'description' => 'RELANCE VISITE',
+                                                        'user_id'     => Auth::guard('api')->user()->id,
+                                                        'role'        => null,
+                                                        'visite_id'   => $visite->getAttribute('id'),
+                                                        'prospect_id' => $visite->prospect_id,
+                                                        'projet_id'   => $visite->projet_id,
 
-                                                        ];
-                                                        $notif_helper = new NotificationHelper();
-                                                        $notif_helper->storeNotification($request->merge($data_notif));
+                                                    ];
+                                                    $notif_helper = new NotificationHelper();
+                                                    $notif_helper->storeNotification($request->merge($data_notif));
 
-                                                        broadcast(new NotificationEvent($visite->id));
-                                                        $relance = new Relance_Rdv_Visite();
-                                                        $relance->setConnection('temp');
-                                                        $relance->type            = 1; //relance
-                                                        $relance->mode_relance    = $list_biens['mode_relance'];
-                                                        $relance->date_relance    = $list_biens['date_relance'];
-                                                        $relance->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                                                        $relance->user_id         = $userAuth->value('id');
-                                                        $relance->visite_id       = $visite->id;
-                                                        $relance->save();
-                                                    }
-                                                    if ($list_biens['rdv'] != null) {
-                                                        $data_notif = [
-                                                            'lien'        => '/crm/visites/' . $visite->origin_id,
-                                                            'date'        => $list_biens['rdv'],
-                                                            'type'        => 2,
-                                                            'description' => 'RDV VISITE',
-                                                            'user_id'     => Auth::guard('api')->user()->id,
-                                                            'role'        => null,
-                                                            'visite_id'   => $visite->getAttribute('id'),
-                                                            'prospect_id' => $visite->prospect_id,
-                                                            'projet_id'   => $visite->projet_id,
+                                                    broadcast(new NotificationEvent($visite->id));
+                                                    $relance = new Relance_Rdv_Visite();
+                                                    $relance->setConnection('temp');
+                                                    $relance->type            = 1; //relance
+                                                    $relance->mode_relance    = $list_biens['mode_relance'];
+                                                    $relance->date_relance    = $list_biens['date_relance'];
+                                                    $relance->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
+                                                    $relance->user_id         = $userAuth->value('id');
+                                                    $relance->visite_id       = $visite->id;
+                                                    $relance->save();
+                                                }
+                                                if ($list_biens['rdv'] != null) {
+                                                    $data_notif = [
+                                                        'lien'        => '/crm/visites/' . $visite->origin_id,
+                                                        'date'        => $list_biens['rdv'],
+                                                        'type'        => 2,
+                                                        'description' => 'RDV VISITE',
+                                                        'user_id'     => Auth::guard('api')->user()->id,
+                                                        'role'        => null,
+                                                        'visite_id'   => $visite->getAttribute('id'),
+                                                        'prospect_id' => $visite->prospect_id,
+                                                        'projet_id'   => $visite->projet_id,
 
-                                                        ];
-                                                        $notif_helper = new NotificationHelper();
-                                                        $notif_helper->storeNotification($request->merge($data_notif));
+                                                    ];
+                                                    $notif_helper = new NotificationHelper();
+                                                    $notif_helper->storeNotification($request->merge($data_notif));
 
-                                                        broadcast(new NotificationEvent($visite->id));
-                                                        $rdv = new Relance_Rdv_Visite();
-                                                        $rdv->setConnection('temp');
-                                                        $rdv->type            = 2; //rdv
-                                                        $rdv->rdv             = $list_biens['rdv'];
-                                                        $rdv->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
-                                                        $rdv->user_id         = $userAuth->value('id');
-                                                        $rdv->visite_id       = $visite->id;
-                                                        $rdv->save();
+                                                    broadcast(new NotificationEvent($visite->id));
+                                                    $rdv = new Relance_Rdv_Visite();
+                                                    $rdv->setConnection('temp');
+                                                    $rdv->type            = 2; //rdv
+                                                    $rdv->rdv             = $list_biens['rdv'];
+                                                    $rdv->type_traitement = 0; //0 non_traite 1//mnuelle 2// auto //3 nouvel relance_rdv
+                                                    $rdv->user_id         = $userAuth->value('id');
+                                                    $rdv->visite_id       = $visite->id;
+                                                    $rdv->save();
 
-                                                        if ($prospect->telephone != null) {
-                                                            $bien       = Bien::on('temp')->findorfail($list_biens['bien_id']);
-                                                            $templateVariables = [
-                                                                    "1" => $prospect->nom . ' ' . $prospect->prenom,  // Nom complet
-                                                                    "2" => $projet->nom,                              // Nom du projet
-                                                                    "3" => $list_biens['rdv'],                        // Date du rendez-vous
-                                                                    "4" => $bien->propriete_dite_bien                 // Description du bien
-                                                                ];
-                                                            $data_whtsp = [
-                                                                'projet_id'=> $visite->projet_id,
-                                                                'to'   => $this->convertToInternational($prospect->telephone),
-                                                                'content_sid' => self::$TEMPLATE_RDV_CONFIRMATION,
-                                                            'content_variables' => json_encode($templateVariables)
+                                                    if ($prospect->telephone != null) {
+                                                        $bien       = Bien::on('temp')->findorfail($list_biens['bien_id']);
+                                                        $templateVariables = [
+                                                                "1" => $prospect->nom . ' ' . $prospect->prenom,  // Nom complet
+                                                                "2" => $projet->nom,                              // Nom du projet
+                                                                "3" => $list_biens['rdv'],                        // Date du rendez-vous
+                                                                "4" => $bien->propriete_dite_bien                 // Description du bien
                                                             ];
+                                                        $data_whtsp = [
+                                                            'projet_id'=> $visite->projet_id,
+                                                            'to'   => $this->convertToInternational($prospect->telephone),
+                                                            'content_sid' => self::$TEMPLATE_RDV_CONFIRMATION
+                                                                                        ,
+                                                           'content_variables' => json_encode($templateVariables)
+                                                            /*'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                            . 'Merci pour votre visite chez le Projet ' . $projet->nom . ' aujourd’hui. '
+                                                            . 'Nous espérons que votre expérience a été agréable. '
+                                                            . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
+                                                            . 'Concernant le Bien ' . $bien->propriete_dite_bien . '. '
+                                                            . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',*/
+                                                        ];
 
-                                                            try {
-                                                                    $result = $this->send_whatsapp($data_whtsp);
-                                                                    $msg_sended = 1;
-                                                                    \Log::info("WhatsApp envoyé avec succès",
-                                                                    ['to' => $prospect->telephone,
-                                                                    'variables' => json_encode($templateVariables),'result' => $result]);
-                                                                } catch (\Exception $e) {
-                                                                    \Log::error("Erreur lors de l'envoi WhatsApp (non bloquante): " . $e->getMessage());
-                                                                }
-                                                        }
+                                                           try {
+                                                                $result = $this->send_whatsapp($data_whtsp);
+                                                                $msg_sended = 1;
+                                                                \Log::info("WhatsApp envoyé avec succès",
+                                                                ['to' => $prospect->telephone,
+                                                                'variables' => json_encode($templateVariables),'result' => $result]);
+                                                            } catch (\Exception $e) {
+                                                                \Log::error("Erreur lors de l'envoi WhatsApp (non bloquante): " . $e->getMessage());
+                                                                // Ne pas modifier $msg_sended, ne pas relancer l'exception
+                                                            }
+
+
+
                                                     }
                                                 }
+                                            }
 
-                                                //store code pre reserve to table ==>PreReservation
-                                                if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
-                                                    $bien_c = new BienController();
-                                                    $bien_c->prereserverBien($visite->bien_id, $visite->id, null, null);
+                                            //store code pre reserve to table ==>PreReservation
+                                            if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
+                                                $bien_c = new BienController();
+                                                $bien_c->prereserverBien($visite->bien_id, $visite->id, null, null);
 
-                                                } elseif ($visite->interet == InteretEnum::Intéressé->value && (string)$visite->statut == (string)StatutVisiteEnum::Vendu->value) {
-                                                    \Log::info('=== STARTING RESERVATION CREATION FOR VENDU BIEN ===');
-                                                    \Log::info('Visite ID: ' . $visite->id);
-                                                    \Log::info('Bien ID: ' . $list_biens['bien_id']);
-                                                    \Log::info('Code Reservation: ' . $list_biens['code_reservation']);
+                                            } elseif ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
+                                                    //set visite pre reserve
 
                                                     $reservationController = new ReservationController();
                                                     $reservationRequest    = new StoreReservationRequest();
 
-                                                    // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA (VENDU FORMAT)
+                                                    // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
                                                     $avancesData = [];
-                                                    \Log::info('Starting avance extraction from vendu list_biens');
 
                                                     // Find all avance fields in the bien data (vendu format)
-                                                    foreach ($list_biens as $fieldName => $fieldValue) {
-                                                        // Check if this is an avance field (avance_vendu_0_0, avance_vendu_0_1, etc.)
-                                                        if (strpos($fieldName, 'avance_vendu_') === 0) {
-                                                            \Log::info('Found avance field: ' . $fieldName . ' = ' . $fieldValue);
+                                                   // For list_bien_transfere_vendu (vendu biens)
+                                                                    foreach ($list_biens as $fieldName => $fieldValue) {
+                                                                        // Check if this is an avance field
+                                                                        if (strpos($fieldName, 'avance_vendu_') === 0) {
+                                                                            // Extract the index from the field name
+                                                                            $parts = explode('_', $fieldName);
+                                                                            $avanceIndex = end($parts);
 
-                                                            // Extract the suffix from the field name
-                                                            $fieldParts = explode('_', $fieldName);
-                                                            array_shift($fieldParts);
-                                                            $suffix = implode('_', $fieldParts);
+                                                                            // Get the prefix (avance_vendu_0)
+                                                                            $prefix = substr($fieldName, 0, strrpos($fieldName, '_'));
 
-                                                            // Build the correct field names
-                                                            $modePaiementKey = 'mode_paiement_' . $suffix;
-                                                            $banqueIdKey = 'banque_id_' . $suffix;
-                                                            $numeroPaiementKey = 'numero_paiement_' . $suffix;
-                                                            $echeanceKey = 'echeance_' . $suffix;
-                                                            $checkMontantKey = 'check_montant_' . $suffix;
-                                                            $commentaireKey = 'commentaireAvance_' . $suffix;
-                                                            $numRemiseKey = 'num_remise_' . $suffix;
-                                                            $dateEncaissementKey = 'date_encaissement_' . $suffix;
+                                                                            // Get the mode_paiement from the correct field name
+                                                                            $modePaiementKey = $prefix . '_mode_paiement_' . $avanceIndex;
+                                                                            $banqueIdKey = $prefix . '_banque_id_' . $avanceIndex;
+                                                                            $numeroPaiementKey = $prefix . '_numero_paiement_' . $avanceIndex;
+                                                                            $echeanceKey = $prefix . '_echeance_' . $avanceIndex;
+                                                                            $checkMontantKey = $prefix . '_check_montant_' . $avanceIndex;
+                                                                            $commentaireKey = $prefix . '_commentaireAvance_' . $avanceIndex;
+                                                                            $numRemiseKey = $prefix . '_num_remise_' . $avanceIndex;
+                                                                            $dateEncaissementKey = $prefix . '_date_encaissement_' . $avanceIndex;
 
-                                                            \Log::info('Looking for mode_paiement at key: ' . $modePaiementKey);
-                                                            \Log::info('Mode paiement value: ' . ($list_biens[$modePaiementKey] ?? 'NULL'));
+                                                                            // Only add if the avance has a value
+                                                                            if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
+                                                                                // Make sure mode_paiement is set properly
+                                                                                $modePaiement = $list_biens[$modePaiementKey] ?? null;
 
-                                                            // Only add if the avance has a value
-                                                            if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
-                                                                $modePaiement = $list_biens[$modePaiementKey] ?? null;
+                                                                                // If mode_paiement is null or empty, try the old format
+                                                                                if (empty($modePaiement) && isset($list_biens['mode_paiement'])) {
+                                                                                    $modePaiement = $list_biens['mode_paiement'];
+                                                                                }
 
-                                                                // Handle empty date_encaissement
-                                                                $dateEncaissement = $list_biens[$dateEncaissementKey] ?? null;
-                                                                if (empty($dateEncaissement) || $dateEncaissement == "null" || $dateEncaissement == "") {
-                                                                    $dateEncaissement = null;
-                                                                }
+                                                                                $avanceData = [
+                                                                                    'montant' => $fieldValue,
+                                                                                    'mode_paiement' => $modePaiement,
+                                                                                    'banque_id' => $list_biens[$banqueIdKey] ?? null,
+                                                                                    'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
+                                                                                    'echeance' => $list_biens[$echeanceKey] ?? null,
+                                                                                    'check_montant' => $list_biens[$checkMontantKey] ?? false,
+                                                                                    'commentaire' => $list_biens[$commentaireKey] ?? null,
+                                                                                    'num_remise' => $list_biens[$numRemiseKey] ?? null,
+                                                                                    'date_encaissement' => $list_biens[$dateEncaissementKey] ?? null,
+                                                                                    'in_contrat' => true,
+                                                                                ];
 
-                                                                // Handle empty num_remise
-                                                                $numRemise = $list_biens[$numRemiseKey] ?? null;
-                                                                if (empty($numRemise) || $numRemise == "null" || $numRemise == "") {
-                                                                    $numRemise = null;
-                                                                }
-
-                                                                $avanceData = [
-                                                                    'montant' => $fieldValue,
-                                                                    'mode_paiement' => $modePaiement,
-                                                                    'banque_id' => $list_biens[$banqueIdKey] ?? null,
-                                                                    'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
-                                                                    'echeance' => $list_biens[$echeanceKey] ?? null,
-                                                                    'check_montant' => $list_biens[$checkMontantKey] ?? false,
-                                                                    'commentaire' => $list_biens[$commentaireKey] ?? null,
-                                                                    'num_remise' => $numRemise,
-                                                                    'date_encaissement' => $dateEncaissement,
-                                                                ];
-
-                                                                \Log::info('Extracted avance data:', $avanceData);
-
-                                                                if (!empty($avanceData['montant'])) {
-                                                                    $avancesData[] = $avanceData;
-                                                                    \Log::info('Added avance to list. Total avances: ' . count($avancesData));
-                                                                }
-                                                            }
-                                                        }
-                                                    }
+                                                                                // Only add if montant is not empty
+                                                                                if (!empty($avanceData['montant'])) {
+                                                                                    $avancesData[] = $avanceData;
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
 
                                                     // If no avances found in the new structure, fallback to old single avance
                                                     if (empty($avancesData) && !empty($list_biens['avance_res'])) {
-                                                        \Log::info('No avances found in new structure, using fallback avance_res');
                                                         $avancesData[] = [
                                                             'montant' => $list_biens['avance_res'] ?? null,
                                                             'mode_paiement' => $list_biens['mode_paiement'] ?? null,
@@ -1432,22 +1418,17 @@ class VisiteController extends Controller
                                                             'commentaire' => $list_biens['commentaireAvance'] ?? null,
                                                             'num_remise' => $list_biens['num_remise'] ?? null,
                                                             'date_encaissement' => $list_biens['date_encaissement'] ?? null,
+                                                              'in_contrat'=>'1'
                                                         ];
                                                     }
 
-                                                    \Log::info('Total avances collected: ' . count($avancesData));
-                                                    \Log::info('Avances data:', $avancesData);
-
-                                                    // 🔥 FIX: Define $avanceFiles BEFORE using it
+                                                    // Get files for avances
                                                     $avanceFiles = [];
                                                     foreach ($avancesData as $index => $avance) {
                                                         if (isset($list_biens['selectedFiles_avc']) && is_array($list_biens['selectedFiles_avc'])) {
                                                             $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
                                                         }
                                                     }
-
-                                                    // 🔥 Log the final avances data
-                                                    \Log::info('Final avances data to send:', ['avancesData' => $avancesData]);
 
                                                     $dataReservation = [
                                                         'nb_acquereurs'        => 1,
@@ -1476,47 +1457,48 @@ class VisiteController extends Controller
                                                         'situation_familliale' => 1,
                                                         'sr'                   => $list_biens['sr'] ?? false,
                                                         'type_encaissement'    => 1,
+                                                        // 🔥 SEND AVANCES AS JSON ARRAY instead of single avance
                                                         'avances'              => json_encode($avancesData),
-                                                        'files_avance'         => $avanceFiles,
+                                                        // Remove old single avance fields
+                                                        // 'avance'               => $list_biens['avance_res'],
+                                                        // 'mode_paiement'        => $list_biens['mode_paiement'],
+                                                        // 'numero_paiement'      => $list_biens['numero_paiement'],
+                                                        // 'date_reglement'       => $list_biens['date_reglement'],
+                                                        // 'echeance'             => $list_biens['echeance'],
+                                                        // 'banque_id'            => $list_biens['banque_id'],
+                                                        // 'commentaireAvance'    => $list_biens['commentaireAvance'],
+                                                        // 'num_remise'           => $list_biens['num_remise'],
+                                                        // 'date_encaissement'    => $list_biens['date_encaissement'],
+                                                        'files_avance'         => $avanceFiles, // Files for each avance
                                                     ];
 
-                                                    \Log::info('Reservation data being sent:', ['dataReservation' => $dataReservation]);
-
-                                                    try {
-                                                        $reservationRequest->merge($dataReservation);
-                                                        \Log::info('Calling ReservationController->store()');
-                                                        $reservationController->store($reservationRequest);
-                                                        \Log::info('ReservationController->store() completed successfully');
-                                                    } catch (\Exception $e) {
-                                                        \Log::error('Error in ReservationController->store(): ' . $e->getMessage());
-                                                        \Log::error('Trace: ' . $e->getTraceAsString());
-                                                        throw $e;
-                                                    }
+                                                    $reservationRequest->merge($dataReservation);
+                                                    $reservationController->store($reservationRequest);
                                                 }
 
-                                                //set old visite to pre _reservation_vendu
-                                                if (isset($list_biens['visite_id'])) {
-                                                    $old_visite_transfere         = Visite::on('temp')->findorfail($list_biens['visite_id']);
-                                                    $old_visite_transfere->statut = StatutVisiteEnum::Pré_Réservation_Vendu->value;
-                                                    $old_visite_transfere->save();
-                                                } else if (isset($list_biens['traitement_frein_id'])) {
-                                                    $t_f         = TraitementFrein::on('temp')->findorfail($list_biens['traitement_frein_id']);
-                                                    $t_f->statut = StatutVisiteEnum::Pré_Réservation_Vendu->value;
-                                                    $t_f->save();
-                                                }
+                                            //set old visite to pre _reservation_vendu
+                                            if (isset($list_biens['visite_id'])) {
+                                                $old_visite_transfere         = Visite::on('temp')->findorfail($list_biens['visite_id']);
+                                                $old_visite_transfere->statut = StatutVisiteEnum::Pré_Réservation_Vendu->value;
+                                                $old_visite_transfere->save();
+                                            } else if (isset($list_biens['traitement_frein_id'])) {
+                                                $t_f         = TraitementFrein::on('temp')->findorfail($list_biens['traitement_frein_id']);
+                                                $t_f->statut = StatutVisiteEnum::Pré_Réservation_Vendu->value;
+                                                $t_f->save();
                                             }
-                                            //convert appel to visite
-                                            //store visite_id to ==>traitement_appel
-                                            if ($request->id_t_appel != null) {
-                                                $t_appel                         = TraitementAppel::on('temp')->findorfail($request->id_t_appel);
-                                                $t_appel->visite_id              = $first_v_id;
-                                                $t_appel->date_convert_visite    = Carbon::now();
-                                                $t_appel->user_id_convert_visite = $userAuth->value('id');
-                                                $t_appel->save();
-                                            }
+                                        }
+                                        //convert appel to visite
+                                        //store visite_id to ==>traitement_appel
+                                        if ($request->id_t_appel != null) {
+                                            $t_appel                         = TraitementAppel::on('temp')->findorfail($request->id_t_appel);
+                                            $t_appel->visite_id              = $first_v_id;
+                                            $t_appel->date_convert_visite    = Carbon::now();
+                                            $t_appel->user_id_convert_visite = $userAuth->value('id');
+                                            $t_appel->save();
                                         }
                                     }
                                 }
+                            }
 
                             //traite/supprimer les relances rdv des old visite=>automatique
                             $old_visites = Visite::on('temp')->where('origin_id', $origin_id)->whereNotIn('id', $array_v_id)->orderBy('created_at', 'DESC')->get();
@@ -3163,134 +3145,129 @@ public function edit_visite($id)
                                     $bien_c = new BienController();
                                     $bien_c->prereserverBien($newVisit->bien_id, $newVisit->id, null, null);
 
-                                }
-                                elseif ($newVisit->interet == InteretEnum::Intéressé->value && $newVisit->statut == StatutVisiteEnum::Vendu->value) {
-                                        //store visite vendu
+                                } elseif ($newVisit->interet == InteretEnum::Intéressé->value && $newVisit->statut == StatutVisiteEnum::Vendu->value) {
+                                    //store visite vendu
 
-                                        $reservationController = new ReservationController();
-                                        $reservationRequest    = new StoreReservationRequest();
+                                    $reservationController = new ReservationController();
+                                    $reservationRequest    = new StoreReservationRequest();
 
-                                        // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
-                                        $avancesData = [];
+                                    // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
+                                    $avancesData = [];
 
-                                        // Find all avance fields in the bien data (nouveau format)
-                                        foreach ($list_biens as $fieldName => $fieldValue) {
-                                            // Check if this is an avance field (avance_nouveau_0_0, avance_nouveau_0_1, etc.)
-                                            if (strpos($fieldName, 'avance_nouveau_') === 0) {
-                                                // 🔥 FIX: Extract the suffix correctly
-                                                // fieldName = avance_nouveau_0_0
-                                                // We want to extract: nouveau_0_0
-                                                $fieldParts = explode('_', $fieldName);
-                                                // Remove 'avance' from the parts
-                                                array_shift($fieldParts);
-                                                // Now $fieldParts = ['nouveau', '0', '0']
-                                                $suffix = implode('_', $fieldParts); // 'nouveau_0_0'
+                                    // Find all avance fields in the bien data (nouveau format)
+                                    foreach ($list_biens as $fieldName => $fieldValue) {
+                                        // Check if this is an avance field (avance_nouveau_0_0, avance_nouveau_0_1, etc.)
+                                        if (strpos($fieldName, 'avance_nouveau_') === 0) {
+                                            // Extract the index from the field name
+                                            $parts = explode('_', $fieldName);
+                                            $avanceIndex = end($parts);
 
-                                                // Only add if the avance has a value
-                                                if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
-                                                    // Build the correct field names (frontend sends: mode_paiement_nouveau_0_0)
-                                                    $modePaiementKey = 'mode_paiement_' . $suffix;
-                                                    $banqueIdKey = 'banque_id_' . $suffix;
-                                                    $numeroPaiementKey = 'numero_paiement_' . $suffix;
-                                                    $echeanceKey = 'echeance_' . $suffix;
-                                                    $checkMontantKey = 'check_montant_' . $suffix;
-                                                    $commentaireKey = 'commentaireAvance_' . $suffix;
-                                                    $numRemiseKey = 'num_remise_' . $suffix;
-                                                    $dateEncaissementKey = 'date_encaissement_' . $suffix;
+                                            // Get the prefix (avance_nouveau_0)
+                                            $prefix = substr($fieldName, 0, strrpos($fieldName, '_'));
 
-                                                    // Handle empty date_encaissement
-                                                    $dateEncaissement = $list_biens[$dateEncaissementKey] ?? null;
-                                                    if (empty($dateEncaissement) || $dateEncaissement == "null" || $dateEncaissement == "") {
-                                                        $dateEncaissement = null;
-                                                    }
+                                            // Only add if the avance has a value
+                                            if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
+                                                // Get all related fields for this avance
+                                                $modePaiementKey = $prefix . '_mode_paiement_' . $avanceIndex;
+                                                $banqueIdKey = $prefix . '_banque_id_' . $avanceIndex;
+                                                $numeroPaiementKey = $prefix . '_numero_paiement_' . $avanceIndex;
+                                                $echeanceKey = $prefix . '_echeance_' . $avanceIndex;
+                                                $checkMontantKey = $prefix . '_check_montant_' . $avanceIndex;
+                                                $commentaireKey = $prefix . '_commentaireAvance_' . $avanceIndex;
+                                                $numRemiseKey = $prefix . '_num_remise_' . $avanceIndex;
+                                                $dateEncaissementKey = $prefix . '_date_encaissement_' . $avanceIndex;
 
-                                                    // Handle empty num_remise
-                                                    $numRemise = $list_biens[$numRemiseKey] ?? null;
-                                                    if (empty($numRemise) || $numRemise == "null" || $numRemise == "") {
-                                                        $numRemise = null;
-                                                    }
+                                                $avanceData = [
+                                                    'montant' => $fieldValue,
+                                                    'mode_paiement' => $list_biens[$modePaiementKey] ?? null,
+                                                    'banque_id' => $list_biens[$banqueIdKey] ?? null,
+                                                    'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
+                                                    'echeance' => $list_biens[$echeanceKey] ?? null,
+                                                    'check_montant' => $list_biens[$checkMontantKey] ?? false,
+                                                    'commentaire' => $list_biens[$commentaireKey] ?? null,
+                                                    'num_remise' => $list_biens[$numRemiseKey] ?? null,
+                                                    'date_encaissement' => $list_biens[$dateEncaissementKey] ?? null,
+                                                ];
 
-                                                    $avanceData = [
-                                                        'montant' => $fieldValue,
-                                                        'mode_paiement' => $list_biens[$modePaiementKey] ?? null,
-                                                        'banque_id' => $list_biens[$banqueIdKey] ?? null,
-                                                        'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
-                                                        'echeance' => $list_biens[$echeanceKey] ?? null,
-                                                        'check_montant' => $list_biens[$checkMontantKey] ?? false,
-                                                        'commentaire' => $list_biens[$commentaireKey] ?? null,
-                                                        'num_remise' => $numRemise,
-                                                        'date_encaissement' => $dateEncaissement,
-                                                    ];
-
-                                                    // Only add if montant is not empty
-                                                    if (!empty($avanceData['montant'])) {
-                                                        $avancesData[] = $avanceData;
-                                                    }
+                                                // Only add if montant is not empty
+                                                if (!empty($avanceData['montant'])) {
+                                                    $avancesData[] = $avanceData;
                                                 }
                                             }
                                         }
-
-                                        // If no avances found in the new structure, fallback to old single avance
-                                        if (empty($avancesData) && !empty($list_biens['avance_res'])) {
-                                            $avancesData[] = [
-                                                'montant' => $list_biens['avance_res'] ?? null,
-                                                'mode_paiement' => $list_biens['mode_paiement'] ?? null,
-                                                'banque_id' => $list_biens['banque_id'] ?? null,
-                                                'numero_paiement' => $list_biens['numero_paiement'] ?? null,
-                                                'echeance' => $list_biens['echeance'] ?? null,
-                                                'check_montant' => $list_biens['check_montant'] ?? false,
-                                                'commentaire' => $list_biens['commentaireAvance'] ?? null,
-                                                'num_remise' => $list_biens['num_remise'] ?? null,
-                                                'date_encaissement' => $list_biens['date_encaissement'] ?? null,
-                                                'in_contrat' => '1'
-                                            ];
-                                        }
-
-                                        // Get files for avances
-                                        $avanceFiles = [];
-                                        foreach ($avancesData as $index => $avance) {
-                                            if (isset($list_biens['selectedFiles_avc']) && is_array($list_biens['selectedFiles_avc'])) {
-                                                $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
-                                            }
-                                        }
-
-                                        $dataReservation = [
-                                            'origin'               => 'visite',
-                                            'nb_acquereurs'        => 1,
-                                            'code_reservation'     => $list_biens['code_reservation'],
-                                            'prix'                 => $list_biens['prix'],
-                                            'mode_financement'     => $list_biens['mode_financement'],
-                                            'date_reservation'     => $list_biens['date_reservation'],
-                                            'commentaire'          => $list_biens['commentaire_res'],
-                                            'visite_id'            => $newVisit->id,
-                                            'prix_unitaire'        => $list_biens['prix_unitaire'],
-                                            'prix_remise'          => $list_biens['prix_remise'],
-                                            'prix_forfetaire'      => $list_biens['prix_forfetaire'],
-                                            'bien_id'              => $list_biens['bien_id'],
-                                            'projet_id'            => $request->selectedProjet,
-                                            'verifierPourcentages' => true,
-                                            'cin'                  => $prospect->cin,
-                                            'nom'                  => $prospect->nom,
-                                            'prenom'               => $prospect->prenom,
-                                            'telephone_num1'       => $prospect->telephone,
-                                            'telephone_num2'       => $prospect->telephone_num2,
-                                            'ville'                => $prospect->ville,
-                                            'notifie'              => $prospect->notifie,
-                                            'prospect_id'          => $prospect->id,
-                                            'civilite'             => '1',
-                                            'type_client'          => 1,
-                                            'situation_familliale' => 1,
-                                            'sr'                   => $list_biens['sr'] ?? false,
-                                            'type_encaissement'    => 1,
-                                            // 🔥 SEND AVANCES AS JSON ARRAY instead of single avance
-                                            'avances'              => json_encode($avancesData),
-                                            'files_avance'         => $avanceFiles,
-                                        ];
-
-                                        $reservationRequest->merge($dataReservation);
-                                        $reservationController->store($reservationRequest);
                                     }
 
+                                    // If no avances found in the new structure, fallback to old single avance
+                                    if (empty($avancesData) && !empty($list_biens['avance_res'])) {
+                                        $avancesData[] = [
+                                            'montant' => $list_biens['avance_res'] ?? null,
+                                            'mode_paiement' => $list_biens['mode_paiement'] ?? null,
+                                            'banque_id' => $list_biens['banque_id'] ?? null,
+                                            'numero_paiement' => $list_biens['numero_paiement'] ?? null,
+                                            'echeance' => $list_biens['echeance'] ?? null,
+                                            'check_montant' => $list_biens['check_montant'] ?? false,
+                                            'commentaire' => $list_biens['commentaireAvance'] ?? null,
+                                            'num_remise' => $list_biens['num_remise'] ?? null,
+                                            'date_encaissement' => $list_biens['date_encaissement'] ?? null,
+                                              'in_contrat'=>'1'
+                                        ];
+                                    }
+
+                                    // Get files for avances
+                                    $avanceFiles = [];
+                                    foreach ($avancesData as $index => $avance) {
+                                        if (isset($list_biens['selectedFiles_avc']) && is_array($list_biens['selectedFiles_avc'])) {
+                                            $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
+                                        }
+                                    }
+
+                                    $dataReservation = [
+                                        'origin'               => 'visite',
+                                        'nb_acquereurs'        => 1,
+                                        'code_reservation'     => $list_biens['code_reservation'],
+                                        'prix'                 => $list_biens['prix'],
+                                        'mode_financement'     => $list_biens['mode_financement'],
+                                        'date_reservation'     => $list_biens['date_reservation'],
+                                        'commentaire'          => $list_biens['commentaire_res'],
+                                        'visite_id'            => $newVisit->id,
+                                        'prix_unitaire'        => $list_biens['prix_unitaire'],
+                                        'prix_remise'          => $list_biens['prix_remise'],
+                                        'prix_forfetaire'      => $list_biens['prix_forfetaire'],
+                                        'bien_id'              => $list_biens['bien_id'],
+                                        'projet_id'            => $request->selectedProjet,
+                                        'verifierPourcentages' => true,
+                                        'cin'                  => $prospect->cin,
+                                        'nom'                  => $prospect->nom,
+                                        'prenom'               => $prospect->prenom,
+                                        'telephone_num1'       => $prospect->telephone,
+                                        'telephone_num2'       => $prospect->telephone_num2,
+                                        'ville'                => $prospect->ville,
+                                        'notifie'              => $prospect->notifie,
+                                        'prospect_id'          => $prospect->id,
+                                        'civilite'             => '1',
+                                        'type_client'          => 1,
+                                        'situation_familliale' => 1,
+                                        'sr'                   => $list_biens['sr'] ?? false,
+                                        'type_encaissement'    => 1,
+                                        // 🔥 SEND AVANCES AS JSON ARRAY instead of single avance
+                                        'avances'              => json_encode($avancesData),
+                                        // Remove old single avance fields
+                                        // 'avance'               => $list_biens['avance_res'],
+                                        // 'mode_paiement'        => $list_biens['mode_paiement'],
+                                        // 'numero_paiement'      => $list_biens['numero_paiement'],
+                                        // 'date_reglement'       => $list_biens['date_reglement'],
+                                        // 'echeance'             => $list_biens['echeance'],
+                                        // 'banque_id'            => $list_biens['banque_id'],
+                                        // 'commentaireAvance'    => $list_biens['commentaireAvance'],
+                                        // 'num_remise'           => $list_biens['num_remise'],
+                                        // 'date_encaissement'    => $list_biens['date_encaissement'],
+                                        'files_avance'         => $avanceFiles,
+                                    ];
+
+                                    $reservationRequest->merge($dataReservation);
+                                    $reservationController->store($reservationRequest);
+
+                                 }
                             }
                         }
                     }
@@ -3339,132 +3316,129 @@ public function edit_visite($id)
                                         HistoriqueBienHelper::createHistoriqueBien(5, "Creation visite Vendu du client :" . $prospect->cin . ' ' . $prospect->nom . ' ' . $prospect->prenom, $newVisit->bien_id, Auth::guard('api')->user()->id, $newVisit->id, null, null, null);
                                     }
                                 }
-                               if ($newVisit->interet == InteretEnum::Intéressé->value && $newVisit->statut == StatutVisiteEnum::Vendu->value) {
-                                    //store visite vendu
 
-                                    $reservationController = new ReservationController();
-                                    $reservationRequest    = new StoreReservationRequest();
+                                if ($newVisit->interet == InteretEnum::Intéressé->value && $newVisit->statut == StatutVisiteEnum::Vendu->value) {
+                                        //store visite vendu
 
-                                    // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
-                                    $avancesData = [];
+                                        $reservationController = new ReservationController();
+                                        $reservationRequest    = new StoreReservationRequest();
 
-                                    // Find all avance fields in the bien data (vendu format)
-                                    foreach ($list_biens as $fieldName => $fieldValue) {
-                                        // Check if this is an avance field (avance_vendu_0_0, avance_vendu_0_1, etc.)
-                                        if (strpos($fieldName, 'avance_vendu_') === 0) {
-                                            // Extract the suffix from the field name
-                                            // fieldName = avance_vendu_0_0
-                                            // We want to extract: vendu_0_0
-                                            $fieldParts = explode('_', $fieldName);
-                                            // Remove 'avance' from the parts
-                                            array_shift($fieldParts);
-                                            // Now $fieldParts = ['vendu', '0', '0']
-                                            $suffix = implode('_', $fieldParts); // 'vendu_0_0'
+                                        // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
+                                        $avancesData = [];
 
-                                            // Only add if the avance has a value
-                                            if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
-                                                // Build the correct field names (frontend sends: mode_paiement_vendu_0_0)
-                                                $modePaiementKey = 'mode_paiement_' . $suffix;
-                                                $banqueIdKey = 'banque_id_' . $suffix;
-                                                $numeroPaiementKey = 'numero_paiement_' . $suffix;
-                                                $echeanceKey = 'echeance_' . $suffix;
-                                                $checkMontantKey = 'check_montant_' . $suffix;
-                                                $commentaireKey = 'commentaireAvance_' . $suffix;
-                                                $numRemiseKey = 'num_remise_' . $suffix;
-                                                $dateEncaissementKey = 'date_encaissement_' . $suffix;
+                                        // Find all avance fields in the bien data (vendu format)
+                                        foreach ($list_biens as $fieldName => $fieldValue) {
+                                            // Check if this is an avance field (avance_vendu_0_0, avance_vendu_0_1, etc.)
+                                            if (strpos($fieldName, 'avance_vendu_') === 0) {
+                                                // Extract the index from the field name
+                                                $parts = explode('_', $fieldName);
+                                                $avanceIndex = end($parts);
 
-                                                // Handle empty date_encaissement
-                                                $dateEncaissement = $list_biens[$dateEncaissementKey] ?? null;
-                                                if (empty($dateEncaissement) || $dateEncaissement == "null" || $dateEncaissement == "") {
-                                                    $dateEncaissement = null;
-                                                }
+                                                // Get the prefix (avance_vendu_0)
+                                                $prefix = substr($fieldName, 0, strrpos($fieldName, '_'));
 
-                                                // Handle empty num_remise
-                                                $numRemise = $list_biens[$numRemiseKey] ?? null;
-                                                if (empty($numRemise) || $numRemise == "null" || $numRemise == "") {
-                                                    $numRemise = null;
-                                                }
+                                                // Only add if the avance has a value
+                                                if (!empty($fieldValue) && $fieldValue !== '' && $fieldValue !== null) {
+                                                    // Get all related fields for this avance
+                                                    $modePaiementKey = $prefix . '_mode_paiement_' . $avanceIndex;
+                                                    $banqueIdKey = $prefix . '_banque_id_' . $avanceIndex;
+                                                    $numeroPaiementKey = $prefix . '_numero_paiement_' . $avanceIndex;
+                                                    $echeanceKey = $prefix . '_echeance_' . $avanceIndex;
+                                                    $checkMontantKey = $prefix . '_check_montant_' . $avanceIndex;
+                                                    $commentaireKey = $prefix . '_commentaireAvance_' . $avanceIndex;
+                                                    $numRemiseKey = $prefix . '_num_remise_' . $avanceIndex;
+                                                    $dateEncaissementKey = $prefix . '_date_encaissement_' . $avanceIndex;
 
-                                                $avanceData = [
-                                                    'montant' => $fieldValue,
-                                                    'mode_paiement' => $list_biens[$modePaiementKey] ?? null,
-                                                    'banque_id' => $list_biens[$banqueIdKey] ?? null,
-                                                    'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
-                                                    'echeance' => $list_biens[$echeanceKey] ?? null,
-                                                    'check_montant' => $list_biens[$checkMontantKey] ?? false,
-                                                    'commentaire' => $list_biens[$commentaireKey] ?? null,
-                                                    'num_remise' => $numRemise,
-                                                    'date_encaissement' => $dateEncaissement,
-                                                ];
+                                                    $avanceData = [
+                                                        'montant' => $fieldValue,
+                                                        'mode_paiement' => $list_biens[$modePaiementKey] ?? null,
+                                                        'banque_id' => $list_biens[$banqueIdKey] ?? null,
+                                                        'numero_paiement' => $list_biens[$numeroPaiementKey] ?? null,
+                                                        'echeance' => $list_biens[$echeanceKey] ?? null,
+                                                        'check_montant' => $list_biens[$checkMontantKey] ?? false,
+                                                        'commentaire' => $list_biens[$commentaireKey] ?? null,
+                                                        'num_remise' => $list_biens[$numRemiseKey] ?? null,
+                                                        'date_encaissement' => $list_biens[$dateEncaissementKey] ?? null,
+                                                    ];
 
-                                                // Only add if montant is not empty
-                                                if (!empty($avanceData['montant'])) {
-                                                    $avancesData[] = $avanceData;
+                                                    // Only add if montant is not empty
+                                                    if (!empty($avanceData['montant'])) {
+                                                        $avancesData[] = $avanceData;
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    // If no avances found in the new structure, fallback to old single avance
-                                    if (empty($avancesData) && !empty($list_biens['avance_res'])) {
-                                        $avancesData[] = [
-                                            'montant' => $list_biens['avance_res'] ?? null,
-                                            'mode_paiement' => $list_biens['mode_paiement'] ?? null,
-                                            'banque_id' => $list_biens['banque_id'] ?? null,
-                                            'numero_paiement' => $list_biens['numero_paiement'] ?? null,
-                                            'echeance' => $list_biens['echeance'] ?? null,
-                                            'check_montant' => $list_biens['check_montant'] ?? false,
-                                            'commentaire' => $list_biens['commentaireAvance'] ?? null,
-                                            'num_remise' => $list_biens['num_remise'] ?? null,
-                                            'date_encaissement' => $list_biens['date_encaissement'] ?? null,
-                                            'in_contrat' => '1'
-                                        ];
-                                    }
-
-                                    // Get files for avances
-                                    $avanceFiles = [];
-                                    foreach ($avancesData as $index => $avance) {
-                                        if (isset($list_biens['selectedFiles_avc']) && is_array($list_biens['selectedFiles_avc'])) {
-                                            $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
+                                        // If no avances found in the new structure, fallback to old single avance
+                                        if (empty($avancesData) && !empty($list_biens['avance_res'])) {
+                                            $avancesData[] = [
+                                                'montant' => $list_biens['avance_res'] ?? null,
+                                                'mode_paiement' => $list_biens['mode_paiement'] ?? null,
+                                                'banque_id' => $list_biens['banque_id'] ?? null,
+                                                'numero_paiement' => $list_biens['numero_paiement'] ?? null,
+                                                'echeance' => $list_biens['echeance'] ?? null,
+                                                'check_montant' => $list_biens['check_montant'] ?? false,
+                                                'commentaire' => $list_biens['commentaireAvance'] ?? null,
+                                                'num_remise' => $list_biens['num_remise'] ?? null,
+                                                'date_encaissement' => $list_biens['date_encaissement'] ?? null,
+                                                  'in_contrat'=>'1'
+                                            ];
                                         }
+
+                                        // Get files for avances
+                                        $avanceFiles = [];
+                                        foreach ($avancesData as $index => $avance) {
+                                            if (isset($list_biens['selectedFiles_avc']) && is_array($list_biens['selectedFiles_avc'])) {
+                                                $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
+                                            }
+                                        }
+
+                                        $dataReservation = [
+                                            'nb_acquereurs'        => 1,
+                                            'code_reservation'     => $list_biens['code_reservation'],
+                                            'prix'                 => $list_biens['prix'],
+                                            'mode_financement'     => $list_biens['mode_financement'],
+                                            'date_reservation'     => $list_biens['date_reservation'],
+                                            'commentaire'          => $list_biens['commentaire_res'],
+                                            'visite_id'            => $newVisit->id,
+                                            'prix_unitaire'        => $list_biens['prix_unitaire'],
+                                            'prix_remise'          => $list_biens['prix_remise'],
+                                            'prix_forfetaire'      => $list_biens['prix_forfetaire'],
+                                            'bien_id'              => $list_biens['bien_id'],
+                                            'projet_id'            => $request->selectedProjet,
+                                            'verifierPourcentages' => true,
+                                            'origin'               => 'visite',
+                                            'cin'                  => $prospect->cin,
+                                            'nom'                  => $prospect->nom,
+                                            'prenom'               => $prospect->prenom,
+                                            'telephone_num1'       => $prospect->telephone,
+                                            'telephone_num2'       => $prospect->telephone_num2,
+                                            'ville'                => $prospect->ville,
+                                            'notifie'              => $prospect->notifie,
+                                            'prospect_id'          => $prospect->id,
+                                            'civilite'             => '1',
+                                            'type_client'          => 1,
+                                            'situation_familliale' => 1,
+                                            'sr'                   => $list_biens['sr'] ?? false,
+                                            'type_encaissement'    => 1,
+                                            // 🔥 SEND AVANCES AS JSON ARRAY instead of single avance
+                                            'avances'              => json_encode($avancesData),
+                                            // Remove old single avance fields
+                                            // 'avance'               => $list_biens['avance_res'],
+                                            // 'mode_paiement'        => $list_biens['mode_paiement'],
+                                            // 'numero_paiement'      => $list_biens['numero_paiement'],
+                                            // 'date_reglement'       => $list_biens['date_reglement'],
+                                            // 'echeance'             => $list_biens['echeance'],
+                                            // 'banque_id'            => $list_biens['banque_id'],
+                                            // 'commentaireAvance'    => $list_biens['commentaireAvance'],
+                                            // 'num_remise'           => $list_biens['num_remise'],
+                                            // 'date_encaissement'    => $list_biens['date_encaissement'],
+                                            'files_avance'         => $avanceFiles,
+                                        ];
+
+                                        $reservationRequest->merge($dataReservation);
+                                        $reservationController->store($reservationRequest);
                                     }
-
-                                    $dataReservation = [
-                                        'nb_acquereurs'        => 1,
-                                        'code_reservation'     => $list_biens['code_reservation'],
-                                        'prix'                 => $list_biens['prix'],
-                                        'mode_financement'     => $list_biens['mode_financement'],
-                                        'date_reservation'     => $list_biens['date_reservation'],
-                                        'commentaire'          => $list_biens['commentaire_res'],
-                                        'visite_id'            => $newVisit->id,
-                                        'prix_unitaire'        => $list_biens['prix_unitaire'],
-                                        'prix_remise'          => $list_biens['prix_remise'],
-                                        'prix_forfetaire'      => $list_biens['prix_forfetaire'],
-                                        'bien_id'              => $list_biens['bien_id'],
-                                        'projet_id'            => $request->selectedProjet,
-                                        'verifierPourcentages' => true,
-                                        'origin'               => 'visite',
-                                        'cin'                  => $prospect->cin,
-                                        'nom'                  => $prospect->nom,
-                                        'prenom'               => $prospect->prenom,
-                                        'telephone_num1'       => $prospect->telephone,
-                                        'telephone_num2'       => $prospect->telephone_num2,
-                                        'ville'                => $prospect->ville,
-                                        'notifie'              => $prospect->notifie,
-                                        'prospect_id'          => $prospect->id,
-                                        'civilite'             => '1',
-                                        'type_client'          => 1,
-                                        'situation_familliale' => 1,
-                                        'sr'                   => $list_biens['sr'] ?? false,
-                                        'type_encaissement'    => 1,
-                                        // 🔥 SEND AVANCES AS JSON ARRAY instead of single avance
-                                        'avances'              => json_encode($avancesData),
-                                        'files_avance'         => $avanceFiles,
-                                    ];
-
-                                    $reservationRequest->merge($dataReservation);
-                                    $reservationController->store($reservationRequest);
-                                }
                                 //set old visite to pre _reservation_vendu
                                 if (isset($list_biens['visite_id'])) {
                                     $old_visite_transfere         = Visite::on('temp')->findorfail($list_biens['visite_id']);

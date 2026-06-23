@@ -273,6 +273,10 @@ class ReservationController extends Controller
 
     public function store(StoreReservationRequest $request)
     {
+        \Log::info('=== ReservationController::store called ===');
+        \Log::info('Request data:', $request->all());
+        \Log::info('Avances data from request: ' . $request->input('avances'));
+
 
         $user = Auth::user();
         if (!RoleHelper::ACSup_RC()  && !RoleHelper::AgentAdmin()) {
@@ -755,16 +759,25 @@ private function processReservationFiles($reservation, $request, $societe)
  private function processPayment($reservation, $request)
 {
     // Check if we have avances data (new format from frontend)
-    $avancesData = json_decode($request->input('avances'), true);
+    \Log::info('=== processPayment called ===');
+    $avancesInput = $request->input('avances');
+    \Log::info('Avances input: ' . $avancesInput);
 
+    $avancesData = json_decode($avancesInput, true);
+    \Log::info('Decoded avances data:', $avancesData);
     if ($avancesData && is_array($avancesData) && count($avancesData) > 0) {
         // Process multiple avances
+
         foreach ($avancesData as $index => $avanceData) {
-            // Make sure in_contrat is set
-            $avanceData['in_contrat'] = true;
+                \Log::info('Processing ' . count($avancesData) . ' avances');
+           if (!isset($avanceData['in_contrat'])) {
+                $avanceData['in_contrat'] = true;
+            }
             $this->createSingleAvance($reservation, $avanceData, $request, $index);
         }
     } elseif ($request->avance) {
+                \Log::info('Using fallback single avance format');
+
         // Fallback: Single avance from old format
         $avanceData = [
             'montant' => $request->avance,
@@ -833,6 +846,16 @@ private function createSingleAvance($reservation, $avanceData, $request, $index)
         }
     }
 
+      // 🔥 FIX: Handle empty date_encaissement and num_remise
+    $dateEncaissement = $avanceData['date_encaissement'] ?? null;
+    if (empty($dateEncaissement) || $dateEncaissement == "null" || $dateEncaissement == "") {
+        $dateEncaissement = null;
+    }
+
+    $numRemise = $avanceData['num_remise'] ?? null;
+    if (empty($numRemise) || $numRemise == "null" || $numRemise == "") {
+        $numRemise = null;
+    }
     // Add in_contrat to dataAvance
     $dataAvance = [
         'avance_with_reservation' => true,
@@ -849,9 +872,8 @@ private function createSingleAvance($reservation, $avanceData, $request, $index)
         'montant_par_lettre' => $mnt_lettre,
         'reservation_id' => $reservation->id,
         'commentaireAvance' => $avanceData['commentaire'] ?? null,
-        'num_remise' => $avanceData['num_remise'] ?? null,
-        'date_encaissement' => $avanceData['date_encaissement'] ?? null,
-        'processed_files' => $avanceFileNames,
+         'num_remise' => $numRemise,
+        'date_encaissement' => $dateEncaissement, 'processed_files' => $avanceFileNames,
         'prix_bien' => $request->prix,
         'prix_reservation' => $request->prix_final,
         'in_contrat' => true, // Add this key

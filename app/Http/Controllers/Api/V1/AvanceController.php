@@ -700,9 +700,21 @@ class AvanceController extends Controller
                     $st_avance->avance_id = $avance->id;
                     $st_avance->user_id_valider = $userAuth->value('id');
                     $st_avance->date_validation = Carbon::now();
-                    $st_avance->date_encaissement = $request->date_encaissement == "null" ? null : $request->date_encaissement;
-                    $st_avance->num_remise = $request->num_remise == "null" ? null : $request->num_remise;
-                    $st_avance->save();
+                  $dateEncaissement = $request->date_encaissement;
+                if (empty($dateEncaissement) || $dateEncaissement == "null" || $dateEncaissement == "") {
+                    $st_avance->date_encaissement = null;
+                } else {
+                    $st_avance->date_encaissement = $dateEncaissement;
+                }
+                // 🔥 FIX: Handle empty num_remise
+                $numRemise = $request->num_remise;
+                if (empty($numRemise) || $numRemise == "null" || $numRemise == "") {
+                    $st_avance->num_remise = null;
+                } else {
+                    $st_avance->num_remise = $numRemise;
+                }
+                $st_avance->save();
+
                 }
 
                 //storer les pieces jointe de paiement
