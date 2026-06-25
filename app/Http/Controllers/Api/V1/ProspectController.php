@@ -41,7 +41,7 @@ class ProspectController extends Controller
      * Display a listing of the resource.
      */
 
-  public function indexByProjet(Request $request, $projet_id)
+ public function indexByProjet(Request $request, $projet_id)
 {
     if (Auth::guard('api')->check()) {
         $size = $request->input('size', null);
@@ -49,7 +49,6 @@ class ProspectController extends Controller
 
         DatabaseHelper::Config();
 
-        // Démarrer la requête directement sur le modèle
         $query = prospect::on('temp')->with([
             'traite_par_user' => function($query) {
                 $query->select('id','name','prenom')->without('societe');
@@ -74,7 +73,7 @@ class ProspectController extends Controller
             'appels'
         ])->where('projet_id', $projet_id);
 
-        // 🔥 AJOUT : Filtrer par commercial affecté
+        // Filtrer par commercial affecté
         if ($request->filled('commercial_id')) {
             $commercialId = $request->input('commercial_id');
             $query->whereHas('commercial_affecte', function($q) use ($commercialId) {
@@ -103,9 +102,20 @@ class ProspectController extends Controller
             $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
         }
 
+        // 🔥 FILTRE STATUT CORRIGÉ
         if ($request->filled('statut')) {
-            $query->whereHas('last_statut', function ($q) use ($request) {
-                $q->where('statut', $request->input('statut'));
+            $statutValue = $request->input('statut');
+
+            // Utiliser une sous-requête qui sélectionne le dernier statut pour chaque prospect
+            $query->whereIn('id', function($subQuery) use ($statutValue) {
+                $subQuery->select('prospect_id')
+                    ->from('statut_prospects as sp1')
+                    ->where('statut', $statutValue)
+                    ->whereRaw('created_at = (
+                        SELECT MAX(created_at)
+                        FROM statut_prospects as sp2
+                        WHERE sp2.prospect_id = sp1.prospect_id
+                    )');
             });
         }
 
@@ -135,7 +145,6 @@ class ProspectController extends Controller
 
     return response()->json(['error' => 'Unauthorized'], 401);
 }
-
     public function index(Request $request)
     {
         if (Auth::guard('api')->check()) {
