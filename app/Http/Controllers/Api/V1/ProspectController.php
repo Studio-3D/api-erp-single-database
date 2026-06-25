@@ -41,101 +41,100 @@ class ProspectController extends Controller
      * Display a listing of the resource.
      */
 
-    public function indexByProjet(Request $request, $projet_id)
-        {
-            if (Auth::guard('api')->check()) {
-                $size = $request->input('size', null);
-                $page = $request->input('page', null);
+  public function indexByProjet(Request $request, $projet_id)
+{
+    if (Auth::guard('api')->check()) {
+        $size = $request->input('size', null);
+        $page = $request->input('page', null);
 
-                DatabaseHelper::Config();
+        DatabaseHelper::Config();
 
-                // Démarrer la requête directement sur le modèle
-                $query = prospect::on('temp')->with([
-
-                    'traite_par_user' => function($query) {
-                        $query->select('id','name','prenom')->without('societe'); // Fixed syntax
-                    },
-                    'partenaire' => function($query) {
-                        $query->select('id','description'); // Fixed syntax
-                    },
-                    'last_statut' => function($query) {
-                        $query->select('*')->without('prospect','user'); // Fixed syntax
-                    },
-                    'commercial_affecte' => function($query) {
-                        $query->select('id','user_id_origin', 'name', 'prenom')->without('societe'); // Fixed syntax
-                    },
-                    'client' => function($query) {
-                        $query->select('id', 'nom', 'prenom')->without('partenaire'); // Fixed syntax
-                    },
-                    'affecte_par_admin' => function($query) {
-                        $query->select('id', 'name', 'prenom')->without('societe'); // Fixed syntax
-                    }
-                ])->withCount([
-                    'visites',
-                    'appels'
-                ])->where('projet_id', $projet_id);
-
-                if ($request->filled('telephone')) {
-                    $query->where(function ($q) use ($request) {
-                        if ($request->filled('telephone')) {
-                            $q->where(function ($subQuery) use ($request) {
-                                $subQuery->where('telephone', 'like', '%' . $request->input('telephone') . '%')
-                                    ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
-                            });
-                        }
-                    });
-                }
-
-                if ($request->filled('cin')) {
-                    $query->where('cin', 'like', '%' . $request->input('cin') . '%');
-                }
-                if ($request->filled('nom')) {
-                    $query->where('nom', 'like', '%' . $request->input('nom') . '%');
-                }
-                if ($request->filled('email')) {
-                    $query->where('email', 'like', '%' . $request->input('email') . '%');
-                }
-                if ($request->filled('prenom')) {
-                    $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
-                }
-
-                // Remove this duplicate condition - it's checking 'prenom' again instead of 'statut'
-                // if ($request->filled('statut')) {
-                //     $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
-                // }
-
-                if ($request->filled('statut')) {
-                    $query->whereHas('last_statut', function ($q) use ($request) {
-                        $q->where('statut', $request->input('statut'));
-                    });
-                }
-
-                if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-                    $prospects = $query->orderBy('created_at', 'desc')
-                        ->paginate($size, ['*'], 'page', $page);
-
-                    $pagination = [
-                        'currentPage' => $prospects->currentPage(),
-                        'totalItems'  => $prospects->total(),
-                        'totalPages'  => $prospects->lastPage(),
-                    ];
-
-                    $prospects = $prospects->items();
-
-                    return response()->json([
-                        'prospects'  => $prospects,
-                        'pagination' => $pagination,
-                    ], 200);
-                } else {
-                    $prospects = $query->orderBy('created_at', 'desc')
-                        ->get();
-
-                    return response()->json(['prospects' => $prospects], 200);
-                }
+        // Démarrer la requête directement sur le modèle
+        $query = prospect::on('temp')->with([
+            'traite_par_user' => function($query) {
+                $query->select('id','name','prenom')->without('societe');
+            },
+            'partenaire' => function($query) {
+                $query->select('id','description');
+            },
+            'last_statut' => function($query) {
+                $query->select('*')->without('prospect','user');
+            },
+            'commercial_affecte' => function($query) {
+                $query->select('id','user_id_origin', 'name', 'prenom')->without('societe');
+            },
+            'client' => function($query) {
+                $query->select('id', 'nom', 'prenom')->without('partenaire');
+            },
+            'affecte_par_admin' => function($query) {
+                $query->select('id', 'name', 'prenom')->without('societe');
             }
+        ])->withCount([
+            'visites',
+            'appels'
+        ])->where('projet_id', $projet_id);
 
-            return response()->json(['error' => 'Unauthorized'], 401);
+        // 🔥 AJOUT : Filtrer par commercial affecté
+        if ($request->filled('commercial_id')) {
+            $commercialId = $request->input('commercial_id');
+            $query->whereHas('commercial_affecte', function($q) use ($commercialId) {
+                $q->where('user_id_origin', $commercialId);
+            });
         }
+
+        // Filtres existants
+        if ($request->filled('telephone')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
+                  ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+            });
+        }
+
+        if ($request->filled('cin')) {
+            $query->where('cin', 'like', '%' . $request->input('cin') . '%');
+        }
+        if ($request->filled('nom')) {
+            $query->where('nom', 'like', '%' . $request->input('nom') . '%');
+        }
+        if ($request->filled('email')) {
+            $query->where('email', 'like', '%' . $request->input('email') . '%');
+        }
+        if ($request->filled('prenom')) {
+            $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+        }
+
+        if ($request->filled('statut')) {
+            $query->whereHas('last_statut', function ($q) use ($request) {
+                $q->where('statut', $request->input('statut'));
+            });
+        }
+
+        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+            $prospects = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+
+            $pagination = [
+                'currentPage' => $prospects->currentPage(),
+                'totalItems'  => $prospects->total(),
+                'totalPages'  => $prospects->lastPage(),
+            ];
+
+            $prospects = $prospects->items();
+
+            return response()->json([
+                'prospects'  => $prospects,
+                'pagination' => $pagination,
+            ], 200);
+        } else {
+            $prospects = $query->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json(['prospects' => $prospects], 200);
+        }
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
 
     public function index(Request $request)
     {
