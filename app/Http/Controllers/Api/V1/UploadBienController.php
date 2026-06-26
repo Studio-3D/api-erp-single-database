@@ -218,7 +218,7 @@ class UploadBienController extends Controller
             DatabaseHelper::Config();
             // Démarrer la requête directement sur le modèle
             $query = Import::on('temp')->where('projet_id', $projet_id);
-            if(!RoleHelper::AdminSup()){
+            if(!RoleHelper::AdminSup() &&!RoleHelper::AgentAdmin() ){
                 $user = Auth::user();
                 $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
                 $query->where('user_id', $userAuth->id );
