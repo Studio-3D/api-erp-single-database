@@ -620,12 +620,27 @@ class ProspectController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(StoreProspectRequest $request)
-    {
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
-            Log::info($request);
+{
+    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
+
+        // Démarrer une transaction
+        DB::connection('temp')->beginTransaction();
+
+        try {
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
             DatabaseHelper::Config();
+
             $prospect = new Prospect();
             $prospect->setConnection("temp");
+            $prospect->user_id_add = $userAuth ? $userAuth->id : null;
+
+            if(RoleHelper::Com()){
+                $prospect->commercial_affecte = $userAuth ? $userAuth->id : null;
+                $prospect->affecte_par_admin_id = $userAuth ? $userAuth->id : null;
+                $prospect->date_affectation = Carbon::now();
+            }
+
             $prospect->cin            = $request->cin;
             $prospect->nom            = $request->nom;
             $prospect->prenom         = $request->prenom;
@@ -639,31 +654,61 @@ class ProspectController extends Controller
             $prospect->message        = $request->message;
             $prospect->ville          = $request->ville;
             $prospect->projet_id      = $request->projet_id;
-            $prospect->save();
 
-            // Create default "en_attente" status unless created from a visite
-            if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
-                $user = Auth::user();
-                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+            if ($prospect->save()) {
+                // Create default "en_attente" status unless created from a visite
+                if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
+                     // Si commercial, ajouter le statut "Affecté"
+                    if (RoleHelper::Com()) {
+                        $statutProspect = new StatutProspect();
+                        $statutProspect->setConnection('temp');
+                        $statutProspect->prospect_id = $prospect->id;
+                        $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
+                        $statutProspect->date_traitement = Carbon::now();
+                        $statutProspect->user_id_traite = $userAuth->id;
+                        $statutProspect->commentaire = 'Prospect affecté au commercial';
+                        $statutProspect->save();
+                    }
+                    // Statut "En attente" (0)
+                    $statutProspect = new StatutProspect();
+                    $statutProspect->setConnection('temp');
+                    $statutProspect->prospect_id = $prospect->id;
+                    $statutProspect->statut = '0';
+                    $statutProspect->date_traitement = Carbon::now();
+                    $statutProspect->user_id_traite = $userAuth ? $userAuth->id : null;
+                    $statutProspect->commentaire = 'Prospect créé manuellement';
+                    $statutProspect->save();
 
-            $statutProspect = new StatutProspect();
-            $statutProspect->setConnection('temp');
-            $statutProspect->prospect_id = $prospect->id;
-            $statutProspect->statut = '0';
-            $statutProspect->date_traitement = Carbon::now();
-            $statutProspect->user_id_traite = $userAuth ? $userAuth->id : null;
-            $statutProspect->commentaire = 'Prospect créé manuellement';
-            $statutProspect->save();
 
+                }
 
+                // Valider la transaction si tout s'est bien passé
+                DB::connection('temp')->commit();
+
+                return $prospect;
+            } else {
+                // La sauvegarde a échoué, annuler la transaction
+                DB::connection('temp')->rollBack();
+                return response()->json(['error' => 'Erreur lors de la création du prospect'], 500);
             }
 
-            return $prospect;
+        } catch (\Exception $e) {
+            // Une erreur est survenue, annuler la transaction
+            DB::connection('temp')->rollBack();
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            // Log de l'erreur pour le débogage
+            \Log::error('Erreur création prospect: ' . $e->getMessage());
+
+            return response()->json([
+                'error' => 'Erreur lors de la création du prospect',
+                'message' => $e->getMessage()
+            ], 500);
         }
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
     public static function Store_WhatsApp($phone_number_id, $from, $msg_body, $name, $societe_id, $projet_id = null)
     {

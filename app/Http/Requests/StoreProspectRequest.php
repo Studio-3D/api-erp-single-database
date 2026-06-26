@@ -25,16 +25,37 @@ class StoreProspectRequest extends FormRequest
      */
     public function rules(): array
     {
-       // $societe_id = Auth::guard('api')->user()->societe_id;
-       // $societe = Societe::findOrfail($societe_id);
         $DatabaseName = env('DB_DATABASE');
-         //  $DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
         DatabaseHelper::Config();
 
+        $table = 'temp.' . $DatabaseName . '.prospects';
+
         return [
-            'telephone' => 'required',
-            'cin' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'cin')->whereNull('deleted_at')],
-            'email' => ['nullable', Rule::unique('temp.' . $DatabaseName . '.prospects', 'email')->whereNull('deleted_at')],
+            'telephone' => [
+                'required',
+                Rule::unique($table, 'telephone')
+                    ->whereNull('deleted_at')
+            ],
+            'telephone_num2' => [
+                'nullable',
+                // 🔥 Unicité seulement si la valeur n'est pas null ou vide
+                Rule::unique($table, 'telephone_num2')
+                    ->whereNull('deleted_at')
+                    ->where(function ($query) {
+                        $query->whereNotNull('telephone_num2')
+                              ->where('telephone_num2', '!=', '');
+                    })
+            ],
+            'cin' => [
+                'nullable',
+                Rule::unique($table, 'cin')
+                    ->whereNull('deleted_at')
+            ],
+            'email' => [
+                'nullable',
+                Rule::unique($table, 'email')
+                    ->whereNull('deleted_at')
+            ],
         ];
     }
 
@@ -48,6 +69,10 @@ class StoreProspectRequest extends FormRequest
         return [
             // Téléphone
             'telephone.required' => 'Le champ numéro de téléphone est obligatoire.',
+            'telephone.unique' => 'Ce numéro de téléphone appartient déjà à un autre prospect.',
+
+            // Téléphone 2
+            'telephone_num2.unique' => 'Ce numéro de téléphone secondaire appartient déjà à un autre prospect.',
 
             // CIN
             'cin.unique' => 'Ce CIN appartient déjà à un autre prospect.',
@@ -66,6 +91,7 @@ class StoreProspectRequest extends FormRequest
     {
         return [
             'telephone' => 'numéro de téléphone',
+            'telephone_num2' => 'numéro de téléphone secondaire',
             'cin' => 'CIN',
             'email' => 'email',
         ];
