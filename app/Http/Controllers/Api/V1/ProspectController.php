@@ -658,6 +658,7 @@ class ProspectController extends Controller
             if ($prospect->save()) {
                 // Create default "en_attente" status unless created from a visite
                 if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
+
                      // Si commercial, ajouter le statut "Affecté"
                     if (RoleHelper::Com()) {
                         $statutProspect = new StatutProspect();
@@ -668,8 +669,8 @@ class ProspectController extends Controller
                         $statutProspect->user_id_traite = $userAuth->id;
                         $statutProspect->commentaire = 'Prospect affecté au commercial';
                         $statutProspect->save();
-                    }
-                    // Statut "En attente" (0)
+                    }else{
+ // Statut "En attente" (0)
                     $statutProspect = new StatutProspect();
                     $statutProspect->setConnection('temp');
                     $statutProspect->prospect_id = $prospect->id;
@@ -678,6 +679,8 @@ class ProspectController extends Controller
                     $statutProspect->user_id_traite = $userAuth ? $userAuth->id : null;
                     $statutProspect->commentaire = 'Prospect créé manuellement';
                     $statutProspect->save();
+                    }
+
 
 
                 }

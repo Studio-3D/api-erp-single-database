@@ -1384,7 +1384,7 @@ private static function getClientName($client)
         {
             foreach ($databases as $database) {
                 //$databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
-$databaseName =  env('DB_DATABASE');
+            $databaseName =  env('DB_DATABASE');
                 $connection = DatabaseHelper::Connection_database($databaseName);
                 config(['database.connections.temp' => $connection]);
                 DB::connection('temp')->setDatabaseName($connection['database']);
@@ -1441,7 +1441,7 @@ $databaseName =  env('DB_DATABASE');
 
                                 }elseif($imp->type==3){
 
-                                            $importResult = ImportExcelHelper::Import_Prospect($imp->data, $imp->projet_id, $imp->id);
+                                            $importResult = ImportExcelHelper::Import_Prospect($imp->data, $imp->projet_id, $imp->id,$imp->user_id);
                                             $store = 1;
                                 }
 

@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Helpers;
+use App\Enum\StatutProspectEnum;
 
 use App\Http\Helpers\Bien_Helper;
 use App\Http\Helpers\DatabaseHelper;
@@ -958,91 +959,86 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
      * @param int $projet_id L'ID du projet
      * @throws \Exception Si le prospect existe déjà ou si des validations échouent
      */
-        public static function storeProspectFromRow($row, $projet_id)
-        {
-            $errors = [];
+ public static function storeProspectFromRow($row, $projet_id, $user_id = null)
+{
+    $errors = [];
 
-            // Vérifier les champs requis
-            $requiredFields = [
-                'cin' => 'CIN manquant',
-                'nom' => 'Nom manquant',
-                'prenom' => 'Prénom manquant',
-                'telephone' => 'Téléphone manquant',
-            ];
+    // Vérifier les champs requis
+    $requiredFields = [
+        'telephone' => 'Téléphone manquant',
+    ];
 
-            foreach ($requiredFields as $field => $message) {
-                if (empty($row[$field])) {
-                    $errors[] = $message;
-                }
-            }
+    foreach ($requiredFields as $field => $message) {
+        if (empty($row[$field])) {
+            $errors[] = $message;
+        }
+    }
 
-            // Si des champs requis sont manquants, lever une exception
-            if (!empty($errors)) {
-                throw new \Exception(implode(' | ', $errors));
-            }
+    // Si des champs requis sont manquants, lever une exception
+    if (!empty($errors)) {
+        throw new \Exception(implode(' | ', $errors));
+    }
 
-            // Vérifier l'unicité du CIN
-            if (!empty($row['cin'])) {
-                $existingCin = Prospect::on('temp')
-                    ->where('cin', $row['cin'])
-                    ->where('projet_id', $projet_id)
-                    ->count();
+    // Vérifier l'unicité du CIN (seulement si la clé existe)
+    if (isset($row['cin']) && !empty($row['cin'])) {
+        $existingCin = Prospect::on('temp')
+            ->where('cin', $row['cin'])
+            ->where('projet_id', $projet_id)
+            ->count();
 
-                if ($existingCin > 0) {
-                    throw new \Exception("Le prospect avec le CIN '{$row['cin']}' existe déjà dans le projet");
-                }
-            }
+        if ($existingCin > 0) {
+            throw new \Exception("Le prospect avec le CIN '{$row['cin']}' existe déjà dans le projet");
+        }
+    }
 
-            // Vérifier l'unicité de l'email
-            if (!empty($row['email'])) {
-                $existingEmail = Prospect::on('temp')
-                    ->where('email', $row['email'])
-                    ->where('projet_id', $projet_id)
-                    ->count();
+    // Vérifier l'unicité de l'email (seulement si la clé existe)
+    if (isset($row['email']) && !empty($row['email'])) {
+        $existingEmail = Prospect::on('temp')
+            ->where('email', $row['email'])
+            ->where('projet_id', $projet_id)
+            ->count();
 
-                if ($existingEmail > 0) {
-                    throw new \Exception("Le prospect avec l'email '{$row['email']}' existe déjà dans le projet");
-                }
-            }
+        if ($existingEmail > 0) {
+            throw new \Exception("Le prospect avec l'email '{$row['email']}' existe déjà dans le projet");
+        }
+    }
 
-            // Vérifier l'unicité du téléphone (dans telephone et telephone_num2)
-            if (!empty($row['telephone'])) {
-                $existingTel = Prospect::on('temp')
-                    ->where(function ($query) use ($row) {
-                        $query->where('telephone', $row['telephone'])
-                            ->orWhere('telephone_num2', $row['telephone']);
-                    })
-                    ->where('projet_id', $projet_id)
-                    ->count();
+    // Vérifier l'unicité du téléphone
+    if (!empty($row['telephone'])) {
+        $existingTel = Prospect::on('temp')
+            ->where(function ($query) use ($row) {
+                $query->where('telephone', $row['telephone'])
+                    ->orWhere('telephone_num2', $row['telephone']);
+            })
+            ->where('projet_id', $projet_id)
+            ->count();
 
-                if ($existingTel > 0) {
-                    throw new \Exception("Le prospect avec le téléphone '{$row['telephone']}' existe déjà dans le projet");
-                }
-            }
+        if ($existingTel > 0) {
+            throw new \Exception("Le prospect avec le téléphone '{$row['telephone']}' existe déjà dans le projet");
+        }
+    }
 
-            // Vérifier l'unicité du deuxième téléphone
-            if (!empty($row['telephone_num2'])) {
-                $existingTel2 = Prospect::on('temp')
-                    ->where(function ($query) use ($row) {
-                        $query->where('telephone', $row['telephone_num2'])
-                            ->orWhere('telephone_num2', $row['telephone_num2']);
-                    })
-                    ->where('projet_id', $projet_id)
-                    ->count();
+    // Vérifier l'unicité du deuxième téléphone
+    if (!empty($row['telephone_num2'])) {
+        $existingTel2 = Prospect::on('temp')
+            ->where(function ($query) use ($row) {
+                $query->where('telephone', $row['telephone_num2'])
+                    ->orWhere('telephone_num2', $row['telephone_num2']);
+            })
+            ->where('projet_id', $projet_id)
+            ->count();
 
-                if ($existingTel2 > 0) {
-                    throw new \Exception("Le prospect avec le téléphone '{$row['telephone_num2']}' existe déjà dans le projet");
-                }
-            }
+        if ($existingTel2 > 0) {
+            throw new \Exception("Le prospect avec le téléphone '{$row['telephone_num2']}' existe déjà dans le projet");
+        }
+    }
 
-           // Récupérer la source - NOW ACCEPTING BOTH ID AND NAME
+    // Récupérer la source
     $source_id = null;
-    if (!empty($row['source'])) {
+    if (isset($row['source']) && !empty($row['source'])) {
         $sourceValue = $row['source'];
 
-        // Check if it's a numeric ID
         if (is_numeric($sourceValue)) {
-            // Try to find by ID
             $source = Source::on('temp')
                 ->where('id', $sourceValue)
                 ->first();
@@ -1053,7 +1049,6 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
                 \Log::warning("Source with ID '{$sourceValue}' not found for projet {$projet_id}");
             }
         } else {
-            // Try to find by name/description
             $source = Source::on('temp')
                 ->where('source', $sourceValue)
                 ->first();
@@ -1066,14 +1061,12 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
         }
     }
 
-    // Récupérer le partenaire - NOW ACCEPTING BOTH ID AND NAME
+    // Récupérer le partenaire
     $partenaire_id = null;
-    if (!empty($row['partenaire'])) {
+    if (isset($row['partenaire']) && !empty($row['partenaire'])) {
         $partenaireValue = $row['partenaire'];
 
-        // Check if it's a numeric ID
         if (is_numeric($partenaireValue)) {
-            // Try to find by ID
             $partenaire = Partenaire::on('temp')
                 ->where('id', $partenaireValue)
                 ->where('projet_id', $projet_id)
@@ -1085,7 +1078,6 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
                 \Log::warning("Partenaire with ID '{$partenaireValue}' not found for projet {$projet_id}");
             }
         } else {
-            // Try to find by description
             $partenaire = Partenaire::on('temp')
                 ->where('description', $partenaireValue)
                 ->where('projet_id', $projet_id)
@@ -1100,43 +1092,82 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
     }
 
 
-            // Créer le prospect
-            $prospect = new Prospect();
-            $prospect->setConnection("temp");
-            $prospect->cin = $row['cin'];
-            $prospect->nom = $row['nom'];
-            $prospect->prenom = $row['prenom'];
-            $prospect->telephone = $row['telephone'];
-            $prospect->telephone_num2 = empty($row['telephone_num2']) ? null : $row['telephone_num2'];
-            $prospect->email = empty($row['email']) ? null : $row['email'];
-            $prospect->origin = 'import';
-            $prospect->notifie = 0;
-            $prospect->source = $source_id;
-            $prospect->partenaire_id = $partenaire_id;
-            $prospect->message = null;
-            $prospect->projet_id = $projet_id;
-            $prospect->ville = empty($row['ville']) ? null : $row['ville'];
-            $prospect->save();
 
-            // Créer le statut par défaut "en_attente"
-            $statutProspect = new StatutProspect();
-            $statutProspect->setConnection('temp');
-            $statutProspect->prospect_id = $prospect->id;
-            $statutProspect->statut = '0';
-            $statutProspect->date_traitement = Carbon::now()->toDateString();
-            $statutProspect->user_id_traite = null;
-            $statutProspect->commentaire = 'Prospect créé par importation';
-            $statutProspect->save();
+    // Vérifier si l'utilisateur est un commercial
+    $isCommercial = false;
+    $userAuth = null;
 
-            \Log::info("Prospect created successfully: ID {$prospect->id}, CIN: {$row['cin']}");
-
-            return $prospect;
+    if ($user_id > 0) {
+        $userAuth = User::on('temp')->find($user_id);
+        if ($userAuth) {
+            $isCommercial = ($userAuth->role == 3);
+            \Log::info("User ID: {$user_id}, Role: " . ($userAuth->role ?? 'unknown') . ", Is Commercial: " . ($isCommercial ? 'Yes' : 'No'));
         }
-        public static function Import_Prospect($data, $projet_id, $importId = null)
-        {
-            $result = self::importerDonneesProspect($data, $projet_id, function ($row, $projet_id) {
-                self::storeProspectFromRow($row, $projet_id);
-            }, true, $importId);
+    }
+
+    // Créer le prospect
+    $prospect = new Prospect();
+    $prospect->setConnection("temp");
+    $prospect->user_id_add = $user_id;
+    $prospect->cin = isset($row['cin']) ? $row['cin'] : null;
+    $prospect->nom = isset($row['nom']) ? $row['nom'] : null;
+    $prospect->prenom = isset($row['prenom']) ? $row['prenom'] : null;
+    $prospect->telephone = $row['telephone'];
+    $prospect->telephone_num2 = isset($row['telephone_num2']) ? $row['telephone_num2'] : null;
+    $prospect->email = isset($row['email']) ? $row['email'] : null;
+    $prospect->origin = 'import';
+    $prospect->notifie = 0;
+    $prospect->source = $source_id;
+    $prospect->partenaire_id = $partenaire_id;
+    $prospect->message = null;
+    $prospect->projet_id = $projet_id;
+    $prospect->ville = isset($row['ville']) ? $row['ville'] : null;
+
+    // Si l'utilisateur est un commercial, ajouter les champs d'affectation
+    if ($isCommercial && $userAuth) {
+        $prospect->commercial_affecte = $userAuth->id;
+        $prospect->affecte_par_admin_id = $userAuth->id;
+        $prospect->date_affectation = Carbon::now();
+        \Log::info("Commercial affectation added for prospect");
+    }
+
+    $prospect->save();
+
+    // Créer le statut
+    if ($isCommercial && $userAuth) {
+        // Statut "Affecté"
+        $statutProspect = new StatutProspect();
+        $statutProspect->setConnection('temp');
+        $statutProspect->prospect_id = $prospect->id;
+        $statutProspect->statut =  (string) StatutProspectEnum::Affecte->value;; // Valeur pour "Affecté"
+        $statutProspect->date_traitement = Carbon::now();
+        $statutProspect->user_id_traite = $userAuth->id;
+        $statutProspect->commentaire = 'Prospect affecté au commercial';
+        $statutProspect->save();
+        \Log::info("Statut 'Affecté' created for prospect ID: {$prospect->id}");
+    } else {
+        // Statut "en_attente"
+        $statutProspect = new StatutProspect();
+        $statutProspect->setConnection('temp');
+        $statutProspect->prospect_id = $prospect->id;
+        $statutProspect->statut = '0';
+        $statutProspect->date_traitement = Carbon::now()->toDateString();
+        $statutProspect->user_id_traite = null;
+        $statutProspect->commentaire = 'Prospect créé par importation';
+        $statutProspect->save();
+        \Log::info("Statut 'en_attente' created for prospect ID: {$prospect->id}");
+    }
+
+    \Log::info("Prospect created successfully: ID {$prospect->id}, Telephone: {$row['telephone']}");
+
+    return $prospect;
+}
+public static function Import_Prospect($data, $projet_id, $importId = null, $user_id = null)        {
+
+             // Pass $user_id to the closure using 'use'
+    $result = self::importerDonneesProspect($data, $projet_id, function ($row, $projet_id) use ($user_id) {
+        self::storeProspectFromRow($row, $projet_id, $user_id);
+    }, true, $importId);
 
             // Mettre à jour l'import avec les résultats
             if ($importId) {
