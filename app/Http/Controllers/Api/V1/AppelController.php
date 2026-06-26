@@ -813,7 +813,7 @@ class AppelController extends Controller
                 ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
                     $q->where('projet_id', $projet_id);
                 });
-            if(!RoleHelper::AdminSup() || !RoleHelper::AgentAdmin()){
+            if(!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()){
                 $query->whereHas('traite_appel', function ($q) use ($userAuth) {
                     $q->where('user_id', $userAuth->value('id'));
                 });
