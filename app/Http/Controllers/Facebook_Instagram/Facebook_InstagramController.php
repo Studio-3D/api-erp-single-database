@@ -156,6 +156,154 @@ class Facebook_InstagramController extends Controller
         return null;
     }
 }
+                 // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
+
+                 /**
+ * Detect media type from URL
+ */
+/**
+ * Detect media type from URL
+ */
+/**
+ * Detect media type from URL
+ */
+private function detectMediaTypeFromUrl($url)
+{
+    Log::info("🔍 [detectMediaTypeFromUrl] Detecting media type", [
+        'url' => $url
+    ]);
+
+    // First, try to get the file extension from the URL
+    $path = parse_url($url, PHP_URL_PATH);
+    $extension = pathinfo($path, PATHINFO_EXTENSION);
+    $extension = strtolower($extension);
+
+    Log::info("📋 [detectMediaTypeFromUrl] Extension extracted", [
+        'extension' => $extension,
+        'path' => $path
+    ]);
+
+    // Image extensions
+    $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'tif', 'avif', 'heic', 'heif'];
+    // Video extensions
+    $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm', 'm4v', '3gp', 'mpeg', 'mpg', 'm4p', 'm4v'];
+
+    if (in_array($extension, $imageExtensions)) {
+        Log::info("✅ [detectMediaTypeFromUrl] Detected as IMAGE from extension", ['extension' => $extension]);
+        return 'image_url';
+    } elseif (in_array($extension, $videoExtensions)) {
+        Log::info("✅ [detectMediaTypeFromUrl] Detected as VIDEO from extension", ['extension' => $extension]);
+        return 'video_url';
+    }
+
+    // If no extension or unknown extension, try to get mime type from headers
+    try {
+        // Use stream context to get headers without downloading full file
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'HEAD',
+                'timeout' => 10,
+                'ignore_errors' => true,
+                'follow_location' => 1,
+                'max_redirects' => 5
+            ]
+        ]);
+
+        $headers = get_headers($url, 1, $context);
+
+        Log::info("📋 [detectMediaTypeFromUrl] Headers received", [
+            'headers_count' => count($headers),
+            'headers' => $headers
+        ]);
+
+        // Check Content-Type header
+        if (isset($headers['Content-Type'])) {
+            $contentType = is_array($headers['Content-Type']) ? $headers['Content-Type'][0] : $headers['Content-Type'];
+            Log::info("📋 [detectMediaTypeFromUrl] Content-Type from headers", ['content_type' => $contentType]);
+
+            if (strpos($contentType, 'image/') === 0) {
+                Log::info("✅ [detectMediaTypeFromUrl] Detected as IMAGE from Content-Type");
+                return 'image_url';
+            } elseif (strpos($contentType, 'video/') === 0) {
+                Log::info("✅ [detectMediaTypeFromUrl] Detected as VIDEO from Content-Type");
+                return 'video_url';
+            }
+        }
+
+        // Also check for Content-Disposition header
+        if (isset($headers['Content-Disposition'])) {
+            $contentDisposition = is_array($headers['Content-Disposition']) ? $headers['Content-Disposition'][0] : $headers['Content-Disposition'];
+            Log::info("📋 [detectMediaTypeFromUrl] Content-Disposition", ['content_disposition' => $contentDisposition]);
+
+            // Check if filename has image or video extension
+            if (preg_match('/filename="?([^"]+)"?/', $contentDisposition, $matches)) {
+                $filename = $matches[1];
+                $fileExt = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+                if (in_array($fileExt, $imageExtensions)) {
+                    return 'image_url';
+                } elseif (in_array($fileExt, $videoExtensions)) {
+                    return 'video_url';
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        Log::warning("⚠️ [detectMediaTypeFromUrl] Could not get headers: " . $e->getMessage());
+    }
+
+    // Check URL patterns for common CDNs
+    $urlLower = strtolower($url);
+
+    // Facebook CDN URLs
+    if (strpos($urlLower, 'fbcdn.net') !== false ||
+        strpos($urlLower, 'facebook.com') !== false ||
+        strpos($urlLower, 'scontent.') !== false) {
+        Log::info("✅ [detectMediaTypeFromUrl] Detected as IMAGE (Facebook CDN)");
+        return 'image_url';
+    }
+
+    // Instagram CDN URLs
+    if (strpos($urlLower, 'cdninstagram.com') !== false ||
+        strpos($urlLower, 'instagram.com') !== false) {
+        Log::info("✅ [detectMediaTypeFromUrl] Detected as IMAGE (Instagram CDN)");
+        return 'image_url';
+    }
+
+    // Unsplash CDN URLs
+    if (strpos($urlLower, 'unsplash.com') !== false ||
+        strpos($urlLower, 'images.unsplash.com') !== false) {
+        Log::info("✅ [detectMediaTypeFromUrl] Detected as IMAGE (Unsplash CDN)");
+        return 'image_url';
+    }
+
+    // Common CDN image indicators
+    $imageIndicators = ['photo', 'image', 'picture', 'img', 'picsum', 'cdn'];
+    foreach ($imageIndicators as $indicator) {
+        if (strpos($urlLower, $indicator) !== false) {
+            Log::info("✅ [detectMediaTypeFromUrl] Detected as IMAGE from URL pattern", ['indicator' => $indicator]);
+            return 'image_url';
+        }
+    }
+
+    // Check if URL contains common video indicators
+    $videoIndicators = ['video', 'mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'];
+    foreach ($videoIndicators as $indicator) {
+        if (strpos($urlLower, $indicator) !== false) {
+            Log::info("✅ [detectMediaTypeFromUrl] Detected as VIDEO from URL pattern", ['indicator' => $indicator]);
+            return 'video_url';
+        }
+    }
+
+    // Check for common image mime types in URL parameters
+    if (strpos($url, '_nc_') !== false || strpos($url, 'stp=') !== false || strpos($url, '&_nc_') !== false) {
+        Log::info("✅ [detectMediaTypeFromUrl] Detected as IMAGE (Facebook/Instagram CDN with _nc_ parameters)");
+        return 'image_url';
+    }
+
+    // Final default - assume image for most web URLs
+    Log::info("ℹ️ [detectMediaTypeFromUrl] Defaulting to IMAGE");
+    return 'image_url';
+}
 public function postTo_Social_Network(StoreSocialNetworkRequest $request){
     try {
         Log::info("🚀 [postTo_Social_Network] START", [
@@ -205,6 +353,14 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
             'description_length' => strlen($description),
             'has_file' => $request->hasFile('mediaFile')
         ]);
+
+        // Handle text-only mode (sans_media)
+        if ($mode == 'sans_media') {
+            Log::info("📝 [postTo_Social_Network] Mode sans_media (text-only) detected");
+            // No file processing needed for text-only posts
+            $url = null;
+            $text = 'feed'; // For text-only posts on Facebook
+        }
 
         // En mode parcourir, l'utilisateur sélectionne un fichier qui est ensuite uploadé dans le stockage. Après l'upload, on récupère son URL ainsi que son type (photo ou vidéo).
         if ($mode == 'parcourir') {
@@ -277,7 +433,6 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
             ]);
 
             if (!$config) {
-                // Vérification supplémentaire - essayer de récupérer directement
                 Log::error("❌ [postTo_Social_Network] Config not found via getFacebookConfigForCurrentUser");
 
                 // Tentative de récupération directe
@@ -292,7 +447,6 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                     'data' => $directConfig
                 ]);
 
-                // Vérifier tous les enregistrements dans la table
                 $allConfigs = DB::table('facebook_configurations')
                     ->whereNull('deleted_at')
                     ->get();
@@ -308,7 +462,6 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                     })->toArray()
                 ]);
 
-                // Vérifier si le projet existe
                 $projectExists = DB::table('projets')
                     ->where('id', $request->projet_id)
                     ->whereNull('deleted_at')
@@ -332,13 +485,30 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 'token_preview' => $accessToken ? substr($accessToken, 0, 20) . '...' : 'EMPTY'
             ]);
 
+            // Handle URL based on mode with media type detection for Facebook
             if ($mode == 'existante') {
                 $url = str_replace('\/\/', '/', $request->img_existant_url);
-                $text = 'photos';
-                Log::info("📸 [postTo_Social_Network] Mode existante", [
+                // Detect media type from URL for Facebook
+                $mediaType = $this->detectMediaTypeFromUrl($url);
+
+                // Set the appropriate text for Facebook API
+                if ($mediaType == 'video_url') {
+                    $text = 'videos';
+                } else {
+                    $text = 'photos'; // Default to photos for images
+                }
+
+                Log::info("📸 [postTo_Social_Network] Mode existante for Facebook", [
                     'img_existant_url' => $request->img_existant_url,
-                    'url' => $url
+                    'url' => $url,
+                    'detected_media_type' => $mediaType,
+                    'text' => $text
                 ]);
+            } elseif ($mode == 'sans_media') {
+                // Text-only post - use feed endpoint
+                $text = 'feed';
+                $url = null;
+                Log::info("📝 [postTo_Social_Network] Text-only mode for Facebook");
             }
 
             $data = [
@@ -346,65 +516,130 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 'caption' => $description,
                 'text' => $text,
                 'url' => $url,
-                 // 'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
                 'network' => 'facebook',
-                'accessToken' => $accessToken
+                'accessToken' => $accessToken,
+                'mode' => $mode
             ];
 
             Log::info("📤 [postTo_Social_Network] Calling store() for Facebook", [
                 'pageId' => $pageId,
                 'caption_length' => strlen($description),
-                'url' => $url
-            ]);
-
-            $response = $this->store($request->merge($data));
-            return $response;
-        }
-
-        // REPLACE the hardcoded Instagram section:
-        if (in_array(2, $selectedNetworks)) {
-            Log::info("📷 [postTo_Social_Network] Instagram network selected", [
-                'projet_id' => $request->projet_id
-            ]);
-
-            $config = $this->getInstagramConfigForCurrentUser($request->projet_id);
-
-            if (!$config) {
-                Log::error("❌ [postTo_Social_Network] Instagram config not found", [
-                    'projet_id' => $request->projet_id
-                ]);
-                throw new \Exception('Instagram configuration not found for project ID: ' . $request->projet_id);
-            }
-
-            $pageId = $config->instagram_id;
-            $accessToken = $config->acces_token_user;
-
-            if ($mode == 'existante') {
-                $url = $request->img_existant_url;
-                $type_media = 'image_url';
-            }
-
-            $data = [
-                'pageId_InstagramId' => $pageId,
-                'caption' => $request->description,
-                'text' => 'media',
-                'type_media' => $type_media,
                 'url' => $url,
-                //'url'=> str_replace('\/\/', '/', 'https://images.unsplash.com/photo-1596705775825-194570c1f0cd?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3JlZW4lMjBmbG93ZXJ8ZW58MHx8MHx8fDA%3D'),
-                'network' => 'instagram',
-                'accessToken' => $accessToken
-            ];
-
-            Log::info("📤 [postTo_Social_Network] Calling store() for Instagram", [
-                'pageId' => $pageId,
-                'has_token' => !empty($accessToken)
+                'mode' => $mode,
+                'text' => $text
             ]);
 
             $response = $this->store($request->merge($data));
             return $response;
         }
 
+        // Instagram section - updated for text-only
+        // Instagram section - updated for text-only
+if (in_array(2, $selectedNetworks)) {
+    Log::info("📷 [postTo_Social_Network] Instagram network selected", [
+        'projet_id' => $request->projet_id
+    ]);
 
+    $config = $this->getInstagramConfigForCurrentUser($request->projet_id);
+
+    if (!$config) {
+        Log::error("❌ [postTo_Social_Network] Instagram config not found", [
+            'projet_id' => $request->projet_id
+        ]);
+        throw new \Exception('Instagram configuration not found for project ID: ' . $request->projet_id);
+    }
+
+    $pageId = $config->instagram_id;
+    $accessToken = $config->acces_token_user;
+
+    // Determine media type from the URL or file
+    $type_media = null;
+    $url = null;
+
+    if ($mode == 'existante') {
+        $url = $request->img_existant_url;
+
+        // Clean the URL
+        $url = str_replace('\/\/', '/', $url);
+
+        // Detect media type from URL
+        $type_media = $this->detectMediaTypeFromUrl($url);
+
+        Log::info("📸 [postTo_Social_Network] Mode existante for Instagram", [
+            'url' => $url,
+            'type_media' => $type_media
+        ]);
+    } elseif ($mode == 'parcourir' && $request->hasFile('mediaFile')) {
+        // Media type already set from file upload
+        $url = $request->url ?? null;
+        $type_media = $request->type_media ?? 'image_url';
+        Log::info("📁 [postTo_Social_Network] Mode parcourir for Instagram", [
+            'url' => $url,
+            'type_media' => $type_media
+        ]);
+    } elseif ($mode == 'sans_media') {
+        // Instagram requires media
+        return response()->json([
+            'success' => false,
+            'message' => 'Instagram requires media for posts. Please add an image or video.',
+            'requires_media' => true
+        ], 400);
+    }
+
+    // Ensure we have a valid URL and media type
+    if (!$url) {
+        return response()->json([
+            'success' => false,
+            'message' => 'No media URL provided for Instagram post.'
+        ], 400);
+    }
+
+    // If type_media is still null, default to image_url
+    if (!$type_media) {
+        $type_media = 'image_url';
+    }
+
+    // For video URLs, we need to use a different API endpoint
+    // Instagram API: For videos, use media_type 'VIDEO' or 'REELS'
+    $instagramMediaType = 'IMAGE'; // Default
+    if ($type_media == 'video_url') {
+        $instagramMediaType = 'REELS';
+    }
+
+    // Validate that the URL is accessible
+    try {
+        $headers = get_headers($url, 1);
+        if ($headers === false || strpos($headers[0], '200') === false) {
+            Log::warning("⚠️ [postTo_Social_Network] URL might not be accessible", ['url' => $url]);
+            // Continue anyway - the API will handle it
+        }
+    } catch (\Exception $e) {
+        Log::warning("⚠️ [postTo_Social_Network] Could not validate URL: " . $e->getMessage());
+    }
+
+    $data = [
+        'pageId_InstagramId' => $pageId,
+        'caption' => $request->description,
+        'text' => 'media',
+        'type_media' => $type_media,
+        'instagram_media_type' => $instagramMediaType,
+        'url' => $url,
+        'network' => 'instagram',
+        'accessToken' => $accessToken,
+        'mode' => $mode
+    ];
+
+    Log::info("📤 [postTo_Social_Network] Calling store() for Instagram", [
+        'pageId' => $pageId,
+        'has_token' => !empty($accessToken),
+        'type_media' => $type_media,
+        'instagram_media_type' => $instagramMediaType,
+        'url' => $url
+    ]);
+
+    $response = $this->store($request->merge($data));
+    return $response;
+}
 
         // Only return invalid if no valid networks were processed
         if (!array_intersect($selectedNetworks, [2, 3])) {
@@ -600,25 +835,35 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
 
 
 
- public function store(Request $request)
+public function store(Request $request)
 {
     $pageIdInstagramId = $request->pageId_InstagramId;
     $accessToken = $request->accessToken;
     $network = $request->network;
     $text = $request->text;
     $rawUrl = $request->url;
-
-    // ✅ Nettoyer l'URL (remplacer les espaces, etc.)
-    $cleanedUrl = str_replace(' ', '%20', $rawUrl);
-    $cleanedUrl = str_replace(['\\', '"', '<', '>'], '', $cleanedUrl);
-    $url = str_replace('\/\/', '/', $cleanedUrl);
-    $caption = $request->caption;
+    $mode = $request->mode;
+    $type_media = $request->type_media ?? null;
+    $instagramMediaType = $request->instagram_media_type ?? 'REELS';
 
     Log::info("📸 [store] Processing", [
         'network' => $network,
+        'mode' => $mode,
         'raw_url' => $rawUrl,
-        'cleaned_url' => $url
+        'type_media' => $type_media,
+        'instagram_media_type' => $instagramMediaType,
+        'text' => $text
     ]);
+
+    // ✅ Nettoyer l'URL (remplacer les espaces, etc.)
+    if ($rawUrl) {
+        $cleanedUrl = str_replace(' ', '%20', $rawUrl);
+        $cleanedUrl = str_replace(['\\', '"', '<', '>'], '', $cleanedUrl);
+        $url = str_replace('\/\/', '/', $cleanedUrl);
+    } else {
+        $url = null;
+    }
+    $caption = $request->caption;
 
     $client = new Client([
         'timeout' => 60.0,
@@ -628,9 +873,9 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
     $tempFileName = null;
 
     // ✅ Pour Instagram, vérifier et redimensionner l'image si nécessaire (avec GD)
-    if ($network == 'instagram' && $request->type_media != 'video_url') {
+    if ($network == 'instagram' && $type_media != 'video_url' && $url) {
         try {
-            Log::info("🖼️ [store] Processing image for Instagram with GD");
+            Log::info("🖼️ [store] Processing image for Instagram with GD", ['url' => $url]);
 
             // Télécharger l'image
             $imageContent = file_get_contents($url);
@@ -733,63 +978,114 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
         }
     }
 
-    $apiUrl = "https://graph.facebook.com/v22.0/{$pageIdInstagramId}/{$text}";
+    // Build API URL based on network and content type
+    $apiUrl = "https://graph.facebook.com/v22.0/{$pageIdInstagramId}/";
 
-    // Set request parameters
-    $params = [];
-
-    // ✅ Vérifier que l'URL est accessible
-    if (!filter_var($url, FILTER_VALIDATE_URL)) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Invalid or inaccessible image URL'
-        ], 400);
+    // Handle Facebook text-only posts (feed)
+    if ($network == 'facebook' && $text == 'feed') {
+        $apiUrl .= "feed";
+        $params = [
+            'json' => [
+                'message' => $caption,
+                'access_token' => $accessToken,
+            ]
+        ];
+        Log::info("📝 [store] Creating text-only Facebook post", [
+            'api_url' => $apiUrl,
+            'message_length' => strlen($caption)
+        ]);
     }
+    // Handle Facebook photo posts
+    elseif ($network == 'facebook' && $text == 'photos') {
+        $apiUrl .= "photos";
 
-    if ($network == 'facebook') {
-        if ($text == 'videos') {
-            $params = [
-                'multipart' => [
-                    [
-                        'name' => 'description',
-                        'contents' => $caption,
-                    ],
-                    [
-                        'name' => 'title',
-                        'contents' => $caption,
-                    ],
-                    [
-                        'name' => 'file_url',
-                        'contents' => $url,
-                    ],
-                    [
-                        'name' => 'access_token',
-                        'contents' => $accessToken,
-                    ],
-                ],
-            ];
-        } elseif ($text == 'photos') {
-            $params = [
-                'json' => [
-                    'caption' => $caption,
-                    'url' => $url,
-                    'access_token' => $accessToken,
-                ]
-            ];
+        // ✅ Vérifier que l'URL est accessible
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or inaccessible image URL'
+            ], 400);
         }
-    } elseif ($network == 'instagram') {
-        // Step 1: Upload the media
-        if ($request->type_media == 'video_url') {
+
+        $params = [
+            'json' => [
+                'caption' => $caption,
+                'url' => $url,
+                'access_token' => $accessToken,
+            ]
+        ];
+        Log::info("📸 [store] Creating Facebook photo post", [
+            'api_url' => $apiUrl,
+            'url' => $url
+        ]);
+    }
+    // Handle Facebook video posts
+    elseif ($network == 'facebook' && $text == 'videos') {
+        $apiUrl .= "videos";
+
+        // ✅ Vérifier que l'URL est accessible
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or inaccessible video URL'
+            ], 400);
+        }
+
+        $params = [
+            'multipart' => [
+                [
+                    'name' => 'description',
+                    'contents' => $caption,
+                ],
+                [
+                    'name' => 'title',
+                    'contents' => $caption,
+                ],
+                [
+                    'name' => 'file_url',
+                    'contents' => $url,
+                ],
+                [
+                    'name' => 'access_token',
+                    'contents' => $accessToken,
+                ],
+            ],
+        ];
+        Log::info("🎬 [store] Creating Facebook video post", [
+            'api_url' => $apiUrl,
+            'url' => $url
+        ]);
+    }
+    // Handle Instagram posts
+    elseif ($network == 'instagram') {
+        // Instagram API - upload media first
+        $apiUrl .= "media";
+
+        if ($type_media == 'video_url') {
+            // Video post for Instagram
             $params = [
                 'json' => [
-                    'media_type' => 'REELS',
+                    'media_type' => $instagramMediaType, // 'REELS' or 'VIDEO'
                     'caption' => $caption,
                     'video_url' => $url,
                     'access_token' => $accessToken,
                 ]
             ];
+            Log::info("🎬 [store] Creating Instagram video post", [
+                'api_url' => $apiUrl,
+                'video_url' => $url,
+                'media_type' => $instagramMediaType
+            ]);
         } else {
-            // ✅ Pour Instagram, utiliser l'URL de l'image (redimensionnée ou originale)
+            // Image post (default)
+            // ✅ Vérifier que l'URL est accessible
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or inaccessible image URL'
+                ], 400);
+            }
+
             $params = [
                 'json' => [
                     'caption' => $caption,
@@ -797,15 +1093,37 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                     'access_token' => $accessToken,
                 ]
             ];
+            Log::info("🖼️ [store] Creating Instagram image post", [
+                'api_url' => $apiUrl,
+                'image_url' => $url
+            ]);
         }
+    } else {
+        // Invalid combination
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid network or content type combination',
+            'network' => $network,
+            'text' => $text,
+            'type_media' => $type_media
+        ], 400);
     }
 
     try {
+        Log::info("📤 [store] Sending request to Facebook API", [
+            'api_url' => $apiUrl,
+            'params' => array_keys($params)
+        ]);
+
         // Send POST request to create the post
         $response = $client->post($apiUrl, $params);
-
         $responseBody = json_decode($response->getBody(), true);
         $statusCode = $response->getStatusCode();
+
+        Log::info("📨 [store] API Response", [
+            'status_code' => $statusCode,
+            'response' => $responseBody
+        ]);
 
         if (isset($responseBody['id'])) {
             // Instagram requires a second step to publish the media
@@ -813,7 +1131,7 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 $mediaId = $responseBody['id'];
 
                 // Step 2: Poll Media Status (Wait Until "FINISHED")
-                $maxAttempts = 10;
+                $maxAttempts = 15; // Increased for videos which take longer
                 $attempt = 0;
                 $statusBody = [];
 
@@ -823,14 +1141,21 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                     $statusResponse = $client->get($statusUrl);
                     $statusBody = json_decode($statusResponse->getBody(), true);
 
-                    if ($statusBody['status_code'] == "FINISHED") {
+                    Log::info("📊 [store] Instagram media status", [
+                        'attempt' => $attempt + 1,
+                        'media_id' => $mediaId,
+                        'status' => $statusBody['status_code'] ?? 'unknown'
+                    ]);
+
+                    if (isset($statusBody['status_code']) && $statusBody['status_code'] == "FINISHED") {
                         break;
                     }
 
                     $attempt++;
                 } while ($attempt < $maxAttempts);
 
-                if ($statusBody['status_code'] !== "FINISHED") {
+                // Check if media processing completed
+                if (!isset($statusBody['status_code']) || $statusBody['status_code'] !== "FINISHED") {
                     // ✅ Nettoyer le fichier temporaire
                     if ($tempFilePath && File::exists($tempFilePath)) {
                         File::delete($tempFilePath);
@@ -840,7 +1165,8 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                     return response()->json([
                         'success' => false,
                         'message' => 'Media processing not completed',
-                        'status' => $statusBody
+                        'status' => $statusBody,
+                        'media_id' => $mediaId
                     ], 500);
                 }
 
@@ -852,6 +1178,11 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                         'access_token' => $accessToken,
                     ]
                 ];
+
+                Log::info("📤 [store] Publishing Instagram media", [
+                    'publish_url' => $publishUrl,
+                    'creation_id' => $responseBody['id']
+                ]);
 
                 $publishResponse = $client->post($publishUrl, $publishParams);
                 $publishResponseBody = json_decode($publishResponse->getBody(), true);
@@ -879,14 +1210,35 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
                 }
             }
 
+            // For Facebook posts (including text-only)
             return response()->json([
                 'success' => true,
                 'message' => 'Post created successfully!',
                 'post_id' => $responseBody['id'],
                 'network' => $network,
-                'url' => $url
+                'url' => $url,
+                'mode' => $mode
             ], 200);
         } else {
+            // Check if there's an error in the response
+            if (isset($responseBody['error'])) {
+                $errorMessage = $responseBody['error']['message'] ?? 'Unknown error';
+                $errorCode = $responseBody['error']['code'] ?? 'unknown';
+
+                Log::error("❌ [store] Facebook API Error", [
+                    'error_code' => $errorCode,
+                    'error_message' => $errorMessage,
+                    'error_data' => $responseBody['error']
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Facebook API Error: ' . $errorMessage,
+                    'error_code' => $errorCode,
+                    'error' => $responseBody['error']
+                ], 500);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create post',
@@ -899,6 +1251,11 @@ public function postTo_Social_Network(StoreSocialNetworkRequest $request){
             File::delete($tempFilePath);
             Log::info("🗑️ [store] Temporary file deleted on error", ['path' => $tempFilePath]);
         }
+
+        Log::error("💥 [store] Exception", [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
 
         return response()->json([
             'success' => false,

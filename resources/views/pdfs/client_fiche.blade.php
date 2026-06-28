@@ -262,34 +262,34 @@
                     <div class="col-left">
                         <div class="info-line">
                             <div class="info-label">Code Client</div>
-                            <div class="info-value">{{ $client['code_client'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value">{{ $client['code_client'] ?? '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Nom complet</div>
-                            <div class="info-value">{{ trim(($client['nom'] ?? '') . ' ' . ($client['prenom'] ?? '')) ?: 'Non renseigné' }}</div>
+                            <div class="info-value">{{ trim(($client['nom'] ?? '') . ' ' . ($client['prenom'] ?? '')) ?: '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">CIN</div>
-                            <div class="info-value">{{ $client['cin'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value">{{ $client['cin'] ?? '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Téléphone principal</div>
-                            <div class="info-value">{{ $client['telephone_num1'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value">{{ $client['telephone_num1'] ?? '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Téléphone secondaire</div>
-                            <div class="info-value {{ empty($client['telephone_num2']) ? 'empty' : '' }}">{{ $client['telephone_num2'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value {{ empty($client['telephone_num2']) ? 'empty' : '' }}">{{ $client['telephone_num2'] ?? '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Email</div>
-                            <div class="info-value {{ empty($client['email']) ? 'empty' : '' }}">{{ $client['email'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value {{ empty($client['email']) ? 'empty' : '' }}">{{ $client['email'] ?? '' }}</div>
                         </div>
                     </div>
                     <!-- RIGHT COLUMN -->
                     <div class="col-right">
                         <div class="info-line">
                             <div class="info-label">Civilité</div>
-                            <div class="info-value">{{ $formatCivilite($client['civilite'] ?? null) ?: 'Non renseigné' }}</div>
+                            <div class="info-value">{{ $formatCivilite($client['civilite'] ?? null) ?: '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Pays / Ville</div>
@@ -297,26 +297,26 @@
                                 @if(!empty($client['pays']) || !empty($client['ville']))
                                     {{ $client['pays'] ?? '' }}@if(!empty($client['pays']) && !empty($client['ville'])) / @endif{{ $client['ville'] ?? '' }}
                                 @else
-                                    Non renseigné
+
                                 @endif
                             </div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Adresse</div>
-                            <div class="info-value {{ empty($client['adresse']) ? 'empty' : '' }}">{{ $client['adresse'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value {{ empty($client['adresse']) ? 'empty' : '' }}">{{ $client['adresse'] ?? '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Nationalité</div>
-                            <div class="info-value {{ empty($client['nationalite']) ? 'empty' : '' }}">{{ $client['nationalite'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value {{ empty($client['nationalite']) ? 'empty' : '' }}">{{ $client['nationalite'] ?? '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Profession</div>
-                            <div class="info-value {{ empty($client['profession']) ? 'empty' : '' }}">{{ $client['profession'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value {{ empty($client['profession']) ? 'empty' : '' }}">{{ $client['profession'] ?? '' }}</div>
                         </div>
-                        <div class="info-line">
+                        <!--div class="info-line">
                             <div class="info-label">Accepte d'être contacté</div>
                             <div class="info-value">{{ ($client['notifie'] ?? 0) == 1 ? 'Oui' : 'Non' }}</div>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
             </div>
@@ -331,15 +331,15 @@
                     <div class="col-left">
                         <div class="info-line">
                             <div class="info-label">Date de naissance</div>
-                            <div class="info-value">{{ $formatDate($client['date_naissance'] ?? null) ?: 'Non renseigné' }}</div>
+                            <div class="info-value">{{ $formatDate($client['date_naissance'] ?? null) ?: '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Lieu de naissance</div>
-                            <div class="info-value {{ empty($client['lieu_naissance']) ? 'empty' : '' }}">{{ $client['lieu_naissance'] ?? 'Non renseigné' }}</div>
+                            <div class="info-value {{ empty($client['lieu_naissance']) ? 'empty' : '' }}">{{ $client['lieu_naissance'] ?? '' }}</div>
                         </div>
                         <div class="info-line">
                             <div class="info-label">Situation familiale</div>
-                            <div class="info-value">{{ $getSituationLabel($client['situation_familliale'] ?? null) ?: 'Non renseigné' }}</div>
+                            <div class="info-value">{{ $getSituationLabel($client['situation_familliale'] ?? null) ?: '' }}</div>
                         </div>
                         @if(!empty($client['nom_mari']))
                         <div class="info-line">

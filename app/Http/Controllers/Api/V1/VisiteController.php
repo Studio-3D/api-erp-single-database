@@ -26,6 +26,8 @@ use App\Models\Bien;
 use App\Models\Bloc;
 use App\Models\Client;
 use App\Models\Frein;
+use App\Models\Reservation;
+
 use App\Models\HistoriqueBien;
 use App\Models\Immeuble;
 use App\Models\Notification;
@@ -519,6 +521,31 @@ class VisiteController extends Controller
                         ];
                     }
                 }
+     /**
+ * Generate a unique reservation code
+ * Format: 001, 002, 003, etc. per project
+ */
+private function generateReservationCode($projetId)
+{
+    // Get the last reservation for this project
+    $lastReservation = Reservation::on('temp')
+        ->where('projet_id', $projetId)
+        ->orderBy('id', 'desc')
+        ->first();
+
+    if ($lastReservation && $lastReservation->code_reservation) {
+        // Extract the number from the code (e.g., "001" -> 1)
+        $lastNumber = intval($lastReservation->code_reservation);
+        $newNumber = $lastNumber + 1;
+    } else {
+        // Start from 1
+        $newNumber = 1;
+    }
+
+    // Format as 3-digit with leading zeros (001, 002, 003, ...)
+    return str_pad($newNumber, 3, '0', STR_PAD_LEFT);
+}
+
                 public function store(StoreVisiteRequest $request)
                 {
                     /***liste des fonctions a ajouter
@@ -1140,10 +1167,15 @@ class VisiteController extends Controller
 
                                             // 🔥 Log the final avances data
                                             \Log::info('Final avances data to send:', ['avancesData' => $avancesData]);
-
+                                            // Generate code_reservation if not provided
+                                                $codeReservation = $list_biens['code_reservation'] ?? '';
+                                                if (empty($codeReservation)) {
+                                                    $codeReservation = $this->generateReservationCode($request->selectedProjet);
+                                                }
                                             $dataReservation = [
                                                 'nb_acquereurs'        => 1,
-                                                'code_reservation'     => $list_biens['code_reservation'],
+                                                'code_reservation' => $codeReservation, // Use generated or provided
+                                               // 'code_reservation'     => $list_biens['code_reservation'],
                                                 'prix'                 => $list_biens['prix'],
                                                 'mode_financement'     => $list_biens['mode_financement'],
                                                 'date_reservation'     => $list_biens['date_reservation'],
@@ -1165,7 +1197,7 @@ class VisiteController extends Controller
                                                 'prospect_id'          => $prospect->id,
                                                 'civilite'             => '1',
                                                 'type_client'          => 1,
-                                                'situation_familliale' => 1,
+                                                'situation_familliale' => 5,
                                                 'sr'                   => $list_biens['sr'] ?? false,
                                                 'type_encaissement'    => 1,
                                                 'avances'              => json_encode($avancesData),
@@ -1448,10 +1480,14 @@ class VisiteController extends Controller
 
                                                     // 🔥 Log the final avances data
                                                     \Log::info('Final avances data to send:', ['avancesData' => $avancesData]);
-
+                                                    $codeReservation = $list_biens['code_reservation'] ?? '';
+                                                    if (empty($codeReservation)) {
+                                                        $codeReservation = $this->generateReservationCode($request->selectedProjet);
+                                                    }
                                                     $dataReservation = [
                                                         'nb_acquereurs'        => 1,
-                                                        'code_reservation'     => $list_biens['code_reservation'],
+                                                        'code_reservation' => $codeReservation, // Use generated or provided
+                                                       // 'code_reservation'     => $list_biens['code_reservation'],
                                                         'prix'                 => $list_biens['prix'],
                                                         'mode_financement'     => $list_biens['mode_financement'],
                                                         'date_reservation'     => $list_biens['date_reservation'],
@@ -1473,7 +1509,7 @@ class VisiteController extends Controller
                                                         'prospect_id'          => $prospect->id,
                                                         'civilite'             => '1',
                                                         'type_client'          => 1,
-                                                        'situation_familliale' => 1,
+                                                        'situation_familliale' => 5,
                                                         'sr'                   => $list_biens['sr'] ?? false,
                                                         'type_encaissement'    => 1,
                                                         'avances'              => json_encode($avancesData),
@@ -2505,7 +2541,7 @@ public function edit_visite($id)
                             'prospect_id'            => $prospect->id,
                             'civilite'               => '1',
                             'type_client'            => 1,
-                            'situation_familliale'   => 1,
+                            'situation_familliale'   => 5,
                             'sr'                     => ($request->sr === 'false' || $request->sr === null) ? 0 : 1,
                             'check_montant'          => ($request->check_montant === 'false' || $request->check_montant === null) ? 0 : 1,
                             'type_encaissement'      => 1,
@@ -2761,6 +2797,8 @@ public function edit_visite($id)
                                         : $id;
         if (RoleHelper::ACSup()  || RoleHelper::AgentAdmin()||RoleHelper::RespoCommercial()) {
             try {
+                    $projet = Projet::on('temp')->findorfail($request->selectedProjet);
+
             $prospect = Prospect::on('temp')->findorfail($request->prospect_id);
             //si interet on store cin du client
             if($request->prospect_id!=null){
@@ -3253,11 +3291,17 @@ public function edit_visite($id)
                                                 $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
                                             }
                                         }
+                                         // Generate code_reservation if not provided
+                                        $codeReservation = $list_biens['code_reservation'] ?? '';
+                                        if (empty($codeReservation)) {
+                                            $codeReservation = $this->generateReservationCode($request->selectedProjet);
+                                        }
 
                                         $dataReservation = [
                                             'origin'               => 'visite',
                                             'nb_acquereurs'        => 1,
-                                            'code_reservation'     => $list_biens['code_reservation'],
+                                            'code_reservation' => $codeReservation,
+                                           // 'code_reservation'     => $list_biens['code_reservation'],
                                             'prix'                 => $list_biens['prix'],
                                             'mode_financement'     => $list_biens['mode_financement'],
                                             'date_reservation'     => $list_biens['date_reservation'],
@@ -3279,7 +3323,7 @@ public function edit_visite($id)
                                             'prospect_id'          => $prospect->id,
                                             'civilite'             => '1',
                                             'type_client'          => 1,
-                                            'situation_familliale' => 1,
+                                            'situation_familliale' => 5,
                                             'sr'                   => $list_biens['sr'] ?? false,
                                             'type_encaissement'    => 1,
                                             // 🔥 SEND AVANCES AS JSON ARRAY instead of single avance
@@ -3428,10 +3472,16 @@ public function edit_visite($id)
                                             $avanceFiles[$index] = $list_biens['selectedFiles_avc'] ?? [];
                                         }
                                     }
+                                     // Generate code_reservation if not provided
+                                    $codeReservation = $list_biens['code_reservation'] ?? '';
+                                    if (empty($codeReservation)) {
+                                        $codeReservation = $this->generateReservationCode($request->selectedProjet);
+                                    }
 
                                     $dataReservation = [
                                         'nb_acquereurs'        => 1,
-                                        'code_reservation'     => $list_biens['code_reservation'],
+                                        'code_reservation' => $codeReservation,
+                                       // 'code_reservation'     => $list_biens['code_reservation'],
                                         'prix'                 => $list_biens['prix'],
                                         'mode_financement'     => $list_biens['mode_financement'],
                                         'date_reservation'     => $list_biens['date_reservation'],
@@ -3454,7 +3504,7 @@ public function edit_visite($id)
                                         'prospect_id'          => $prospect->id,
                                         'civilite'             => '1',
                                         'type_client'          => 1,
-                                        'situation_familliale' => 1,
+                                        'situation_familliale' => 5,
                                         'sr'                   => $list_biens['sr'] ?? false,
                                         'type_encaissement'    => 1,
                                         // 🔥 SEND AVANCES AS JSON ARRAY instead of single avance
@@ -3790,9 +3840,9 @@ public function edit_visite($id)
             }
             if ($request->type == 1) {
                 $query->whereDate('date_relance', '<=', Carbon::now());
-            } else {
+            } /*else {
                 $query->whereDate('rdv', '<=', Carbon::now());
-            }
+            }*/
             if ($request->filled('nom_prenom')) {
                 $query->whereHas('visite.prospect', function ($q) use ($request) {
                     $q->where('nom', 'like', '%' . $request->input('nom_prenom') . '%')

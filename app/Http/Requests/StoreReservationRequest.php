@@ -33,7 +33,9 @@ class StoreReservationRequest extends FormRequest
 
         return [
             'nb_acquereurs' => 'required|integer',
-            'code_reservation' => 'required|string',
+            //'code_reservation' => 'required|string',
+            'code_reservation' => 'nullable|string', // Make it optional
+
             'prix' => 'required',
             'mode_financement' => 'required',
             'date_reservation' => 'date',

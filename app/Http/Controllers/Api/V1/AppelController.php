@@ -820,9 +820,9 @@ class AppelController extends Controller
             }
             if($request->type==1){
                 $query->whereDate('date_relance', '<=', Carbon::now());
-            }else{
+            }/*else{
                 $query->whereDate('rdv', '<=', Carbon::now());
-            }
+            }*/
             if ($request->filled('nom_prenom')){
                     $query->whereHas('traite_appel.appel.prospect', function ($q) use ($request) {
                     $q->where('nom', 'like', '%' . $request->input('nom_prenom') . '%')

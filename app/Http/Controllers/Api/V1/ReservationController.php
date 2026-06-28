@@ -447,7 +447,7 @@ private function processReservationFiles($reservation, $request, $societe)
 
 
 
-            // Send notifications if needed
+             /*Send notifications if needed
             if (RoleHelper::Com()||RoleHelper::RespoCommercial()|| (RoleHelper::AgentAdmin() && ($prix != $prix_final))) {
                 Config::set('broadcasting.default', 'pusher_notify');
 
@@ -493,7 +493,7 @@ private function processReservationFiles($reservation, $request, $societe)
                         }
                     }
                 }
-            }
+            }*/
         }
 
 
@@ -523,6 +523,30 @@ private function processReservationFiles($reservation, $request, $societe)
                     \Log::error("Failed to clean up failed reservation: " . $e->getMessage());
                 }
             }
+            /**
+ * Generate a unique reservation code
+ * Format: 001, 002, 003, etc. per project
+ */
+                private function generateReservationCode($projetId)
+                {
+                    // Get the last reservation for this project
+                    $lastReservation = Reservation::on('temp')
+                        ->where('projet_id', $projetId)
+                        ->orderBy('id', 'desc')
+                        ->first();
+
+                    if ($lastReservation && $lastReservation->code_reservation) {
+                        // Extract the number from the code (e.g., "001" -> 1)
+                        $lastNumber = intval($lastReservation->code_reservation);
+                        $newNumber = $lastNumber + 1;
+                    } else {
+                        // Start from 1
+                        $newNumber = 1;
+                    }
+
+                    // Format as 3-digit with leading zeros (001, 002, 003, ...)
+                    return str_pad($newNumber, 3, '0', STR_PAD_LEFT);
+                }
 
             /**
              * Create temporary reservation with minimal data
@@ -531,12 +555,18 @@ private function processReservationFiles($reservation, $request, $societe)
                 {
                     $reservation = new Reservation();
                     $reservation->setConnection('temp');
+                     // Generate code_reservation if not provided
+                    if (empty($request->code_reservation)) {
+                        $codeReservation = $this->generateReservationCode($request->projet_id);
+                    } else {
+                        $codeReservation = $request->code_reservation;
+                    }
 
                     // Set fields individually
                     $reservation->prix = $request->prix;
                     $reservation->mode_financement =$request->mode_financement;
                     $reservation->nb_acquereurs = $request->nb_acquereurs;
-                    $reservation->code_reservation = $request->code_reservation;
+                     $reservation->code_reservation = $codeReservation; // Use generated or provided
                     $reservation->bien_id = $request->bien_id;
                     $reservation->projet_id = $request->projet_id;
                     $reservation->user_id = $userAuth->id;
@@ -560,10 +590,10 @@ private function processReservationFiles($reservation, $request, $societe)
                 }
                 $reservation->prix_forfetaire = $request->prix_forfetaire;
                 $reservation->prix_forfetaire_lettre = (new NumberFormatter('fr', NumberFormatter::SPELLOUT))->format($request->prix_forfetaire);
-
-                    $reservation->statut = RoleHelper::AdminSup()  || (RoleHelper::AgentAdmin() && ($request->prix == $request->prix_final))
+                     $reservation->statut=StatutReservationEnum::Validé->value;
+                    /*$reservation->statut = RoleHelper::AdminSup()  || (RoleHelper::AgentAdmin() && ($request->prix == $request->prix_final))
                                             ? StatutReservationEnum::Validé->value
-                                            : StatutReservationEnum::En_Attente->value;
+                                            : StatutReservationEnum::En_Attente->value;*/
 
 
                     if (!$reservation->save()) {
@@ -621,138 +651,152 @@ private function processReservationFiles($reservation, $request, $societe)
 
                         return $statutClient;
                     }
-            private function processClients($reservation, $request,$userAuth)
-            {
-                $clientController = new ClientController();
-                $aquereurController = new AquereurController();
-                $clientRequest = new StoreClientRequest();
-                $aquereurRequest = new StoreAquereurRequest();
+           /**
+ * Process client data
+ */
+private function processClients($reservation, $request, $userAuth)
+{
+    $clientController = new ClientController();
+    $aquereurController = new AquereurController();
+    $clientRequest = new StoreClientRequest();
+    $aquereurRequest = new StoreAquereurRequest();
 
+    if ($request->origin == 'visite') {
+        $client_exist = Client::on('temp')
+            ->where('prospect_id', $request->prospect_id)
+            ->orderBy('created_at', 'DESC')
+            ->first();
 
-                if ($request->origin == 'visite') {
-                    $client_exist = Client::on('temp')
-                        ->where('prospect_id', $request->prospect_id)
-                        ->orderBy('created_at', 'DESC')
-                        ->first();
+        if ($client_exist) {
+            $clientData = $client_exist;
+            \Log::info('Using existing client ID: ' . $clientData->id);
+        } else {
+            \Log::info('Creating new client for prospect: ' . $request->prospect_id);
 
-                    if ($client_exist) {
-                        $clientData = $client_exist;
-                        \Log::info('Using existing client ID: ' . $clientData->id);
+            // Debug: Log what data is being sent
+            \Log::info('Client creation data:', [
+                'cin' => $request->cin,
+                'nom' => $request->nom,
+                'prenom' => $request->prenom,
+                'prospect_id' => $request->prospect_id,
+                'projet_id' => $request->projet_id,
+                'telephone_num1' => $request->telephone_num1,
+                'email' => $request->email ?? 'null',
+                'situation_familliale' => $request->situation_familliale ?? '5' // Default to 5 if not provided
+            ]);
 
-                    } else {
-                         \Log::info('Creating new client for prospect: ' . $request->prospect_id);
-
-                        // Debug: Log what data is being sent
-                        \Log::info('Client creation data:', [
-                            'cin' => $request->cin,
-                            'nom' => $request->nom,
-                            'prenom' => $request->prenom,
-                            'prospect_id' => $request->prospect_id,
-                            'projet_id' => $request->projet_id,
-                            'telephone_num1' => $request->telephone_num1,
-                            'email' => $request->email ?? 'null'
-
-                        ]);
-                        $aquereurRequest = new StoreAquereurRequest();
-
-                        $dataClient = [
-                            'cin' => $request->cin,
-                            'nom' => $request->nom,
-                            'prenom' => $request->prenom,
-                            'telephone_num1' => $request->telephone_num1,
-                            'telephone_num2' => $request->telephone_num2 ?? null,                            'notifie' => $request->notifie??0,
-                            'prospect_id' => $request->prospect_id,
-                            'civilite' => $request->civilite,
-                            'situation_familliale' => $request->situation_familliale,
-                            'type_client' => 1,
-                            'projet_id' => $request->projet_id,
-                            // FIX: Handle email properly - use null for empty strings
-                            'email' => (isset($request->email) && !empty(trim($request->email))) ? trim($request->email) : null,
-                            'ville' => $request->ville ?? '',
-                            'notifie' => $request->notifie ?? 0,
-                        ];
-                        $clientRequest->merge($dataClient);
-                         $clientData = $clientController->store($clientRequest);
-
-                        \Log::info('Client created successfully with ID: ' . $clientData->id);
-                    }
-                     // Create statut client using the new function
-                            $this->createStatutClient(
-                                clientId: $clientData->id,
-                                reservationId: $reservation->id,
-                                userId: $userAuth->id,
-                                codeReservation: $reservation->code_reservation
-                            );
-                             \Log::info('Client created successfully with ID: ' . $clientData->id);
-                    $dataAquereur = [
-                        'pourcentage' => 100,
-                        'client_id' => $clientData->id,
-                        'reservation_id' => $reservation->id,
-                    ];
-                    $aquereurRequest->merge($dataAquereur);
-                     $aquereurResult = $aquereurController->store($aquereurRequest);
-
-                    \Log::info('Aquereur created for reservation: ' . $reservation->id);
-                } else {
-                    $dataArray_clients = json_decode($request->input('clients'), true);
-                    $dataArray_oldClients = json_decode($request->input('oldClients', '[]'), true);
-
-                    if ($dataArray_clients) {
-                        foreach ($dataArray_clients as &$clientInfo) {
-                              if (empty($clientInfo['pourcentage']) || !is_numeric($clientInfo['pourcentage']) || $clientInfo['pourcentage'] <= 0) {
-                                    continue; // Skip this client
-                                }
-
-
-                            $clientInfo['projet_id'] = $request->projet_id;
-                            $clientRequest->merge($clientInfo);
-                            $clientData = $clientController->store($clientRequest);
-                            // Create statut client using the new function
-                                    $this->createStatutClient(
-                                        clientId: $clientData->id,
-                                        reservationId: $reservation->id,
-                                        userId: $userAuth->id,
-                                        codeReservation: $reservation->code_reservation
-                                    );
-                            $dataAquereur = [
-                                'pourcentage' => $clientInfo['pourcentage'],
-                                'client_id' => $clientData->id,
-                                'reservation_id' => $reservation->id,
-                            ];
-                            $aquereurRequest->merge($dataAquereur);
-                            $aquereurController->store($aquereurRequest);
-                        }
-                        unset($clientInfo);
-                    }
-
-                    if ($dataArray_oldClients) {
-                        foreach ($dataArray_oldClients as $clientInfo) {
-
-                                // Skip if percentage is empty or invalid
-                                    $pourcentage = $clientInfo['pourcentage1'] ?? $clientInfo['pourcentage'] ?? 0;
-                                    if (empty($pourcentage) || !is_numeric($pourcentage) || $pourcentage <= 0) {
-                                        continue; // Skip this client
-                                    }
-
-                                   // Create statut client using the new function
-                                    $this->createStatutClient(
-                                        clientId: $clientInfo['id'],
-                                        reservationId: $reservation->id,
-                                        userId: $userAuth->id,
-                                        codeReservation: $reservation->code_reservation
-                                    );
-                                    $dataAquereur = [
-                                        'pourcentage' => $pourcentage,
-                                        'client_id' => $clientInfo['id'],
-                                        'reservation_id' => $reservation->id,
-                                    ];
-                                    $aquereurRequest->merge($dataAquereur);
-                                    $aquereurController->store($aquereurRequest);
-                            }
-
-                     }
-                    }
+            // FIX: Get situation_familliale from request or use default '5' (Non renseigné)
+            $situationFamilliale = $request->situation_familliale ?? 5;
+            // If it's null or empty string, use 5
+            if ($situationFamilliale === null || $situationFamilliale === '' || $situationFamilliale === 'null') {
+                $situationFamilliale = 5;
             }
+
+            $dataClient = [
+                'cin' => $request->cin,
+                'nom' => $request->nom,
+                'prenom' => $request->prenom,
+                'telephone_num1' => $request->telephone_num1,
+                'telephone_num2' => $request->telephone_num2 ?? null,
+                'notifie' => $request->notifie ?? 0,
+                'prospect_id' => $request->prospect_id,
+                'civilite' => $request->civilite ?? 1,
+                'situation_familliale' => $situationFamilliale, // Use the fixed value
+                'type_client' => 1,
+                'projet_id' => $request->projet_id,
+                'email' => (isset($request->email) && !empty(trim($request->email))) ? trim($request->email) : null,
+                'ville' => $request->ville ?? '',
+                'notifie' => $request->notifie ?? 0,
+            ];
+            $clientRequest->merge($dataClient);
+            $clientData = $clientController->store($clientRequest);
+
+            \Log::info('Client created successfully with ID: ' . $clientData->id);
+        }
+
+        // Create statut client using the new function
+        $this->createStatutClient(
+            clientId: $clientData->id,
+            reservationId: $reservation->id,
+            userId: $userAuth->id,
+            codeReservation: $reservation->code_reservation
+        );
+        \Log::info('Statut client created for client ID: ' . $clientData->id);
+
+        $dataAquereur = [
+            'pourcentage' => 100,
+            'client_id' => $clientData->id,
+            'reservation_id' => $reservation->id,
+        ];
+        $aquereurRequest->merge($dataAquereur);
+        $aquereurResult = $aquereurController->store($aquereurRequest);
+
+        \Log::info('Aquereur created for reservation: ' . $reservation->id);
+    } else {
+        // Handle direct reservation creation
+        $dataArray_clients = json_decode($request->input('clients'), true);
+        $dataArray_oldClients = json_decode($request->input('oldClients', '[]'), true);
+
+        if ($dataArray_clients) {
+            foreach ($dataArray_clients as &$clientInfo) {
+                if (empty($clientInfo['pourcentage']) || !is_numeric($clientInfo['pourcentage']) || $clientInfo['pourcentage'] <= 0) {
+                    continue; // Skip this client
+                }
+
+                // FIX: Ensure situation_familliale is set
+                if (!isset($clientInfo['situation_familliale']) || $clientInfo['situation_familliale'] === null || $clientInfo['situation_familliale'] === '') {
+                    $clientInfo['situation_familliale'] = 5; // Default to Non renseigné
+                }
+
+                $clientInfo['projet_id'] = $request->projet_id;
+                $clientRequest->merge($clientInfo);
+                $clientData = $clientController->store($clientRequest);
+
+                // Create statut client
+                $this->createStatutClient(
+                    clientId: $clientData->id,
+                    reservationId: $reservation->id,
+                    userId: $userAuth->id,
+                    codeReservation: $reservation->code_reservation
+                );
+
+                $dataAquereur = [
+                    'pourcentage' => $clientInfo['pourcentage'],
+                    'client_id' => $clientData->id,
+                    'reservation_id' => $reservation->id,
+                ];
+                $aquereurRequest->merge($dataAquereur);
+                $aquereurController->store($aquereurRequest);
+            }
+            unset($clientInfo);
+        }
+
+        if ($dataArray_oldClients) {
+            foreach ($dataArray_oldClients as $clientInfo) {
+                $pourcentage = $clientInfo['pourcentage1'] ?? $clientInfo['pourcentage'] ?? 0;
+                if (empty($pourcentage) || !is_numeric($pourcentage) || $pourcentage <= 0) {
+                    continue; // Skip this client
+                }
+
+                // Create statut client
+                $this->createStatutClient(
+                    clientId: $clientInfo['id'],
+                    reservationId: $reservation->id,
+                    userId: $userAuth->id,
+                    codeReservation: $reservation->code_reservation
+                );
+
+                $dataAquereur = [
+                    'pourcentage' => $pourcentage,
+                    'client_id' => $clientInfo['id'],
+                    'reservation_id' => $reservation->id,
+                ];
+                $aquereurRequest->merge($dataAquereur);
+                $aquereurController->store($aquereurRequest);
+            }
+        }
+    }
+}
             /**
              * Process payment data
              */

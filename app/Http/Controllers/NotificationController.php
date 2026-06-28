@@ -271,95 +271,200 @@ class NotificationController extends Controller
     }
 
     public function get_notifications_menu_horizontal_crm(Request $request,$projet_id)
-    {
-        if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC()||RoleHelper::AgentAdmin())) {
+{
+    if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC()||RoleHelper::AgentAdmin())) {
 
-            DatabaseHelper::Config();
-            $user = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            if(RoleHelper::AdminSup()||RoleHelper::RespoCommercial()||RoleHelper::AgentAdmin()){
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
 
-                $rel_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
-                ->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.date_relance', '<=', Carbon::now())
-                ->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 1)->where('visites.etat',1)
-                ->orderby('relances_rdv_visites.date_relance', 'asc')->count();
-                $rdv_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')->where('visites.etat',1)->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.rdv', '<=',Carbon::now())->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 2)->orderby('relances_rdv_visites.rdv', 'asc')
+        // Get tomorrow's date
+        $tomorrow = Carbon::tomorrow();
+        $today = Carbon::today();
+
+        if(RoleHelper::AdminSup()||RoleHelper::RespoCommercial()||RoleHelper::AgentAdmin()){
+
+            $rel_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->where('visites.projet_id',$projet_id)
+                ->whereDate('relances_rdv_visites.date_relance', '<=', Carbon::now())
+                ->where('relances_rdv_visites.type_traitement', 0)
+                ->where('relances_rdv_visites.type', 1)
+                ->where('visites.etat',1)
+                ->orderby('relances_rdv_visites.date_relance', 'asc')
                 ->count();
-                $rel_client_freins=0;
 
-                $data_get=$this->get_clients_freins($projet_id,$request);
-                foreach($data_get->original as $key => $v){
-                    if($key=='count_clients'){
-                        $rel_client_freins = $v;
-                    }
+            /* 🔥 RDV for TODAY (or past due)
+            $rdv_visites_today = Relance_Rdv_Visite::on('temp')
+                ->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->where('visites.etat',1)
+                ->where('visites.projet_id',$projet_id)
+                ->whereDate('relances_rdv_visites.rdv', '<=', Carbon::now())
+                ->where('relances_rdv_visites.type_traitement', 0)
+                ->where('relances_rdv_visites.type', 2)
+                ->orderby('relances_rdv_visites.rdv', 'asc')
+                ->count();*/
 
+            // 🔥 NEW: RDV for TOMORROW
+            $rdv_visites_tomorrow = Relance_Rdv_Visite::on('temp')
+                ->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->where('visites.etat',1)
+                ->where('visites.projet_id',$projet_id)
+                ->whereDate('relances_rdv_visites.rdv', $tomorrow)
+                ->where('relances_rdv_visites.type_traitement', 0)
+                ->where('relances_rdv_visites.type', 2)
+                ->orderby('relances_rdv_visites.rdv', 'asc')
+                ->count();
+
+            $rel_client_freins=0;
+
+            $data_get=$this->get_clients_freins($projet_id,$request);
+            foreach($data_get->original as $key => $v){
+                if($key=='count_clients'){
+                    $rel_client_freins = $v;
                 }
-                //appels
+            }
 
-                $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+            //appels
+            $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
                 ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
                     $q->where('projet_id', $projet_id);
                 })
-                ->whereDate('date_relance', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 1)->count();
-                $nb_rdv_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
-                    ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
-                        $q->where('projet_id', $projet_id);
-                    })->whereDate('rdv', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 2)->count();
+                ->whereDate('date_relance', '<=', Carbon::now())
+                ->where('type_traitement', 0)
+                ->where('type', 1)
+                ->count();
 
-            }else{
+            /* 🔥 RDV Appels for TODAY (or past due)
+            $nb_rdv_appels_today = Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereDate('rdv', '<=', Carbon::now())
+                ->where('type_traitement', 0)
+                ->where('type', 2)
+                ->count();*/
+            // 🔥 NEW: RDV Appels for TOMORROW
+            $nb_rdv_appels_tomorrow = Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereDate('rdv', $tomorrow)
+                ->where('type_traitement', 0)
+                ->where('type', 2)
+                ->count();
 
-                $rel_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')->where('visites.etat',1)->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.date_relance', '<=', Carbon::now())->where('relances_rdv_visites.user_id', $userAuth->value('id'))->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 1)->orderby('relances_rdv_visites.date_relance', 'asc') ->count();
-                $rdv_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')->where('visites.etat',1)->where('visites.projet_id',$projet_id)->whereDate('relances_rdv_visites.rdv', '<=',Carbon::now())->where('relances_rdv_visites.user_id', $userAuth->value('id'))->where('relances_rdv_visites.type_traitement', 0)->where('relances_rdv_visites.type', 2)->orderby('relances_rdv_visites.rdv', 'asc')->count();
-                $rel_client_freins=0;
-                $data_get=$this->get_clients_freins($projet_id,$request);
-                foreach($data_get->original as $key => $v){
-                    if($key=='count_clients'){
-                        $rel_client_freins = $v;
-                    }
+        } else {
 
+            $rel_visites=Relance_Rdv_Visite::on('temp')->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->where('visites.etat',1)
+                ->where('visites.projet_id',$projet_id)
+                ->whereDate('relances_rdv_visites.date_relance', '<=', Carbon::now())
+                ->where('relances_rdv_visites.user_id', $userAuth->value('id'))
+                ->where('relances_rdv_visites.type_traitement', 0)
+                ->where('relances_rdv_visites.type', 1)
+                ->orderby('relances_rdv_visites.date_relance', 'asc')
+                ->count();
+
+            /* 🔥 RDV for TODAY (or past due) - User specific
+            $rdv_visites_today = Relance_Rdv_Visite::on('temp')
+                ->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->where('visites.etat',1)
+                ->where('visites.projet_id',$projet_id)
+                ->whereDate('relances_rdv_visites.rdv', '<=', Carbon::now())
+                ->where('relances_rdv_visites.user_id', $userAuth->value('id'))
+                ->where('relances_rdv_visites.type_traitement', 0)
+                ->where('relances_rdv_visites.type', 2)
+                ->orderby('relances_rdv_visites.rdv', 'asc')
+                ->count();*/
+
+            // 🔥 NEW: RDV for TOMORROW - User specific
+            $rdv_visites_tomorrow = Relance_Rdv_Visite::on('temp')
+                ->join('visites','visites.id', '=', 'relances_rdv_visites.visite_id')
+                ->where('visites.etat',1)
+                ->where('visites.projet_id',$projet_id)
+                ->whereDate('relances_rdv_visites.rdv', $tomorrow)
+                ->where('relances_rdv_visites.user_id', $userAuth->value('id'))
+                ->where('relances_rdv_visites.type_traitement', 0)
+                ->where('relances_rdv_visites.type', 2)
+                ->orderby('relances_rdv_visites.rdv', 'asc')
+                ->count();
+
+            $rel_client_freins=0;
+            $data_get=$this->get_clients_freins($projet_id,$request);
+            foreach($data_get->original as $key => $v){
+                if($key=='count_clients'){
+                    $rel_client_freins = $v;
                 }
-                //appels
+            }
 
-                $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
+            //appels
+            $nb_relances_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
                 ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
                     $q->where('projet_id', $projet_id);
                 })
                 ->whereHas('traite_appel', function ($q) use ($userAuth) {
-                        $q->where('user_id', $userAuth->value('id'));
+                    $q->where('user_id', $userAuth->value('id'));
                 })
-                ->whereDate('date_relance', '<=', Carbon::now())->where('type_traitement', 0)->where('type', 1)
+                ->whereDate('date_relance', '<=', Carbon::now())
+                ->where('type_traitement', 0)
+                ->where('type', 1)
                 ->count();
-                $nb_rdv_appels =Relance_Rdv_Appel::on('temp')->with('traite_appel')
-                    ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
-                        $q->where('projet_id', $projet_id);
-                    })->whereDate('rdv', '<=', Carbon::now())->where('type_traitement', 0)
-                    ->where('type', 2)
-                    ->whereHas('traite_appel', function ($q) use ($userAuth) {
-                        $q->where('user_id', $userAuth->value('id'));
-                    })
-                    ->count();
-                }
-           return response()->json(['nb_relances_appels' => $nb_relances_appels,'nb_rdv_appels' => $nb_rdv_appels,'relance_visites' => $rel_visites,'rdv_visites' => $rdv_visites,'rel_client_freins' => $rel_client_freins]);
+
+            /*🔥 RDV Appels for TODAY (or past due) - User specific
+            $nb_rdv_appels_today = Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereDate('rdv', '<=', Carbon::now())
+                ->where('type_traitement', 0)
+                ->where('type', 2)
+                ->whereHas('traite_appel', function ($q) use ($userAuth) {
+                    $q->where('user_id', $userAuth->value('id'));
+                })
+                ->count();*/
+
+            // 🔥 NEW: RDV Appels for TOMORROW - User specific
+            $nb_rdv_appels_tomorrow = Relance_Rdv_Appel::on('temp')->with('traite_appel')
+                ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id);
+                })
+                ->whereDate('rdv', $tomorrow)
+                ->where('type_traitement', 0)
+                ->where('type', 2)
+                ->whereHas('traite_appel', function ($q) use ($userAuth) {
+                    $q->where('user_id', $userAuth->value('id'));
+                })
+                ->count();
         }
-         else{
-            return response()->json(['error' => 'Unauthorized'], 401);
-         }
-    }
-   public function get_nb_frein_client_visite(Request $request, $projet_id)
-{
-    if (!Auth::guard('api')->check() && !RoleHelper::ACSup_RC() &&!RoleHelper::AgentAdmin()) {
+
+        return response()->json([
+            'nb_relances_appels' => $nb_relances_appels,
+           // 'nb_rdv_appels_today' => $nb_rdv_appels_today,
+            'nb_rdv_appels' => $nb_rdv_appels_tomorrow,
+            'relance_visites' => $rel_visites,
+           // 'rdv_visites_today' => $rdv_visites_today,
+            'rdv_visites' => $rdv_visites_tomorrow,
+            'rel_client_freins' => $rel_client_freins
+        ]);
+    } else {
         return response()->json(['error' => 'Unauthorized'], 401);
     }
-
-    DatabaseHelper::Config();
-
-    $frein = new FreinController();
-    $data_get = $frein->get_clients_freins($request, $projet_id);
-
-    $rel_client_freins = $data_get->original['count_clients'] ?? 0;
-
-    return response()->json(['nb' => $rel_client_freins]);
 }
+   public function get_nb_frein_client_visite(Request $request, $projet_id)
+    {
+        if (!Auth::guard('api')->check() && !RoleHelper::ACSup_RC() &&!RoleHelper::AgentAdmin()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        DatabaseHelper::Config();
+
+        $frein = new FreinController();
+        $data_get = $frein->get_clients_freins($request, $projet_id);
+
+        $rel_client_freins = $data_get->original['count_clients'] ?? 0;
+
+        return response()->json(['nb' => $rel_client_freins]);
+    }
 
    // Also update the get_notifications method to properly handle JSON array
 public function get_notifications(Request $request, $projet_id) {

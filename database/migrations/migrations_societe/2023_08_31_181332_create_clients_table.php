@@ -30,7 +30,7 @@ return new class extends Migration
             $table->string('ville')->nullable();
             $table->string('pays')->nullable();
             $table->string('profession')->nullable();
-            $table->string('cin');
+            $table->string('cin')->nullable();
             $table->integer('age')->nullable();
             $table->string('lieu_naissance')->nullable();
             $table->string('nationalite')->nullable();
@@ -40,7 +40,7 @@ return new class extends Migration
             $table->date('date_mariage')->nullable();
             $table->string('nom_responsable')->nullable();
             $table->string('relation_familliale')->nullable();
-            $table->enum('situation_familliale',[SituationFamilliale::Célibataire->value,SituationFamilliale::Marié->value,SituationFamilliale::Divorcé->value,SituationFamilliale::Veuf->value])->comment('1=>celebataire 2=>Marie 3=>Divorcé 4=>veuf');
+            $table->enum('situation_familliale',[SituationFamilliale::Célibataire->value,SituationFamilliale::Marié->value,SituationFamilliale::Divorcé->value,SituationFamilliale::Veuf->value,SituationFamilliale::Non_renseigné->value])->comment('1=>celebataire 2=>Marie 3=>Divorcé 4=>veuf 5=>non renseigne');
             $table->string('nom_pere')->nullable();
             $table->string('nom_mere')->nullable();
             $table->string('password')->nullable();

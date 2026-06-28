@@ -670,11 +670,13 @@ class AvanceController extends Controller
                 $avance->dossier_id_transfert = $request->dossier_id_transfert;
                 $avance->statut = StatutReservationEnum::Validé->value;
             } else {
+                 $avance->statut = StatutReservationEnum::Validé->value;
+                /*
                 if (RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
                     $avance->statut = StatutReservationEnum::En_Attente->value;
                 } elseif (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ) {
                     $avance->statut = StatutReservationEnum::Validé->value;
-                }
+                }*/
             }
 
             // If montant is 0, automatically validate the avance
@@ -803,7 +805,7 @@ class AvanceController extends Controller
                     'user_id' => $userAuth->value('id')
                 ]);
 
-                if (!$isAvanceWithReservation) {
+               /* if (!$isAvanceWithReservation) {
                     \Log::info('Entering notification block - avance created without reservation');
                     $isCommercialRole = RoleHelper::Com() || RoleHelper::Notaire() || RoleHelper::RespoLivraison() || RoleHelper::RespoCommercial();
                     \Log::info('Is commercial role? ' . ($isCommercialRole ? 'Yes' : 'No'));
@@ -886,7 +888,7 @@ class AvanceController extends Controller
                         broadcast(new NotifMenuEvent(2));
                         \Log::info('NotifMenuEvent broadcasted');
                     }
-                }
+                }*/
 
                 $num_recu = '';
                 $recu_now = FicheTransmission::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")->whereDate('created_at', Carbon::now())
@@ -1461,7 +1463,7 @@ class AvanceController extends Controller
                     }
                     //si commercial==> demande validation du paiement
                        //if($avance->reservation->statut == StatutReservationEnum::Validé->value){
-                          if ((RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) && $request->montant > 0) {
+                         /* if ((RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) && $request->montant > 0) {
 
 
                                 // Get all admin and comptable users for this project
@@ -1538,7 +1540,7 @@ class AvanceController extends Controller
                                 }
                                 //2 traitement avance (update menu counter for pending validations)
                                 broadcast(new NotifMenuEvent(2));
-                            }
+                            }*/
                       //  }
 
                             //actualiser avances

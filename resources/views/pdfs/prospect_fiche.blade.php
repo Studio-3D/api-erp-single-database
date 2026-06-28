@@ -289,12 +289,12 @@
                             <div class="info-value {{ empty($prospect['email']) ? 'empty' : '' }}">{{ $prospect['email'] ?? ' ' }}</div>
                         </div>
                     </div>
-                    <div class="personal-cell">
+                  <!--  <div class="personal-cell">
                         <div class="personal-item">
                             <div class="info-label">Accepte d'être contacté</div>
                             <div class="info-value">{{ ($prospect['notifie'] ?? 0) == 1 ? 'Oui' : 'Non' }}</div>
                         </div>
-                    </div>
+                    </div>-->
                 </div>
             </div>
         </div>

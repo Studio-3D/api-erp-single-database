@@ -1312,7 +1312,7 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                                                     'telephone_num2' => $prospect_exist->telephone_num2,
                                                     'notifie' => $prospect_exist->notifie,
                                                     'civilite' => '1',
-                                                    'situation_familliale' => '1',
+                                                    'situation_familliale' => '5',
                                                     'type_client' => 1,
                                                     'projet_id'=>$request->projet_id
                                                 ];
@@ -1326,7 +1326,7 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                                                     'telephone_num2' => null,
                                                     'notifie' => 0,
                                                      'civilite' => '1',
-                                                    'situation_familliale' => '1',
+                                                    'situation_familliale' => '5',
                                                     'type_client' => 1,
                                                       'projet_id'=>$request->projet_id
                                                 ];
@@ -1419,7 +1419,7 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                                                     'telephone_num2' => $prospect_exist->telephone_num2,
                                                     'notifie' => $prospect_exist->notifie,
                                                     'civilite' => '1',
-                                                    'situation_familliale' => '1',
+                                                    'situation_familliale' => '5',
                                                     'type_client' => 1,
                                                       'projet_id'=>$request->projet_id
                                                 ];
@@ -1433,7 +1433,7 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                                                     'telephone_num2' => null,
                                                     'notifie' => 0,
                                                   'civilite' => '1',
-                                                    'situation_familliale' => '1',
+                                                    'situation_familliale' => '5',
                                                     'type_client' => 1,
                                                       'projet_id'=>$request->projet_id
                                                 ];
@@ -2611,7 +2611,7 @@ public function validation_desitement($id,Request $request){
                                                             'telephone_num2'=>$prospect_exist->telephone_num2,
                                                             'notifie'=>$prospect_exist->notifie,
                                                              'civilite' => '1',
-                                                            'situation_familliale' => '1',
+                                                            'situation_familliale' => '5',
                                                             'type_client'=>1,
                                                               'projet_id'=>$desistement->projet_id,
                                                               'prospect_id'=>$prospect_exist->id
@@ -2626,7 +2626,7 @@ public function validation_desitement($id,Request $request){
                                                             'telephone_num2'=>null,
                                                             'notifie'=>0,
                                                              'civilite' => '1',
-                                                            'situation_familliale' => '1',
+                                                            'situation_familliale' => '5',
                                                             'type_client'=>1,
                                                               'projet_id'=>$desistement->projet_id
                                                         ];
@@ -2720,7 +2720,7 @@ public function validation_desitement($id,Request $request){
                                                             'telephone_num2'=>$prospect_exist->telephone_num2,
                                                             'notifie'=>$prospect_exist->notifie,
                                                             'civilite' => '1',
-                                                    'situation_familliale' => '1',
+                                                    'situation_familliale' => '5',
                                                             'type_client'=>1,
                                                               'projet_id'=>$desistement->projet_id
                                                         ];
@@ -2734,7 +2734,7 @@ public function validation_desitement($id,Request $request){
                                                             'telephone_num2'=>null,
                                                             'notifie'=>0,
                                                             'civilite' => '1',
-                                                    'situation_familliale' => '1',
+                                                    'situation_familliale' => '5',
                                                             'type_client'=>1,
                                                               'projet_id'=>$desistement->projet_id
                                                         ];

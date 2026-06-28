@@ -25,11 +25,8 @@ class UpdateClientRequest extends FormRequest
      */
     public function rules(): array
     {
-    // $societe_id = Auth::guard('api')->user()->societe_id;
-       // $societe = Societe::findOrfail($societe_id);
-        //$DatabaseName = 'Erp_' . $societe->raison_sociale_concatene . '_' . $societe_id;
-         $DatabaseName = env('DB_DATABASE');
-             DatabaseHelper::Config();
+        $DatabaseName = env('DB_DATABASE');
+        DatabaseHelper::Config();
 
         return [
             "type_client" => "required|string",
@@ -42,8 +39,26 @@ class UpdateClientRequest extends FormRequest
             "date_mariage" => "date|nullable",
             "situation_familliale" => "required|string",
             "civilite" => "required|string",
-            'cin' => ['required', Rule::unique('temp.' . $DatabaseName . '.clients', 'cin')->whereNull('deleted_at')->ignore($this->client)],
+            // Modification ici : ajout de 'nullable' et suppression de 'string' si pas nécessaire
+            'cin' => [
+                'nullable',
+                'string',
+                Rule::unique('temp.' . $DatabaseName . '.clients', 'cin')
+                    ->whereNull('deleted_at')
+                    ->ignore($this->client)
+            ],
         ];
+    }
+
+    /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        // Convertir les chaînes vides en null pour le CIN
+        if ($this->input('cin') === '') {
+            $this->merge(['cin' => null]);
+        }
     }
 
     /**
@@ -92,7 +107,7 @@ class UpdateClientRequest extends FormRequest
             'civilite.string' => 'La civilité doit être une chaîne de caractères.',
 
             // CIN
-            'cin.required' => 'Le champ CIN est obligatoire.',
+            'cin.string' => 'Le CIN doit être une chaîne de caractères.',
             'cin.unique' => 'Ce CIN existe déjà dans la table des clients.',
         ];
     }

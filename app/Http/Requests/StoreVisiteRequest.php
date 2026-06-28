@@ -41,7 +41,7 @@ class StoreVisiteRequest extends FormRequest
             // multiple
             // $rules['bien_id'] = 'required';
             // $rules['statut'] = 'required';
-            $rules['cin'] = 'required';
+           // $rules['cin'] = 'required';
         }
         // perdu
         elseif ($request->interet == 3) {
@@ -78,7 +78,7 @@ class StoreVisiteRequest extends FormRequest
             'partenaire_id.required' => 'Le partenaire est obligatoire lorsque la source est "PARTENAIRE".',
 
             // CIN (intéressé)
-            'cin.required' => 'Le champ CIN est obligatoire lorsque le client est intéressé.',
+            //'cin.required' => 'Le champ CIN est obligatoire lorsque le client est intéressé.',
 
             // Frein (perdu)
             'frein.required' => 'Le champ frein est obligatoire lorsque le client n\'est pas intéressé.',

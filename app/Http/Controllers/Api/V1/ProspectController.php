@@ -102,7 +102,10 @@ class ProspectController extends Controller
             $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
         }
 
-        // 🔥 FILTRE STATUT CORRIGÉ
+         if ($request->filled('origin')) {
+            $originValue = $request->input('origin');
+            $query->where('origin', $originValue);
+        }
         if ($request->filled('statut')) {
             $statutValue = $request->input('statut');
 

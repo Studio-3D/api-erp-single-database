@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Helpers\DatabaseHelper;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreClientRequest extends FormRequest
 {
@@ -15,24 +17,44 @@ class StoreClientRequest extends FormRequest
     }
 
     /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        // Convertir les chaînes vides en null pour le CIN
+        if ($this->input('cin') === '') {
+            $this->merge(['cin' => null]);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
      */
     public function rules(): array
     {
+        $DatabaseName = env('DB_DATABASE');
+        DatabaseHelper::Config();
+
         return [
             "type_client" => "required|string",
             "prenom" => "required|string",
             "telephone_num1" => "required|min:10|max:14",
             "telephone_num2" => "nullable|min:10|max:14",
             "notifie" => "integer",
-            "cin" => "required",
             "date_naissance" => "date|nullable",
             "age" => "integer|nullable",
             "date_mariage" => "date|nullable",
             "situation_familliale" => "required|string",
             "civilite" => "required|string",
+            // Version simplifiée avec Rule::unique
+            'cin' => [
+                'nullable',
+                'string',
+                Rule::unique('temp.' . $DatabaseName . '.clients', 'cin')
+                    ->whereNull('deleted_at')
+            ],
         ];
     }
 
@@ -65,7 +87,8 @@ class StoreClientRequest extends FormRequest
             'notifie.integer' => 'Le champ notifié doit être un nombre entier.',
 
             // CIN
-            'cin.required' => 'Le champ CIN est obligatoire.',
+            'cin.string' => 'Le CIN doit être une chaîne de caractères.',
+            'cin.unique' => 'Ce CIN existe déjà dans la table des clients.',
 
             // Date de naissance
             'date_naissance.date' => 'La date de naissance doit être une date valide.',
