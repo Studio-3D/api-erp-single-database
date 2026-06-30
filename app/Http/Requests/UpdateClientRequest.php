@@ -30,6 +30,7 @@ class UpdateClientRequest extends FormRequest
 
         return [
             "type_client" => "required|string",
+            "nom" => "required|string|max:255",
             "prenom" => "required|string",
             "telephone_num1" => "required|min:10|max:14",
             "telephone_num2" => "nullable|min:10|max:14",
@@ -40,8 +41,8 @@ class UpdateClientRequest extends FormRequest
             "situation_familliale" => "required|string",
             "civilite" => "required|string",
             // Modification ici : ajout de 'nullable' et suppression de 'string' si pas nécessaire
-            'cin' => [
-                'nullable',
+             'cin' => [
+                'required',
                 'string',
                 Rule::unique('temp.' . $DatabaseName . '.clients', 'cin')
                     ->whereNull('deleted_at')
@@ -66,12 +67,17 @@ class UpdateClientRequest extends FormRequest
      *
      * @return array<string, string>
      */
-    public function messages(): array
+  public function messages(): array
     {
         return [
             // Type client
             'type_client.required' => 'Le champ type de client est obligatoire.',
             'type_client.string' => 'Le type de client doit être une chaîne de caractères.',
+
+            // Nom
+            'nom.required' => 'Le champ nom est obligatoire.',
+            'nom.string' => 'Le nom doit être une chaîne de caractères.',
+            'nom.max' => 'Le nom ne doit pas dépasser :max caractères.',
 
             // Prénom
             'prenom.required' => 'Le champ prénom est obligatoire.',
@@ -89,6 +95,11 @@ class UpdateClientRequest extends FormRequest
             // Notifié
             'notifie.integer' => 'Le champ notifié doit être un nombre entier.',
 
+            // CIN
+            'cin.required' => 'Le champ CIN est obligatoire.',
+            'cin.string' => 'Le CIN doit être une chaîne de caractères.',
+            'cin.unique' => 'Ce CIN existe déjà dans la table des clients.',
+
             // Date de naissance
             'date_naissance.date' => 'La date de naissance doit être une date valide.',
 
@@ -105,10 +116,6 @@ class UpdateClientRequest extends FormRequest
             // Civilité
             'civilite.required' => 'Le champ civilité est obligatoire.',
             'civilite.string' => 'La civilité doit être une chaîne de caractères.',
-
-            // CIN
-            'cin.string' => 'Le CIN doit être une chaîne de caractères.',
-            'cin.unique' => 'Ce CIN existe déjà dans la table des clients.',
         ];
     }
 
@@ -121,16 +128,17 @@ class UpdateClientRequest extends FormRequest
     {
         return [
             'type_client' => 'type de client',
+            'nom' => 'nom',
             'prenom' => 'prénom',
             'telephone_num1' => 'numéro de téléphone principal',
             'telephone_num2' => 'deuxième numéro de téléphone',
             'notifie' => 'notifié',
+            'cin' => 'CIN',
             'date_naissance' => 'date de naissance',
             'age' => 'âge',
             'date_mariage' => 'date de mariage',
             'situation_familliale' => 'situation familiale',
             'civilite' => 'civilité',
-            'cin' => 'CIN',
         ];
     }
 }

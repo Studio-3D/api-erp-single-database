@@ -670,13 +670,12 @@ class AvanceController extends Controller
                 $avance->dossier_id_transfert = $request->dossier_id_transfert;
                 $avance->statut = StatutReservationEnum::Validé->value;
             } else {
-                 $avance->statut = StatutReservationEnum::Validé->value;
-                /*
+
                 if (RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
                     $avance->statut = StatutReservationEnum::En_Attente->value;
                 } elseif (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ) {
                     $avance->statut = StatutReservationEnum::Validé->value;
-                }*/
+                }
             }
 
             // If montant is 0, automatically validate the avance
@@ -790,7 +789,7 @@ class AvanceController extends Controller
                     }
                 }
 
-                //si avance est cree without reservation au depart
+                /*si avance est cree without reservation au depart
                 $isAvanceWithReservation = $request->has('avance_with_reservation') ? $request->avance_with_reservation : false;
 
                 \Log::info('Avance creation debug', [
@@ -803,9 +802,9 @@ class AvanceController extends Controller
                     ],
                     'montant' => $request->montant,
                     'user_id' => $userAuth->value('id')
-                ]);
+                ]);*/
 
-               /* if (!$isAvanceWithReservation) {
+                //if (!$isAvanceWithReservation) {
                     \Log::info('Entering notification block - avance created without reservation');
                     $isCommercialRole = RoleHelper::Com() || RoleHelper::Notaire() || RoleHelper::RespoLivraison() || RoleHelper::RespoCommercial();
                     \Log::info('Is commercial role? ' . ($isCommercialRole ? 'Yes' : 'No'));
@@ -888,7 +887,7 @@ class AvanceController extends Controller
                         broadcast(new NotifMenuEvent(2));
                         \Log::info('NotifMenuEvent broadcasted');
                     }
-                }*/
+                //}
 
                 $num_recu = '';
                 $recu_now = FicheTransmission::on('temp')->orderByRaw("CAST(num_recu as UNSIGNED) DESC")->whereDate('created_at', Carbon::now())

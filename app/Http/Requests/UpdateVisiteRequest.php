@@ -15,6 +15,16 @@ class UpdateVisiteRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation()
+{
+    // Si la requête est en JSON, parser le contenu
+    if ($this->isJson()) {
+        $data = json_decode($this->getContent(), true);
+        if ($data && isset($data['avances'])) {
+            $this->merge(['avances' => $data['avances']]);
+        }
+    }
+}
     /**
      * Get the validation rules that apply to the request.
      *

@@ -2509,14 +2509,20 @@ public function edit_visite($id)
                         /***********************Track reservation************* */
                         $reservationController = new ReservationController();
                         $reservationRequest    = new StoreReservationRequest();
-
+                // 🔥 GENERER LE CODE DE RESERVATION AUTO-INCREMENTE
+                $codeReservation = $request->code_reservation;
+                if (empty($codeReservation)) {
+                    // Utiliser la méthode generateReservationCode du VisiteController
+                    $codeReservation = $this->generateReservationCode($visite->projet_id);
+                }
                         $numberToWords          = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
                         $prix_remise_lettre     = $numberToWords->format($request->prix_remise);
                         $prix_forfetaire_lettre = $numberToWords->format($request->prix_forfetaire);
 
                         $dataReservation = [
                             'nb_acquereurs'          => 1,
-                            'code_reservation'       => $request->code_reservation,
+                            //'code_reservation'       => $request->code_reservation,
+                            'code_reservation'       => $codeReservation, // Utiliser le code généré
                             'prix'                   => $request->prix,
                             'mode_financement'       => $request->mode_financement,
                             'date_reservation'       => $request->date_reservation,

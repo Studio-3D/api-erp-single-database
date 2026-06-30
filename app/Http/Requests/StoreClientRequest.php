@@ -39,6 +39,8 @@ class StoreClientRequest extends FormRequest
 
         return [
             "type_client" => "required|string",
+            // AJOUT : nom obligatoire
+            "nom" => "required|string|max:255",
             "prenom" => "required|string",
             "telephone_num1" => "required|min:10|max:14",
             "telephone_num2" => "nullable|min:10|max:14",
@@ -48,9 +50,9 @@ class StoreClientRequest extends FormRequest
             "date_mariage" => "date|nullable",
             "situation_familliale" => "required|string",
             "civilite" => "required|string",
-            // Version simplifiée avec Rule::unique
+            // MODIFICATION : cin devient required
             'cin' => [
-                'nullable',
+                'required',
                 'string',
                 Rule::unique('temp.' . $DatabaseName . '.clients', 'cin')
                     ->whereNull('deleted_at')
@@ -70,6 +72,11 @@ class StoreClientRequest extends FormRequest
             'type_client.required' => 'Le champ type de client est obligatoire.',
             'type_client.string' => 'Le type de client doit être une chaîne de caractères.',
 
+            // Nom
+            'nom.required' => 'Le champ nom est obligatoire.',
+            'nom.string' => 'Le nom doit être une chaîne de caractères.',
+            'nom.max' => 'Le nom ne doit pas dépasser :max caractères.',
+
             // Prénom
             'prenom.required' => 'Le champ prénom est obligatoire.',
             'prenom.string' => 'Le prénom doit être une chaîne de caractères.',
@@ -87,6 +94,7 @@ class StoreClientRequest extends FormRequest
             'notifie.integer' => 'Le champ notifié doit être un nombre entier.',
 
             // CIN
+            'cin.required' => 'Le champ CIN est obligatoire.',
             'cin.string' => 'Le CIN doit être une chaîne de caractères.',
             'cin.unique' => 'Ce CIN existe déjà dans la table des clients.',
 
@@ -118,6 +126,7 @@ class StoreClientRequest extends FormRequest
     {
         return [
             'type_client' => 'type de client',
+            'nom' => 'nom',
             'prenom' => 'prénom',
             'telephone_num1' => 'numéro de téléphone principal',
             'telephone_num2' => 'deuxième numéro de téléphone',
