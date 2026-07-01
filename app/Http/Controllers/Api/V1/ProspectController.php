@@ -41,7 +41,7 @@ class ProspectController extends Controller
      * Display a listing of the resource.
      */
 
- public function indexByProjet(Request $request, $projet_id)
+public function indexByProjet(Request $request, $projet_id)
 {
     if (Auth::guard('api')->check()) {
         $size = $request->input('size', null);
@@ -67,6 +67,9 @@ class ProspectController extends Controller
             },
             'affecte_par_admin' => function($query) {
                 $query->select('id', 'name', 'prenom')->without('societe');
+            },
+            'source' => function($query) {
+                $query->select('id', 'source');
             }
         ])->withCount([
             'visites',
@@ -102,14 +105,23 @@ class ProspectController extends Controller
             $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
         }
 
-         if ($request->filled('origin')) {
+        if ($request->filled('origin')) {
             $originValue = $request->input('origin');
             $query->where('origin', $originValue);
         }
+
+        // ADD SOURCE FILTER - Use 'source' column (not 'source_id')
+       // ADD SOURCE FILTER - Filter by the 'source' column
+            if ($request->filled('source')) {
+                $sourceValue = $request->input('source');
+                if (is_numeric($sourceValue)) {
+                    $query->where('source', $sourceValue); // ✅ CORRECT
+                }
+            }
+
         if ($request->filled('statut')) {
             $statutValue = $request->input('statut');
 
-            // Utiliser une sous-requête qui sélectionne le dernier statut pour chaque prospect
             $query->whereIn('id', function($subQuery) use ($statutValue) {
                 $subQuery->select('prospect_id')
                     ->from('statut_prospects as sp1')
