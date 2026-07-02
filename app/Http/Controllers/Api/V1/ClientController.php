@@ -384,7 +384,9 @@ class ClientController extends Controller
             $client->date_naissance       = $request->date_naissance;
             $client->nom_responsable      = $request->nom_responsable;
             $client->relation_familliale  = $request->relation_familliale;
-            $client->situation_familliale = $request->situation_familliale;
+            $client->situation_familliale = isset($request->situation_familliale)
+            ? $request->situation_familliale
+            : '5';
             $client->date_mariage         = $request->date_mariage;
             $client->nom_mari             = $request->nom_mari;
             $client->lieu_mariage         = $request->lieu_mariage;

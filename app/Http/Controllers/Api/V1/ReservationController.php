@@ -1811,91 +1811,91 @@ private function getAllHistoriquesWithAncien($reservationId)
                     'new' => $new_aquereurs
                 ];
             }
-// Edit attachments
-$user_societes = User::where('id', $userAuth->user_id_origin)->first();
-$societe = Societe::findOrfail($user_societes->societe_id);
+            // Edit attachments
+            $user_societes = User::where('id', $userAuth->user_id_origin)->first();
+            $societe = Societe::findOrfail($user_societes->societe_id);
 
-// Récupérer la liste des fichiers à conserver (envoyée par le frontend)
-$filesToKeep = [];
-if ($request->has('existing_files')) {
-    $filesToKeep = json_decode($request->input('existing_files'), true);
-}
+            // Récupérer la liste des fichiers à conserver (envoyée par le frontend)
+            $filesToKeep = [];
+            if ($request->has('existing_files')) {
+                $filesToKeep = json_decode($request->input('existing_files'), true);
+            }
 
-\Log::info('Files to keep from frontend:', $filesToKeep);
+            \Log::info('Files to keep from frontend:', $filesToKeep);
 
-// Récupérer tous les fichiers actuels en base
-$allExistingFiles = PiecesJointe::on('temp')
-    ->where('reservation_id', $reservation->id)
-    ->get();
+            // Récupérer tous les fichiers actuels en base
+            $allExistingFiles = PiecesJointe::on('temp')
+                ->where('reservation_id', $reservation->id)
+                ->get();
 
-$oldFilesList = $allExistingFiles->pluck('fichier')->toArray();
-\Log::info('Current files in DB:', $oldFilesList);
+            $oldFilesList = $allExistingFiles->pluck('fichier')->toArray();
+            \Log::info('Current files in DB:', $oldFilesList);
 
-// 1. Supprimer les fichiers qui ne sont PAS dans la liste à conserver
-foreach ($allExistingFiles as $existingFile) {
-    if (!in_array($existingFile->fichier, $filesToKeep)) {
-        \Log::info('Deleting file: ' . $existingFile->fichier);
+            // 1. Supprimer les fichiers qui ne sont PAS dans la liste à conserver
+            foreach ($allExistingFiles as $existingFile) {
+                if (!in_array($existingFile->fichier, $filesToKeep)) {
+                    \Log::info('Deleting file: ' . $existingFile->fichier);
 
-        // Supprimer le fichier physique
-        FichierHelper::supprimer_fichier(
-            $societe->raison_sociale_concatene,
-            $societe->id,
-            'reservations/' . $reservation->code_reservation,
-            $existingFile->fichier
-        );
-        // Supprimer l'entrée en base de données
-        $existingFile->delete();
-    }
-}
+                    // Supprimer le fichier physique
+                    FichierHelper::supprimer_fichier(
+                        $societe->raison_sociale_concatene,
+                        $societe->id,
+                        'reservations/' . $reservation->code_reservation,
+                        $existingFile->fichier
+                    );
+                    // Supprimer l'entrée en base de données
+                    $existingFile->delete();
+                }
+            }
 
-// 2. Ajouter les NOUVEAUX fichiers
-$new_files = [];
-if ($request->hasFile('files_reservation')) {
-    foreach ($request->file('files_reservation') as $file) {
-        $piecesJointeController = new PiecesJointeController();
-        $pieceJointeRequest = new StorePiecesJointeRequest();
+            // 2. Ajouter les NOUVEAUX fichiers
+            $new_files = [];
+            if ($request->hasFile('files_reservation')) {
+                foreach ($request->file('files_reservation') as $file) {
+                    $piecesJointeController = new PiecesJointeController();
+                    $pieceJointeRequest = new StorePiecesJointeRequest();
 
-        // Get file name
-        $Myfile = $file->getClientOriginalName();
-        $fileType = $file->getClientOriginalExtension();
+                    // Get file name
+                    $Myfile = $file->getClientOriginalName();
+                    $fileType = $file->getClientOriginalExtension();
 
-        // Vérifier si le fichier n'existe pas déjà
-        $fileExists = PiecesJointe::on('temp')
-            ->where('reservation_id', $reservation->id)
-            ->where('fichier', $Myfile)
-            ->exists();
+                    // Vérifier si le fichier n'existe pas déjà
+                    $fileExists = PiecesJointe::on('temp')
+                        ->where('reservation_id', $reservation->id)
+                        ->where('fichier', $Myfile)
+                        ->exists();
 
-        if (!$fileExists) {
-            // Upload avec FichierHelper
-            FichierHelper::ajouter_fichier(
-                $file,
-                $societe->raison_sociale_concatene,
-                $societe->id,
-                'reservations/' . $reservation->code_reservation,
-                $Myfile
-            );
+                    if (!$fileExists) {
+                        // Upload avec FichierHelper
+                        FichierHelper::ajouter_fichier(
+                            $file,
+                            $societe->raison_sociale_concatene,
+                            $societe->id,
+                            'reservations/' . $reservation->code_reservation,
+                            $Myfile
+                        );
 
-            $datapieceJointe = [
-                'fichier' => $Myfile,
-                'type' => $fileType,
-                'reservation_id' => $reservation->id,
-                'active' => 1,
+                        $datapieceJointe = [
+                            'fichier' => $Myfile,
+                            'type' => $fileType,
+                            'reservation_id' => $reservation->id,
+                            'active' => 1,
+                        ];
+
+                        $pieceJointeRequest->merge($datapieceJointe);
+                        $piecesJointeController->store($pieceJointeRequest);
+
+                        $new_files[] = $Myfile;
+                    }
+                }
+            }
+
+            // 3. Ajouter aux changements pour l'historique
+            $changes['files'] = [
+                'old' => $oldFilesList,      // Anciens fichiers (avant modification)
+                'kept' => $filesToKeep,      // Fichiers conservés
+                'new' => $new_files           // Nouveaux fichiers ajoutés
             ];
-
-            $pieceJointeRequest->merge($datapieceJointe);
-            $piecesJointeController->store($pieceJointeRequest);
-
-            $new_files[] = $Myfile;
-        }
-    }
-}
-
-// 3. Ajouter aux changements pour l'historique
-$changes['files'] = [
-    'old' => $oldFilesList,      // Anciens fichiers (avant modification)
-    'kept' => $filesToKeep,      // Fichiers conservés
-    'new' => $new_files           // Nouveaux fichiers ajoutés
-];
         }
 
         // Store history with all changes
