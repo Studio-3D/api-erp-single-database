@@ -15,7 +15,7 @@ class StatutProspect extends Model
     protected $with = ['prospect','user'];
     protected $dates=['deleted_at'];
     protected $fillable = [
-        'prospect_id','statut','user_id_traite','date_traitement','rdv','date_rappel','commentaire','visite_id','appel_id'
+        'prospect_id','statut','user_id_traite','date_traitement','rdv','date_rappel','commentaire','visite_id','appel_id','type_traitement_rdv','date_traitement_rdv','user_id_traite_rdv'
     ];
 
     // Coerce any incoming statut to numeric string ('0'..'9')
@@ -56,5 +56,6 @@ class StatutProspect extends Model
     {
         return $this->belongsTo(Visite::class,'visite_id');
     }
+
 
 }

@@ -26,21 +26,27 @@ class NewWhatsAppMessageEvent implements ShouldBroadcastNow
         $this->conversation = $conversation;
     }
 
- // Specify the connection to use
     public function broadcastConnection()
     {
         return 'pusher_whatsapp';
     }
+
     public function broadcastOn()
     {
+        // ✅ Clean the phone number: remove + and any other special characters
+        $cleanPhoneNumber = preg_replace('/[^a-zA-Z0-9]/', '', $this->phoneNumber);
+
         \Log::info('event whtsp', [
             'channel' => 'WHTSPPP',
-            'WHTSP PRROJET' => $this->projetId,
-            'WHTSP conversation' =>  $this->projetId . '.' . $this->phoneNumber
+            'WHTSP PROJET' => $this->projetId,
+            'WHTSP conversation' => $this->projetId . '.' . $cleanPhoneNumber,
+            'original_phone' => $this->phoneNumber,
+            'cleaned_phone' => $cleanPhoneNumber
         ]);
+
         return [
             new Channel('whatsapp-project.' . $this->projetId),
-            new Channel('whatsapp-conversation.' . $this->projetId . '.' . $this->phoneNumber)
+            new Channel('whatsapp-conversation.' . $this->projetId . '.' . $cleanPhoneNumber)
         ];
     }
 

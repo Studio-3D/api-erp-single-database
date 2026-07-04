@@ -29,6 +29,9 @@ use App\Http\Controllers\Api\V1\PiecesJointeController as V1PiecesJointeControll
 use App\Http\Controllers\Api\V1\PrestatairesController as V1PrestatairesController;
 use App\Http\Controllers\Api\V1\ProjetController as V1ProjetController;
 use App\Http\Controllers\Api\V1\ProspectController as V1ProspectController;
+
+use App\Http\Controllers\Api\V1\HistoriqueRelanceWhatsappController as V1HistoriqueRelanceWhatsappController;
+
 use App\Http\Controllers\Api\V1\ReclamationController as V1ReclamationsController;
 use App\Http\Controllers\Api\V1\ReclamationSavController as V1ReclamationsSavController;
 use App\Http\Controllers\Api\V1\RemboursementController as V1RemboursementController;
@@ -286,6 +289,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
         Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
         Route::post('prospects/auto-assign', [V1ProspectController::class, 'autoAssignProspects'])->name('auto_assign_prospects');
+        Route::post('prospects/bulk-whatsapp', [V1ProspectController::class, 'bulkWhatsApp']);
+        Route::put('traiter_relance_rdv_prospect/{id}', [V1ProspectController::class, 'traiterRelanceRdvProspect']);
+
+        Route::get('get_nb_prospect_rdv/{projet_id}', [V1ProspectController::class, 'getNbProspectRdv'])->name('');
+        Route::get('get_nb_prospect_relance/{projet_id}', [V1ProspectController::class, 'getNbProspectRelance'])->name('');
+
         //l'API client
         Route::get('historiques_clients/{id}', [V1ClientController::class, 'get_Historiques_by_client'])->name('');
         Route::resource('clients', V1ClientController::class);
@@ -298,7 +307,14 @@ Route::middleware('auth:api')->group(function () {
         //l'API Aquerreur
         Route::resource('aquereurs', V1AquereurController::class);
       //  Route::get('getAquereurByReservation/{reservation_id}', [V1AquereurController::class, 'getAquereurByReservation'])->name('getAquereurByReservation');
+        /*****************************************Historique relance whatsapppp */
 
+         // Historique Relance WhatsApp routes
+        Route::get('projets/{idprojet}/historique-relances-whatsapp', [V1HistoriqueRelanceWhatsappController::class, 'index']);
+        Route::get('/historique-relances-whatsapp/{id}', [V1HistoriqueRelanceWhatsappController::class, 'show']);
+        Route::delete('/historique-relances-whatsapp/{id}', [V1HistoriqueRelanceWhatsappController::class, 'destroy']);
+        Route::get('/historique-relances-whatsapp/statistics', [V1HistoriqueRelanceWhatsappController::class, 'statistics']);
+        Route::post('/historique-relances-whatsapp/{id}/retry', [V1HistoriqueRelanceWhatsappController::class, 'retry']);
         //l'API Avance
         Route::resource('avances', V1AvanceController::class);
         Route::get('getAvancesByReservation/{reservation_id}', [V1AvanceController::class, 'getAvancesByReservation'])->name('getAvancesByReservation');
@@ -357,6 +373,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/relances_rdv_appels', [V1AppelController::class, 'get_relances_rdv_appels'])->name('');
         Route::get('get_nb_rdv_appels/{projet_id}', [V1AppelController::class, 'get_nb_rdv_appels'])->name('');
         Route::get('get_nb_relances_appels/{projet_id}', [V1AppelController::class, 'get_nb_relances_appels'])->name('');
+
+        /*********************************Menu Rendez vous************************ */
+        Route::get('projets/{idprojet}/rendez-vous', [V1AppelController::class, 'get_all_rendez_vous'])->name('');
 
         //Enumeartion
         //Route::get('InteretEnum_appel', [V1EnumController::class, 'InteretEnum__appel_get'])->name('');

@@ -177,6 +177,10 @@ public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
                 $table->timestamp('delivered_at')->nullable();
                 $table->string('status')->default('received');
                 $table->timestamps();
+                $table->string('media_url')->nullable();
+                $table->string('media_type')->nullable();
+                $table->integer('prospect_id')->nullable();
+                $table->integer('bulk_id')->nullable();
             });
             Log::info("Table whatsapp_messages créée");
         }
@@ -581,7 +585,7 @@ public function getConversation(Request $request, $projetId, $phoneNumber)
     ]);
 }
 
-    /**Envoyer une réponse WhatsApp
+   // Envoyer une réponse WhatsApp
 
 public function sendReply(Request $request, $projetId, $phoneNumber)
 {
@@ -614,7 +618,7 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
     $twilio = new ClientTwilio($config->account_sid, $config->access_token);
 
     try {
-        /* 🔥 CORRECTION: Construire le message correctement
+         //🔥 CORRECTION: Construire le message correctement
         if (!empty($mediaUrl)) {
             // Envoi avec média (image ou audio)
             $sentMessage = $twilio->messages->create(
@@ -670,11 +674,10 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
         return response()->json(['error' => $e->getMessage()], 500);
     }
 }
-*/
 
-/**
- * Envoyer une réponse WhatsApp (texte ou média)
- */
+
+/* Envoyer une réponse WhatsApp (texte ou média)
+
 public function sendReply(Request $request, $projetId, $phoneNumber)
 {
     DatabaseHelper::Config();
@@ -760,7 +763,7 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
         Log::error("Erreur envoi message: " . $e->getMessage());
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
+}*/
 
     // Configuration management (following Facebook pattern)
     public function get_whatsapp_configurations()

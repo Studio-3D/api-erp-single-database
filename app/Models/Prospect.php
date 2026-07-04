@@ -64,9 +64,11 @@ class Prospect extends Model
 
     }
     public function last_statut()
-    {
-        return $this->hasOne(StatutProspect::class,'prospect_id')->latest();
-    }
+{
+    return $this->hasOne(StatutProspect::class, 'prospect_id')
+       ->latest('created_at')
+        ->latest('id');
+}
     public function commercial_affecte()
     {
         return $this->belongsTo(User::class, 'commercial_affecte');

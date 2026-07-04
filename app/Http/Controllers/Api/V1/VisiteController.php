@@ -3837,7 +3837,7 @@ public function edit_visite($id)
             $user     = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $query    = Relance_Rdv_Visite::on('temp')->with('visite')
-                ->where('type', $request->type)->where('type_traitement', 0)
+               ->where('type_traitement', 0)
                 ->whereHas('visite', function ($q) use ($projet_id) {
                     $q->where('projet_id', $projet_id)->where('etat', 1);
                 });

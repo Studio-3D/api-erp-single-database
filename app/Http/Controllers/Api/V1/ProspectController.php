@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Controllers\Api\V1;
+use App\Events\NotifMenuEvent;
 
 use App\Enum\InteretEnum;
 use App\Enum\StatutVisiteEnum;
@@ -35,21 +36,202 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Enum\StatutProspectEnum;
 
+use App\Models\HistoriqueRelanceWhatsapp;
+use App\Models\Projet;
 class ProspectController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
 
-public function indexByProjet(Request $request, $projet_id)
+public function getNbProspectRdv(Request $request, $projet_id)
 {
     if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+        // Récupérer la date de demain
+        $tomorrow = Carbon::tomorrow();
+
+        $query = StatutProspect::on('temp')
+            ->where('rdv', '!=', null)
+            ->whereNull('visite_id')
+            ->whereNull('appel_id')
+            ->where('type_traitement_rdv_relance', 0)
+            ->whereDate('rdv', $tomorrow); // AJOUT: Filtrer uniquement les RDV de demain
+            /*->whereHas('prospect', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id);
+            });*/
+
+        if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+            $query->where('user_id_traite', $userAuth->value('id'));
+        }
+
+        $count = $query->count();
+
+        \Log::info('getNbProspectRdv count for tomorrow:', [
+            'count' => $count,
+            'projet_id' => $projet_id,
+            'tomorrow' => $tomorrow->toDateString()
+        ]);
+
+        return response()->json([
+            'count' => $count
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
+
+    /**
+     * Récupérer le nombre de relances prospects
+     */
+    public function getNbProspectRelance(Request $request, $projet_id)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+        $query = StatutProspect::on('temp')
+            ->where('date_rappel', '!=', null)
+            ->whereNull('visite_id')
+            ->whereNull('appel_id')
+            ->where('type_traitement_rdv_relance', 0)
+             ->whereDate('date_rappel', '<=', Carbon::now());
+           /* ->whereHas('prospect', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id);
+            });*/
+
+        if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+            $query->where('user_id_traite', $userAuth->value('id'));
+        }
+
+        $count = $query->count();
+
+        return response()->json([
+            'count' => $count
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
+public function traiterRelanceRdvProspect(Request $request, $id)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+        $user = Auth::user();
+
+        $statutProspect = StatutProspect::on('temp')->find($id);
+
+        if (!$statutProspect) {
+            return response()->json(['error' => 'Statut Prospect non trouvé'], 404);
+        }
+
+        // Valider les données
+        $request->validate([
+            'date' => 'nullable|date',
+            'commentaire' => 'nullable|string',
+        ]);
+
+        // Mettre à jour le statut prospect (le marquer comme traité)
+        $statutProspect->type_traitement_rdv_relance = 1; // 1 = manuelle
+        $statutProspect->date_traitement_rdv_relance = now();
+        $statutProspect->user_id_traite_rdv_relance = $user->id;
+        if ($request->filled('commentaire')) {
+            $statutProspect->commentaire = $request->commentaire;
+        }
+        $statutProspect->save();
+
+        // Si une nouvelle date de RDV est fournie
+        if ($request->filled('date')) {
+            $new_relance = new StatutProspect();
+            $new_relance->setConnection('temp');
+            $new_relance->prospect_id = $statutProspect->prospect_id;
+            $new_relance->user_id_traite = $user->id;
+            $new_relance->date_traitement = now();
+
+            if ($statutProspect->rdv != null) {
+                // C'était un RDV, on crée un nouveau RDV
+                $new_relance->rdv = Carbon::parse($request->date);
+                $new_relance->statut = '1';
+            } else {
+                // C'était une relance, on crée une nouvelle relance
+                $new_relance->date_rappel = Carbon::parse($request->date);
+                $new_relance->statut = '3';
+            }
+
+            $new_relance->type_traitement_rdv_relance = 0; // Nouveau RDV/Relance en attente
+
+            if ($new_relance->save()) {
+                if ($new_relance->date_rappel != null) {
+                    // Notification pour Relance Prospect (H)
+                    Config::set('broadcasting.default', 'pusher_notify');
+                    $data_notif = [
+                        //'lien' => '/crm?tab=relance/',
+                        'lien'        => '/crm/prospects/' .  $statutProspect->prospect_id,
+                        'date' => $request->date,
+                        'type' => 1,
+                        'description' => 'Relance Prospect',
+                        'user_id' => Auth::guard('api')->user()->id,
+                        'role' => null,
+                        'prospect_id' => $statutProspect->prospect_id,
+                        'projet_id' => $statutProspect->prospect->projet_id,
+                    ];
+                    $notif_helper = new NotificationHelper();
+                    $notif_helper->storeNotification($request->merge($data_notif));
+                    broadcast(new NotificationEvent($statutProspect->id));
+                    broadcast(new NotifMenuEvent('H'));
+
+                    // CRITICAL: Forcer le rafraîchissement complet après H
+                    broadcast(new NotifMenuEvent('D'));
+
+                } else {
+                    // Notification pour RDV Prospect (G)
+                    Config::set('broadcasting.default', 'pusher_notify');
+                    $data_notif = [
+                        'lien' => '/crm?tab=rendez-vous',
+                        'date' => $request->date,
+                        'type' => 2,
+                        'description' => 'RDV Prospect',
+                        'user_id' => Auth::guard('api')->user()->id,
+                        'role' => null,
+                        'prospect_id' => $statutProspect->prospect_id,
+                        'projet_id' => $statutProspect->prospect->projet_id,
+                    ];
+                    $notif_helper = new NotificationHelper();
+                    $notif_helper->storeNotification($request->merge($data_notif));
+                    broadcast(new NotificationEvent($statutProspect->id));
+                    broadcast(new NotifMenuEvent('G'));
+
+                    // CRITICAL: Forcer le rafraîchissement complet après G
+                    broadcast(new NotifMenuEvent('D'));
+                }
+            }
+        } else {
+            // Si pas de nouvelle date, juste marquer comme traité
+            // Rafraîchir quand même les compteurs
+            broadcast(new NotifMenuEvent('D'));
+        }
+
+        return response()->json([
+            'message' => 'Prospect traité avec succès',
+            'data' => $statutProspect
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
+public function indexByProjet(Request $request, $projet_id)
+{
+    if (RoleHelper::ACSup_RC()) {
         $size = $request->input('size', null);
         $page = $request->input('page', null);
 
         DatabaseHelper::Config();
 
-        $query = prospect::on('temp')->with([
+        $query = Prospect::on('temp')->with([
             'traite_par_user' => function($query) {
                 $query->select('id','name','prenom')->without('societe');
             },
@@ -110,33 +292,34 @@ public function indexByProjet(Request $request, $projet_id)
             $query->where('origin', $originValue);
         }
 
-        // ADD SOURCE FILTER - Use 'source' column (not 'source_id')
-       // ADD SOURCE FILTER - Filter by the 'source' column
-            if ($request->filled('source')) {
-                $sourceValue = $request->input('source');
-                if (is_numeric($sourceValue)) {
-                    $query->where('source', $sourceValue); // ✅ CORRECT
-                }
+        if ($request->filled('source')) {
+            $sourceValue = $request->input('source');
+            if (is_numeric($sourceValue)) {
+                $query->where('source', $sourceValue);
             }
+        }
 
+        // ✅ STATUS FILTER - Using whereRaw with the exact working SQL
         if ($request->filled('statut')) {
             $statutValue = $request->input('statut');
 
-            $query->whereIn('id', function($subQuery) use ($statutValue) {
-                $subQuery->select('prospect_id')
-                    ->from('statut_prospects as sp1')
-                    ->where('statut', $statutValue)
-                    ->whereRaw('created_at = (
-                        SELECT MAX(created_at)
-                        FROM statut_prospects as sp2
-                        WHERE sp2.prospect_id = sp1.prospect_id
-                    )');
-            });
+            $query->whereRaw('prospects.id IN (
+                SELECT p.id
+                FROM prospects p
+                JOIN statut_prospects sp ON p.id = sp.prospect_id
+                WHERE sp.id = (
+                    SELECT MAX(sp2.id)
+                    FROM statut_prospects sp2
+                    WHERE sp2.prospect_id = p.id
+                )
+                AND sp.statut = ?
+            )', [$statutValue]);
         }
 
         if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-            $prospects = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
+            $prospects = $query->orderBy('prospects.created_at', 'desc')
+                ->select('prospects.*')
+                ->paginate($size, ['prospects.*'], 'page', $page);
 
             $pagination = [
                 'currentPage' => $prospects->currentPage(),
@@ -151,7 +334,8 @@ public function indexByProjet(Request $request, $projet_id)
                 'pagination' => $pagination,
             ], 200);
         } else {
-            $prospects = $query->orderBy('created_at', 'desc')
+            $prospects = $query->orderBy('prospects.created_at', 'desc')
+                ->select('prospects.*')
                 ->get();
 
             return response()->json(['prospects' => $prospects], 200);
@@ -279,8 +463,11 @@ public function indexByProjet(Request $request, $projet_id)
             $ps_statut->date_traitement = Carbon::now();
             if ($request->statut == 1) {
                 $ps_statut->rdv = $request->rdv;
+                $ps_statut->type_traitement_rdv_relance = 0;
             } elseif ($request->statut == 3) {
                 $ps_statut->date_rappel = $request->date_rappel;
+                $ps_statut->type_traitement_rdv_relance = 0;
+
             }
 
             if ($ps_statut->save()) {
@@ -300,13 +487,16 @@ public function indexByProjet(Request $request, $projet_id)
                     $notif_helper = new NotificationHelper();
                     $notif_helper->storeNotification($request->merge($data_notif));
                     broadcast(new NotificationEvent($id));
+                    broadcast(new NotifMenuEvent('H'));
+
 
                 }
                 if ($request->statut == 1) {
                     //rdv
                     Config::set('broadcasting.default', 'pusher_notify');
                     $data_notif = [
-                        'lien'        => '/crm/prospects/' . $id,
+                       // 'lien'        => '/crm/prospects/' . $id,
+                         'lien'        => '/crm?tab=rendez-vous',
                         'date'        => $request->rdv,
                         'type'        => 31,
                         'user_id'     => Auth::guard('api')->user()->id,
@@ -318,6 +508,8 @@ public function indexByProjet(Request $request, $projet_id)
                     $notif_helper = new NotificationHelper();
                     $notif_helper->storeNotification($request->merge($data_notif));
                     broadcast(new NotificationEvent($id));
+                    broadcast(new NotifMenuEvent('G'));
+
                 }
             }
             return response()->json(['message' => 'done'], 200);
@@ -635,98 +827,98 @@ public function indexByProjet(Request $request, $projet_id)
      * Store a newly created resource in storage.
      */
     public function store(StoreProspectRequest $request)
-{
-    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
+    {
+        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
 
-        // Démarrer une transaction
-        DB::connection('temp')->beginTransaction();
+            // Démarrer une transaction
+            DB::connection('temp')->beginTransaction();
 
-        try {
-            $user = Auth::user();
-            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
-            DatabaseHelper::Config();
+            try {
+                $user = Auth::user();
+                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                DatabaseHelper::Config();
 
-            $prospect = new Prospect();
-            $prospect->setConnection("temp");
-            $prospect->user_id_add = $userAuth ? $userAuth->id : null;
+                $prospect = new Prospect();
+                $prospect->setConnection("temp");
+                $prospect->user_id_add = $userAuth ? $userAuth->id : null;
 
-            if(RoleHelper::Com()){
-                $prospect->commercial_affecte = $userAuth ? $userAuth->id : null;
-                $prospect->affecte_par_admin_id = $userAuth ? $userAuth->id : null;
-                $prospect->date_affectation = Carbon::now();
-            }
+                if(RoleHelper::Com()){
+                    $prospect->commercial_affecte = $userAuth ? $userAuth->id : null;
+                    $prospect->affecte_par_admin_id = $userAuth ? $userAuth->id : null;
+                    $prospect->date_affectation = Carbon::now();
+                }
 
-            $prospect->cin            = $request->cin;
-            $prospect->nom            = $request->nom;
-            $prospect->prenom         = $request->prenom;
-            $prospect->telephone      = $request->telephone;
-            $prospect->telephone_num2 = $request->telephone_num2 == "null" ? '' : $request->telephone_num2;
-            $prospect->email          = $request->email;
-            $prospect->origin         = $request->origin != null ? $request->origin : 'manuel';
-            $prospect->notifie        = $request->notifie;
-            $prospect->source         = $request->source;
-            $prospect->partenaire_id  = $request->partenaire_id;
-            $prospect->message        = $request->message;
-            $prospect->ville          = $request->ville;
-            $prospect->projet_id      = $request->projet_id;
+                $prospect->cin            = $request->cin;
+                $prospect->nom            = $request->nom;
+                $prospect->prenom         = $request->prenom;
+                $prospect->telephone      = $request->telephone;
+                $prospect->telephone_num2 = $request->telephone_num2 == "null" ? '' : $request->telephone_num2;
+                $prospect->email          = $request->email;
+                $prospect->origin         = $request->origin != null ? $request->origin : 'manuel';
+                $prospect->notifie        = $request->notifie;
+                $prospect->source         = $request->source;
+                $prospect->partenaire_id  = $request->partenaire_id;
+                $prospect->message        = $request->message;
+                $prospect->ville          = $request->ville;
+                $prospect->projet_id      = $request->projet_id;
 
-            if ($prospect->save()) {
-                // Create default "en_attente" status unless created from a visite
-                if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
+                if ($prospect->save()) {
+                    // Create default "en_attente" status unless created from a visite
+                    if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
 
-                     // Si commercial, ajouter le statut "Affecté"
-                    if (RoleHelper::Com()) {
+                        // Si commercial, ajouter le statut "Affecté"
+                        if (RoleHelper::Com()) {
+                            $statutProspect = new StatutProspect();
+                            $statutProspect->setConnection('temp');
+                            $statutProspect->prospect_id = $prospect->id;
+                            $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
+                            $statutProspect->date_traitement = Carbon::now();
+                            $statutProspect->user_id_traite = $userAuth->id;
+                            $statutProspect->commentaire = 'Prospect affecté au commercial';
+                            $statutProspect->save();
+                        }else{
+    // Statut "En attente" (0)
                         $statutProspect = new StatutProspect();
                         $statutProspect->setConnection('temp');
                         $statutProspect->prospect_id = $prospect->id;
-                        $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
+                        $statutProspect->statut = '0';
                         $statutProspect->date_traitement = Carbon::now();
-                        $statutProspect->user_id_traite = $userAuth->id;
-                        $statutProspect->commentaire = 'Prospect affecté au commercial';
+                        $statutProspect->user_id_traite = $userAuth ? $userAuth->id : null;
+                        $statutProspect->commentaire = 'Prospect créé manuellement';
                         $statutProspect->save();
-                    }else{
- // Statut "En attente" (0)
-                    $statutProspect = new StatutProspect();
-                    $statutProspect->setConnection('temp');
-                    $statutProspect->prospect_id = $prospect->id;
-                    $statutProspect->statut = '0';
-                    $statutProspect->date_traitement = Carbon::now();
-                    $statutProspect->user_id_traite = $userAuth ? $userAuth->id : null;
-                    $statutProspect->commentaire = 'Prospect créé manuellement';
-                    $statutProspect->save();
+                        }
+
+
+
                     }
 
+                    // Valider la transaction si tout s'est bien passé
+                    DB::connection('temp')->commit();
 
-
+                    return $prospect;
+                } else {
+                    // La sauvegarde a échoué, annuler la transaction
+                    DB::connection('temp')->rollBack();
+                    return response()->json(['error' => 'Erreur lors de la création du prospect'], 500);
                 }
 
-                // Valider la transaction si tout s'est bien passé
-                DB::connection('temp')->commit();
-
-                return $prospect;
-            } else {
-                // La sauvegarde a échoué, annuler la transaction
+            } catch (\Exception $e) {
+                // Une erreur est survenue, annuler la transaction
                 DB::connection('temp')->rollBack();
-                return response()->json(['error' => 'Erreur lors de la création du prospect'], 500);
+
+                // Log de l'erreur pour le débogage
+                \Log::error('Erreur création prospect: ' . $e->getMessage());
+
+                return response()->json([
+                    'error' => 'Erreur lors de la création du prospect',
+                    'message' => $e->getMessage()
+                ], 500);
             }
 
-        } catch (\Exception $e) {
-            // Une erreur est survenue, annuler la transaction
-            DB::connection('temp')->rollBack();
-
-            // Log de l'erreur pour le débogage
-            \Log::error('Erreur création prospect: ' . $e->getMessage());
-
-            return response()->json([
-                'error' => 'Erreur lors de la création du prospect',
-                'message' => $e->getMessage()
-            ], 500);
+        } else {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
-
-    } else {
-        return response()->json(['error' => 'Unauthorized'], 401);
     }
-}
 
     public static function Store_WhatsApp($phone_number_id, $from, $msg_body, $name, $societe_id, $projet_id = null)
     {
@@ -1589,4 +1781,95 @@ public function indexByProjet(Request $request, $projet_id)
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     }
+    // Controller method
+
+    public function bulkWhatsApp(Request $request)
+{
+    $request->validate([
+        'prospect_ids' => 'required|array',
+        'prospect_ids.*' => 'exists:prospects,id',
+        'message' => 'required|string',
+        'scheduled_date' => 'nullable|date',
+        'projet_id' => 'required|exists:projets,id',
+        'file' => 'nullable|file|max:10240', // Max 10MB
+    ]);
+
+    // Get prospects with phone numbers
+    $prospects = Prospect::whereIn('id', $request->prospect_ids)
+        ->whereNotNull('telephone')
+        ->get();
+
+    if ($prospects->isEmpty()) {
+        return response()->json([
+            'error' => 'Aucun prospect valide avec numéro de téléphone'
+        ], 400);
+    }
+
+    $scheduledDate = $request->scheduled_date ? Carbon::parse($request->scheduled_date) : null;
+
+    // Get the projet for file upload
+    $projet = Projet::find($request->projet_id);
+    $fileName = null;
+
+    // Handle file upload
+    if ($request->hasFile('file')) {
+        $file = $request->file('file');
+
+        // Get original file name without extension
+        $clientOriginName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
+        // Sanitize the name (remove special characters)
+        $sanitized_name = preg_replace('/[^A-Za-z0-9_\-]/', '_', $clientOriginName);
+
+        // Get current date for the filename
+        $date = date("Y-m-d_H-i-s");
+
+        // Build the full filename: original_name_date.extension
+        $filename = $sanitized_name . '_' . $date;
+        $extension = $file->getClientOriginalExtension();
+        $fullFilename = $filename . '.' . $extension;
+
+        // Upload the file using your FichierHelper
+        FichierHelper::ajouter_fichier(
+            $file,
+            $projet->nom ?? 'projet_' . $request->projet_id,
+            $request->projet_id,
+            'relance_whatsapp_message',
+            $fullFilename
+        );
+
+        $fileName = $fullFilename;
+    }
+
+    // Create the record in historique_relances_whatsapp table
+    $record = HistoriqueRelanceWhatsapp::create([
+        'projet_id' => $request->projet_id,
+        'user_id' => auth()->id(),
+        'prospect_ids' => $request->prospect_ids,
+        'message' => $request->message,
+        'file' => $fileName,
+        'scheduled_date' => $scheduledDate,
+        'status' => 'pending',
+        'metadata' => [
+            'total_prospects' => $prospects->count(),
+            'phones' => $prospects->pluck('telephone')->toArray(),
+            'prospect_names' => $prospects->map(function($p) {
+                return trim(($p->prenom ?? '') . ' ' . ($p->nom ?? ''));
+            })->toArray(),
+            'file_original_name' => $request->hasFile('file') ? $request->file('file')->getClientOriginalName() : null,
+            'file_size' => $request->hasFile('file') ? $request->file('file')->getSize() : null,
+            'file_mime_type' => $request->hasFile('file') ? $request->file('file')->getMimeType() : null,
+        ],
+    ]);
+
+    return response()->json([
+        'message' => "Messages WhatsApp programmés avec succès", // ✅ Added comma here
+        'total' => $prospects->count(),
+        'scheduled_date' => $scheduledDate,
+        'file' => $fileName,
+        'record_id' => $record->id,
+    ], 200);
+}
+
+
 }

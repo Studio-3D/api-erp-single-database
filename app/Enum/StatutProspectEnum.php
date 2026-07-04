@@ -15,6 +15,7 @@ enum StatutProspectEnum: int
     case Perdu = 8;
     case Receptif = 9;
     case Converti_en_client = 10;
+    case WhatsApp_Envoye = 11;
 
     public function label(): string
     {

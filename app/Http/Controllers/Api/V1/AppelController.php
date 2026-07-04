@@ -23,6 +23,7 @@ use Carbon\Carbon;
 use App\Enum\InteretEnumAppel;
 use App\Http\Helpers\NotificationHelper;
 use App\Events\NotificationEvent;
+use App\Models\Relance_Rdv_Visite;
 use App\Models\Relance_Rdv_Appel;
 use App\Http\Requests\StoreProspectRequest;
 use Illuminate\Support\Facades\Config;
@@ -45,7 +46,7 @@ class AppelController extends Controller
      */
  public function indexByProjet(Request $request, $projet_id)
 {
-    if (Auth::guard('api')->check()) {
+    if (RoleHelper::ACSup_RC() ) {
         // Default values for pagination
         $size = $request->input('size', null);
         $page = $request->input('page', null);
@@ -837,7 +838,7 @@ class AppelController extends Controller
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
             $query = Relance_Rdv_Appel::on('temp')->with('traite_appel')
-                ->where('type_traitement', 0)->where('type', $request->type)
+                ->where('type', $request->type)
                 ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
                     $q->where('projet_id', $projet_id);
                 });
@@ -904,8 +905,245 @@ class AppelController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+        /*******************rendez vous en general ************** */
+public function get_all_rendez_vous(Request $request, $projet_id)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
 
+        $size = $request->input('size', null);
+        $page = $request->input('page', null);
+        $type = $request->input('type', 'all'); // all, appel, visite, prospect
+        $interet = $request->input('interet', null); // NOUVEAU: filtre par intérêt
 
+        // 1. Récupérer les Appels RDV (type 2)
+        $appelsRdv = Relance_Rdv_Appel::on('temp')
+            ->with(['traite_appel.appel.prospect', 'traite_appel.user'])
+            ->where('type', 2)
+            ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id);
+            });
+
+        if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+            $appelsRdv->whereHas('traite_appel', function ($q) use ($userAuth) {
+                $q->where('user_id', $userAuth->value('id'));
+            });
+        }
+
+        // 2. Récupérer les Visites RDV
+        $visitesRdv = Relance_Rdv_Visite::on('temp')
+            ->with(['visite.prospect', 'user'])
+            ->where('type', 2)
+            ->whereHas('visite', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id)->where('etat', 1);
+            })
+            ->whereHas('visite', function ($q) {
+                $q->whereNull('deleted_at');
+            });
+
+        if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+            $visitesRdv->where('user_id', $userAuth->value('id'));
+        }
+
+        // 3. Récupérer les Prospects avec RDV
+        $prospectsRdv = StatutProspect::on('temp')
+            ->with(['prospect', 'user'])
+            ->where('rdv', '!=', null)
+            ->whereNull('visite_id')
+            ->whereNull('appel_id');
+
+        if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+            $prospectsRdv->where('user_id_traite', $userAuth->value('id'));
+        }
+
+        // ============================================
+        // FILTRE PAR INTÉRÊT (uniquement pour appels et visites)
+        // ============================================
+        if ($interet !== null && $interet !== '') {
+            // Pour les appels : filtrer par intérêt dans traite_appel.appel
+            $appelsRdv->whereHas('traite_appel.appel', function ($q) use ($interet) {
+                $q->where('interet', $interet);
+            });
+
+            // Pour les visites : filtrer par intérêt dans visite
+            $visitesRdv->whereHas('visite', function ($q) use ($interet) {
+                $q->where('interet', $interet);
+            });
+
+            // Les prospects n'ont pas d'intérêt, donc on les exclut
+            $prospectsRdv = $prospectsRdv->whereRaw('1 = 0');
+        }
+
+        // Appliquer les filtres de type
+        if ($type == 'appel') {
+            $visitesRdv = $visitesRdv->whereRaw('1 = 0');
+            $prospectsRdv = $prospectsRdv->whereRaw('1 = 0');
+        } elseif ($type == 'visite') {
+            $appelsRdv = $appelsRdv->whereRaw('1 = 0');
+            $prospectsRdv = $prospectsRdv->whereRaw('1 = 0');
+        } elseif ($type == 'prospect') {
+            $appelsRdv = $appelsRdv->whereRaw('1 = 0');
+            $visitesRdv = $visitesRdv->whereRaw('1 = 0');
+        }
+
+        // Appliquer les filtres communs
+        if ($request->filled('nom_prenom')) {
+            $searchTerm = $request->input('nom_prenom');
+            $appelsRdv->whereHas('traite_appel.appel.prospect', function ($q) use ($searchTerm) {
+                $q->where('nom', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('prenom', 'like', '%' . $searchTerm . '%');
+            });
+            $visitesRdv->whereHas('visite.prospect', function ($q) use ($searchTerm) {
+                $q->where('nom', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('prenom', 'like', '%' . $searchTerm . '%');
+            });
+            $prospectsRdv->whereHas('prospect', function ($q) use ($searchTerm) {
+                $q->where('nom', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('prenom', 'like', '%' . $searchTerm . '%');
+            });
+        }
+
+        if ($request->filled('telephone')) {
+            $telephone = $request->input('telephone');
+            $appelsRdv->whereHas('traite_appel.appel.prospect', function ($q) use ($telephone) {
+                $q->where('telephone', 'like', '%' . $telephone . '%');
+            });
+            $visitesRdv->whereHas('visite.prospect', function ($q) use ($telephone) {
+                $q->where('telephone', 'like', '%' . $telephone . '%')
+                  ->orWhere('telephone_num2', 'like', '%' . $telephone . '%');
+            });
+            $prospectsRdv->whereHas('prospect', function ($q) use ($telephone) {
+                $q->where('telephone', 'like', '%' . $telephone . '%');
+            });
+        }
+
+        if ($request->filled('date_rdv')) {
+            $date = Carbon::parse($request->input('date_rdv'));
+            $appelsRdv->whereDate('rdv', $date);
+            $visitesRdv->whereDate('rdv', $date);
+            $prospectsRdv->whereDate('rdv', $date);
+        }
+
+        // Récupérer les données
+        $appelsData = $appelsRdv->get();
+        $visitesData = $visitesRdv->get();
+        $prospectsData = $prospectsRdv->get();
+
+        // Transformer les données en un format unifié avec IDs uniques
+        $allRendezVous = collect();
+
+        // Ajouter les appels RDV
+        foreach ($appelsData as $item) {
+            $prospect = $item->traite_appel->appel->prospect ?? null;
+            $allRendezVous->push([
+                'id' => 'appel_' . $item->id,
+                'original_id' => $item->id,
+                'type' => 'appel',
+                'type_label' => 'Appel RDV',
+                'cc' => $item->traite_appel->user->name . ' ' . $item->traite_appel->user->prenom ?? '',
+                'prospect' => $prospect,
+                'prospect_id' => $prospect->id ?? null,
+                'interet' => $item->traite_appel->appel->interet ?? null,
+                'rdv' => $item->rdv,
+                'appel_id' => $item->traite_appel->appel->id ?? null,
+                'visite_id' => null,
+                'origin_id' => null,
+                'type_traitement' => $item->type_traitement,
+                'created_at' => $item->created_at,
+                'updated_at' => $item->updated_at,
+                'source_id' => $item->id,
+                'source_type' => 'Relance_Rdv_Appel',
+            ]);
+        }
+
+        // Ajouter les visites RDV
+        foreach ($visitesData as $item) {
+            if (!$item->visite) {
+                continue;
+            }
+
+            $prospect = $item->visite->prospect ?? null;
+            $allRendezVous->push([
+                'id' => 'visite_' . $item->id,
+                'original_id' => $item->id,
+                'type' => 'visite',
+                'type_label' => 'Visite RDV',
+                'cc' => $item->user->name . ' ' . $item->user->prenom ?? '',
+                'prospect' => $prospect,
+                'prospect_id' => $prospect->id ?? null,
+                'interet' => $item->visite->interet ?? null,
+                'rdv' => $item->rdv,
+                'appel_id' => null,
+                'visite_id' => $item->visite->id ?? null,
+                'origin_id' => $item->visite->origin_id ?? null,
+                'type_traitement' => $item->type_traitement,
+                'created_at' => $item->created_at,
+                'updated_at' => $item->updated_at,
+                'source_id' => $item->id,
+                'source_type' => 'Relance_Rdv_Visite',
+            ]);
+        }
+
+        // Ajouter les prospects avec RDV
+        foreach ($prospectsData as $item) {
+            $prospect = $item->prospect ?? null;
+            $user = $item->user ?? null;
+            $allRendezVous->push([
+                'id' => 'prospect_' . $item->id,
+                'original_id' => $item->id,
+                'type' => 'prospect',
+                'type_label' => 'Prospect RDV',
+                'cc' => $user ? $user->name . ' ' . $user->prenom : '',
+                'prospect' => $prospect,
+                'prospect_id' => $prospect->id ?? null,
+                'interet' => null,
+                'rdv' => $item->rdv,
+                'appel_id' => null,
+                'visite_id' => null,
+                'origin_id' => null,
+                'type_traitement' => $item->type_traitement_rdv_relance ?? 0,
+                'type_traitement_rdv_relance' => $item->type_traitement_rdv_relance ?? 0,
+                'date_traitement_rdv_relance' => $item->date_traitement_rdv_relance,
+                'user_id_traite_rdv_relance' => $item->user_id_traite_rdv_relance,
+                'created_at' => $item->created_at,
+                'updated_at' => $item->updated_at,
+                'source_id' => $item->id,
+                'source_type' => 'StatutProspect',
+            ]);
+        }
+
+        // Trier par date RDV (du plus récent au plus ancien)
+        $allRendezVous = $allRendezVous->sortByDesc('rdv')->values();
+
+        // Gérer la pagination
+        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+            $total = $allRendezVous->count();
+            $items = $allRendezVous->forPage($page, $size)->values();
+
+            $pagination = [
+                'currentPage' => (int)$page,
+                'totalItems' => $total,
+                'totalPages' => ceil($total / $size),
+                'perPage' => (int)$size,
+            ];
+
+            return response()->json([
+                'data' => $items,
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+        // Return all results if no pagination parameters
+        return response()->json([
+            'data' => $allRendezVous,
+            'total' => $allRendezVous->count(),
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
 
     public function index_traitement_appel(Request $request, $id)
     {
