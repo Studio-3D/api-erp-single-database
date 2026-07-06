@@ -937,7 +937,7 @@ public function get_all_rendez_vous(Request $request, $projet_id)
             ->with(['visite.prospect', 'user'])
             ->where('type', 2)
             ->whereHas('visite', function ($q) use ($projet_id) {
-                $q->where('projet_id', $projet_id)->where('etat', 1);
+                $q->where('projet_id', $projet_id)->where('etat', 1)->where('interet', 1);
             })
             ->whereHas('visite', function ($q) {
                 $q->whereNull('deleted_at');

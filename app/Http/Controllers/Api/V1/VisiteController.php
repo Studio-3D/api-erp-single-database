@@ -3844,9 +3844,21 @@ public function edit_visite($id)
             if (! RoleHelper::AdminSup() && ! RoleHelper::AgentAdmin()) {
                 $query->where('user_id', $userAuth->value('id'));
             }
+            if ($request->filled('type')) {
             if ($request->type == 1) {
+                // Relances uniquement
+                $query->where('type', 1);
                 $query->whereDate('date_relance', '<=', Carbon::now());
-            } /*else {
+            } elseif ($request->type == 2) {
+                // RDV uniquement
+                $query->where('type', 2);
+                // Ajouter un filtre pour les RDV (optionnel selon votre besoin)
+                // $query->whereDate('rdv', '<=', Carbon::now());
+            }
+            }
+           /* if ($request->type == 1) {
+                $query->whereDate('date_relance', '<=', Carbon::now());
+            } else {
                 $query->whereDate('rdv', '<=', Carbon::now());
             }*/
             if ($request->filled('nom_prenom')) {
