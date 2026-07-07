@@ -912,7 +912,7 @@ public function get_all_rendez_vous(Request $request, $projet_id)
         DatabaseHelper::Config();
         $user = Auth::user();
         $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-
+         $now = Carbon::now();
         $size = $request->input('size', null);
         $page = $request->input('page', null);
         $type = $request->input('type', 'all'); // all, appel, visite, prospect
@@ -922,6 +922,7 @@ public function get_all_rendez_vous(Request $request, $projet_id)
         $appelsRdv = Relance_Rdv_Appel::on('temp')
             ->with(['traite_appel.appel.prospect', 'traite_appel.user'])
             ->where('type', 2)
+            ->where('rdv', '>=', $now)
             ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
                 $q->where('projet_id', $projet_id);
             });
@@ -936,6 +937,7 @@ public function get_all_rendez_vous(Request $request, $projet_id)
         $visitesRdv = Relance_Rdv_Visite::on('temp')
             ->with(['visite.prospect', 'user'])
             ->where('type', 2)
+            ->where('rdv', '>=', $now) // Added filter for RDV <= now
             ->whereHas('visite', function ($q) use ($projet_id) {
                 $q->where('projet_id', $projet_id)->where('etat', 1)->where('interet', 1);
             })
@@ -951,6 +953,7 @@ public function get_all_rendez_vous(Request $request, $projet_id)
         $prospectsRdv = StatutProspect::on('temp')
             ->with(['prospect', 'user'])
             ->where('rdv', '!=', null)
+            ->where('rdv', '>=', $now) // Added filter for RDV <= now
             ->whereNull('visite_id')
             ->whereNull('appel_id');
 
