@@ -959,7 +959,7 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
      * @param int $projet_id L'ID du projet
      * @throws \Exception Si le prospect existe déjà ou si des validations échouent
      */
- public static function storeProspectFromRow($row, $projet_id, $user_id = null)
+ public static function storeProspectFromRow($row, $projet_id, $user_id = null,$importId)
 {
     $errors = [];
 
@@ -1108,6 +1108,7 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
     // Créer le prospect
     $prospect = new Prospect();
     $prospect->setConnection("temp");
+   // $prospect->import_fichier_id = $importId;
     $prospect->user_id_add = $user_id;
     $prospect->cin = isset($row['cin']) ? $row['cin'] : null;
     $prospect->nom = isset($row['nom']) ? $row['nom'] : null;
@@ -1165,8 +1166,8 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
 public static function Import_Prospect($data, $projet_id, $importId = null, $user_id = null)        {
 
              // Pass $user_id to the closure using 'use'
-    $result = self::importerDonneesProspect($data, $projet_id, function ($row, $projet_id) use ($user_id) {
-        self::storeProspectFromRow($row, $projet_id, $user_id);
+    $result = self::importerDonneesProspect($data, $projet_id, function ($row, $projet_id) use ($user_id,$importId) {
+        self::storeProspectFromRow($row, $projet_id, $user_id,$importId);
     }, true, $importId);
 
             // Mettre à jour l'import avec les résultats

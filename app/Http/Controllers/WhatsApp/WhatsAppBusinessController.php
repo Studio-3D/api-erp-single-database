@@ -598,7 +598,7 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
     $messageText = $request->input('message', '');
 
     if (empty($messageText)) {
-        return response()->json(['error' => 'Un message ou un média est requis'], 400);
+        return response()->json(['error' => 'Un message est requis'], 400);
     }
 
     $config = DB::connection('temp')
@@ -612,39 +612,119 @@ public function sendReply(Request $request, $projetId, $phoneNumber)
     }
 
     $twilio = new ClientTwilio($config->account_sid, $config->access_token);
+    $phoneNumber = ltrim($phoneNumber, '+');
 
     try {
-        // Send the message ONCE
-        $sentMessage = $twilio->messages->create(
-            "whatsapp:" . $phoneNumber,
-            [
-                'from' => "whatsapp:" . $config->phone_number_id,
-                'body' => $messageText
-            ]
-        );
+        // 🔍 Vérifier si le client a déjà envoyé un message (réponse)
+        $lastClientReply = DB::connection('temp')
+            ->table('whatsapp_messages')
+            ->where('projet_id', $projetId)
+            ->where('from_number', $phoneNumber)
+            ->where('status', 'received')
+            ->orderBy('created_at', 'desc')
+            ->first();
 
-        $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId([
-            'projet_id' => $projetId,
-            'from_number' => $config->phone_number_id,
-            'to_number' => $phoneNumber,
-            'message' => $messageText,
-            'message_sid' => $sentMessage->sid,
-            'profile_name' => auth()->user()->name ?? 'Commercial',
-            'status' => 'sent',
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+        $canSendFreeForm = false;
+        $hoursSinceLastReply = null;
 
-        Log::info("Message envoyé à {$phoneNumber}, SID: " . $sentMessage->sid);
+        // ✅ Vérifier si session active (client a répondu dans les 24h)
+        if ($lastClientReply) {
+            $lastReplyTime = Carbon::parse($lastClientReply->created_at);
+            $hoursSinceLastReply = Carbon::now()->diffInHours($lastReplyTime);
 
-        return response()->json([
-            'success' => true,
-            'sid' => $sentMessage->sid,
-            'message_id' => $messageId
-        ]);
+            if ($hoursSinceLastReply <= 24) {
+                $canSendFreeForm = true;
+                Log::info("✅ Session active - Dernière réponse il y a {$hoursSinceLastReply}h");
+            } else {
+                Log::info("⏰ Plus de 24h depuis la dernière réponse ({$hoursSinceLastReply}h)");
+            }
+        } else {
+            Log::info("📱 Premier message pour ce client");
+        }
+
+        // 📝 Décider du type de message à envoyer
+        if ($canSendFreeForm) {
+            // ✅ Session active → Message NORMAL
+            Log::info("💬 Envoi d'un message normal (session active)");
+
+            $sentMessage = $twilio->messages->create(
+                "whatsapp:" . $phoneNumber,
+                [
+                    'from' => "whatsapp:" . $config->phone_number_id,
+                    'body' => $messageText
+                ]
+            );
+
+            // Stocker le message normal
+            $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId([
+                'projet_id' => $projetId,
+                'from_number' => $config->phone_number_id,
+                'to_number' => $phoneNumber,
+                'message' => $messageText,
+                'message_sid' => $sentMessage->sid,
+                'profile_name' => auth()->user()->name ?? 'Commercial',
+                'status' => 'sent',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            Log::info("✅ Message normal envoyé à {$phoneNumber}, SID: " . $sentMessage->sid);
+
+            return response()->json([
+                'success' => true,
+                'sid' => $sentMessage->sid,
+                'message_id' => $messageId,
+                'message_type' => 'free_form',
+                'session_active' => true,
+                'hours_since_last_reply' => $hoursSinceLastReply,
+                'note' => "Message normal envoyé (client actif)"
+            ]);
+
+        } else {
+            // ❌ Session inactive → Utiliser le TEMPLATE approuvé
+            Log::info("📋 Envoi du template initi_message (session inactive)");
+                $templateSid ='HX7685483934092efb0221259285c84814';
+            // Envoyer le template avec le message complet comme paramètre
+            $sentMessage = $twilio->messages->create(
+                "whatsapp:" . $phoneNumber,
+                [
+                    'from' => "whatsapp:" . $config->phone_number_id,
+                    'contentSid' => $templateSid,
+                    'contentVariables' => json_encode([
+                        '1' => $messageText  // Le message complet saisi par l'utilisateur
+                    ])
+                ]
+            );
+
+            // Stocker le template
+            $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId([
+                'projet_id' => $projetId,
+                'from_number' => $config->phone_number_id,
+                'to_number' => $phoneNumber,
+                'message' => $messageText,
+                'message_sid' => $sentMessage->sid,
+                'profile_name' => auth()->user()->name ?? 'Commercial',
+                'status' => 'sent',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            Log::info("✅ Template initi_message envoyé à {$phoneNumber}, SID: " . $sentMessage->sid);
+
+            return response()->json([
+                'success' => true,
+                'sid' => $sentMessage->sid,
+                'message_id' => $messageId,
+                'template_name' => 'initi_message',
+                'session_active' => false,
+                'hours_since_last_reply' => $hoursSinceLastReply ?? 'Aucune réponse',
+                'note' => "Template envoyé (client inactif ou premier message)",
+                'display_message' => "Bonjour, " . $messageText . " Votre conseiller est à votre disposition."
+            ]);
+        }
 
     } catch (\Exception $e) {
-        Log::error("Erreur envoi message: " . $e->getMessage());
+        Log::error("❌ Erreur envoi message: " . $e->getMessage());
         return response()->json(['error' => $e->getMessage()], 500);
     }
 }

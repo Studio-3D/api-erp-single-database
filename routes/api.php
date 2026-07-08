@@ -280,6 +280,7 @@ Route::middleware('auth:api')->group(function () {
         //l'API prospect
 
         Route::resource('prospects', V1ProspectController::class);
+        Route::get('/prospects/export/{projet_id}', [V1ProspectController::class, 'exportByProjet']);
         Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
         Route::get('search_prospect_by_param/{param_1}/{value}/{projet_id}', [V1ProspectController::class, 'search_prospect_by_param']);
         Route::get('search_prospect_by_cin/{cin}', [V1ProspectController::class, 'search_prospect_by_cin']);

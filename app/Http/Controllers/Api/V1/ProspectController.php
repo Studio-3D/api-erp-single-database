@@ -223,6 +223,73 @@ public function traiterRelanceRdvProspect(Request $request, $id)
 
     return response()->json(['error' => 'Unauthorized'], 401);
 }
+public function exportByProjet(Request $request, $projet_id)
+{
+    // Check if user has permission
+    if (!RoleHelper::ACSup_RC()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    DatabaseHelper::Config();
+
+    $query = Prospect::on('temp')->with([
+        'traite_par_user' => function($query) {
+            $query->select('id','name','prenom')->without('societe');
+        },
+        'last_statut' => function($query) {
+            $query->select('*')->without('prospect','user');
+        },
+        'commercial_affecte' => function($query) {
+            $query->select('id','user_id_origin', 'name', 'prenom')->without('societe');
+        },
+        'source' => function($query) {
+            $query->select('id', 'source');
+        }
+    ])->where('projet_id', $projet_id);
+
+    // Filtrer par commercial affecté
+    if ($request->filled('commercial_id')) {
+        $commercialId = $request->input('commercial_id');
+        $query->whereHas('commercial_affecte', function($q) use ($commercialId) {
+            $q->where('user_id_origin', $commercialId);
+        });
+    }
+
+    // ✅ DATE FILTERS - Creation date (using prospect.created_at)
+    if ($request->filled('created_at_from') && $request->filled('created_at_to')) {
+        $from = $request->input('created_at_from') . ' 00:00:00';
+        $to = $request->input('created_at_to') . ' 23:59:59';
+        $query->whereBetween('prospects.created_at', [$from, $to]);
+    }
+
+    // ✅ DATE FILTERS - Affectation date (using prospect.date_affectation)
+    if ($request->filled('date_affectation_from') && $request->filled('date_affectation_to')) {
+        $from = $request->input('date_affectation_from') . ' 00:00:00';
+        $to = $request->input('date_affectation_to') . ' 23:59:59';
+        $query->whereBetween('prospects.date_affectation', [$from, $to]);
+    }
+
+    // ✅ DATE FILTERS - Treatment date (using last_statut.date_traitement)
+    if ($request->filled('date_traitement_from') && $request->filled('date_traitement_to')) {
+        $from = $request->input('date_traitement_from');
+        $to = $request->input('date_traitement_to');
+
+        $query->whereHas('last_statut', function($q) use ($from, $to) {
+            $q->whereBetween('date_traitement', [$from, $to]);
+        });
+    }
+
+
+    // Get all results without pagination for export
+    $prospects = $query->orderBy('prospects.created_at', 'desc')
+        ->select('prospects.*')
+        ->get();
+
+    return response()->json([
+        'prospects' => $prospects,
+        'total' => $prospects->count()
+    ], 200);
+}
 public function indexByProjet(Request $request, $projet_id)
 {
     if (RoleHelper::ACSup_RC()) {
@@ -263,6 +330,30 @@ public function indexByProjet(Request $request, $projet_id)
             $commercialId = $request->input('commercial_id');
             $query->whereHas('commercial_affecte', function($q) use ($commercialId) {
                 $q->where('user_id_origin', $commercialId);
+            });
+        }
+
+        // ✅ DATE FILTERS - Creation date (using prospect.created_at)
+        if ($request->filled('created_at_from') && $request->filled('created_at_to')) {
+            $from = $request->input('created_at_from') . ' 00:00:00';
+            $to = $request->input('created_at_to') . ' 23:59:59';
+            $query->whereBetween('prospects.created_at', [$from, $to]);
+        }
+
+        // ✅ DATE FILTERS - Affectation date (using prospect.date_affectation)
+        if ($request->filled('date_affectation_from') && $request->filled('date_affectation_to')) {
+            $from = $request->input('date_affectation_from') . ' 00:00:00';
+            $to = $request->input('date_affectation_to') . ' 23:59:59';
+            $query->whereBetween('prospects.date_affectation', [$from, $to]);
+        }
+
+        // ✅ DATE FILTERS - Treatment date (using last_statut.date_traitement)
+        if ($request->filled('date_traitement_from') && $request->filled('date_traitement_to')) {
+            $from = $request->input('date_traitement_from');
+            $to = $request->input('date_traitement_to');
+
+            $query->whereHas('last_statut', function($q) use ($from, $to) {
+                $q->whereBetween('date_traitement', [$from, $to]);
             });
         }
 
