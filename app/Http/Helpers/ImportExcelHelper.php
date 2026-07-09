@@ -1108,7 +1108,7 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
     // Créer le prospect
     $prospect = new Prospect();
     $prospect->setConnection("temp");
-   // $prospect->import_fichier_id = $importId;
+   $prospect->import_fichier_id = $importId;
     $prospect->user_id_add = $user_id;
     $prospect->cin = isset($row['cin']) ? $row['cin'] : null;
     $prospect->nom = isset($row['nom']) ? $row['nom'] : null;
