@@ -439,7 +439,7 @@ public function runSeeders($connection)
                           ->where('deleted_at', '<=', $date_15);
                     })->orWhere(function($q) use ($currentMonthStart) {
                         // Created before current month (regardless of deleted status)
-                        $q->where('created_at', '<', $currentMonthStart);
+                        $q->where('date', '<', $currentMonthStart);
                     });
                 })
                 ->get();
