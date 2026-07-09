@@ -535,12 +535,22 @@ class NotificationController extends Controller
     }
 
    // Also update the get_notifications method to properly handle JSON array
-public function get_notifications(Request $request, $projet_id) {
-    if (Auth::guard('api')->check() && (RoleHelper::AdminSup() ||RoleHelper::Notaire_Respo_Comptable_SAV_Comm_RC()||RoleHelper::AgentAdmin())) {
+public function get_notifications(Request $request, $projet_id)
+{
+    if (Auth::guard('api')->check() && (RoleHelper::AdminSup() || RoleHelper::Notaire_Respo_Comptable_SAV_Comm_RC() || RoleHelper::AgentAdmin())) {
         DatabaseHelper::Config();
         $userId = Auth::guard('api')->user()->id;
 
-         if(RoleHelper::AdminSup() || RoleHelper::AgentAdmin()){
+        // Get pagination parameters
+        $perPage = $request->input('per_page', 20);
+        $page = $request->input('page', 1);
+
+        // Limit max per page to prevent abuse
+        if ($perPage > 100) {
+            $perPage = 100;
+        }
+
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin()) {
             // Build the query
             $query = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                 ->where(function ($query) {
@@ -553,54 +563,79 @@ public function get_notifications(Request $request, $projet_id) {
                 ->whereDate('date', '<=', Carbon::now());
 
             // If AgentAdmin, exclude notifications of type 6
-            if(RoleHelper::AgentAdmin()) {
+            if (RoleHelper::AgentAdmin()) {
                 $query->where('type', '!=', 6);
             }
 
-            $all_notifications = $query->orderBy('id', 'desc')
-                ->get()
+            // Clone query for counting unseen notifications
+            $countQuery = clone $query;
+
+            // Use paginate instead of get
+            $paginated_notifications = $query->orderBy('id', 'desc')
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            // Process the paginated results
+            $all_notifications = $paginated_notifications->getCollection()
                 ->map(function ($notification) use ($userId) {
-                    // Transform the seen field to boolean for current user
                     $seenArray = is_array($notification->seen) ? $notification->seen : [];
                     $notification->seen_for_current_user = in_array($userId, $seenArray);
                     return $notification;
                 });
 
-            // Count notifications not seen by current user
-            $new_notifications_count = $all_notifications->filter(function ($notification) {
-                return !$notification->seen_for_current_user;
+            // Count unseen notifications efficiently (only select id and seen)
+            $unseenNotifications = $countQuery->select('id', 'seen')->get();
+            $new_notifications_count = $unseenNotifications->filter(function ($notification) use ($userId) {
+                $seenArray = is_array($notification->seen) ? $notification->seen : [];
+                return !in_array($userId, $seenArray);
             })->count();
 
-
         } else {
-            $all_notifications = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
+            $query = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                 ->where('projet_id', $projet_id)
                 ->where(function($q) {
                     $q->where('user_id', Auth::guard('api')->user()->id);
-                     // Ajouter ADMIN_COMMERCIAL seulement si l'utilisateur est Commercial
                     if (RoleHelper::Com()) {
                         $q->orWhere('role', RoleEnum::ADMIN_COMMERCIAL->value);
                     }
                 })
                 ->withTrashed()
-                ->whereDate('date', '<=', Carbon::now())
-                ->orderBy('date', 'desc')
-                ->get()
+                ->whereDate('date', '<=', Carbon::now());
+
+            // Clone query for counting unseen notifications
+            $countQuery = clone $query;
+
+            $paginated_notifications = $query->orderBy('date', 'desc')
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            $all_notifications = $paginated_notifications->getCollection()
                 ->map(function ($notification) use ($userId) {
-                    // Transform the seen field to boolean for current user
                     $seenArray = is_array($notification->seen) ? $notification->seen : [];
                     $notification->seen_for_current_user = in_array($userId, $seenArray);
                     return $notification;
                 });
 
-            $new_notifications_count = $all_notifications->filter(function ($notification) {
-                return !$notification->seen_for_current_user;
+            // Count unseen notifications efficiently
+            $unseenNotifications = $countQuery->select('id', 'seen')->get();
+            $new_notifications_count = $unseenNotifications->filter(function ($notification) use ($userId) {
+                $seenArray = is_array($notification->seen) ? $notification->seen : [];
+                return !in_array($userId, $seenArray);
             })->count();
         }
 
         return response()->json([
-            'all_notifications' => $all_notifications,
-            'new_notifications_count' => $new_notifications_count
+            'success' => true,
+            'data' => [
+                'notifications' => $all_notifications,
+                'new_notifications_count' => $new_notifications_count,
+                'pagination' => [
+                    'current_page' => $paginated_notifications->currentPage(),
+                    'last_page' => $paginated_notifications->lastPage(),
+                    'per_page' => $paginated_notifications->perPage(),
+                    'total' => $paginated_notifications->total(),
+                    'from' => $paginated_notifications->firstItem(),
+                    'to' => $paginated_notifications->lastItem(),
+                ]
+            ]
         ]);
     } else {
         return response()->json(['error' => 'Unauthorized'], 401);
