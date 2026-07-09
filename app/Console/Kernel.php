@@ -36,6 +36,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:clear-webhook_events-table')->sundays()->at('07:00'); // Runs every Sunday at midnight
         $schedule->command('delete_creneau_propose')->everyThreeMinutes();//3min
         $schedule->command('annuler_rdv_automatique')->everyFifteenMinutes();//15min
+
       /*$schedule->command('whatsapp:send-bulk')
         ->everyMinute()
         ->withoutOverlapping()

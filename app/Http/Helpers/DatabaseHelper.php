@@ -410,32 +410,55 @@ public function runSeeders($connection)
         }
     }
 
-    public static function destroy_notif($databases)
-    {
-        foreach ($databases as $database) {
-            //$databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
-                $databaseName =  env('DB_DATABASE');
-            // Switch to the temporary database
-            $connection = DatabaseHelper::Connection_database($databaseName);
-            config(['database.connections.temp' => $connection]);
-            DB::connection('temp')->setDatabaseName($connection['database']);
-            DB::reconnect('temp');
+   public static function destroy_notif($databases)
+{
+    foreach ($databases as $database) {
+        $databaseName = env('DB_DATABASE');
 
-            //
-            if (Schema::connection('temp')->hasTable('notifications')) {
-                $date_15 = \Carbon\Carbon::today()->subDays(15);
-                $Notifiations = Notification::on('temp')
-                    ->whereDate('created_at', '<=', $date_15)
-                    ->onlyTrashed()
-                    ->get();
-                if (($Notifiations->count()) > 0) {
-                    foreach ($Notifiations as $nt) {
-                        $nt->forceDelete();
-                    }
+        // Switch to the temporary database
+        $connection = DatabaseHelper::Connection_database($databaseName);
+        config(['database.connections.temp' => $connection]);
+        DB::connection('temp')->setDatabaseName($connection['database']);
+        DB::reconnect('temp');
+
+        if (Schema::connection('temp')->hasTable('notifications')) {
+            // Option 1: Delete softly deleted notifications older than 15 days
+            $date_15 = \Carbon\Carbon::today()->subDays(15);
+
+            // Option 2: Delete all notifications older than current month
+            $currentMonthStart = \Carbon\Carbon::now()->startOfMonth();
+
+            // Delete notifications that are:
+            // 1. Already soft-deleted (deleted_at is not null) AND older than 15 days
+            // 2. OR created before current month (even if not deleted)
+            $notifications = Notification::on('temp')
+                ->where(function($query) use ($date_15, $currentMonthStart) {
+                    $query->where(function($q) use ($date_15) {
+                        // Soft deleted and older than 15 days
+                        $q->whereNotNull('deleted_at')
+                          ->where('deleted_at', '<=', $date_15);
+                    })->orWhere(function($q) use ($currentMonthStart) {
+                        // Created before current month (regardless of deleted status)
+                        $q->where('created_at', '<', $currentMonthStart);
+                    });
+                })
+                ->get();
+
+            $count = $notifications->count();
+
+            if ($count > 0) {
+                foreach ($notifications as $nt) {
+                    $nt->forceDelete();
                 }
+
+                \Log::info('Deleted ' . $count . ' old notifications from database: ' . $databaseName);
+                echo "Deleted $count notifications from $databaseName\n";
+            } else {
+                echo "No notifications to delete from $databaseName\n";
             }
         }
     }
+}
 
 
 
