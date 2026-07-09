@@ -28,7 +28,7 @@ class DestroyNotif extends Command
      *
      * @var string
      */
-    protected $description = 'Commande pour supprimer notification >15j';
+    protected $description = 'Commande pour supprimer notification >30j';
 
     /**
      * Execute the console command.

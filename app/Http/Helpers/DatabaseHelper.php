@@ -410,52 +410,27 @@ public function runSeeders($connection)
         }
     }
 
-   public static function destroy_notif($databases)
+public static function destroy_notif($databases)
 {
     foreach ($databases as $database) {
         $databaseName = env('DB_DATABASE');
 
-        // Switch to the temporary database
         $connection = DatabaseHelper::Connection_database($databaseName);
         config(['database.connections.temp' => $connection]);
         DB::connection('temp')->setDatabaseName($connection['database']);
         DB::reconnect('temp');
 
         if (Schema::connection('temp')->hasTable('notifications')) {
-            // Option 1: Delete softly deleted notifications older than 15 days
-            $date_15 = \Carbon\Carbon::today()->subDays(15);
+            // Get first day of current month
+            $currentMonthStart = \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d');
 
-            // Option 2: Delete all notifications older than current month
-            $currentMonthStart = \Carbon\Carbon::now()->startOfMonth();
+            // Delete ALL notifications from previous months (regardless of soft-delete status)
+            $deletedCount = Notification::on('temp')
+                ->whereRaw('DATE(date) < ?', [$currentMonthStart])
+                ->forceDelete();
 
-            // Delete notifications that are:
-            // 1. Already soft-deleted (deleted_at is not null) AND older than 15 days
-            // 2. OR created before current month (even if not deleted)
-            $notifications = Notification::on('temp')
-                ->where(function($query) use ($date_15, $currentMonthStart) {
-                    $query->where(function($q) use ($date_15) {
-                        // Soft deleted and older than 15 days
-                        $q->whereNotNull('deleted_at')
-                          ->where('deleted_at', '<=', $date_15);
-                    })->orWhere(function($q) use ($currentMonthStart) {
-                        // Created before current month (regardless of deleted status)
-                        $q->where('date', '<', $currentMonthStart);
-                    });
-                })
-                ->get();
-
-            $count = $notifications->count();
-
-            if ($count > 0) {
-                foreach ($notifications as $nt) {
-                    $nt->forceDelete();
-                }
-
-                \Log::info('Deleted ' . $count . ' old notifications from database: ' . $databaseName);
-                echo "Deleted $count notifications from $databaseName\n";
-            } else {
-                echo "No notifications to delete from $databaseName\n";
-            }
+            \Log::info('Deleted ' . $deletedCount . ' old notifications from database: ' . $databaseName);
+            echo "Deleted $deletedCount notifications from $databaseName\n";
         }
     }
 }
@@ -2141,61 +2116,75 @@ $databaseName =  env('DB_DATABASE');
             }
         }
 
-        public static function liberer_bien_pre_reserve($databases)
-        {
-            Config::set('broadcasting.default', 'pusher_notify');
+       public static function liberer_bien_pre_reserve($databases)
+{
+    Config::set('broadcasting.default', 'pusher_notify');
 
-            foreach ($databases as $database) {
-               // $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
-$databaseName =  env('DB_DATABASE');
-                // Switch to the temporary database
-                $connection = DatabaseHelper::Connection_database($databaseName);
-                config(['database.connections.temp' => $connection]);
-                DB::connection('temp')->setDatabaseName($connection['database']);
-                DB::reconnect('temp');
+    foreach ($databases as $database) {
+        // $databaseName = 'Erp_' . $database->raison_sociale_concatene . '_' . $database->id;
+        $databaseName = env('DB_DATABASE');
 
-                //
-                if (Schema::connection('temp')->hasTable('biens')) {
-                    $cur_date = Carbon::now();
-                    $biens = Bien::on('temp')->where('etat', 'PRE_RESERVATION')->get();
-                    foreach ($biens as $bien) {
-                        if ($bien->last_pre_reservation != null) {
-                            $diff_in_days = Carbon::parse($bien->last_pre_reservation->date_pre_reserve)->diffInDays($cur_date);
-                            if ($diff_in_days >= $bien->projet->limite_annulation_reservation + $bien->projet->prolongation_reservation) {
-                                //if diff>=3 libere bien
-                                Bien_Helper::libererBien($bien->id, 'console', null,false);
-                            } else if ($diff_in_days == $bien->projet->limite_annulation_reservation) {
+        // Switch to the temporary database
+        $connection = DatabaseHelper::Connection_database($databaseName);
+        config(['database.connections.temp' => $connection]);
+        DB::connection('temp')->setDatabaseName($connection['database']);
+        DB::reconnect('temp');
 
-                                //if diff==2 notif to commercial
-                                if ($bien->last_pre_reservation->visite_id != null) {
-                                    $data_notif = [
-                                        'lien' => '/visites/show/' . $bien->last_pre_reservation->visite->origin_id,
-                                        'date' => Carbon::now(),
-                                        'type' => 4,
-                                        'description' => 'Régler situation du bien pre reservé',
-                                        'user_id' => $bien->last_pre_reservation->visite->user->user_id_origin,
-                                        'visite_id' => $bien->last_pre_reservation->visite->id,
-                                        'prospect_id' => $bien->last_pre_reservation->visite->prospect_id,
-                                        'projet_id' => $bien->last_pre_reservation->visite->projet_id,
+        if (Schema::connection('temp')->hasTable('biens')) {
+            $cur_date = Carbon::now();
+            $biens = Bien::on('temp')->where('etat', 'PRE_RESERVATION')->get();
 
-                                    ];
-                                    $notif_helper = new NotificationHelper();
-                                    $req=new \Illuminate\Http\Request();
-                                    $notif_helper->storeNotification($req->merge($data_notif));
+            foreach ($biens as $bien) {
+                if ($bien->last_pre_reservation != null) {
+                    $diff_in_days = Carbon::parse($bien->last_pre_reservation->date_pre_reserve)->diffInDays($cur_date);
 
-                                }
-                                /* else{
-                            //appel_id!=null notification au detail appel ==>pas ecnours
+                    if ($diff_in_days >= $bien->projet->limite_annulation_reservation + $bien->projet->prolongation_reservation) {
+                        // Liberer le bien
+                        Bien_Helper::libererBien($bien->id, 'console', null, false);
+                    } else if ($diff_in_days == $bien->projet->limite_annulation_reservation) {
 
-                            }*/
+                        if ($bien->last_pre_reservation->visite_id != null) {
+                            $visite = $bien->last_pre_reservation->visite;
+                            $user_id = $visite->user->user_id_origin;
 
+                            // VÉRIFICATION: Est-ce qu'une notification existe déjà aujourd'hui pour ce bien et ce user ?
+                            $existingNotification = Notification::on('temp')
+                                ->where('type', 4)
+                                ->where('user_id', $user_id)
+                                ->where('visite_id', $visite->id)
+                                ->where('bien_id', $bien->id)
+                                ->whereDate('created_at', Carbon::today())
+                                ->first();
+
+                            // Si la notification n'existe pas encore aujourd'hui, on la crée
+                            if (!$existingNotification) {
+                                $data_notif = [
+                                    'lien' => '/visites/show/' . $visite->origin_id,
+                                    'date' => Carbon::now(),
+                                    'type' => 4,
+                                    'description' => 'Régler situation du bien pre reservé',
+                                    'user_id' => $user_id,
+                                    'visite_id' => $visite->id,
+                                    'prospect_id' => $visite->prospect_id,
+                                    'projet_id' => $visite->projet_id,
+                                    'bien_id' => $bien->id,
+                                ];
+
+                                $notif_helper = new NotificationHelper();
+                                $req = new \Illuminate\Http\Request();
+                                $notif_helper->storeNotification($req->merge($data_notif));
+
+                                \Log::info('Notification créée pour le bien ID: ' . $bien->id . ', Visite ID: ' . $visite->id);
+                            } else {
+                                \Log::info('Notification déjà existante pour le bien ID: ' . $bien->id . ', Visite ID: ' . $visite->id . ' - Ignorée');
                             }
                         }
                     }
                 }
             }
         }
-
+    }
+}
         public static function Deletedatabase($databases)
         {
             foreach ($databases as $database) {

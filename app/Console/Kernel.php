@@ -18,11 +18,11 @@ class Kernel extends ConsoleKernel
             ->everyTenMinutes()
             ->withoutOverlapping(300)
             ->runInBackground();
-        $schedule->command('app:liberer_bien_pre_reserve')
-            ->everyMinute()
+        $schedule->command('app:liberer_bien_pre_reserve')->dailyAt('00:00');
+           /* ->everyMinute()
             ->withoutOverlapping(300)
-            ->runInBackground();
-        $schedule->command('php artisan app:destroy_notif')->dailyAt('00:00');
+            ->runInBackground();*/
+        $schedule->command('app:destroy_notif')->dailyAt('00:00');
         $schedule->command('app:send_scheduled_emails_whatsapp')->dailyAt('08:40'); // Exécute tous les jours à minuit
         $schedule->command('app:send_email_whatsapp_echeance')->dailyAt('08:40'); // Exécute tous les jours à minuit
         $schedule->command('app:import_fichiers')
