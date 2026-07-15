@@ -50,13 +50,6 @@ private function getAccessTokenForPage($pageId)
             }
         }
 
-        // Fallback: utiliser le token du .env
-        $fallbackToken = env('FACEBOOK_PAGE_ACCESS_TOKEN');
-        if ($fallbackToken) {
-            Log::warning('⚠️ Using fallback token from .env for page: ' . $pageId);
-            return $fallbackToken;
-        }
-
         Log::error('❌ No access token found for page: ' . $pageId);
         return null;
 
@@ -68,20 +61,117 @@ private function getAccessTokenForPage($pageId)
     /**
      * Vérification du webhook (GET)
      */
-    public function verify(Request $request)
-    {
-        $verify_token = env('FACEBOOK_VERIFY_TOKEN');
-        $hub_challenge = $request->input('hub_challenge');
-        $hub_verify_token = $request->input('hub_verify_token');
+    /**
+ * Vérification du webhook (GET)
+ */
+public function verify(Request $request)
+{
+    $hub_challenge = $request->input('hub_challenge');
+    $hub_verify_token = $request->input('hub_verify_token');
 
-        if ($hub_verify_token === $verify_token) {
+    // ✅ Get the page ID from the request (if provided)
+    $pageId = $request->input('page_id') ?? $request->input('id') ?? null;
+
+    Log::info('=========================================');
+    Log::info('🔍 FACEBOOK WEBHOOK VERIFICATION');
+    Log::info('=========================================');
+    Log::info('📥 Request received:', [
+        'method' => $request->method(),
+        'url' => $request->fullUrl(),
+        'query' => $request->all(),
+        'page_id' => $pageId
+    ]);
+
+    try {
+        // ✅ Configure temp connection
+        $this->configureTempConnection();
+
+        // ✅ Get the verify token from database
+        $verify_token = $this->getVerifyTokenFromConfig($pageId);
+
+        Log::info('🔑 Token from config: ' . ($verify_token ? 'Found' : 'Not found'));
+        Log::info('🔑 Received token: ' . $hub_verify_token);
+
+        if ($verify_token && $hub_verify_token === $verify_token) {
             Log::info('✅ Webhook verify success');
+            Log::info('=========================================');
             return response($hub_challenge, 200)->header('Content-Type', 'text/plain');
         }
 
         Log::warning('❌ Webhook verify failed');
+        Log::info('=========================================');
         return response('Invalid verification token', 403);
+
+    } catch (\Exception $e) {
+        Log::error('❌ Error during webhook verification: ' . $e->getMessage());
+        Log::error('Trace: ' . $e->getTraceAsString());
+        return response('Verification error', 500);
     }
+}
+
+/**
+ * ✅ Get the verify token from Facebook configuration
+ */
+private function getVerifyTokenFromConfig($pageId = null)
+{
+    try {
+        $this->configureTempConnection();
+
+        // ✅ Check if table exists
+        if (!Schema::connection('temp')->hasTable('facebook_configurations')) {
+            Log::warning('⚠️ Table facebook_configurations not found');
+            return null;
+        }
+
+        $query = DB::connection('temp')
+            ->table('facebook_configurations')
+            ->whereNull('deleted_at');
+
+        // ✅ If page ID is provided, try to get specific config
+        if ($pageId) {
+            $query->where('page_fcb_id', $pageId);
+        }
+
+        $config = $query->first();
+
+        if ($config) {
+            Log::info('✅ Found configuration', [
+                'page_fcb_id' => $config->page_fcb_id ?? 'N/A',
+                'has_webhook_verify_token' => !empty($config->webhook_verify_token)
+            ]);
+
+            // ✅ Return the webhook_verify_token from the config
+            if (!empty($config->webhook_verify_token)) {
+                return $config->webhook_verify_token;
+            }
+
+            // ✅ Fallback: check if there's a general verify token column
+            if (!empty($config->verify_token)) {
+                return $config->verify_token;
+            }
+        }
+
+        // ✅ If no config found for specific page, get any active config
+        if (!$config && !$pageId) {
+            $anyConfig = DB::connection('temp')
+                ->table('facebook_configurations')
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($anyConfig && !empty($anyConfig->webhook_verify_token)) {
+                Log::info('✅ Using any configuration token');
+                return $anyConfig->webhook_verify_token;
+            }
+        }
+
+        Log::warning('⚠️ No verify token found in database configuration');
+        return null;
+
+    } catch (\Exception $e) {
+        Log::error('Error getting verify token from config: ' . $e->getMessage());
+        return null;
+    }
+}
 
     /**
      * Traitement des données du webhook (POST)
