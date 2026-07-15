@@ -25,8 +25,8 @@ return new class extends Migration
             $table->text('message');
 
             // File attachment (single file)
-            $table->string('file')->nullable()->comment('Attached file name');
-
+            $table->string('media_url')->nullable()->after('file');
+            $table->string('template_sid')->nullable();
             // Scheduling
             $table->timestamp('scheduled_date')->nullable()->comment('Date scheduled for sending');
             $table->timestamp('sent_date')->nullable()->comment('Actual date when message was sent');

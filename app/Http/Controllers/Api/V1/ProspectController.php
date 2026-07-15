@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\File;
 use App\Models\StatutClient;
 use App\Models\Import;
 use App\Http\Helpers\FichierHelper;  // AJOUTER CETTE LIGNE
+use Illuminate\Support\Str;
 
 use App\Models\TraitementAppel;
 
@@ -43,6 +44,64 @@ class ProspectController extends Controller
     /**
      * Display a listing of the resource.
      */
+
+
+    public function uploadMedia_bulk_whatsap(Request $request)
+    {
+        if (!RoleHelper::ACSup() && !RoleHelper::AgentAdmin()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        DatabaseHelper::Config();
+
+        // Get the society information (like in update societe)
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        $user_societes = User::where('id', $userAuth->value('user_id_origin'))->first();
+        $societe = Societe::findOrfail($user_societes->societe_id);
+
+        $request->validate([
+                'media' => 'required|file|max:10240'
+        ]);
+
+        if ($request->hasFile('media')) {
+            $file = $request->file('media');
+
+            // Generate filename like in societe update
+
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            $doss = 'bulk_whatsap_file';
+
+            // Get file info BEFORE using FichierHelper
+            $fileType = Str::startsWith($file->getMimeType(), 'image/') ? 'image' : 'video';
+            $mimeType = $file->getMimeType();
+            $originalName = $file->getClientOriginalName();
+
+            // Use FichierHelper exactly like in societe update (this stores in docs folder)
+            FichierHelper::ajouter_fichier(
+                $file,
+                $societe->raison_sociale_concatene,
+                $societe->id,
+                $doss,
+                $fileName
+            );
+            // Generate URL using FichierHelper
+            $mediaUrl = FichierHelper::get_file_url(
+                $societe->raison_sociale_concatene,
+                $societe->id,
+                $doss,
+                $fileName
+            );
+
+            return response()->json([
+                'message' => 'Media uploaded successfully',
+                'url'     => $mediaUrl,
+            ], 201);
+        }
+
+        return response()->json(['error' => 'No file uploaded'], 400);
+    }
+
 
 public function getNbProspectRdv(Request $request, $projet_id)
 {
@@ -1423,7 +1482,7 @@ public function indexByProjet(Request $request, $projet_id)
                         ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
                 }])
                 ->where($param_1, $value)
-                ->where('projet_id', $projet_id)
+                //->where('projet_id', $projet_id)
                 ->get()->first();
 
             } else {
@@ -1433,7 +1492,7 @@ public function indexByProjet(Request $request, $projet_id)
                         $query->where('telephone', $value)
                             ->orwhere('telephone_num2', $value);
                     })
-                    ->where('projet_id', $projet_id)
+                  //  ->where('projet_id', $projet_id)
                     ->get()->first();
 
                 // Get client with reservations having pending payments
@@ -1448,7 +1507,7 @@ public function indexByProjet(Request $request, $projet_id)
                     $query->where('telephone_num1', $value)
                         ->orwhere('telephone_num2', $value);
                 })
-                ->where('projet_id', $projet_id)
+                //->where('projet_id', $projet_id)
                 ->get()->first();
             }
 
@@ -1874,92 +1933,120 @@ public function indexByProjet(Request $request, $projet_id)
     }
     // Controller method
 
-    public function bulkWhatsApp(Request $request)
+ public function bulkWhatsApp(Request $request)
 {
-    $request->validate([
-        'prospect_ids' => 'required|array',
-        'prospect_ids.*' => 'exists:prospects,id',
-        'message' => 'required|string',
-        'scheduled_date' => 'nullable|date',
-        'projet_id' => 'required|exists:projets,id',
-        'file' => 'nullable|file|max:10240', // Max 10MB
-    ]);
+    try {
+        // Validate request
+        $request->validate([
+            'prospect_ids' => 'required|array',
+            'prospect_ids.*' => 'exists:prospects,id',
+            'message' => 'required|string',
+            'scheduled_date' => 'nullable|date',
+            'projet_id' => 'required|exists:projets,id',
+            'media_url' => 'nullable|string', // ✅ Allow string to handle encoded URLs
+        ]);
 
-    // Get prospects with phone numbers
-    $prospects = Prospect::whereIn('id', $request->prospect_ids)
-        ->whereNotNull('telephone')
-        ->get();
+        // Get prospects with phone numbers
+        $prospects = Prospect::whereIn('id', $request->prospect_ids)
+            ->whereNotNull('telephone')
+            ->get();
 
-    if ($prospects->isEmpty()) {
+        if ($prospects->isEmpty()) {
+            return response()->json([
+                'error' => 'Aucun prospect valide avec numéro de téléphone'
+            ], 400);
+        }
+
+        $scheduledDate = $request->scheduled_date ? Carbon::parse($request->scheduled_date) : null;
+
+        // Get the projet for file upload
+        $projet = Projet::find($request->projet_id);
+
+        // ✅ Sanitize media_url if provided
+        $mediaUrl = null;
+        if ($request->filled('media_url')) {
+            // Clean the URL - replace spaces and encode special characters
+            $mediaUrl = $this->sanitizeUrl($request->media_url);
+        }
+
+        // Create the record in historique_relances_whatsapp table
+        $record = HistoriqueRelanceWhatsapp::create([
+            'projet_id' => $request->projet_id,
+            'user_id' => auth()->id(),
+            'prospect_ids' => $request->prospect_ids,
+            'message' => $request->message,
+            'media_url' => $mediaUrl,
+            'scheduled_date' => $scheduledDate,
+            'status' => 'pending',
+            'metadata' => [
+                'total_prospects' => $prospects->count(),
+                'phones' => $prospects->pluck('telephone')->toArray(),
+                'prospect_names' => $prospects->map(function($p) {
+                    return trim(($p->prenom ?? '') . ' ' . ($p->nom ?? ''));
+                })->toArray(),
+                'media_url' => $mediaUrl,
+            ],
+        ]);
+
         return response()->json([
-            'error' => 'Aucun prospect valide avec numéro de téléphone'
-        ], 400);
+            'message' => "Messages WhatsApp programmés avec succès",
+            'total' => $prospects->count(),
+            'scheduled_date' => $scheduledDate,
+            'media_url' => $mediaUrl,
+            'record_id' => $record->id,
+        ], 200);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'message' => 'Erreur de validation',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        \Log::error('Bulk WhatsApp error: ' . $e->getMessage(), [
+            'trace' => $e->getTraceAsString(),
+            'request' => $request->all()
+        ]);
+
+        return response()->json([
+            'message' => 'Une erreur est survenue lors de la programmation des messages',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+/**
+ * Sanitize URL - replace spaces and encode special characters
+ */
+private function sanitizeUrl($url)
+{
+    if (empty($url)) {
+        return null;
     }
 
-    $scheduledDate = $request->scheduled_date ? Carbon::parse($request->scheduled_date) : null;
+    // Remove any leading/trailing whitespace
+    $url = trim($url);
 
-    // Get the projet for file upload
-    $projet = Projet::find($request->projet_id);
-    $fileName = null;
+    // Replace spaces with %20
+    $url = str_replace(' ', '%20', $url);
 
-    // Handle file upload
-    if ($request->hasFile('file')) {
-        $file = $request->file('file');
+    // Encode special characters in the path
+    $parts = parse_url($url);
 
-        // Get original file name without extension
-        $clientOriginName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+    if ($parts !== false) {
+        $scheme = isset($parts['scheme']) ? $parts['scheme'] . '://' : '';
+        $host = $parts['host'] ?? '';
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $path = isset($parts['path']) ? implode('/', array_map('rawurlencode', explode('/', $parts['path']))) : '';
+        $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+        $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
 
-        // Sanitize the name (remove special characters)
-        $sanitized_name = preg_replace('/[^A-Za-z0-9_\-]/', '_', $clientOriginName);
+        $sanitizedUrl = $scheme . $host . $port . $path . $query . $fragment;
 
-        // Get current date for the filename
-        $date = date("Y-m-d_H-i-s");
-
-        // Build the full filename: original_name_date.extension
-        $filename = $sanitized_name . '_' . $date;
-        $extension = $file->getClientOriginalExtension();
-        $fullFilename = $filename . '.' . $extension;
-
-        // Upload the file using your FichierHelper
-        FichierHelper::ajouter_fichier(
-            $file,
-            $projet->nom ?? 'projet_' . $request->projet_id,
-            $request->projet_id,
-            'relance_whatsapp_message',
-            $fullFilename
-        );
-
-        $fileName = $fullFilename;
+        return $sanitizedUrl;
     }
 
-    // Create the record in historique_relances_whatsapp table
-    $record = HistoriqueRelanceWhatsapp::create([
-        'projet_id' => $request->projet_id,
-        'user_id' => auth()->id(),
-        'prospect_ids' => $request->prospect_ids,
-        'message' => $request->message,
-        'file' => $fileName,
-        'scheduled_date' => $scheduledDate,
-        'status' => 'pending',
-        'metadata' => [
-            'total_prospects' => $prospects->count(),
-            'phones' => $prospects->pluck('telephone')->toArray(),
-            'prospect_names' => $prospects->map(function($p) {
-                return trim(($p->prenom ?? '') . ' ' . ($p->nom ?? ''));
-            })->toArray(),
-            'file_original_name' => $request->hasFile('file') ? $request->file('file')->getClientOriginalName() : null,
-            'file_size' => $request->hasFile('file') ? $request->file('file')->getSize() : null,
-            'file_mime_type' => $request->hasFile('file') ? $request->file('file')->getMimeType() : null,
-        ],
-    ]);
-
-    return response()->json([
-        'message' => "Messages WhatsApp programmés avec succès", // ✅ Added comma here
-        'total' => $prospects->count(),
-        'scheduled_date' => $scheduledDate,
-        'file' => $fileName,
-        'record_id' => $record->id,
-    ], 200);
+    // Fallback: just replace spaces and encode
+    return str_replace(' ', '%20', $url);
 }
 
 

@@ -8,6 +8,7 @@ enum TypeNotificationEnum:int
    case Appel=2;
    case Email=3;
    case FacebookReaction=98;
+   case FacebookLead=99;
    case InstagramComment=97;
    case FacebookPublication=96;
    case InstagramReaction=95;

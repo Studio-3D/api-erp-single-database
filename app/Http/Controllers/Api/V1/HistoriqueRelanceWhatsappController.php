@@ -21,31 +21,24 @@ class HistoriqueRelanceWhatsappController extends Controller
     /**
      * Display a listing of the resource.
      */
- public function index(Request $request, $projetId)
+
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Request $request, $id)
     {
         if (!Auth::guard('api')->check()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        // Check if user has access
         if (!RoleHelper::ACSup_RC()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         DatabaseHelper::Config();
 
-        $size = $request->input('size', config('app.default_item_number_perpage'));
-        $page = $request->input('page', 1);
-        $search = $request->input('search', '');
-
-        // ✅ FIX: Get projet_id from request
-
-        // If no projet_id provided, return error
-        if (!$projetId) {
-            return response()->json(['error' => 'projet_id is required'], 422);
-        }
-
-        $query = HistoriqueRelanceWhatsapp::on('temp')
+        $historique = HistoriqueRelanceWhatsapp::on('temp')
             ->with([
                 'user' => function($query) {
                     $query->select('id', 'name', 'prenom', 'user_id_origin')
@@ -55,82 +48,100 @@ class HistoriqueRelanceWhatsappController extends Controller
                     $query->select('id', 'nom');
                 }
             ])
-            ->where('projet_id', $projetId);
+            ->findOrFail($id);
 
-        // Apply filters
-        if ($request->filled('date')) {
-            $date = Carbon::parse($request->input('date'))->format('Y-m-d');
-            $query->whereDate('created_at', $date);
+        // Get prospects details with pagination
+        $prospectIds = $historique->prospect_ids ?? [];
+        $prospects = [];
+        $pagination = null;
+
+        if (!empty($prospectIds)) {
+            $prospectIdsArray = is_string($prospectIds) ? json_decode($prospectIds, true) : $prospectIds;
+
+            if (is_array($prospectIdsArray) && !empty($prospectIdsArray)) {
+                // Pagination parameters
+                $size = $request->input('size', 10); // Default 10 per page
+                $page = $request->input('page', 1);
+
+                // Build the query
+                $query = Prospect::on('temp')
+                    ->whereIn('id', $prospectIdsArray)
+                    ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'email', 'source', 'commercial_affecte');
+
+                // Get total count for pagination
+                $total = $query->count();
+
+                // Apply pagination
+                $prospects = $query->skip(($page - 1) * $size)
+                    ->take($size)
+                    ->get();
+
+                // Build pagination data
+                $pagination = [
+                    'currentPage' => (int)$page,
+                    'totalItems' => $total,
+                    'totalPages' => ceil($total / $size),
+                    'perPage' => (int)$size,
+                ];
+            }
         }
 
-        if ($request->filled('scheduled_date')) {
-            $date = Carbon::parse($request->input('scheduled_date'))->format('Y-m-d');
-            $query->whereDate('scheduled_date', $date);
+        // Parse statistics
+        $statistics = $historique->statistics ?? [];
+        if (is_string($statistics)) {
+            $statistics = json_decode($statistics, true);
         }
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+        // Parse metadata
+        $metadata = $historique->metadata ?? [];
+        if (is_string($metadata)) {
+            $metadata = json_decode($metadata, true);
         }
 
-        if ($request->filled('user_id')) {
-            $query->where('user_id', $request->input('user_id'));
+        // Parse response
+        $response = $historique->response ?? [];
+        if (is_string($response)) {
+            $response = json_decode($response, true);
         }
 
-        // Search
-        if (!empty($search)) {
-            $query->where(function($q) use ($search) {
-                $q->where('message', 'like', '%' . $search . '%')
-                    ->orWhere('file', 'like', '%' . $search . '%')
-                    ->orWhere('prospect_ids', 'like', '%' . $search . '%');
-            });
-        }
-
-        // Pagination
-        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-            $historiques = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
-
-            $pagination = [
-                'currentPage' => $historiques->currentPage(),
-                'totalItems'  => $historiques->total(),
-                'totalPages'  => $historiques->lastPage(),
-            ];
-
-            $historiques = $historiques->items();
-
-            // Format data for response
-            $formattedHistoriques = $this->formatHistoriques($historiques);
-
-            return response()->json([
-                'data'       => $formattedHistoriques,
-                'pagination' => $pagination,
-            ], 200);
-        } else {
-            $historiques = $query->orderBy('created_at', 'desc')
-                ->get();
-
-            $formattedHistoriques = $this->formatHistoriques($historiques);
-
-            return response()->json(['data' => $formattedHistoriques], 200);
-        }
+        return response()->json([
+            'historique' => $historique,
+            'prospects' => $prospects,
+            'pagination' => $pagination,
+            'statistics' => $statistics,
+            'metadata' => $metadata,
+            'response_details' => $response,
+        ], 200);
     }
 
     /**
-     * Display the specified resource.
+     * Format historiques data
      */
- public function show(Request $request, $id)
+
+
+public function index(Request $request, $projetId)
 {
     if (!Auth::guard('api')->check()) {
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    // Check if user has access
     if (!RoleHelper::ACSup_RC()) {
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
     DatabaseHelper::Config();
 
-    $historique = HistoriqueRelanceWhatsapp::on('temp')
+    $size = $request->input('size', config('app.default_item_number_perpage'));
+    $page = $request->input('page', 1);
+    $search = $request->input('search', '');
+
+    // If no projet_id provided, return error
+    if (!$projetId) {
+        return response()->json(['error' => 'projet_id is required'], 422);
+    }
+
+    $query = HistoriqueRelanceWhatsapp::on('temp')
         ->with([
             'user' => function($query) {
                 $query->select('id', 'name', 'prenom', 'user_id_origin')
@@ -140,177 +151,208 @@ class HistoriqueRelanceWhatsappController extends Controller
                 $query->select('id', 'nom');
             }
         ])
-        ->findOrFail($id);
+        ->where('projet_id', $projetId);
 
-    // Get prospects details with pagination
-    $prospectIds = $historique->prospect_ids ?? [];
-    $prospects = [];
-    $pagination = null;
+    // ✅ Add date filter if provided
+    if ($request->filled('date')) {
+        $date = Carbon::parse($request->input('date'))->format('Y-m-d');
+        $query->whereDate('created_at', $date);
+    }
 
-    if (!empty($prospectIds)) {
-        $prospectIdsArray = is_string($prospectIds) ? json_decode($prospectIds, true) : $prospectIds;
+    // ✅ FIX: scheduled_date filtering with proper timezone handling
+    if ($request->filled('scheduled_date')) {
+        $scheduledDate = $request->input('scheduled_date');
+        \Log::info('Filtering by scheduled_date:', ['date' => $scheduledDate]);
 
-        if (is_array($prospectIdsArray) && !empty($prospectIdsArray)) {
-            // Pagination parameters
-            $size = $request->input('size', 10); // Default 10 per page
-            $page = $request->input('page', 1);
+        try {
+            // Parse the date
+            $date = Carbon::parse($scheduledDate);
 
-            // Build the query
-            $query = Prospect::on('temp')
-                ->whereIn('id', $prospectIdsArray)
-                ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'email', 'source', 'commercial_affecte');
+            // Get start and end of day in the same timezone as your database
+            // If your database uses UTC
+            $startOfDay = $date->copy()->startOfDay()->setTimezone('UTC');
+            $endOfDay = $date->copy()->endOfDay()->setTimezone('UTC');
 
-            // Get total count for pagination
-            $total = $query->count();
+            // If your database uses Africa/Casablanca
+            // $startOfDay = $date->copy()->startOfDay()->setTimezone('Africa/Casablanca');
+            // $endOfDay = $date->copy()->endOfDay()->setTimezone('Africa/Casablanca');
 
-            // Apply pagination
-            $prospects = $query->skip(($page - 1) * $size)
-                ->take($size)
-                ->get();
+            \Log::info('Date range:', [
+                'start' => $startOfDay->toDateTimeString(),
+                'end' => $endOfDay->toDateTimeString()
+            ]);
 
-            // Build pagination data
-            $pagination = [
-                'currentPage' => (int)$page,
-                'totalItems' => $total,
-                'totalPages' => ceil($total / $size),
-                'perPage' => (int)$size,
-            ];
+            // Use between for accurate filtering
+            $query->whereBetween('scheduled_date', [
+                $startOfDay->toDateTimeString(),
+                $endOfDay->toDateTimeString()
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error parsing scheduled_date:', ['error' => $e->getMessage()]);
+            // Fallback: try to filter by date only
+            $query->whereDate('scheduled_date', $scheduledDate);
         }
     }
 
-    // Parse statistics
-    $statistics = $historique->statistics ?? [];
-    if (is_string($statistics)) {
-        $statistics = json_decode($statistics, true);
+    if ($request->filled('status')) {
+        $query->where('status', $request->input('status'));
     }
 
-    // Parse metadata
-    $metadata = $historique->metadata ?? [];
-    if (is_string($metadata)) {
-        $metadata = json_decode($metadata, true);
+    // ✅ Add search filter if provided
+    if (!empty($search)) {
+        $query->where(function($q) use ($search) {
+            $q->where('message', 'LIKE', "%{$search}%")
+              ->orWhere('media_url', 'LIKE', "%{$search}%");
+        });
     }
 
-    // Parse response
-    $response = $historique->response ?? [];
-    if (is_string($response)) {
-        $response = json_decode($response, true);
-    }
+    // Log the final query for debugging
+    \Log::info('Final SQL query:', ['sql' => $query->toSql(), 'bindings' => $query->getBindings()]);
 
-    return response()->json([
-        'historique' => $historique,
-        'prospects' => $prospects,
-        'pagination' => $pagination, // ✅ Add pagination data
-        'statistics' => $statistics,
-        'metadata' => $metadata,
-        'response_details' => $response,
-    ], 200);
+    // Pagination
+    if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+        $historiques = $query->orderBy('created_at', 'desc')
+            ->paginate($size, ['*'], 'page', $page);
+
+        $pagination = [
+            'currentPage' => $historiques->currentPage(),
+            'totalItems'  => $historiques->total(),
+            'totalPages'  => $historiques->lastPage(),
+        ];
+
+        $historiques = $historiques->items();
+
+        // Format data for response
+        $formattedHistoriques = $this->formatHistoriques($historiques);
+
+        return response()->json([
+            'data'       => $formattedHistoriques,
+            'pagination' => $pagination,
+        ], 200);
+    } else {
+        $historiques = $query->orderBy('created_at', 'desc')
+            ->get();
+
+        $formattedHistoriques = $this->formatHistoriques($historiques);
+
+        return response()->json(['data' => $formattedHistoriques], 200);
+    }
 }
 
-    /**
-     * Format historiques data
-     */
-    private function formatHistoriques($historiques)
-    {
-        return array_map(function($item) {
-            // Parse prospect_ids
-            $prospectIds = $item->prospect_ids ?? [];
-            if (is_string($prospectIds)) {
-                $prospectIds = json_decode($prospectIds, true);
+/**
+ * Format historiques data
+ */
+private function formatHistoriques($historiques)
+{
+    return array_map(function($item) {
+        // Parse prospect_ids
+        $prospectIds = $item->prospect_ids ?? [];
+        if (is_string($prospectIds)) {
+            $prospectIds = json_decode($prospectIds, true);
+        }
+
+        // Parse statistics
+        $statistics = $item->statistics ?? [];
+        if (is_string($statistics)) {
+            $statistics = json_decode($statistics, true);
+        }
+
+        // Parse metadata
+        $metadata = $item->metadata ?? [];
+        if (is_string($metadata)) {
+            $metadata = json_decode($metadata, true);
+        }
+
+        // Parse response
+        $response = $item->response ?? [];
+        if (is_string($response)) {
+            $response = json_decode($response, true);
+        }
+
+        // Get user info
+        $userName = 'N/A';
+        if ($item->user) {
+            $userName = trim(($item->user->name ?? '') . ' ' . ($item->user->prenom ?? ''));
+            if (empty($userName)) {
+                $userName = 'User #' . $item->user_id;
             }
+        }
 
-            // Parse statistics
-            $statistics = $item->statistics ?? [];
-            if (is_string($statistics)) {
-                $statistics = json_decode($statistics, true);
-            }
+        // Get project info
+        $projectName = 'N/A';
+        if ($item->projet) {
+            $projectName = $item->projet->nom ?? 'Projet #' . $item->projet_id;
+        }
 
-            // Parse metadata
-            $metadata = $item->metadata ?? [];
-            if (is_string($metadata)) {
-                $metadata = json_decode($metadata, true);
-            }
+        // Count prospects
+        $prospectsCount = is_array($prospectIds) ? count($prospectIds) : 0;
 
-            // Parse response
-            $response = $item->response ?? [];
-            if (is_string($response)) {
-                $response = json_decode($response, true);
-            }
+        // ✅ Get media_url from the model (this is the main fix)
+        $mediaUrl = $item->media_url ?? null;
 
-            // Get user info
-            $userName = 'N/A';
-            if ($item->user) {
-                $userName = trim(($item->user->name ?? '') . ' ' . ($item->user->prenom ?? ''));
-                if (empty($userName)) {
-                    $userName = 'User #' . $item->user_id;
-                }
-            }
+        // If media_url is null but exists in metadata, use that as fallback
+        if (empty($mediaUrl) && isset($metadata['media_url'])) {
+            $mediaUrl = $metadata['media_url'];
+        }
 
-            // Get project info
-            $projectName = 'N/A';
-            if ($item->projet) {
-                $projectName = $item->projet->nom ?? 'Projet #' . $item->projet_id;
-            }
-
-            // Count prospects
-            $prospectsCount = is_array($prospectIds) ? count($prospectIds) : 0;
-
-            return [
-                'id' => $item->id,
-                'projet_id' => $item->projet_id,
-                'projet_name' => $projectName,
-                'user_id' => $item->user_id,
-                'user_name' => $userName,
-                'prospect_ids' => $prospectIds,
-                'prospects_count' => $prospectsCount,
-                'message' => $item->message,
-                'file' => $item->file,
-                'scheduled_date' => $item->scheduled_date,
-                'sent_date' => $item->sent_date,
-                'status' => $item->status,
-                'status_label' => $this->getStatusLabel($item->status),
-                'status_color' => $this->getStatusColor($item->status),
-                'response' => $response,
-                'error_message' => $item->error_message,
-                'metadata' => $metadata,
-                'statistics' => $statistics,
-                'created_at' => $item->created_at,
-                'updated_at' => $item->updated_at,
-                'deleted_at' => $item->deleted_at,
-            ];
-        }, $historiques);
-    }
-
-    /**
-     * Get status label
-     */
-    private function getStatusLabel($status)
-    {
-        $labels = [
-            'pending' => 'En Attente',
-            'sent' => 'Envoyé',
-            'failed' => 'Échoué',
-            'cancelled' => 'Annulé',
-            'processing' => 'En Cours',
-            'partial' => 'Partiellement Envoyé',
+        return [
+            'id' => $item->id,
+            'projet_id' => $item->projet_id,
+            'projet_name' => $projectName,
+            'user_id' => $item->user_id,
+            'user_name' => $userName,
+            'prospect_ids' => $prospectIds,
+            'prospects_count' => $prospectsCount,
+            'message' => $item->message,
+            'media_url' => $mediaUrl, // ✅ Now properly set
+            'scheduled_date' => $item->scheduled_date,
+            'sent_date' => $item->sent_date,
+            'status' => $item->status,
+            'status_label' => $this->getStatusLabel($item->status),
+            'status_color' => $this->getStatusColor($item->status),
+            'response' => $response,
+            'error_message' => $item->error_message,
+            'metadata' => $metadata,
+            'statistics' => $statistics,
+            'created_at' => $item->created_at,
+            'updated_at' => $item->updated_at,
+            'deleted_at' => $item->deleted_at,
         ];
-        return $labels[$status] ?? $status;
-    }
+    }, $historiques);
+}
 
-    /**
-     * Get status color
-     */
-    private function getStatusColor($status)
-    {
-        $colors = [
-            'pending' => 'bg-yellow-100 text-yellow-800',
-            'sent' => 'bg-green-100 text-green-800',
-            'failed' => 'bg-red-100 text-red-800',
-            'cancelled' => 'bg-gray-100 text-gray-800',
-            'processing' => 'bg-blue-100 text-blue-800',
-            'partial' => 'bg-orange-100 text-orange-800',
-        ];
-        return $colors[$status] ?? 'bg-gray-100 text-gray-800';
-    }
+/**
+ * Get status label
+ */
+private function getStatusLabel($status)
+{
+    $labels = [
+        'pending' => 'En Attente',
+        'sent' => 'Envoyé',
+        'failed' => 'Échoué',
+        'cancelled' => 'Annulé',
+        'processing' => 'En Cours',
+        'partial' => 'Partiellement Envoyé',
+    ];
+    return $labels[$status] ?? $status;
+}
+
+/**
+ * Get status color
+ */
+private function getStatusColor($status)
+{
+    $colors = [
+        'pending' => 'bg-yellow-100 text-yellow-800',
+        'sent' => 'bg-green-100 text-green-800',
+        'failed' => 'bg-red-100 text-red-800',
+        'cancelled' => 'bg-gray-100 text-gray-800',
+        'processing' => 'bg-blue-100 text-blue-800',
+        'partial' => 'bg-orange-100 text-orange-800',
+    ];
+    return $colors[$status] ?? 'bg-gray-100 text-gray-800';
+}
 
     /**
      * Remove the specified resource from storage.

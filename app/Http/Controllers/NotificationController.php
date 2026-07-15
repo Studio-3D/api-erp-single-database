@@ -26,7 +26,6 @@ use App\Models\Remboursement;
 use App\Models\Rendez_vous;
 use App\Enum\RoleEnum;
 use App\Models\Frein;
-use App\Models\WebhookEvent;
 use App\Events\NotificationEvent;
 
 class NotificationController extends Controller
@@ -534,7 +533,7 @@ class NotificationController extends Controller
         return response()->json(['nb' => $rel_client_freins]);
     }
 
-   // Also update the get_notifications method to properly handle JSON array
+   /* Also update the get_notifications method to properly handle JSON array*/
 public function get_notifications(Request $request, $projet_id)
 {
     if (Auth::guard('api')->check() && (RoleHelper::AdminSup() || RoleHelper::Notaire_Respo_Comptable_SAV_Comm_RC() || RoleHelper::AgentAdmin())) {
@@ -551,8 +550,8 @@ public function get_notifications(Request $request, $projet_id)
         }
 
         if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin()) {
-            // Build the query
-            $query = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
+            // Build the base query (without pagination)
+            $baseQuery = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                 ->where(function ($query) {
                     $query->where('role', RoleEnum::ADMIN->value)
                         ->orWhere('user_id', Auth::guard('api')->user()->id)
@@ -564,15 +563,22 @@ public function get_notifications(Request $request, $projet_id)
 
             // If AgentAdmin, exclude notifications of type 6
             if (RoleHelper::AgentAdmin()) {
-                $query->where('type', '!=', 6);
+                $baseQuery->where('type', '!=', 6);
             }
 
-            // Clone query for counting unseen notifications
-            $countQuery = clone $query;
+            // Count ALL unseen notifications from the ENTIRE table (without any pagination)
+            $unseenCountQuery = clone $baseQuery;
+            $new_notifications_count = $unseenCountQuery->get()->filter(function ($notification) use ($userId) {
+                $seenArray = is_array($notification->seen) ? $notification->seen : [];
+                return !in_array($userId, $seenArray);
+            })->count();
 
-            // Use paginate instead of get
-            $paginated_notifications = $query->orderBy('id', 'desc')
-                ->paginate($perPage, ['*'], 'page', $page);
+            // Order by: unseen first (seen IS NULL OR seen NOT LIKE %userId%), then by id desc
+            $baseQuery->orderByRaw("CASE WHEN seen IS NULL OR NOT JSON_CONTAINS(seen, JSON_ARRAY(?)) THEN 0 ELSE 1 END", [$userId])
+                ->orderBy('id', 'desc');
+
+            // Now get the paginated notifications for display
+            $paginated_notifications = $baseQuery->paginate($perPage, ['*'], 'page', $page);
 
             // Process the paginated results
             $all_notifications = $paginated_notifications->getCollection()
@@ -582,30 +588,32 @@ public function get_notifications(Request $request, $projet_id)
                     return $notification;
                 });
 
-            // Count unseen notifications efficiently (only select id and seen)
-            $unseenNotifications = $countQuery->select('id', 'seen')->get();
-            $new_notifications_count = $unseenNotifications->filter(function ($notification) use ($userId) {
-                $seenArray = is_array($notification->seen) ? $notification->seen : [];
-                return !in_array($userId, $seenArray);
-            })->count();
-
         } else {
-            $query = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
+            // Build the base query (without pagination)
+            $baseQuery = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                 ->where('projet_id', $projet_id)
                 ->where(function($q) {
                     $q->where('user_id', Auth::guard('api')->user()->id);
                     if (RoleHelper::Com()) {
-                        $q->orWhere('role', RoleEnum::ADMIN_COMMERCIAL->value);
+                        $q->orWhere('role', RoleEnum::ADMIN_COMMERCIAL->value)->orWhere('role', RoleEnum::COMMERCIAL->value);
                     }
                 })
                 ->withTrashed()
                 ->whereDate('date', '<=', Carbon::now());
 
-            // Clone query for counting unseen notifications
-            $countQuery = clone $query;
+            // Count ALL unseen notifications from the ENTIRE table (without any pagination)
+            $unseenCountQuery = clone $baseQuery;
+            $new_notifications_count = $unseenCountQuery->get()->filter(function ($notification) use ($userId) {
+                $seenArray = is_array($notification->seen) ? $notification->seen : [];
+                return !in_array($userId, $seenArray);
+            })->count();
 
-            $paginated_notifications = $query->orderBy('date', 'desc')
-                ->paginate($perPage, ['*'], 'page', $page);
+            // Order by: unseen first, then by date desc
+            $baseQuery->orderByRaw("CASE WHEN seen IS NULL OR NOT JSON_CONTAINS(seen, JSON_ARRAY(?)) THEN 0 ELSE 1 END", [$userId])
+                ->orderBy('date', 'desc');
+
+            // Now get the paginated notifications for display
+            $paginated_notifications = $baseQuery->paginate($perPage, ['*'], 'page', $page);
 
             $all_notifications = $paginated_notifications->getCollection()
                 ->map(function ($notification) use ($userId) {
@@ -613,13 +621,6 @@ public function get_notifications(Request $request, $projet_id)
                     $notification->seen_for_current_user = in_array($userId, $seenArray);
                     return $notification;
                 });
-
-            // Count unseen notifications efficiently
-            $unseenNotifications = $countQuery->select('id', 'seen')->get();
-            $new_notifications_count = $unseenNotifications->filter(function ($notification) use ($userId) {
-                $seenArray = is_array($notification->seen) ? $notification->seen : [];
-                return !in_array($userId, $seenArray);
-            })->count();
         }
 
         return response()->json([

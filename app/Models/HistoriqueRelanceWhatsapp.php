@@ -19,6 +19,7 @@ class HistoriqueRelanceWhatsapp extends Model
         'prospect_ids',
         'message',
         'file',
+        'media_url',
         'scheduled_date',
         'sent_date',
         'status',

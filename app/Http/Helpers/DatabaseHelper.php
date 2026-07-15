@@ -1525,6 +1525,10 @@ private static function getClientName($client)
 /**
  * Send bulk WhatsApp messages using Twilio with WhatsApp configuration
  */
+/**
+ * Send bulk WhatsApp messages using Twilio with WhatsApp configuration
+ * Using WhatsApp template for all messages
+ */
 public static function send_bulk_whatsapp($databases)
 {
     foreach ($databases as $database) {
@@ -1590,7 +1594,29 @@ public static function send_bulk_whatsapp($databases)
                     // Initialize Twilio client
                     $twilio = new ClientTwilio($config->account_sid, $config->access_token);
 
-                    // Get metadata for phone numbers
+                    // ✅ DÉTERMINER LE TEMPLATE SID EN FONCTION DE LA PRÉSENCE DE MEDIA_URL
+                    $hasMedia = !empty($bl->media_url);
+
+                    // 🔥 Template SIDs pour les clients inactifs (Marketing Templates)
+                    $templateSids = [];
+
+                    if ($hasMedia) {
+                        // Templates with file
+                        $templateSids = [
+                            env('WHATSAPP_BULK_1_FILE_TEMPLATE_SID', 'HX8926ddf7b251ef7f1259087f8bf36108'),
+                        ];
+                        \Log::info("📎 Using FILE templates for bulk {$bl->id}");
+                    } else {
+                        // Templates without file (Marketing templates)
+                        $templateSids = [
+                            env('WHATSAPP_BULK_1_TEMPLATE_SID', 'HX4b8042dbf576a937b303a72cee231b6f'),
+                            env('WHATSAPP_BULK_2_TEMPLATE_SID', 'HXd4e66bdc7a945bcdd2dc4ed627ee3530'),
+                            env('WHATSAPP_BULK_3_TEMPLATE_SID', 'HX9c03226d7fdabc08ec92548e1fee4fb9'),
+                        ];
+                        \Log::info("📝 Using standard marketing templates for bulk {$bl->id}");
+                    }
+
+                    // Get metadata
                     $metadata = $bl->metadata ?? [];
                     $phones = $metadata['phones'] ?? [];
                     $prospectNames = $metadata['prospect_names'] ?? [];
@@ -1602,48 +1628,225 @@ public static function send_bulk_whatsapp($databases)
                     $failedNumbers = [];
                     $sentNumbers = [];
                     $results = [];
+                    $freeFormCount = 0;
+                    $templateCount = 0;
+                    $fileTemplateCount = 0;
+                    $templateUsage = []; // Track which template was used for each prospect
+
+                    // 📝 Message text for free-form sending
+                    $messageText = $bl->message ?? '';
+
+                    // ✅ Get the user ID for storing statut
+                    $userId = $bl->user_id ?? null;
 
                     // Send WhatsApp messages
                     foreach ($prospects as $index => $prospect) {
                         try {
-                            // Get the phone number from metadata or from prospect
+                            // Get the phone number
                             $phoneNumber = $phones[$index] ?? $prospect->telephone;
 
                             if (empty($phoneNumber)) {
                                 throw new \Exception('No phone number available');
                             }
 
-                            // Clean phone number (remove spaces, ensure correct format)
+                            // Clean phone number
                             $cleanPhone = self::cleanPhoneNumber($phoneNumber);
 
-                            // Prepare message
-                            $messageText = $bl->message;
-                            $mediaUrl = null;
-                            $mediaType = null;
+                            // 🔍 VÉRIFIER SI LE CLIENT A DÉJÀ ENVOYÉ UN MESSAGE (24h)
+                            $canSendFreeForm = false;
+                            $hoursSinceLastReply = null;
+                            $lastReplyTime = null;
 
-                            // Check if there's a file attached
-                            if ($bl->file) {
-                                $filePath = storage_path('public/docs/relance_whatsapp_message/' . $bl->file);
-                                if (file_exists($filePath)) {
-                                    $mediaUrl = asset('storage/relance_whatsapp_message/' . $bl->file);
-                                    $mediaType = self::getMediaType($bl->file);
+                            // 🔢 COMPTER LE NOMBRE DE MESSAGES MARKETING DÉJÀ ENVOYÉS
+                            $marketingCount = DB::connection('temp')
+                                ->table('whatsapp_messages')
+                                ->where('projet_id', $bl->projet_id)
+                                ->where('to_number', $cleanPhone)
+                                ->where('prospect_id', $prospect->id)
+                                ->where('message_type', 'marketing_template')
+                                ->count();
+
+                            \Log::info("📊 Prospect {$cleanPhone} - Marketing messages sent: {$marketingCount}");
+
+                            // Vérifier les messages reçus du client (status = 'received' ou 'read')
+                            $lastClientReply = DB::connection('temp')
+                                ->table('whatsapp_messages')
+                                ->where('projet_id', $bl->projet_id)
+                                ->where('from_number', $cleanPhone)
+                                ->whereIn('status', ['received', 'read', 'delivered'])
+                                ->orderBy('created_at', 'desc')
+                                ->first();
+
+                            if ($lastClientReply) {
+                                $lastReplyTime = Carbon::parse($lastClientReply->created_at);
+                                $hoursSinceLastReply = Carbon::now()->diffInHours($lastReplyTime);
+
+                                if ($hoursSinceLastReply <= 24) {
+                                    $canSendFreeForm = true;
+                                    \Log::info("✅ Session active pour {$cleanPhone} - Dernière réponse il y a {$hoursSinceLastReply}h");
+                                } else {
+                                    \Log::info("⏰ Plus de 24h pour {$cleanPhone} - Dernière réponse il y a {$hoursSinceLastReply}h");
                                 }
+                            } else {
+                                \Log::info("📱 Premier message pour {$cleanPhone}");
                             }
 
-                            // Send WhatsApp message using Twilio
-                            $result = self::sendWhatsAppMessageTwilio(
-                                $twilio,
-                                $config,
-                                $cleanPhone,
-                                $messageText,
-                                $mediaUrl,
-                                $mediaType,
-                                $prospect->id,
-                                $bl->user_id,
-                                $bl->id
-                            );
+                            // 📝 Décider du type de message à envoyer
+                            $result = null;
 
-                            if ($result['status'] === 'sent') {
+                            if ($canSendFreeForm) {
+                                // ✅ Session active → Message NORMAL (free-form)
+                                \Log::info("💬 Envoi d'un message normal (session active) pour {$cleanPhone}");
+
+                                $messageParams = [
+                                    'from' => "whatsapp:" . $config->phone_number_id,
+                                    'body' => $messageText
+                                ];
+
+                                // ✅ AJOUTER LE MÉDIA SI PRÉSENT (même en free-form)
+                                if ($hasMedia && !empty($bl->media_url)) {
+                                    $messageParams['mediaUrl'] = [$bl->media_url];
+                                    \Log::info("📎 Media URL added to free-form message: {$bl->media_url}");
+                                }
+
+                                $sentMessage = $twilio->messages->create(
+                                    "whatsapp:" . $cleanPhone,
+                                    $messageParams
+                                );
+
+                                $freeFormCount++;
+
+                                // Stocker le message normal
+                                $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId([
+                                    'projet_id' => $bl->projet_id,
+                                    'from_number' => $config->phone_number_id,
+                                    'to_number' => $cleanPhone,
+                                    'message' => $messageText,
+                                    'message_sid' => $sentMessage->sid,
+                                    'profile_name' => 'Bulk WhatsApp (Free)',
+                                    'status' => 'sent',
+                                    'prospect_id' => $prospect->id,
+                                    'bulk_id' => $bl->id,
+                                    'user_id_sent' => $bl->user_id,
+                                    'media_url' => $hasMedia ? $bl->media_url : null,
+                                    'message_type' => 'free_form',
+                                    'marketing_count' => $marketingCount,
+                                    'created_at' => now(),
+                                    'updated_at' => now()
+                                ]);
+
+                                // ✅ Store StatutProspect 11 (WhatsApp Envoyé)
+                                self::storeWhatsAppStatut(
+                                    $prospect->id,
+                                    $userId,
+                                    $sentMessage->sid,
+                                    'free_form'
+                                );
+
+                                $result = [
+                                    'status' => 'sent',
+                                    'sid' => $sentMessage->sid,
+                                    'message_type' => 'free_form',
+                                    'session_active' => true,
+                                    'hours_since_last_reply' => $hoursSinceLastReply,
+                                    'has_media' => $hasMedia,
+                                    'marketing_count' => $marketingCount,
+                                    'response' => ['message_id' => $sentMessage->sid]
+                                ];
+
+                                \Log::info("✅ Message normal envoyé à {$cleanPhone}, SID: " . $sentMessage->sid);
+
+                            } else {
+                                // ❌ Session inactive → Utiliser le TEMPLATE MARKETING
+                                \Log::info("📋 Envoi du template marketing pour {$cleanPhone} (session inactive)");
+
+                                // 🔥 DÉTERMINER LE TEMPLATE À UTILISER EN FONCTION DU NOMBRE DE TENTATIVES
+                                // Template 1: première tentative (marketing_count = 0)
+                                // Template 2: deuxième tentative (marketing_count = 1)
+                                // Template 3: troisième tentative (marketing_count >= 2)
+                                $templateIndex = min($marketingCount, count($templateSids) - 1);
+                                $selectedTemplateSid = $templateSids[$templateIndex] ?? $templateSids[0];
+
+                                \Log::info("📋 Prospect {$cleanPhone} - Using template #" . ($templateIndex + 1) . " (Marketing count: {$marketingCount})");
+
+                                // Préparer les variables du template
+                                $prospectName = $prospectNames[$index] ?? ($prospect->nom . ' ' . $prospect->prenom);
+
+                                // ✅ Construire les variables en fonction du type de template
+                                $templateVariables = [];
+
+                                if ($hasMedia && !empty($bl->media_url)) {
+                                    // ✅ Template avec 2 variables : message + media_url
+                                    $templateVariables = [
+                                        '1' => $messageText,
+                                        '2' => $bl->media_url,
+                                    ];
+                                    $fileTemplateCount++;
+                                } else {
+                                    // ✅ Template avec 1 variable : message seulement
+                                    $templateVariables = [
+                                        '1' => $messageText,
+                                    ];
+                                    $templateCount++;
+                                }
+
+                                // Envoyer le template
+                                $sentMessage = $twilio->messages->create(
+                                    "whatsapp:" . $cleanPhone,
+                                    [
+                                        'from' => "whatsapp:" . $config->phone_number_id,
+                                        'contentSid' => $selectedTemplateSid,
+                                        'contentVariables' => json_encode($templateVariables)
+                                    ]
+                                );
+
+                                // Stocker le template
+                                $messageId = DB::connection('temp')->table('whatsapp_messages')->insertGetId([
+                                    'projet_id' => $bl->projet_id,
+                                    'from_number' => $config->phone_number_id,
+                                    'to_number' => $cleanPhone,
+                                    'message' => $messageText,
+                                    'message_sid' => $sentMessage->sid,
+                                    'profile_name' => 'Bulk WhatsApp (Template)',
+                                    'status' => 'sent',
+                                    'prospect_id' => $prospect->id,
+                                    'bulk_id' => $bl->id,
+                                    'user_id_sent' => $bl->user_id,
+                                    'template_sid' => $selectedTemplateSid,
+                                    'media_url' => $hasMedia ? $bl->media_url : null,
+                                    'message_type' => 'marketing_template',
+                                    'marketing_count' => $marketingCount,
+                                    'template_index' => $templateIndex + 1,
+                                    'created_at' => now(),
+                                    'updated_at' => now()
+                                ]);
+
+                                // ✅ Store StatutProspect 11 (WhatsApp Envoyé)
+                                self::storeWhatsAppStatut(
+                                    $prospect->id,
+                                    $userId,
+                                    $sentMessage->sid,
+                                    'template'
+                                );
+
+                                $result = [
+                                    'status' => 'sent',
+                                    'sid' => $sentMessage->sid,
+                                    'message_type' => 'template',
+                                    'template_sid' => $selectedTemplateSid,
+                                    'template_index' => $templateIndex + 1,
+                                    'session_active' => false,
+                                    'has_media' => $hasMedia,
+                                    'marketing_count' => $marketingCount,
+                                    'hours_since_last_reply' => $hoursSinceLastReply ?? 'Aucune réponse',
+                                    'response' => ['message_id' => $sentMessage->sid]
+                                ];
+
+                                \Log::info("✅ Template #{$templateIndex} envoyé à {$cleanPhone}, SID: " . $sentMessage->sid);
+                            }
+
+                            // Update statistics
+                            if ($result && $result['status'] === 'sent') {
                                 $sentCount++;
                                 $sentNumbers[] = $phoneNumber;
                                 $results[] = [
@@ -1651,18 +1854,13 @@ public static function send_bulk_whatsapp($databases)
                                     'phone' => $phoneNumber,
                                     'name' => $prospectNames[$index] ?? ($prospect->nom . ' ' . $prospect->prenom),
                                     'status' => 'sent',
-                                    'message_sid' => $result['sid'] ?? null,
-                                    'response' => $result['response'] ?? null
-                                ];
-                            } else {
-                                $failedCount++;
-                                $failedNumbers[] = $phoneNumber;
-                                $results[] = [
-                                    'prospect_id' => $prospect->id,
-                                    'phone' => $phoneNumber,
-                                    'name' => $prospectNames[$index] ?? ($prospect->nom . ' ' . $prospect->prenom),
-                                    'status' => 'failed',
-                                    'error' => $result['error'] ?? 'Unknown error'
+                                    'message_type' => $result['message_type'] ?? 'unknown',
+                                    'session_active' => $result['session_active'] ?? false,
+                                    'has_media' => $result['has_media'] ?? false,
+                                    'marketing_count' => $result['marketing_count'] ?? 0,
+                                    'template_index' => $result['template_index'] ?? null,
+                                    'hours_since_last_reply' => $result['hours_since_last_reply'] ?? null,
+                                    'message_sid' => $result['sid'] ?? null
                                 ];
                             }
 
@@ -1686,21 +1884,26 @@ public static function send_bulk_whatsapp($databases)
                         'total_prospects' => $totalProspects,
                         'sent_count' => $sentCount,
                         'failed_count' => $failedCount,
+                        'free_form_count' => $freeFormCount,
+                        'template_count' => $templateCount,
+                        'file_template_count' => $fileTemplateCount,
+                        'has_media' => $hasMedia,
+                        'media_url' => $hasMedia ? $bl->media_url : null,
                         'sent_numbers' => $sentNumbers,
                         'failed_numbers' => $failedNumbers,
                         'sent_at' => now()->toDateTimeString(),
+                        'template_sids' => $templateSids,
                         'results' => $results
                     ];
 
-                    // ✅ UPDATE STATUS BASED ON RESULTS
+                    // Update the record with statistics
                     $overallStatus = 'sent';
                     if ($sentCount === 0 && $failedCount > 0) {
-                        $overallStatus = 'failed'; // All failed
+                        $overallStatus = 'failed';
                     } elseif ($sentCount > 0 && $failedCount > 0) {
-                        $overallStatus = 'partial'; // Some failed, some sent
+                        $overallStatus = 'partial';
                     }
 
-                    // Update the record with statistics
                     $bl->update([
                         'status' => $overallStatus,
                         'sent_date' => now(),
@@ -1709,27 +1912,30 @@ public static function send_bulk_whatsapp($databases)
                         'metadata' => array_merge($metadata, [
                             'sent_count' => $sentCount,
                             'failed_count' => $failedCount,
+                            'free_form_count' => $freeFormCount,
+                            'template_count' => $templateCount,
+                            'file_template_count' => $fileTemplateCount,
+                            'has_media' => $hasMedia,
+                            'media_url' => $hasMedia ? $bl->media_url : null,
                             'sent_at' => now()->toDateTimeString(),
+                            'template_sids' => $templateSids,
                         ])
                     ]);
 
-                    // If all messages failed, add error message
                     if ($sentCount === 0 && $failedCount > 0) {
                         $bl->update([
                             'error_message' => 'All messages failed to send. Check Twilio credentials.'
                         ]);
                     }
 
-                    // Send notification to user who created the bulk message
-                    self::sendWhatsAppBulkNotification($bl, $totalProspects, $sentCount, $failedCount, $failedNumbers, $sentNumbers);
+                    // Send notification
+                    self::sendWhatsAppBulkNotification($bl, $totalProspects, $sentCount, $failedCount, $failedNumbers, $sentNumbers, $freeFormCount, $templateCount, $fileTemplateCount, $hasMedia);
 
-                    \Log::info("WhatsApp bulk message {$bl->id} completed: {$sentCount} sent, {$failedCount} failed");
+                    \Log::info("WhatsApp bulk message {$bl->id} completed: {$sentCount} sent ({$freeFormCount} free, {$templateCount} template, {$fileTemplateCount} file-template), {$failedCount} failed");
 
                 } catch (\Exception $e) {
                     $bl->markAsFailed($e->getMessage());
                     \Log::error("WhatsApp bulk message {$bl->id} failed: " . $e->getMessage());
-
-                    // Send failure notification
                     self::sendWhatsAppBulkErrorNotification($bl, $e->getMessage());
                 }
             }
@@ -1738,92 +1944,38 @@ public static function send_bulk_whatsapp($databases)
 }
 
 /**
- * Send WhatsApp message using Twilio with prospect status tracking
+ * Store StatutProspect with status 11 (WhatsApp Envoyé)
+ * FIXED: Removed $messageType parameter as it was causing issues
  */
-private static function sendWhatsAppMessageTwilio($twilio, $config, $phoneNumber, $messageText, $mediaUrl = null, $mediaType = null, $prospectId = null, $userId = null, $bulkId = null)
+private static function storeWhatsAppStatut($prospectId, $userId, $messageSid, $messageType = 'template')
 {
     try {
-        $messageParams = [
-            'from' => "whatsapp:" . $config->phone_number_id,
-        ];
+        // ✅ Ensure userId is an integer
+        $userId = is_numeric($userId) ? (int) $userId : null;
 
-        // Handle media if present
-        if (!empty($mediaUrl)) {
-            $messageParams['mediaUrl'] = [$mediaUrl];
-            if (!empty($messageText)) {
-                $messageParams['body'] = $messageText;
-            }
-        } else {
-            $messageParams['body'] = $messageText;
+        if (!$userId) {
+            \Log::warning("⚠️ No valid user ID for StatutProspect creation for prospect {$prospectId}");
+            return null;
         }
 
-        $sentMessage = $twilio->messages->create(
-            "whatsapp:" . $phoneNumber,
-            $messageParams
-        );
+        // Create the status
+        $statutProspect = new StatutProspect();
+        $statutProspect->setConnection('temp');
+        $statutProspect->prospect_id = $prospectId;
+        $statutProspect->statut = '11'; // WhatsApp Envoyé
+        $statutProspect->date_traitement = Carbon::now();
+        $statutProspect->user_id_traite = $userId; // ✅ Now this is an integer
+        $statutProspect->commentaire = "WhatsApp {$messageType} envoyé via Bulk (SID: " . ($messageSid ?? 'N/A') . ")";
+        $statutProspect->save();
 
-        // ✅ STORE STATUT PROSPECT 11 (WHATSAPP ENVOYÉ)
-        if ($prospectId) {
-            try {
-                $statutProspect = new StatutProspect();
-                $statutProspect->setConnection('temp');
-                $statutProspect->prospect_id = $prospectId;
-                $statutProspect->statut = '11'; // WhatsApp Envoyé
-                $statutProspect->date_traitement = Carbon::now();
-                $statutProspect->user_id_traite = $userId;
-                $statutProspect->commentaire = "WhatsApp envoyé via Bulk (SID: {$sentMessage->sid})";
-                $statutProspect->save();
-
-                \Log::info("✅ StatutProspect 11 created for prospect {$prospectId} (Bulk WhatsApp)");
-            } catch (\Exception $e) {
-                \Log::error("❌ Failed to create StatutProspect 11 for prospect {$prospectId}: " . $e->getMessage());
-            }
-        }
-
-        // Save message to whatsapp_messages table
-        $messageData = [
-            'projet_id' => $config->projet_id,
-            'from_number' => $config->phone_number_id,
-            'to_number' => $phoneNumber,
-            'message' => $messageText,
-            'message_sid' => $sentMessage->sid,
-            'profile_name' => 'Bulk WhatsApp',
-            'status' => 'sent',
-            'media_url' => $mediaUrl,
-            'media_type' => $mediaType,
-            'prospect_id' => $prospectId,
-            'bulk_id' => $bulkId,
-            'created_at' => now(),
-            'updated_at' => now()
-        ];
-
-        DB::connection('temp')->table('whatsapp_messages')->insert($messageData);
-
-        return [
-            'status' => 'sent',
-            'sid' => $sentMessage->sid,
-            'response' => ['message_id' => $sentMessage->sid]
-        ];
-
+        \Log::info("✅ StatutProspect 11 created for prospect {$prospectId} with user_id_traite: {$userId}");
+        return $statutProspect;
     } catch (\Exception $e) {
-        \Log::error("Twilio error for phone {$phoneNumber}: " . $e->getMessage());
-
-        // Store failed status
-        if ($prospectId) {
-            try {
-                // Don't create status 11 for failed messages, just log
-                \Log::warning("Failed to send WhatsApp to prospect {$prospectId}: " . $e->getMessage());
-            } catch (\Exception $e2) {
-                // Ignore
-            }
-        }
-
-        return [
-            'status' => 'failed',
-            'error' => $e->getMessage()
-        ];
+        \Log::error("❌ Failed to create StatutProspect 11 for prospect {$prospectId}: " . $e->getMessage());
+        return null;
     }
 }
+
 
 /**
  * Clean phone number for WhatsApp
@@ -1874,35 +2026,7 @@ private static function getMediaType($fileName)
 /**
  * Store StatutProspect with status 11 (WhatsApp Envoyé)
  */
-private static function storeWhatsAppStatut($prospectId, $projetId, $userId = null, $messageSid = null)
-{
-    try {
-        // Get user if not provided
-        if (!$userId) {
-            $user = Auth::user();
-            if ($user) {
-                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
-                $userId = $userAuth ? $userAuth->id : null;
-            }
-        }
 
-        // Create the status
-        $statutProspect = new StatutProspect();
-        $statutProspect->setConnection('temp');
-        $statutProspect->prospect_id = $prospectId;
-        $statutProspect->statut = '11'; // WhatsApp Envoyé
-        $statutProspect->date_traitement = Carbon::now();
-        $statutProspect->user_id_traite = $userId;
-        $statutProspect->commentaire = 'WhatsApp envoyé via Bulk (SID: ' . ($messageSid ?? 'N/A') . ')';
-        $statutProspect->save();
-
-        \Log::info("✅ StatutProspect 11 created for prospect {$prospectId}");
-        return $statutProspect;
-    } catch (\Exception $e) {
-        \Log::error("❌ Failed to create StatutProspect 11: " . $e->getMessage());
-        return null;
-    }
-}
 
 /**
  * Send notification for successful WhatsApp bulk send
@@ -1918,26 +2042,12 @@ private static function sendWhatsAppBulkNotification($bl, $total, $sent, $failed
             : "Envoyé avec succès";
 
         $description = "📱 Bulk WhatsApp: {$statusText}\n" .
-                       "📊 Total: {$total} prospects\n" .
-                       "✅ Envoyés: {$sent}\n" .
-                       "❌ Échoués: {$failed}";
-
-        if ($sent > 0 && !empty($sentNumbers)) {
-            $description .= "\n✅ Numéros envoyés: " . implode(', ', array_slice($sentNumbers, 0, 3));
-            if (count($sentNumbers) > 3) {
-                $description .= " ... (+" . (count($sentNumbers) - 3) . " autres)";
-            }
-        }
-
-        if ($failed > 0 && !empty($failedNumbers)) {
-            $description .= "\n❌ Numéros échoués: " . implode(', ', array_slice($failedNumbers, 0, 3));
-            if (count($failedNumbers) > 3) {
-                $description .= " ... (+" . (count($failedNumbers) - 3) . " autres)";
-            }
-        }
+                       "Total: {$total} prospects\n" .
+                       "Envoyés: {$sent}\n" .
+                       "Échoués: {$failed}";
 
         $data_notif = [
-            'lien' => '/historique-relances-whatsapp/' . $bl->id,
+            'lien' => '/historique-bulk-whatsapp/' . $bl->id,
             'date' => Carbon::now(),
             'type' => $failed > 0 ? 35 : 29,
             'description' => $description,

@@ -26,6 +26,7 @@ use App\Models\Societe;
 use Intervention\Image\Facades\Image;
 use App\Http\Requests\StoreSocialNetworkRequest;
 use App\Http\Helpers\RoleHelper;
+use App\Models\Notification;
 
 
 class Facebook_InstagramController extends Controller
@@ -1847,45 +1848,58 @@ public function store(Request $request)
         }
 
         // Add a new method to create Facebook notifications
-        private function createFacebookNotification($description, $link = null, $type = null,$projet_id)
-        {
-            try {
-                Log::info('Creating Facebook notification:', [
-                    'description' => $description,
-                    'link' => $link,
-                    'type' => $type
-                ]);
-                // Create notification using the notification model
-                $notification = new \App\Models\Notification();
-                $notification->setConnection('temp');
+        private function createFacebookNotification($description, $link = null, $type = null, $projet_id)
+            {
+                try {
+                    Log::info('Creating Facebook notification:', [
+                        'description' => $description,
+                        'link' => $link,
+                        'type' => $type
+                    ]);
 
-                // Set required fields
-                $notification->date = now()->format('Y-m-d H:i:s');
-                $notification->type = $type ; // Default to 98
-                $notification->description_type = $description;
-                $notification->lien = $link ?? 'https://www.facebook.com';
+                    // ✅ CHECK: If notification with same link and type exists in the last 5 minutes
+                    $existingNotification = Notification::on('temp')
+                        ->where('type', $type)
+                        ->where('lien', $link)
+                        ->where('description_type', $description)
+                        ->where('created_at', '>=', Carbon::now()->subMinutes(5))
+                        ->first();
 
-                // Set role to admin so all users can see it
-                $notification->role = \App\Enum\RoleEnum::ADMIN_COMMERCIAL->value;
-                $notification->projet_id = $projet_id;
-                $notification->save();
+                    if ($existingNotification) {
+                        Log::info('⚠️ Duplicate notification detected, skipping creation', [
+                            'existing_id' => $existingNotification->id,
+                            'type' => $type,
+                            'link' => $link
+                        ]);
+                        return;
+                    }
 
-                // Broadcast the notification
-                Config::set('broadcasting.default', 'pusher_notify');
-                broadcast(new \App\Events\NotificationEvent($notification->id));
+                    // Create notification
+                    $notification = new \App\Models\Notification();
+                    $notification->setConnection('temp');
 
-                Log::info('Facebook reaction notification created successfully', [
+                    $notification->date = now()->format('Y-m-d H:i:s');
+                    $notification->type = $type;
+                    $notification->description_type = $description;
+                    $notification->lien = $link ?? 'https://www.facebook.com';
+                    $notification->role = \App\Enum\RoleEnum::ADMIN_COMMERCIAL->value;
+                    $notification->projet_id = $projet_id;
+                    $notification->save();
 
-                    'notification_id' => $notification->id,
-                    'type' => $type,
-                    'description' => $description
-                ]);
+                    // Broadcast the notification
+                    Config::set('broadcasting.default', 'pusher_notify');
+                    broadcast(new \App\Events\NotificationEvent($notification->id));
 
+                    Log::info('Facebook reaction notification created successfully', [
+                        'notification_id' => $notification->id,
+                        'type' => $type,
+                        'description' => $description
+                    ]);
 
-            } catch (\Exception $e) {
-                Log::error('Error creating social media notification: ' . $e->getMessage());
+                } catch (\Exception $e) {
+                    Log::error('Error creating social media notification: ' . $e->getMessage());
+                }
             }
-        }
 
         // Handle Instagram comments
         private function handleInstagramComment($data,$pageId,$projet_id)

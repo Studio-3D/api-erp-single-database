@@ -436,91 +436,181 @@ class VisiteController extends Controller
                         return '+' . $number;
                     }
 
-                public function send_whatsapp($data)
-                {
-                    try {
-                        // Récupérer les paramètres
-                        $to = ltrim($data['to'], '+');
-                        $projetId = $data['projet_id'];
-                        $templateSid = $data['content_sid'];
+               public function send_whatsapp($data)
+{
+    try {
+        // Récupérer les paramètres
+        $to = str_starts_with($data['to'], '+') ? $data['to'] : '+' . $data['to'];
+        $projetId = $data['projet_id'];
+        $templateSid = $data['content_sid'];
+        $prospectId = $data['prospect_id'] ?? null;
+        $message = $data['message'] ?? null;
+        $fromNumber = $data['from_number'] ?? config('app.whatsapp_from_number');
 
-                        // S'assurer que content_variables est une chaîne JSON
-                        if (is_array($data['content_variables'])) {
-                            $contentVariables = json_encode($data['content_variables']);
-                        } else {
-                            $contentVariables = $data['content_variables'];
-                        }
+        // S'assurer que content_variables est une chaîne JSON
+        if (is_array($data['content_variables'])) {
+            $contentVariables = json_encode($data['content_variables']);
+        } else {
+            $contentVariables = $data['content_variables'];
+        }
 
-                        // Log pour déboguer
-                        \Log::info("Sending WhatsApp template", [
-                            'to' => $to,
-                            'template_sid' => $templateSid,
-                            'variables' => $contentVariables
-                        ]);
-                        // Récupérer la configuration WhatsApp
-                        $whatsappConfig = \DB::connection('temp')->table('whatsapp_configurations')
-                            ->where('projet_id', $projetId)
-                            ->whereNull('deleted_at')
-                            ->first();
+        // Log pour déboguer
+        \Log::info("Sending WhatsApp template", [
+            'to' => $to,
+            'template_sid' => $templateSid,
+            'variables' => $contentVariables
+        ]);
 
-                        if (!$whatsappConfig) {
-                            return ['success' => false, 'error' => 'Configuration non trouvée'];
-                        }
+        // Récupérer la configuration WhatsApp
+        $whatsappConfig = \DB::connection('temp')->table('whatsapp_configurations')
+            ->where('projet_id', $projetId)
+            ->whereNull('deleted_at')
+            ->first();
 
-                        // Préparer l'URL comme dans Postman
-                        $url = "https://api.twilio.com/2010-04-01/Accounts/" . $whatsappConfig->account_sid . "/Messages.json";
+        if (!$whatsappConfig) {
+            // Sauvegarder l'erreur dans la base
+            $this->storeWhatsAppMessage([
+                'projet_id' => $projetId,
+                'prospect_id' => $prospectId,
+                'to_number' => $to,
+                'message' => $message ?? 'Template: ' . $templateSid,
+                'status' => 'failed',
+                'error_message' => 'Configuration non trouvée',
+                'from_number' => $fromNumber ?? $whatsappConfig->phone_number_id ?? null
+            ]);
 
-                        // Préparer les données du formulaire (x-www-form-urlencoded)
-                        $postData = [
-                            'To' => "whatsapp:" . $to,
-                            'From' => "whatsapp:" . $whatsappConfig->phone_number_id,
-                            'ContentSid' => $templateSid,
-                            'ContentVariables' => $contentVariables
-                        ];
+            return ['success' => false, 'error' => 'Configuration non trouvée'];
+        }
 
-                        // Préparer les headers avec Basic Auth comme dans Postman
-                        $auth = base64_encode($whatsappConfig->account_sid . ":" . $whatsappConfig->access_token);
+        // Préparer l'URL
+        $url = "https://api.twilio.com/2010-04-01/Accounts/" . $whatsappConfig->account_sid . "/Messages.json";
 
-                        $ch = curl_init();
-                        curl_setopt($ch, CURLOPT_URL, $url);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_POST, true);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                            'Authorization: Basic ' . $auth,
-                            'Content-Type: application/x-www-form-urlencoded'
-                        ]);
+        // Préparer les données du formulaire
+        $postData = [
+            'To' => "whatsapp:" . $to,
+            'From' => "whatsapp:" . $whatsappConfig->phone_number_id,
+            'ContentSid' => $templateSid,
+            'ContentVariables' => $contentVariables
+        ];
 
-                        $response = curl_exec($ch);
-                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        curl_close($ch);
+        // Préparer les headers avec Basic Auth
+        $auth = base64_encode($whatsappConfig->account_sid . ":" . $whatsappConfig->access_token);
 
-                        $responseData = json_decode($response, true);
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Basic ' . $auth,
+            'Content-Type: application/x-www-form-urlencoded'
+        ]);
 
-                        if ($httpCode == 201 || $httpCode == 200) {
-                            \Log::info("✅ WhatsApp sent!", ['sid' => $responseData['sid'] ?? 'unknown']);
-                            return [
-                                'success' => true,
-                                'sid' => $responseData['sid'] ?? null,
-                                'status' => $responseData['status'] ?? null
-                            ];
-                        } else {
-                            \Log::error("❌ WhatsApp failed: " . ($responseData['message'] ?? $response));
-                            return [
-                                'success' => false,
-                                'error' => $responseData['message'] ?? 'Erreur inconnue',
-                                'code' => $httpCode
-                            ];
-                        }
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-                    } catch (\Exception $e) {
-                        \Log::error("❌ WhatsApp exception: " . $e->getMessage());
-                        return [
-                            'success' => false,
-                            'error' => $e->getMessage()
-                        ];
-                    }
-                }
+        $responseData = json_decode($response, true);
+
+        // Préparer les données pour l'enregistrement
+        $messageData = [
+            'projet_id' => $projetId,
+            'prospect_id' => $prospectId,
+            'to_number' => $to,
+            'from_number' => $whatsappConfig->phone_number_id,
+            'message' => $message ?? 'Template: ' . $templateSid,
+            'profile_name' => $data['profile_name'] ?? null,
+            'status' => 'failed',
+            'error_message' => null,
+            'sent_at' => now(),
+        ];
+
+        if ($httpCode == 201 || $httpCode == 200) {
+            \Log::info("✅ WhatsApp sent!", ['sid' => $responseData['sid'] ?? 'unknown']);
+
+            // Sauvegarder le message envoyé avec succès
+            $messageData['status'] = 'sent';
+            $messageData['message_sid'] = $responseData['sid'] ?? null;
+            $messageData['retry_count'] = 0;
+
+            $this->storeWhatsAppMessage($messageData);
+
+            return [
+                'success' => true,
+                'sid' => $responseData['sid'] ?? null,
+                'status' => $responseData['status'] ?? null
+            ];
+        } else {
+            $errorMsg = $responseData['message'] ?? 'Erreur inconnue';
+            \Log::error("❌ WhatsApp failed: " . $errorMsg);
+
+            // Sauvegarder l'erreur
+            $messageData['status'] = 'failed';
+            $messageData['error_message'] = $errorMsg;
+            $messageData['retry_count'] = 1;
+
+            $this->storeWhatsAppMessage($messageData);
+
+            return [
+                'success' => false,
+                'error' => $errorMsg,
+                'code' => $httpCode
+            ];
+        }
+
+    } catch (\Exception $e) {
+        \Log::error("❌ WhatsApp exception: " . $e->getMessage());
+
+        // Sauvegarder l'exception
+        $this->storeWhatsAppMessage([
+            'projet_id' => $data['projet_id'] ?? null,
+            'prospect_id' => $data['prospect_id'] ?? null,
+            'to_number' => $data['to'] ?? null,
+            'message' => $data['message'] ?? 'Exception lors de l\'envoi',
+            'status' => 'failed',
+            'error_message' => $e->getMessage(),
+            'retry_count' => 1,
+            'from_number' => $data['from_number'] ?? null
+        ]);
+
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
+    }
+}
+
+/**
+ * Store WhatsApp message in database
+ */
+private function storeWhatsAppMessage($data)
+{
+    try {
+        \DB::connection('temp')->table('whatsapp_messages')->insert([
+            'projet_id' => $data['projet_id'] ?? null,
+            'prospect_id' => $data['prospect_id'] ?? null,
+            'from_number' => $data['from_number'] ?? null,
+            'to_number' => $data['to_number'] ?? null,
+            'message' => $data['message'] ?? null,
+            'message_sid' => $data['message_sid'] ?? null,
+            'profile_name' => $data['profile_name'] ?? null,
+            'status' => $data['status'] ?? 'sent',
+            'error_message' => $data['error_message'] ?? null,
+            'sent_at' => $data['sent_at'] ?? now(),
+            'retry_count' => $data['retry_count'] ?? 0,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        \Log::info("📝 WhatsApp message stored in database", [
+            'to' => $data['to_number'] ?? null,
+            'status' => $data['status'] ?? 'unknown'
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error("❌ Error storing WhatsApp message: " . $e->getMessage());
+    }
+}
      /**
  * Generate a unique reservation code
  * Format: 001, 002, 003, etc. per project
@@ -1035,26 +1125,38 @@ private function generateReservationCode($projetId)
                                                                 "4" => $bien->propriete_dite_bien                 // Description du bien
                                                             ];
                                                         $data_whtsp = [
+                                                            'prospect_id' => $prospect->id, // 🔥 AJOUTÉ
                                                             'projet_id'=> $visite->projet_id,
                                                             'to'   => $this->convertToInternational($prospect->telephone),
                                                             'content_sid' => self::$TEMPLATE_RDV_CONFIRMATION,
-                                                            'content_variables' => json_encode($templateVariables)  // ← Convertir en JSON
-                                                           /* 'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                            'content_variables' => json_encode($templateVariables) , // ← Convertir en JSON
+                                                            'message' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
                                                             . 'Merci pour votre visite chez le Projet ' . $projet->nom . ' aujourd’hui. '
                                                             . 'Nous espérons que votre expérience a été agréable. '
                                                             . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
                                                             . 'Concernant le Bien ' . $bien->propriete_dite_bien . '. '
-                                                            . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',*/
+                                                            . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
                                                         ];
 
 
                                                          try {
                                                                 $result = $this->send_whatsapp($data_whtsp);
-                                                                $msg_sended = 1;
-                                                                \Log::info("WhatsApp envoyé avec succès",
-                                                                ['to' => $prospect->telephone,
-                                                                'variables' => json_encode($templateVariables),'result' => $result]);
-                                                            } catch (\Exception $e) {
+                                                                if ($result['success'] === true) {
+                                                                        $msg_sended = 1;
+                                                                        \Log::info("WhatsApp envoyé avec succès", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'variables' => json_encode($templateVariables),
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    } else {
+                                                                        \Log::warning("WhatsApp non envoyé", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'error' => $result['error'] ?? 'Erreur inconnue',
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    }
+
+                                                                } catch (\Exception $e) {
                                                                 \Log::error("Erreur lors de l'envoi WhatsApp (non bloquante): " . $e->getMessage());
                                                                 // Ne pas modifier $msg_sended, ne pas relancer l'exception
                                                             }
@@ -1352,6 +1454,12 @@ private function generateReservationCode($projetId)
                                                                     "4" => $bien->propriete_dite_bien                 // Description du bien
                                                                 ];
                                                             $data_whtsp = [
+                                                                 'message' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                                        . 'Merci pour votre visite chez le Projet ' . $projet->nom . ' aujourd’hui. '
+                                                                        . 'Nous espérons que votre expérience a été agréable. '
+                                                                        . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
+                                                                        . 'Concernant le Bien ' . $bien->propriete_dite_bien . '. '
+                                                                        . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
                                                                 'projet_id'=> $visite->projet_id,
                                                                 'to'   => $this->convertToInternational($prospect->telephone),
                                                                 'content_sid' => self::$TEMPLATE_RDV_CONFIRMATION,
@@ -1360,10 +1468,20 @@ private function generateReservationCode($projetId)
 
                                                             try {
                                                                     $result = $this->send_whatsapp($data_whtsp);
-                                                                    $msg_sended = 1;
-                                                                    \Log::info("WhatsApp envoyé avec succès",
-                                                                    ['to' => $prospect->telephone,
-                                                                    'variables' => json_encode($templateVariables),'result' => $result]);
+                                                                    if ($result['success'] === true) {
+                                                                        $msg_sended = 1;
+                                                                    \Log::info("WhatsApp envoyé avec succès", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'variables' => json_encode($templateVariables),
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    } else {
+                                                                        \Log::warning("WhatsApp non envoyé", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'error' => $result['error'] ?? 'Erreur inconnue',
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    }
                                                                 } catch (\Exception $e) {
                                                                     \Log::error("Erreur lors de l'envoi WhatsApp (non bloquante): " . $e->getMessage());
                                                                 }
@@ -1761,22 +1879,33 @@ private function generateReservationCode($projetId)
                                     ];
                                 $data_whtsp = [
                                     'projet_id'=> $request->selectedProjet,
+                                    'prospect_id' => $prospect->id, // 🔥 AJOUTÉ
                                     'to'   => $this->convertToInternational($prospect->telephone),
                                     'content_sid' => self::$TEMPLATE_WELCOME,
-                                    'content_variables' => json_encode($templateVariables)  // ← Convertir en JSON
-
-                                   /* 'body' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                    'content_variables' => json_encode($templateVariables) , // ← Convertir en JSON
+                                    'message' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
                                     . 'Merci pour votre visite chez le Projet ' . $projet->nom . ' aujourd’hui. '
                                     . 'Nous espérons que votre expérience a été agréable. '
-                                    . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',*/
+                                    . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
                                 ];
                              // Ajouter un log pour déboguer
 
                                   try {
                                     $result = $this->send_whatsapp($data_whtsp);
-                                    $msg_sended = 1;
-                                    \Log::info("WhatsApp envoyé avec succès", ['result' => $result ,'to' => $prospect->telephone,
-                                                'variables' => json_encode($templateVariables)]);
+                                    if ($result['success'] === true) {
+                                                                        $msg_sended = 1;
+                                                                    \Log::info("WhatsApp envoyé avec succès", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'variables' => json_encode($templateVariables),
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    } else {
+                                                                        \Log::warning("WhatsApp non envoyé", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'error' => $result['error'] ?? 'Erreur inconnue',
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    }
                             } catch (\Exception $e) {
                                 \Log::error("Erreur lors de l'envoi WhatsApp (non bloquante): " . $e->getMessage());
                                 // Ne pas modifier $msg_sended, ne pas relancer l'exception
@@ -3188,14 +3317,35 @@ public function edit_visite($id)
                                                 ]);
 
                                                 $data_whtsp = [
+                                                    'prospect_id' => $prospect->id, // 🔥 AJOUTÉ
                                                     'projet_id' => $request->selectedProjet,
                                                     'to' => $this->convertToInternational($prospect->telephone),
                                                     'content_sid' => self::$TEMPLATE_RDV_CONFIRMATION,
-                                                    'content_variables' => $templateVariables
+                                                    'content_variables' => $templateVariables,
+                                                      'message' => 'Bonjour ' . $prospect->nom . ' ' . $prospect->prenom . ', '
+                                                            . 'Merci pour votre visite chez le Projet ' . $projet->nom . ' aujourd’hui. '
+                                                            . 'Nous espérons que votre expérience a été agréable. '
+                                                            . 'Un Rendez-vous est prévue pour vous le ' . $list_biens['rdv'] . '. '
+                                                            . 'Concernant le Bien ' . $bien->propriete_dite_bien . '. '
+                                                            . 'N’hésitez pas à nous contacter si vous avez des questions d’ici là.',
                                                 ];
 
-                                                $this->send_whatsapp($data_whtsp);
+                                                $result = $this->send_whatsapp($data_whtsp);
                                                 $msg_sended = 1;
+                                                if ($result['success'] === true) {
+                                                    $msg_sended = 1;
+                                                    \Log::info("WhatsApp envoyé avec succès", [
+                                                        'to' => $prospect->telephone,
+                                                        'variables' => json_encode($templateVariables),
+                                                        'result' => $result
+                                                    ]);
+                                                } else {
+                                                    \Log::warning("WhatsApp non envoyé", [
+                                                        'to' => $prospect->telephone,
+                                                        'error' => $result['error'] ?? 'Erreur inconnue',
+                                                        'result' => $result
+                                                    ]);
+                                                }
                                             }
                                                 // ========== FIN DU CODE WHATSAPP ==========
 
@@ -3763,6 +3913,7 @@ public function edit_visite($id)
                 ]);
 
                 $data_whtsp = [
+                    'prospect_id' => $prospect->id, // 🔥 AJOUTÉ
                     'projet_id' => $request->selectedProjet,
                     'to' => $this->convertToInternational($prospect->telephone),
                     'content_sid' => self::$TEMPLATE_WELCOME
@@ -3775,9 +3926,20 @@ public function edit_visite($id)
                 // Utilisez :
                 try {
                     $result = $this->send_whatsapp($data_whtsp);
-                    $msg_sended = 1;
-                    \Log::info("WhatsApp envoyé avec succès", ['result' => $result ,'prospect_id' => $prospect->id,
-                    'to' => $prospect->telephone,]);
+                   if ($result['success'] === true) {
+                                                                        $msg_sended = 1;
+                                                                    \Log::info("WhatsApp envoyé avec succès", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'variables' => json_encode($templateVariables),
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    } else {
+                                                                        \Log::warning("WhatsApp non envoyé", [
+                                                                            'to' => $prospect->telephone,
+                                                                            'error' => $result['error'] ?? 'Erreur inconnue',
+                                                                            'result' => $result
+                                                                        ]);
+                                                                    }
                 } catch (\Exception $e) {
                     \Log::error("Erreur lors de l'envoi WhatsApp (non bloquante): " . $e->getMessage());
                     // Ne pas modifier $msg_sended, ne pas relancer l'exception

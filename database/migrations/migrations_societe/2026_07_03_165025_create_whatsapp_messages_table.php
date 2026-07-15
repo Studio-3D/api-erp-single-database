@@ -25,21 +25,22 @@ return new class extends Migration
             $table->text('message');
             $table->string('message_sid')->unique();
             $table->string('profile_name')->nullable();
+            $table->string('template_sid')->nullable();
 
             // Media attachments
             $table->string('media_url')->nullable();
-            $table->string('media_type')->nullable()->comment('image, audio, application/pdf, document');
-            $table->string('media_sid')->nullable();
-
             // Status tracking
             $table->timestamp('read_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->timestamp('sent_at')->nullable();
             $table->string('status')->default('received')->comment('received, sent, delivered, read, failed');
-
-            // Error handling
+            $table->string('message_type')->nullable()->after('media_url');
+            $table->integer('marketing_count')->default(0)->after('message_type');
+            $table->integer('template_index')->nullable()->after('marketing_count');
+                        // Error handling
             $table->text('error_message')->nullable();
             $table->integer('retry_count')->default(0);
+            $table->unsignedBigInteger('user_id_sent')->nullable();
 
             // Timestamps
             $table->timestamps();

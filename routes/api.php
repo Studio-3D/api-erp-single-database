@@ -55,6 +55,8 @@ use App\Http\Controllers\Api\V1\NotaireController as V1NotaireController;
 
 use App\Http\Controllers\EnumController;
 use App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController;
+use App\Http\Controllers\Facebook_Instagram\FacebookAdWebhookController;
+
 use App\Http\Controllers\Landing_page\Landing_pageController;
 use App\Http\Controllers\LivraisonController;
 use App\Http\Controllers\PDFController;
@@ -101,6 +103,10 @@ Route::get('/webhook_whatsapp_business', [\App\Http\Controllers\WhatsApp\WhatsAp
 Route::post('/send_landing_page', [Landing_pageController::class, 'send_landing_page']);
 Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class, 'handleWebhook']);
 Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify']);
+/************************ads faceboook********************/
+
+Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
+Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
 
 Route::middleware('auth:api')->group(function () {
     Route::prefix('v1')->group(function () {
@@ -290,11 +296,14 @@ Route::middleware('auth:api')->group(function () {
         Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
         Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
         Route::post('prospects/auto-assign', [V1ProspectController::class, 'autoAssignProspects'])->name('auto_assign_prospects');
-        Route::post('prospects/bulk-whatsapp', [V1ProspectController::class, 'bulkWhatsApp']);
         Route::put('traiter_relance_rdv_prospect/{id}', [V1ProspectController::class, 'traiterRelanceRdvProspect']);
 
         Route::get('get_nb_prospect_rdv/{projet_id}', [V1ProspectController::class, 'getNbProspectRdv'])->name('');
         Route::get('get_nb_prospect_relance/{projet_id}', [V1ProspectController::class, 'getNbProspectRelance'])->name('');
+
+        /*****************************Bullk whtsapp******************************** */
+        Route::post('/upload_file_bulk_whatsapp', [V1ProspectController::class, 'uploadMedia_bulk_whatsap'])->name('');
+        Route::post('prospects/bulk-whatsapp', [V1ProspectController::class, 'bulkWhatsApp']);
 
         //l'API client
         Route::get('historiques_clients/{id}', [V1ClientController::class, 'get_Historiques_by_client'])->name('');
