@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\V1\NotaireController as V1NotaireController;
 use App\Http\Controllers\EnumController;
 use App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController;
 use App\Http\Controllers\Facebook_Instagram\FacebookAdWebhookController;
+use App\Http\Controllers\Facebook_Instagram\FacebookLeadStatsController;
 
 use App\Http\Controllers\Landing_page\Landing_pageController;
 use App\Http\Controllers\LivraisonController;
@@ -110,6 +111,9 @@ Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle'])
 
 Route::middleware('auth:api')->group(function () {
     Route::prefix('v1')->group(function () {
+        /************************************facebook statistiques*********************** */
+        Route::get('/facebook-leads-full-stats/{projet_id}', [FacebookLeadStatsController::class, 'getFullStats']);
+
         /********************Gestion Roles*********************/
             Route::resource('gestion_roles', V1GestionRolesController::class);
             Route::get('gestion_roles_actives/{societe_id}',  [V1GestionRolesController::class, 'roles_actives']);
