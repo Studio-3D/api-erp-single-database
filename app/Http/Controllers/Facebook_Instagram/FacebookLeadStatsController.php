@@ -408,27 +408,32 @@ class FacebookLeadStatsController extends Controller
  * ✅ Statistiques des commerciaux (UNIQUEMENT ceux avec prospects)
  * Ajout de la catégorie "Non affecté"
  */
-private function getCommercialStats($collection)
+/**
+ * ✅ Statistiques des commerciaux (UNIQUEMENT ceux avec prospects)
+ * Pour les graphiques et classement, on exclut "Non affecté"
+ */
+private function getCommercialStats($collection, $includeNonAffected = false)
 {
     if (!$collection || $collection->isEmpty()) {
         return [];
     }
 
-    // ✅ Compter les prospects sans commercial
-    $nonAffectedCount = $collection->filter(function($item) {
-        return is_null($item->commercial_affecte) || $item->commercial_affecte === '';
-    })->count();
-
     $result = [];
 
-    // ✅ Ajouter "Non affecté" si il y a des prospects
-    if ($nonAffectedCount > 0) {
-        $result[] = [
-            'name' => 'Non affecté',
-            'commercial_id' => null,
-            'total' => $nonAffectedCount,
-            'is_affected' => false,
-        ];
+    // ✅ Si on demande d'inclure "Non affecté" (pour la carte de résumé)
+    if ($includeNonAffected) {
+        $nonAffectedCount = $collection->filter(function($item) {
+            return is_null($item->commercial_affecte) || $item->commercial_affecte === '';
+        })->count();
+
+        if ($nonAffectedCount > 0) {
+            $result[] = [
+                'name' => 'Non affecté',
+                'commercial_id' => null,
+                'total' => $nonAffectedCount,
+                'is_affected' => false,
+            ];
+        }
     }
 
     // ✅ Filtrer les prospects avec commercial_affecte non null
@@ -450,21 +455,17 @@ private function getCommercialStats($collection)
         }
     }
 
-    // Trier par total décroissant (mettre "Non affecté" à la fin si vous voulez)
+    // Trier par total décroissant
     usort($result, function($a, $b) {
-        // Mettre "Non affecté" à la fin
-        if ($a['is_affected'] === false && $b['is_affected'] === true) {
-            return 1;
-        }
-        if ($a['is_affected'] === true && $b['is_affected'] === false) {
-            return -1;
-        }
         return $b['total'] - $a['total'];
     });
 
     return $result;
 }
 
+/**
+ * 4. Statistiques des prospects (base locale)
+ */
 /**
  * 4. Statistiques des prospects (base locale)
  */
@@ -477,7 +478,7 @@ private function getProspectStats($projetId, $dateRange)
             ->where('projet_id', $projetId)
             ->where(function($query) {
                 $query->where('origin', 'facebook')
-                    ->orWhere('source', 9);
+                      ->orWhere('source', 9);
             })
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
@@ -485,9 +486,8 @@ private function getProspectStats($projetId, $dateRange)
 
         $total = $prospects->count();
 
-        // ✅ Récupérer TOUS les statuts de tous les prospects
+        // ✅ Récupérer TOUS les statuts
         $prospectIds = $prospects->pluck('id')->toArray();
-
         $allStatuses = DB::connection('temp')
             ->table('statut_prospects')
             ->whereIn('prospect_id', $prospectIds)
@@ -514,11 +514,16 @@ private function getProspectStats($projetId, $dateRange)
         // ✅ STATISTIQUES PAR STATUT
         $statusStats = $this->getAllStatusStats($allStatuses);
 
-        // ✅ STATISTIQUES PAR COMMERCIAL ET STATUT (UNIQUEMENT ceux avec prospects)
+        // ✅ STATISTIQUES PAR COMMERCIAL (exclut "Non affecté" pour les graphiques)
+        $commercialStats = $this->getCommercialStats($prospects, false); // false = exclure Non affecté
+
+        // ✅ STATISTIQUES PAR COMMERCIAL ET STATUT (exclut "Non affecté")
         $commercialStatusStats = $this->getCommercialAllStatusStats($prospects, $allStatuses);
 
-        // ✅ STATISTIQUES PAR COMMERCIAL (UNIQUEMENT ceux avec prospects)
-        $commercialStats = $this->getCommercialStats($prospects);
+        // ✅ Pour la carte "Non affectés" uniquement
+        $nonAffectedCount = $prospects->filter(function($item) {
+            return is_null($item->commercial_affecte) || $item->commercial_affecte === '';
+        })->count();
 
         // ✅ STATISTIQUES PAR STATUT (format graphiques)
         $statusDistribution = [];
@@ -539,9 +544,10 @@ private function getProspectStats($projetId, $dateRange)
             'prospects_by_residence' => $this->getGroupedStatsFromCollection($prospects, 'residence'),
             'prospects_by_status' => $statusDistribution,
             'prospects_by_status_raw' => $statusStats,
-            'prospects_by_commercial' => $commercialStats, // ✅ UNIQUEMENT les commerciaux avec prospects
-            'prospects_by_commercial_status' => $commercialStatusStats, // ✅ UNIQUEMENT les commerciaux avec prospects
+            'prospects_by_commercial' => $commercialStats, // ✅ Exclut "Non affecté"
+            'prospects_by_commercial_status' => $commercialStatusStats, // ✅ Exclut "Non affecté"
             'prospects_by_day' => $prospectsByDayFormatted,
+            'non_affected_count' => $nonAffectedCount, // ✅ Pour la carte uniquement
             'conversion_rate' => $total > 0
                 ? round($prospects->filter(function($p) use ($allStatuses) {
                     $prospectStatuses = $allStatuses->where('prospect_id', $p->id);
@@ -566,6 +572,7 @@ private function getProspectStats($projetId, $dateRange)
             'prospects_by_commercial' => [],
             'prospects_by_commercial_status' => [],
             'prospects_by_day' => [],
+            'non_affected_count' => 0,
             'conversion_rate' => 0,
         ];
     }
@@ -619,6 +626,10 @@ private function getAllStatusStats($allStatuses)
 /**
  * ✅ Statistiques par commercial et TOUS les statuts
  */
+/**
+ * ✅ Statistiques par commercial et TOUS les statuts
+ * Exclut "Non affecté" pour le classement
+ */
 private function getCommercialAllStatusStats($prospects, $allStatuses)
 {
     if ($prospects->isEmpty()) {
@@ -642,37 +653,7 @@ private function getCommercialAllStatusStats($prospects, $allStatuses)
 
     $result = [];
 
-    // ✅ 1. D'abord les prospects NON AFFECTÉS
-    $nonAffectedProspects = $prospects->filter(function($item) {
-        return is_null($item->commercial_affecte) || $item->commercial_affecte === '';
-    });
-
-    if ($nonAffectedProspects->isNotEmpty()) {
-        $prospectIds = $nonAffectedProspects->pluck('id')->toArray();
-        $commercialStatuses = $allStatuses->whereIn('prospect_id', $prospectIds);
-
-        $statusCounts = [];
-        foreach ($statusMap as $code => $label) {
-            $count = $commercialStatuses->where('statut', $code)->count();
-            if ($count > 0) {
-                $statusCounts[] = [
-                    'status_code' => $code,
-                    'status_label' => $label,
-                    'count' => $count,
-                ];
-            }
-        }
-
-        $result[] = [
-            'commercial_id' => null,
-            'commercial_name' => 'Non affecté',
-            'total_prospects' => $nonAffectedProspects->count(),
-            'total_statuses' => $commercialStatuses->count(),
-            'statuses' => $statusCounts,
-        ];
-    }
-
-    // ✅ 2. Ensuite les prospects AFFECTÉS
+    // ✅ UNIQUEMENT les prospects AFFECTÉS (exclure "Non affecté")
     $affectedGroups = $prospects->filter(function($item) {
         return !is_null($item->commercial_affecte) && $item->commercial_affecte !== '';
     })->groupBy('commercial_affecte');
