@@ -1038,6 +1038,15 @@ private function getSimpleStatusStats($prospects)
 /**
  * 7. Qualité des leads - Version corrigée
  */
+/**
+ * 7. Qualité des leads - Version corrigée
+ */
+/**
+ * 7. Qualité des leads - Version corrigée
+ */
+/**
+ * 7. Qualité des leads - Version corrigée
+ */
 private function getLeadQuality($projetId, $dateRange)
 {
     try {
@@ -1045,9 +1054,9 @@ private function getLeadQuality($projetId, $dateRange)
         $prospects = DB::connection('temp')
             ->table('prospects')
             ->where('projet_id', $projetId)
-             ->where(function($query) {
+            ->where(function($query) {
                 $query->where('origin', 'facebook')
-                    ->orWhere('source', 9);
+                      ->orWhere('source', 9);
             })
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
@@ -1059,8 +1068,10 @@ private function getLeadQuality($projetId, $dateRange)
             return $this->getDefaultQualityStats();
         }
 
-        // ✅ Récupérer les statuts
+        // ✅ Récupérer les IDs des prospects
         $prospectIds = $prospects->pluck('id')->toArray();
+
+        // ✅ Récupérer TOUS les statuts de ces prospects
         $allStatuses = DB::connection('temp')
             ->table('statut_prospects')
             ->whereIn('prospect_id', $prospectIds)
@@ -1068,7 +1079,15 @@ private function getLeadQuality($projetId, $dateRange)
             ->orderBy('created_at', 'asc')
             ->get();
 
-        // ✅ Mapping des statuts (avec clés STRING)
+        // ✅ Log pour debug
+        Log::info('📊 Quality debug:', [
+            'total_prospects' => $total,
+            'prospect_ids' => $prospectIds,
+            'total_statuses' => $allStatuses->count(),
+            'statuses' => $allStatuses->toArray()
+        ]);
+
+        // ✅ Mapping des statuts
         $statusMap = [
             '0' => ['label' => 'En attente', 'score' => 10, 'color' => '#FCD34D'],
             '1' => ['label' => 'Planification RDV', 'score' => 30, 'color' => '#60A5FA'],
@@ -1084,16 +1103,15 @@ private function getLeadQuality($projetId, $dateRange)
             '11' => ['label' => 'WhatsApp Envoyé', 'score' => 35, 'color' => '#22D3EE'],
         ];
 
-        // ✅ Calcul des métriques de qualité
+        // ✅ Compter les statuts par type
         $statusDistribution = [];
-        $totalScore = 0;
-        $maxScore = 0;
+        $statusChartData = [];
         $totalStatuses = $allStatuses->count();
 
         foreach ($statusMap as $code => $info) {
-            // ✅ Compter les statuts (en string)
+            // ✅ Compter les statuts avec CAST pour être sûr
             $count = $allStatuses->filter(function($s) use ($code) {
-                return (string)$s->statut === $code;
+                return (string)$s->statut === (string)$code;
             })->count();
 
             $statusDistribution[$info['label']] = [
@@ -1102,39 +1120,6 @@ private function getLeadQuality($projetId, $dateRange)
                 'score' => $info['score'],
                 'color' => $info['color'],
             ];
-
-            // ✅ Calculer le score total (pour chaque statut, on prend le score * nombre de statuts)
-            $totalScore += $count * $info['score'];
-            // ✅ Le max possible est 100 * nombre de statuts
-            $maxScore += $count * 100;
-        }
-
-        // ✅ Score de qualité global (sur 100)
-        $qualityScore = $maxScore > 0 ? round(($totalScore / $maxScore) * 100, 2) : 0;
-
-        // ✅ Taux de conversion (prospects avec statut 4 ou 10)
-        $convertedProspects = $prospects->filter(function($p) use ($allStatuses) {
-            $prospectStatuses = $allStatuses->where('prospect_id', $p->id);
-            $codes = $prospectStatuses->pluck('statut')->map(fn($s) => (string)$s)->toArray();
-            return array_intersect($codes, ['4', '10']);
-        })->count();
-        $conversionRate = $total > 0 ? round(($convertedProspects / $total) * 100, 2) : 0;
-
-        // ✅ Taux de contact
-        $contactedStatuses = ['1', '3', '4', '5', '7', '9', '10'];
-        $contactedProspects = $prospects->filter(function($p) use ($allStatuses, $contactedStatuses) {
-            $prospectStatuses = $allStatuses->where('prospect_id', $p->id);
-            $codes = $prospectStatuses->pluck('statut')->map(fn($s) => (string)$s)->toArray();
-            return array_intersect($codes, $contactedStatuses);
-        })->count();
-        $contactRate = $total > 0 ? round(($contactedProspects / $total) * 100, 2) : 0;
-
-        // ✅ Distribution des statuts pour les graphiques
-        $statusChartData = [];
-        foreach ($statusMap as $code => $info) {
-            $count = $allStatuses->filter(function($s) use ($code) {
-                return (string)$s->statut === $code;
-            })->count();
 
             if ($count > 0) {
                 $statusChartData[] = [
@@ -1147,7 +1132,61 @@ private function getLeadQuality($projetId, $dateRange)
             }
         }
 
-        // ✅ Statistiques de qualité par commercial (APPEL DE LA METHODE)
+        // ✅ Si pas de statuts, créer un statut par défaut pour les graphiques
+        if (empty($statusChartData)) {
+            $statusChartData[] = [
+                'name' => 'Aucun statut',
+                'value' => $total,
+                'percentage' => 100,
+                'color' => '#E5E7EB',
+                'score' => 0,
+            ];
+        }
+
+        // ✅ Calcul du score de qualité
+        $totalQualityScore = 0;
+        $maxPossibleScore = $total * 100;
+
+        foreach ($prospects as $prospect) {
+            $prospectStatuses = $allStatuses->where('prospect_id', $prospect->id);
+            $bestScore = 10;
+
+            foreach ($prospectStatuses as $status) {
+                $code = (string)$status->statut;
+                $score = $statusMap[$code]['score'] ?? 10;
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                }
+            }
+            $totalQualityScore += $bestScore;
+        }
+
+        $qualityScore = $maxPossibleScore > 0 ? round(($totalQualityScore / $maxPossibleScore) * 100, 2) : 0;
+
+        // ✅ Taux de conversion
+        $convertedProspects = 0;
+        foreach ($prospects as $prospect) {
+            $prospectStatuses = $allStatuses->where('prospect_id', $prospect->id);
+            $codes = $prospectStatuses->pluck('statut')->map(fn($s) => (string)$s)->toArray();
+            if (array_intersect($codes, ['4', '10'])) {
+                $convertedProspects++;
+            }
+        }
+        $conversionRate = $total > 0 ? round(($convertedProspects / $total) * 100, 2) : 0;
+
+        // ✅ Taux de contact
+        $contactedStatuses = ['1', '3', '4', '5', '7', '9', '10'];
+        $contactedProspects = 0;
+        foreach ($prospects as $prospect) {
+            $prospectStatuses = $allStatuses->where('prospect_id', $prospect->id);
+            $codes = $prospectStatuses->pluck('statut')->map(fn($s) => (string)$s)->toArray();
+            if (array_intersect($codes, $contactedStatuses)) {
+                $contactedProspects++;
+            }
+        }
+        $contactRate = $total > 0 ? round(($contactedProspects / $total) * 100, 2) : 0;
+
+        // ✅ Qualité par commercial
         $commercialQuality = $this->getCommercialQualityStats($prospects, $allStatuses, $statusMap);
 
         return [
@@ -1158,7 +1197,7 @@ private function getLeadQuality($projetId, $dateRange)
             'total_statuses' => $totalStatuses,
             'status_distribution' => $statusDistribution,
             'status_chart_data' => $statusChartData,
-            'commercial_quality' => $commercialQuality, // ✅ Ajouté
+            'commercial_quality' => $commercialQuality,
             'quality_level' => $this->getQualityLevel($qualityScore),
         ];
 
@@ -1169,6 +1208,12 @@ private function getLeadQuality($projetId, $dateRange)
     }
 }
 
+/**
+ * ✅ Statistiques de qualité par commercial
+ */
+/**
+ * ✅ Statistiques de qualité par commercial
+ */
 /**
  * ✅ Statistiques de qualité par commercial
  */
@@ -1187,6 +1232,7 @@ private function getCommercialQualityStats($prospects, $allStatuses, $statusMap)
     })->groupBy('commercial_affecte');
 
     if ($commercialGroups->isEmpty()) {
+        // ✅ Retourner un tableau vide mais avec une structure correcte
         return [];
     }
 
@@ -1197,23 +1243,30 @@ private function getCommercialQualityStats($prospects, $allStatuses, $statusMap)
         $commercialStatuses = $allStatuses->whereIn('prospect_id', $prospectIds);
         $total = $commercialProspects->count();
 
-        // Calculer le score de qualité pour ce commercial
+        // ✅ Calculer le score de qualité pour ce commercial
         $totalScore = 0;
-        $maxScore = 0;
-        foreach ($commercialStatuses as $status) {
-            $code = (string)$status->statut;
-            $score = $statusMap[$code]['score'] ?? 0;
-            $totalScore += $score;
-            $maxScore += 100;
+        $maxScore = $total * 100;
+
+        foreach ($commercialProspects as $prospect) {
+            $prospectStatuses = $commercialStatuses->where('prospect_id', $prospect->id);
+            $bestScore = 10;
+            foreach ($prospectStatuses as $status) {
+                $code = (string)$status->statut;
+                $score = $statusMap[$code]['score'] ?? 10;
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                }
+            }
+            $totalScore += $bestScore;
         }
 
         $qualityScore = $maxScore > 0 ? round(($totalScore / $maxScore) * 100, 2) : 0;
 
-        // Distribution des statuts
+        // ✅ Distribution des statuts
         $statusDistribution = [];
         foreach ($statusMap as $code => $info) {
             $count = $commercialStatuses->filter(function($s) use ($code) {
-                return (string)$s->statut === $code;
+                return (string)$s->statut === (string)$code;
             })->count();
             if ($count > 0) {
                 $statusDistribution[] = [
