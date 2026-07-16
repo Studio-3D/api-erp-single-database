@@ -449,7 +449,10 @@ private function getProspectStats($projetId, $dateRange)
         $prospects = DB::connection('temp')
             ->table('prospects')
             ->where('projet_id', $projetId)
-            ->where('origin', 'facebook')
+            ->where(function($query) {
+                $query->where('origin', 'facebook')
+                    ->orWhere('source', 9);
+            })
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
             ->get();
@@ -949,7 +952,10 @@ private function getSimpleStatusStats($prospects)
             $leads = DB::connection('temp')
                 ->table('prospects')
                 ->where('projet_id', $projetId)
-                ->where('origin', 'facebook')
+               ->where(function($query) {
+                    $query->where('origin', 'facebook')
+                        ->orWhere('source', 9);
+                })
                 ->whereNull('deleted_at')
                 ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
                 ->orderBy('created_at', 'asc')
@@ -1039,7 +1045,10 @@ private function getLeadQuality($projetId, $dateRange)
         $prospects = DB::connection('temp')
             ->table('prospects')
             ->where('projet_id', $projetId)
-            ->where('origin', 'facebook')
+             ->where(function($query) {
+                $query->where('origin', 'facebook')
+                    ->orWhere('source', 9);
+            })
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
             ->get();
@@ -1276,7 +1285,10 @@ private function getConversionFunnel($projetId, $dateRange)
         $prospects = DB::connection('temp')
             ->table('prospects')
             ->where('projet_id', $projetId)
-            ->where('origin', 'facebook')
+             ->where(function($query) {
+                $query->where('origin', 'facebook')
+                    ->orWhere('source', 9);
+            })
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
             ->get();
@@ -1552,7 +1564,10 @@ private function getDefaultFunnel()
             $leads = DB::connection('temp')
                 ->table('prospects')
                 ->where('projet_id', $projetId)
-                ->where('origin', 'facebook')
+                ->where(function($query) {
+                    $query->where('origin', 'facebook')
+                        ->orWhere('source', 9);
+                })
                 ->whereNull('deleted_at')
                 ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
                 ->orderBy('created_at', 'asc')
