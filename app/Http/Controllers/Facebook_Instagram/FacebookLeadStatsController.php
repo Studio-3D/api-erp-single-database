@@ -404,10 +404,31 @@ class FacebookLeadStatsController extends Controller
 /**
  * ✅ Statistiques des commerciaux (UNIQUEMENT ceux avec prospects)
  */
+/**
+ * ✅ Statistiques des commerciaux (UNIQUEMENT ceux avec prospects)
+ * Ajout de la catégorie "Non affecté"
+ */
 private function getCommercialStats($collection)
 {
     if (!$collection || $collection->isEmpty()) {
         return [];
+    }
+
+    // ✅ Compter les prospects sans commercial
+    $nonAffectedCount = $collection->filter(function($item) {
+        return is_null($item->commercial_affecte) || $item->commercial_affecte === '';
+    })->count();
+
+    $result = [];
+
+    // ✅ Ajouter "Non affecté" si il y a des prospects
+    if ($nonAffectedCount > 0) {
+        $result[] = [
+            'name' => 'Non affecté',
+            'commercial_id' => null,
+            'total' => $nonAffectedCount,
+            'is_affected' => false,
+        ];
     }
 
     // ✅ Filtrer les prospects avec commercial_affecte non null
@@ -415,24 +436,29 @@ private function getCommercialStats($collection)
         return !is_null($item->commercial_affecte) && $item->commercial_affecte !== '';
     });
 
-    if ($filteredCollection->isEmpty()) {
-        return [];
+    if (!$filteredCollection->isEmpty()) {
+        $grouped = $filteredCollection->groupBy('commercial_affecte');
+
+        foreach ($grouped as $commercialId => $items) {
+            $commercialName = $this->getCommercialName($commercialId);
+            $result[] = [
+                'name' => $commercialName,
+                'commercial_id' => $commercialId,
+                'total' => $items->count(),
+                'is_affected' => true,
+            ];
+        }
     }
 
-    $grouped = $filteredCollection->groupBy('commercial_affecte');
-    $result = [];
-
-    foreach ($grouped as $commercialId => $items) {
-        $commercialName = $this->getCommercialName($commercialId);
-        $result[] = [
-            'name' => $commercialName,
-            'commercial_id' => $commercialId,
-            'total' => $items->count()
-        ];
-    }
-
-    // Trier par total décroissant
+    // Trier par total décroissant (mettre "Non affecté" à la fin si vous voulez)
     usort($result, function($a, $b) {
+        // Mettre "Non affecté" à la fin
+        if ($a['is_affected'] === false && $b['is_affected'] === true) {
+            return 1;
+        }
+        if ($a['is_affected'] === true && $b['is_affected'] === false) {
+            return -1;
+        }
         return $b['total'] - $a['total'];
     });
 
@@ -590,6 +616,9 @@ private function getAllStatusStats($allStatuses)
 /**
  * ✅ Statistiques par commercial et TOUS les statuts (UNIQUEMENT ceux avec prospects)
  */
+/**
+ * ✅ Statistiques par commercial et TOUS les statuts
+ */
 private function getCommercialAllStatusStats($prospects, $allStatuses)
 {
     if ($prospects->isEmpty()) {
@@ -611,24 +640,15 @@ private function getCommercialAllStatusStats($prospects, $allStatuses)
         '11' => 'WhatsApp Envoyé',
     ];
 
-    // ✅ Grouper les prospects par commercial (filtrer les null)
-    $commercialGroups = $prospects->filter(function($item) {
-        return !is_null($item->commercial_affecte) && $item->commercial_affecte !== '';
-    })->groupBy('commercial_affecte');
-
-    // ✅ Si aucun commercial, retourner un tableau vide
-    if ($commercialGroups->isEmpty()) {
-        return [];
-    }
-
     $result = [];
-    foreach ($commercialGroups as $commercialId => $commercialProspects) {
-        $commercialName = $this->getCommercialName($commercialId);
 
-        // Récupérer les IDs des prospects de ce commercial
-        $prospectIds = $commercialProspects->pluck('id')->toArray();
+    // ✅ 1. D'abord les prospects NON AFFECTÉS
+    $nonAffectedProspects = $prospects->filter(function($item) {
+        return is_null($item->commercial_affecte) || $item->commercial_affecte === '';
+    });
 
-        // Filtrer les statuts de ces prospects
+    if ($nonAffectedProspects->isNotEmpty()) {
+        $prospectIds = $nonAffectedProspects->pluck('id')->toArray();
         $commercialStatuses = $allStatuses->whereIn('prospect_id', $prospectIds);
 
         $statusCounts = [];
@@ -643,10 +663,36 @@ private function getCommercialAllStatusStats($prospects, $allStatuses)
             }
         }
 
-        // Trier par ordre décroissant
-        usort($statusCounts, function($a, $b) {
-            return $b['count'] - $a['count'];
-        });
+        $result[] = [
+            'commercial_id' => null,
+            'commercial_name' => 'Non affecté',
+            'total_prospects' => $nonAffectedProspects->count(),
+            'total_statuses' => $commercialStatuses->count(),
+            'statuses' => $statusCounts,
+        ];
+    }
+
+    // ✅ 2. Ensuite les prospects AFFECTÉS
+    $affectedGroups = $prospects->filter(function($item) {
+        return !is_null($item->commercial_affecte) && $item->commercial_affecte !== '';
+    })->groupBy('commercial_affecte');
+
+    foreach ($affectedGroups as $commercialId => $commercialProspects) {
+        $commercialName = $this->getCommercialName($commercialId);
+        $prospectIds = $commercialProspects->pluck('id')->toArray();
+        $commercialStatuses = $allStatuses->whereIn('prospect_id', $prospectIds);
+
+        $statusCounts = [];
+        foreach ($statusMap as $code => $label) {
+            $count = $commercialStatuses->where('statut', $code)->count();
+            if ($count > 0) {
+                $statusCounts[] = [
+                    'status_code' => $code,
+                    'status_label' => $label,
+                    'count' => $count,
+                ];
+            }
+        }
 
         $result[] = [
             'commercial_id' => $commercialId,
@@ -657,7 +703,7 @@ private function getCommercialAllStatusStats($prospects, $allStatuses)
         ];
     }
 
-    // Trier par nombre total de statuts décroissant
+    // Trier par nombre total de prospects décroissant
     usort($result, function($a, $b) {
         return $b['total_prospects'] - $a['total_prospects'];
     });
