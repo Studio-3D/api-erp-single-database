@@ -338,8 +338,8 @@ class FacebookLeadStatsController extends Controller
                 'leads_by_ad' => $leadsByAd,
                 'leads_by_country' => $leadsByCountry,
                 'leads_by_city' => $leadsByCity,
-                'avg_daily' => count($leadsByDay) > 0 ? round($totalLeads / count($leadsByDay), 1) : 0,
-                'avg_hourly' => count($leadsByHour) > 0 ? round($totalLeads / count($leadsByHour), 1) : 0,
+                //'avg_daily' => count($leadsByDay) > 0 ? round($totalLeads / count($leadsByDay), 1) : 0,
+               // 'avg_hourly' => count($leadsByHour) > 0 ? round($totalLeads / count($leadsByHour), 1) : 0,
             ];
 
         } catch (\Exception $e) {
@@ -548,14 +548,15 @@ private function getProspectStats($projetId, $dateRange)
             'prospects_by_commercial_status' => $commercialStatusStats, // ✅ Exclut "Non affecté"
             'prospects_by_day' => $prospectsByDayFormatted,
             'non_affected_count' => $nonAffectedCount, // ✅ Pour la carte uniquement
-            'conversion_rate' => $total > 0
+            'conversion_rate_client' => $total > 0
                 ? round($prospects->filter(function($p) use ($allStatuses) {
                     $prospectStatuses = $allStatuses->where('prospect_id', $p->id);
                     return $prospectStatuses->contains(function($s) {
-                        return in_array($s->statut, ['4', '10']);
+                        return in_array($s->statut, ['4']);
                     });
                 })->count() / $total * 100, 2)
                 : 0,
+          // 'conversion_rate_visite'  par  '10',
         ];
 
     } catch (\Exception $e) {
@@ -1443,46 +1444,45 @@ private function getConversionFunnel($projetId, $dateRange)
         }
 
         // ✅ Construire les données du funnel
-        $funnelData = [];
-        $prevCount = $total;
+        // ✅ Construire les données du funnel - Version corrigée
+            $funnelData = [];
+            $prevCount = $total;
 
-        // Définir l'ordre des étapes pour le funnel
-        $stepOrder = ['Leads', 'Affectés', 'Contactés', 'Qualifiés', 'Visites', 'Négociation', 'Vendus'];
+            // Définir l'ordre des étapes pour le funnel
+            $stepOrder = ['Leads', 'Affectés', 'Contactés', 'Qualifiés', 'Visites', 'Négociation', 'Vendus'];
 
-        foreach ($stepOrder as $step) {
-            $count = $funnelSteps[$step] ?? 0;
-            $dropOff = $prevCount - $count;
-            $dropRate = $prevCount > 0 ? round(($dropOff / $prevCount) * 100, 2) : 0;
-            $conversionRate = $total > 0 ? round(($count / $total) * 100, 2) : 0;
+            foreach ($stepOrder as $index => $step) {
+                $count = $funnelSteps[$step] ?? 0;
 
-            $funnelData[] = [
-                'name' => $step,
-                'value' => $count,
-                'conversion_rate' => $conversionRate,
-                'drop_off' => $dropOff,
-                'drop_rate' => $dropRate,
-                'percentage' => $total > 0 ? round(($count / $total) * 100, 2) : 0,
-            ];
+                // ✅ Pour la première étape (Leads), la perte est 0
+                if ($index === 0) {
+                    $dropOff = 0;
+                    $dropRate = 0;
+                } else {
+                    // ✅ Pour les étapes suivantes, la perte est calculée par rapport à l'étape précédente
+                    $dropOff = $prevCount - $count;
+                    $dropRate = $prevCount > 0 ? round(($dropOff / $prevCount) * 100, 2) : 0;
+                }
 
-            $prevCount = $count;
-        }
+                // ✅ Taux de conversion GLOBAL (par rapport au total des leads)
+                $conversionRate = $total > 0 ? round(($count / $total) * 100, 2) : 0;
 
-        $overallConversion = $total > 0 ? round(($funnelSteps['Vendus'] / $total) * 100, 2) : 0;
+                // ✅ Pourcentage par rapport à l'étape précédente (taux de rétention)
+                $retentionRate = $prevCount > 0 ? round(($count / $prevCount) * 100, 2) : 0;
 
-        return [
-            'steps' => $funnelData,
-            'summary' => [
-                'total_leads' => $total,
-                'total_affected' => $funnelSteps['Affectés'],
-                'total_contacted' => $funnelSteps['Contactés'],
-                'total_qualified' => $funnelSteps['Qualifiés'],
-                'total_visits' => $funnelSteps['Visites'],
-                'total_negotiation' => $funnelSteps['Négociation'],
-                'total_sold' => $funnelSteps['Vendus'],
-                'overall_conversion' => $overallConversion,
-            ],
-            'drop_off_analysis' => $this->getDropOffAnalysis($funnelData),
-        ];
+                $funnelData[] = [
+                    'name' => $step,
+                    'value' => $count,
+                    'conversion_rate' => $conversionRate,        // % par rapport au total
+                    'drop_off' => $dropOff,                       // Perte depuis l'étape précédente
+                    'drop_rate' => $dropRate,                     // % de perte depuis l'étape précédente
+                    'retention_rate' => $retentionRate,           // % de rétention depuis l'étape précédente
+                    'percentage' => $total > 0 ? round(($count / $total) * 100, 2) : 0, // % du total
+                ];
+
+                // ✅ Mettre à jour prevCount avec le count actuel pour l'étape suivante
+                $prevCount = $count;
+            }
 
     } catch (\Exception $e) {
         Log::error('Error in getConversionFunnel: ' . $e->getMessage());

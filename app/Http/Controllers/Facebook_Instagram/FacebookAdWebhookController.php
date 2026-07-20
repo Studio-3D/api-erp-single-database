@@ -542,7 +542,7 @@ private function getProjetIdFromPageId($pageId)
                 Log::info('📝 Form ID: ' . ($leadData['form_id'] ?? 'Non fourni'));
 
                 // ✅ Créer une notification pour les commerciaux
-                $this->createLeadNotification($prospect->id,$full_name, $email, $phone, $projet_id);
+                //$this->createLeadNotification($prospect->id,$full_name, $email, $phone, $projet_id);
 
                 Log::info('✅ Lead processed and saved successfully');
 
@@ -674,13 +674,13 @@ private function createProspectStatus($prospectId, $projetId)
             'commentaire' => 'Prospect créé par Facebook Ads'
         ]);
 
-        /* ✅ AUTOMATIC ASSIGNMENT: Affecter le prospect au commercial avec le moins de prospects
+        // ✅ AUTOMATIC ASSIGNMENT: Affecter le prospect au commercial avec le moins de prospects
         $assignmentResult = $this->autoAssignSingleProspect($prospectId, $projetId);
 
         Log::info('📊 Auto-assignment result', [
             'prospect_id' => $prospectId,
             'success' => $assignmentResult
-        ]);*/
+        ]);
 
         return $statutProspect;
 
@@ -691,6 +691,9 @@ private function createProspectStatus($prospectId, $projetId)
     }
 }
 
+/**
+ * Auto-assign a single prospect to the commercial with the least prospects
+ */
 /**
  * Auto-assign a single prospect to the commercial with the least prospects
  */
@@ -721,21 +724,37 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             return false;
         }
 
-        // Get all commercials for this project with their current prospect counts
+        // Get all commercials (role = 3) for this project
         $commercials = User::on('temp')
-            ->whereHas('projets', function($query) use ($projetId) {
-                $query->where('projet_id', $projetId);
+            ->where(function($query) use ($projetId) {
+                // Soit ils sont associés au projet via la relation
+                $query->whereHas('projets', function($q) use ($projetId) {
+                    $q->where('projet_id', $projetId);
+                });
             })
-            ->where('role', 3) // Commercial role
-            ->where('is_actif', 1) // Only active commercials
+            ->where('role', 3)
+            ->where('is_actif', 1)
+            ->orderBy('id')
             ->get();
 
+
         if ($commercials->isEmpty()) {
-            Log::warning('⚠️ No active commercials found for project', ['projet_id' => $projetId]);
+            Log::warning('⚠️ No active commercials found', ['projet_id' => $projetId]);
             return false;
         }
 
-        // Calculate actual current prospect counts for each commercial
+        Log::info('📊 Commercials found for assignment', [
+            'count' => $commercials->count(),
+            'commercials' => $commercials->map(function($c) {
+                return [
+                    'id' => $c->id,
+                    'name' => $c->name . ' ' . $c->prenom,
+                    'nb_prospects' => $c->nb_prospects
+                ];
+            })
+        ]);
+
+        // ===== CALCULER LES CHARGES ACTUELLES =====
         $commercialCounts = $commercials->map(function($commercial) use ($projetId) {
             $actualCount = Prospect::on('temp')
                 ->where('commercial_affecte', $commercial->id)
@@ -751,7 +770,10 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             ];
         })->sortBy('count')->values();
 
-        // Get the commercial with the least prospects
+        Log::info('📊 Commercial counts before assignment', $commercialCounts->toArray());
+
+        // ===== DISTRIBUTION ÉQUITABLE =====
+        // Prendre le commercial avec le moins de prospects
         $targetCommercial = $commercialCounts->first();
 
         if (!$targetCommercial) {
@@ -759,13 +781,13 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             return false;
         }
 
-        Log::info('📊 Commercial selected for assignment', [
+        Log::info('✅ Commercial selected for assignment', [
             'commercial_id' => $targetCommercial['id'],
             'commercial_name' => $targetCommercial['name'],
             'current_count' => $targetCommercial['count']
         ]);
 
-        // Get system user (Super Admin)
+        // Get system user (Admin)
         $systemUser = User::on('temp')->where('role', 1)->first();
 
         // ✅ Start transaction
@@ -777,7 +799,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             // ✅ 1. Update prospect assignment
             $prospect->commercial_affecte = $newCommercialId;
             if ($systemUser) {
-               // $prospect->affecte_par_admin_id = $systemUser->id;
+                $prospect->affecte_par_admin_id = $systemUser->id;
                 $prospect->date_affectation = Carbon::now();
             }
             $prospect->save();
@@ -793,9 +815,9 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             $statutProspect->prospect_id = $prospectId;
             $statutProspect->statut = '6'; // Affecté
             $statutProspect->date_traitement = Carbon::now();
-          //  $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
+            $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
             $statutProspect->commentaire = 'Prospect affecté automatiquement après création via Facebook Ads';
-            $statutProspect->type_traitement_rdv_relance = 0; // ✅ 2 = Automatique
+            $statutProspect->type_traitement_rdv_relance = 0;
             $statutProspect->created_at = now();
             $statutProspect->updated_at = now();
             $statutProspect->save();
