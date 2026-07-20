@@ -178,10 +178,10 @@ private function getVerifyTokenFromConfig($pageId = null)
      */
    public function handle(Request $request)
 {
-    Log::info('=========================================');
+    /*Log::info('=========================================');
     Log::info('📨 WEBHOOK RECEIVED');
     Log::info('=========================================');
-    Log::info('📦 Full Payload:', $request->all());
+    Log::info('📦 Full Payload:', $request->all());*/
 
     $data = $request->all();
 

@@ -90,11 +90,10 @@ class FacebookLeadStatsController extends Controller
                 'leads' => $this->getLeadStats($pageId, $accessToken, $dateRange),
                 'forms' => $this->getFormStats($pageId, $accessToken),
                 'prospects' => $this->getProspectStats($projet_id, $dateRange),
-                'ads' => $this->getAdStats($pageId, $accessToken, $dateRange),
+                //'ads' => $this->getAdStats($pageId, $accessToken, $dateRange),
                 'temporal' => $this->getTemporalAnalysis($projet_id, $dateRange),
-                'quality' => $this->getLeadQuality($projet_id, $dateRange),
                 'funnel' => $this->getConversionFunnel($projet_id, $dateRange),
-                'ad_performance' => $this->getAdPerformance($pageId, $accessToken, $dateRange),
+              //  'ad_performance' => $this->getAdPerformance($pageId, $accessToken, $dateRange),
                 'trends' => $this->getTrends($projet_id, $dateRange),
             ];
 
@@ -338,8 +337,6 @@ class FacebookLeadStatsController extends Controller
                 'leads_by_ad' => $leadsByAd,
                 'leads_by_country' => $leadsByCountry,
                 'leads_by_city' => $leadsByCity,
-                //'avg_daily' => count($leadsByDay) > 0 ? round($totalLeads / count($leadsByDay), 1) : 0,
-               // 'avg_hourly' => count($leadsByHour) > 0 ? round($totalLeads / count($leadsByHour), 1) : 0,
             ];
 
         } catch (\Exception $e) {
@@ -354,8 +351,7 @@ class FacebookLeadStatsController extends Controller
                 'leads_by_ad' => [],
                 'leads_by_country' => [],
                 'leads_by_city' => [],
-                'avg_daily' => 0,
-                'avg_hourly' => 0,
+
             ];
         }
     }
@@ -469,6 +465,9 @@ private function getCommercialStats($collection, $includeNonAffected = false)
 /**
  * 4. Statistiques des prospects (base locale)
  */
+/**
+ * 4. Statistiques des prospects (base locale)
+ */
 private function getProspectStats($projetId, $dateRange)
 {
     try {
@@ -515,7 +514,7 @@ private function getProspectStats($projetId, $dateRange)
         $statusStats = $this->getAllStatusStats($allStatuses);
 
         // ✅ STATISTIQUES PAR COMMERCIAL (exclut "Non affecté" pour les graphiques)
-        $commercialStats = $this->getCommercialStats($prospects, false); // false = exclure Non affecté
+        $commercialStats = $this->getCommercialStats($prospects, false);
 
         // ✅ STATISTIQUES PAR COMMERCIAL ET STATUT (exclut "Non affecté")
         $commercialStatusStats = $this->getCommercialAllStatusStats($prospects, $allStatuses);
@@ -536,6 +535,35 @@ private function getProspectStats($projetId, $dateRange)
             ];
         }
 
+        // ✅ TAUX DE CONVERSION - Version améliorée
+        $convertedToClient = 0;
+        $convertedToVisite = 0;
+        $convertedToClientOrVisite = 0;
+
+        foreach ($prospects as $prospect) {
+            $prospectStatuses = $allStatuses->where('prospect_id', $prospect->id);
+            $codes = $prospectStatuses->pluck('statut')->map(fn($s) => (string)$s)->toArray();
+
+            // ✅ Converti en client (statut 10)
+            if (in_array('10', $codes)) {
+                $convertedToClient++;
+            }
+
+            // ✅ Converti en visite (statut 4)
+            if (in_array('4', $codes)) {
+                $convertedToVisite++;
+            }
+
+            // ✅ Converti en client OU visite (pour le taux global)
+            if (array_intersect($codes, ['4', '10'])) {
+                $convertedToClientOrVisite++;
+            }
+        }
+
+        $conversionRateClient = $total > 0 ? round(($convertedToClient / $total) * 100, 2) : 0;
+        $conversionRateVisite = $total > 0 ? round(($convertedToVisite / $total) * 100, 2) : 0;
+        $conversionRateGlobal = $total > 0 ? round(($convertedToClientOrVisite / $total) * 100, 2) : 0;
+
         return [
             'total_prospects' => $total,
             'total_statuses' => $totalStatuses,
@@ -544,19 +572,19 @@ private function getProspectStats($projetId, $dateRange)
             'prospects_by_residence' => $this->getGroupedStatsFromCollection($prospects, 'residence'),
             'prospects_by_status' => $statusDistribution,
             'prospects_by_status_raw' => $statusStats,
-            'prospects_by_commercial' => $commercialStats, // ✅ Exclut "Non affecté"
-            'prospects_by_commercial_status' => $commercialStatusStats, // ✅ Exclut "Non affecté"
+            'prospects_by_commercial' => $commercialStats,
+            'prospects_by_commercial_status' => $commercialStatusStats,
             'prospects_by_day' => $prospectsByDayFormatted,
-            'non_affected_count' => $nonAffectedCount, // ✅ Pour la carte uniquement
-            'conversion_rate_client' => $total > 0
-                ? round($prospects->filter(function($p) use ($allStatuses) {
-                    $prospectStatuses = $allStatuses->where('prospect_id', $p->id);
-                    return $prospectStatuses->contains(function($s) {
-                        return in_array($s->statut, ['4']);
-                    });
-                })->count() / $total * 100, 2)
-                : 0,
-          // 'conversion_rate_visite'  par  '10',
+            'non_affected_count' => $nonAffectedCount,
+
+            // ✅ Taux de conversion détaillés
+            'conversion_rate_client' => $conversionRateClient,
+            'conversion_rate_visite' => $conversionRateVisite,
+            'conversion_rate_global' => $conversionRateGlobal,
+
+            // ✅ Nombre de prospects convertis (pour les cartes)
+            'converted_client_count' => $convertedToClient,
+            'converted_visite_count' => $convertedToVisite,
         ];
 
     } catch (\Exception $e) {
@@ -574,7 +602,11 @@ private function getProspectStats($projetId, $dateRange)
             'prospects_by_commercial_status' => [],
             'prospects_by_day' => [],
             'non_affected_count' => 0,
-            'conversion_rate' => 0,
+            'conversion_rate_client' => 0,
+            'conversion_rate_visite' => 0,
+            'conversion_rate_global' => 0,
+            'converted_client_count' => 0,
+            'converted_visite_count' => 0,
         ];
     }
 }
@@ -910,7 +942,7 @@ private function getSimpleStatusStats($prospects)
 
     /**
      * 5. Statistiques des annonces - AVEC FILTRE DE PÉRIODE
-     */
+
     private function getAdStats($pageId, $accessToken, $dateRange)
     {
         try {
@@ -969,285 +1001,155 @@ private function getSimpleStatusStats($prospects)
                 'overall_ctr' => 0,
             ];
         }
-    }
+    }*/
 
     /**
      * 6. Analyse temporelle - AVEC REMPLISSAGE DES JOURS MANQUANTS
      */
-    private function getTemporalAnalysis($projetId, $dateRange)
-    {
-        try {
-            $leads = DB::connection('temp')
-                ->table('prospects')
-                ->where('projet_id', $projetId)
-               ->where(function($query) {
-                    $query->where('origin', 'facebook')
-                        ->orWhere('source', 9);
-                })
-                ->whereNull('deleted_at')
-                ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
-                ->orderBy('created_at', 'asc')
-                ->get();
-
-            if ($leads->isEmpty()) {
-                // ✅ Retourner un tableau avec toutes les dates de la période
-                $dailyTrend = [];
-                $current = $dateRange['since']->copy();
-                while ($current <= $dateRange['until']) {
-                    $dailyTrend[$current->format('Y-m-d')] = 0;
-                    $current->addDay();
-                }
-
-                return [
-                    'trend' => 'stable',
-                    'growth_rate' => 0,
-                    'projection_30d' => 0,
-                    'total_days' => $dateRange['since']->diffInDays($dateRange['until']) + 1,
-                    'avg_daily' => 0,
-                    'daily_trend' => $dailyTrend,
-                ];
-            }
-
-            $total = $leads->count();
-            $firstDate = $dateRange['since']->copy();
-            $lastDate = $dateRange['until']->copy();
-            $daysDiff = $firstDate->diffInDays($lastDate) + 1;
-
-            // ✅ Créer un tableau avec toutes les dates de la période
-            $dailyTrend = [];
-            for ($i = 0; $i < $daysDiff; $i++) {
-                $date = $firstDate->copy()->addDays($i)->format('Y-m-d');
-                $dailyTrend[$date] = 0;
-            }
-
-            // ✅ Remplir les données réelles
-            foreach ($leads as $lead) {
-                $date = Carbon::parse($lead->created_at)->format('Y-m-d');
-                if (isset($dailyTrend[$date])) {
-                    $dailyTrend[$date]++;
-                }
-            }
-
-            // ✅ Calculer la croissance
-            $growthRate = $daysDiff > 0 ? round($total / $daysDiff, 2) : 0;
-            $projection = round($growthRate * 30, 0);
-
-            return [
-                'trend' => $growthRate > 1 ? 'up' : ($growthRate < 0.5 ? 'down' : 'stable'),
-                'growth_rate' => $growthRate,
-                'projection_30d' => $projection,
-                'total_days' => $daysDiff,
-                'avg_daily' => $growthRate,
-                'daily_trend' => $dailyTrend,
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Error in getTemporalAnalysis: ' . $e->getMessage());
-            return [
-                'trend' => 'stable',
-                'growth_rate' => 0,
-                'projection_30d' => 0,
-                'total_days' => 0,
-                'avg_daily' => 0,
-                'daily_trend' => [],
-            ];
-        }
-    }
-
-    /**
-     * 7. Qualité des leads
-     */
    /**
- * 7. Qualité des leads - Version améliorée
+ * Analyse l'évolution temporelle des leads d'un projet sur une période donnée
+ *
+ * @param int $projetId L'identifiant du projet
+ * @param array $dateRange Tableau contenant 'since' (date début) et 'until' (date fin) au format Carbon
+ * @return array Tableau contenant les statistiques d'évolution
  */
-/**
- * 7. Qualité des leads - Version corrigée avec les bons statuts
- */
-/**
- * 7. Qualité des leads - Version corrigée
- */
-/**
- * 7. Qualité des leads - Version corrigée
- */
-/**
- * 7. Qualité des leads - Version corrigée
- */
-/**
- * 7. Qualité des leads - Version corrigée
- */
-private function getLeadQuality($projetId, $dateRange)
+private function getTemporalAnalysis($projetId, $dateRange)
 {
     try {
-        // ✅ Récupérer les prospects Facebook
-        $prospects = DB::connection('temp')
-            ->table('prospects')
-            ->where('projet_id', $projetId)
+        // ============================================================
+        // 1. RÉCUPÉRATION DES DONNÉES EN BASE DE DONNÉES
+        // ============================================================
+
+        $leads = DB::connection('temp')  // Connexion à la base de données nommée 'temp'
+            ->table('prospects')          // Table 'prospects'
+            ->where('projet_id', $projetId)  // Filtrer par projet
+            // Condition OR : soit l'origine est 'facebook', soit la source = 9
             ->where(function($query) {
                 $query->where('origin', 'facebook')
-                      ->orWhere('source', 9);
+                    ->orWhere('source', 9);
             })
-            ->whereNull('deleted_at')
+            ->whereNull('deleted_at')     // Exclure les leads supprimés (soft delete)
+            // Filtrer sur la période : entre 'since' et 'until'
             ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
-            ->get();
+            ->orderBy('created_at', 'asc') // Trier du plus ancien au plus récent
+            ->get();                       // Exécuter la requête et récupérer les résultats
 
-        $total = $prospects->count();
+        // ============================================================
+        // 2. CAS PARTICULIER : AUCUN LEAD TROUVÉ
+        // ============================================================
 
-        if ($total === 0) {
-            return $this->getDefaultQualityStats();
-        }
+        if ($leads->isEmpty()) {
+            // ✅ Retourner un tableau avec toutes les dates de la période à 0
+            $dailyTrend = [];
+            $current = $dateRange['since']->copy(); // Copie pour ne pas modifier l'original
 
-        // ✅ Récupérer les IDs des prospects
-        $prospectIds = $prospects->pluck('id')->toArray();
-
-        // ✅ Récupérer TOUS les statuts de ces prospects
-        $allStatuses = DB::connection('temp')
-            ->table('statut_prospects')
-            ->whereIn('prospect_id', $prospectIds)
-            ->whereNull('deleted_at')
-            ->orderBy('created_at', 'asc')
-            ->get();
-
-        // ✅ Log pour debug
-        Log::info('📊 Quality debug:', [
-            'total_prospects' => $total,
-            'prospect_ids' => $prospectIds,
-            'total_statuses' => $allStatuses->count(),
-            'statuses' => $allStatuses->toArray()
-        ]);
-
-        // ✅ Mapping des statuts
-        $statusMap = [
-            '0' => ['label' => 'En attente', 'score' => 10, 'color' => '#FCD34D'],
-            '1' => ['label' => 'Planification RDV', 'score' => 30, 'color' => '#60A5FA'],
-            '2' => ['label' => 'Injoignable', 'score' => 5, 'color' => '#F87171'],
-            '3' => ['label' => 'Rappel', 'score' => 20, 'color' => '#FB923C'],
-            '4' => ['label' => 'Converti en Visite', 'score' => 70, 'color' => '#34D399'],
-            '5' => ['label' => 'Nouvel Appel', 'score' => 25, 'color' => '#A78BFA'],
-            '6' => ['label' => 'Affecté', 'score' => 15, 'color' => '#818CF8'],
-            '7' => ['label' => 'Intéressé', 'score' => 50, 'color' => '#F472B6'],
-            '8' => ['label' => 'Perdu', 'score' => 0, 'color' => '#9CA3AF'],
-            '9' => ['label' => 'Réceptif', 'score' => 40, 'color' => '#2DD4BF'],
-            '10' => ['label' => 'Converti en client', 'score' => 100, 'color' => '#10B981'],
-            '11' => ['label' => 'WhatsApp Envoyé', 'score' => 35, 'color' => '#22D3EE'],
-        ];
-
-        // ✅ Compter les statuts par type
-        $statusDistribution = [];
-        $statusChartData = [];
-        $totalStatuses = $allStatuses->count();
-
-        foreach ($statusMap as $code => $info) {
-            // ✅ Compter les statuts avec CAST pour être sûr
-            $count = $allStatuses->filter(function($s) use ($code) {
-                return (string)$s->statut === (string)$code;
-            })->count();
-
-            $statusDistribution[$info['label']] = [
-                'count' => $count,
-                'percentage' => $totalStatuses > 0 ? round(($count / $totalStatuses) * 100, 2) : 0,
-                'score' => $info['score'],
-                'color' => $info['color'],
-            ];
-
-            if ($count > 0) {
-                $statusChartData[] = [
-                    'name' => $info['label'],
-                    'value' => $count,
-                    'percentage' => $totalStatuses > 0 ? round(($count / $totalStatuses) * 100, 2) : 0,
-                    'color' => $info['color'],
-                    'score' => $info['score'],
-                ];
+            // Boucle pour générer toutes les dates de la période
+            while ($current <= $dateRange['until']) {
+                $dailyTrend[$current->format('Y-m-d')] = 0; // Chaque date = 0 lead
+                $current->addDay(); // Passer au jour suivant
             }
-        }
 
-        // ✅ Si pas de statuts, créer un statut par défaut pour les graphiques
-        if (empty($statusChartData)) {
-            $statusChartData[] = [
-                'name' => 'Aucun statut',
-                'value' => $total,
-                'percentage' => 100,
-                'color' => '#E5E7EB',
-                'score' => 0,
+            // Retourner des valeurs par défaut (tendance stable, pas de croissance)
+            return [
+                'trend' => 'stable',          // Tendance : stable
+                'growth_rate' => 0,           // Taux de croissance : 0
+                'projection_30d' => 0,        // Projection 30 jours : 0
+                'total_days' => $dateRange['since']->diffInDays($dateRange['until']) + 1, // Nombre de jours total
+                'avg_daily' => 0,             // Moyenne journalière : 0
+                'daily_trend' => $dailyTrend, // Tableau jour par jour (tous à 0)
             ];
         }
 
-        // ✅ Calcul du score de qualité
-        $totalQualityScore = 0;
-        $maxPossibleScore = $total * 100;
+        // ============================================================
+        // 3. CALCULS PRÉPARATOIRES AVEC LES DONNÉES RÉELLES
+        // ============================================================
 
-        foreach ($prospects as $prospect) {
-            $prospectStatuses = $allStatuses->where('prospect_id', $prospect->id);
-            $bestScore = 10;
+        $total = $leads->count(); // Nombre total de leads récupérés
+        $firstDate = $dateRange['since']->copy(); // Date de début
+        $lastDate = $dateRange['until']->copy();  // Date de fin
+        $daysDiff = $firstDate->diffInDays($lastDate) + 1; // Nombre de jours total (+1 car inclusif)
 
-            foreach ($prospectStatuses as $status) {
-                $code = (string)$status->statut;
-                $score = $statusMap[$code]['score'] ?? 10;
-                if ($score > $bestScore) {
-                    $bestScore = $score;
-                }
-            }
-            $totalQualityScore += $bestScore;
+        // ============================================================
+        // 4. CRÉATION DU TABLEAU DE TOUTES LES DATES
+        // ============================================================
+
+        // ✅ Créer un tableau avec toutes les dates de la période
+        $dailyTrend = [];
+        for ($i = 0; $i < $daysDiff; $i++) {
+            $date = $firstDate->copy()->addDays($i)->format('Y-m-d'); // Génère chaque date
+            $dailyTrend[$date] = 0; // Initialise chaque jour à 0
         }
 
-        $qualityScore = $maxPossibleScore > 0 ? round(($totalQualityScore / $maxPossibleScore) * 100, 2) : 0;
+        // ============================================================
+        // 5. REMPLISSAGE AVEC LES DONNÉES RÉELLES DES LEADS
+        // ============================================================
 
-        // ✅ Taux de conversion
-        $convertedProspects = 0;
-        foreach ($prospects as $prospect) {
-            $prospectStatuses = $allStatuses->where('prospect_id', $prospect->id);
-            $codes = $prospectStatuses->pluck('statut')->map(fn($s) => (string)$s)->toArray();
-            if (array_intersect($codes, ['4', '10'])) {
-                $convertedProspects++;
+        // ✅ Remplir les données réelles
+        foreach ($leads as $lead) {
+            $date = Carbon::parse($lead->created_at)->format('Y-m-d'); // Date de création du lead
+            if (isset($dailyTrend[$date])) { // Vérifie si la date existe dans le tableau
+                $dailyTrend[$date]++; // Incrémente le compteur pour ce jour
             }
         }
-        $conversionRate = $total > 0 ? round(($convertedProspects / $total) * 100, 2) : 0;
 
-        // ✅ Taux de contact
-        $contactedStatuses = ['1', '3', '4', '5', '7', '9', '10'];
-        $contactedProspects = 0;
-        foreach ($prospects as $prospect) {
-            $prospectStatuses = $allStatuses->where('prospect_id', $prospect->id);
-            $codes = $prospectStatuses->pluck('statut')->map(fn($s) => (string)$s)->toArray();
-            if (array_intersect($codes, $contactedStatuses)) {
-                $contactedProspects++;
-            }
-        }
-        $contactRate = $total > 0 ? round(($contactedProspects / $total) * 100, 2) : 0;
+        // ============================================================
+        // 6. CALCUL DES INDICATEURS DE PERFORMANCE
+        // ============================================================
 
-        // ✅ Qualité par commercial
-        $commercialQuality = $this->getCommercialQualityStats($prospects, $allStatuses, $statusMap);
+        // ✅ Calculer la croissance
+        // Taux de croissance = nombre total de leads / nombre de jours
+        $growthRate = $daysDiff > 0 ? round($total / $daysDiff, 2) : 0;
+
+        // Projection sur 30 jours = taux de croissance × 30
+        $projection = round($growthRate * 30, 0);
+
+        // ============================================================
+        // 7. DÉTERMINATION DE LA TENDANCE
+        // ============================================================
+
+        /**
+         * Règle de classification de la tendance :
+         * - 'up' (hausse) : plus d'1 lead par jour en moyenne
+         * - 'down' (baisse) : moins de 0.5 lead par jour
+         * - 'stable' (stable) : entre 0.5 et 1 lead par jour
+         */
+        $trend = $growthRate > 1 ? 'up' : ($growthRate < 0.5 ? 'down' : 'stable');
+
+        // ============================================================
+        // 8. RETOUR DU RÉSULTAT FINAL
+        // ============================================================
 
         return [
-            'quality_score' => $qualityScore,
-            'contact_rate' => $contactRate,
-            'conversion_rate' => $conversionRate,
-            'total_prospects' => $total,
-            'total_statuses' => $totalStatuses,
-            'status_distribution' => $statusDistribution,
-            'status_chart_data' => $statusChartData,
-            'commercial_quality' => $commercialQuality,
-            'quality_level' => $this->getQualityLevel($qualityScore),
+            'trend' => $trend,                 // Tendance : up / down / stable
+            'growth_rate' => $growthRate,      // Taux de croissance (leads/jour)
+            'projection_30d' => $projection,   // Projection sur 30 jours
+            'total_days' => $daysDiff,         // Nombre total de jours analysés
+            'avg_daily' => $growthRate,        // Moyenne journalière (identique à growth_rate)
+            'daily_trend' => $dailyTrend,      // Tableau jour par jour avec les comptages
         ];
 
+    // ============================================================
+    // 9. GESTION DES ERREURS
+    // ============================================================
+
     } catch (\Exception $e) {
-        Log::error('Error in getLeadQuality: ' . $e->getMessage());
-        Log::error('Trace: ' . $e->getTraceAsString());
-        return $this->getDefaultQualityStats();
+        // En cas d'erreur, on loggue pour debug
+        Log::error('Error in getTemporalAnalysis: ' . $e->getMessage());
+
+        // Retourne des valeurs par défaut (sécurisé pour ne pas casser l'application)
+        return [
+            'trend' => 'stable',
+            'growth_rate' => 0,
+            'projection_30d' => 0,
+            'total_days' => 0,
+            'avg_daily' => 0,
+            'daily_trend' => [],
+        ];
     }
 }
 
-/**
- * ✅ Statistiques de qualité par commercial
- */
-/**
- * ✅ Statistiques de qualité par commercial
- */
-/**
- * ✅ Statistiques de qualité par commercial
- */
-/**
- * ✅ Statistiques de qualité par commercial
- */
+
+
 private function getCommercialQualityStats($prospects, $allStatuses, $statusMap)
 {
     if ($prospects->isEmpty()) {
@@ -1360,13 +1262,16 @@ private function getDefaultQualityStats()
 /**
  * 8. Funnel de conversion - Version corrigée avec les bons statuts
  */
+/**
+ * 8. Funnel de conversion - Version corrigée
+ */
 private function getConversionFunnel($projetId, $dateRange)
 {
     try {
         $prospects = DB::connection('temp')
             ->table('prospects')
             ->where('projet_id', $projetId)
-             ->where(function($query) {
+            ->where(function($query) {
                 $query->where('origin', 'facebook')
                     ->orWhere('source', 9);
             })
@@ -1388,10 +1293,10 @@ private function getConversionFunnel($projetId, $dateRange)
             ->orderBy('created_at', 'asc')
             ->get();
 
-        // ✅ Définir les étapes du funnel avec des descriptions
+        // ✅ Définir les étapes du funnel
         $funnelSteps = [
             'Leads' => $total,
-            'Affectés' => 0,      // ✅ Nouvelle étape pour le statut 6
+            'Affectés' => 0,
             'Contactés' => 0,
             'Qualifiés' => 0,
             'Visites' => 0,
@@ -1444,48 +1349,58 @@ private function getConversionFunnel($projetId, $dateRange)
         }
 
         // ✅ Construire les données du funnel
-        // ✅ Construire les données du funnel - Version corrigée
-            $funnelData = [];
-            $prevCount = $total;
+        $funnelData = [];
+        $prevCount = $total;
 
-            // Définir l'ordre des étapes pour le funnel
-            $stepOrder = ['Leads', 'Affectés', 'Contactés', 'Qualifiés', 'Visites', 'Négociation', 'Vendus'];
+        $stepOrder = ['Leads', 'Affectés', 'Contactés', 'Qualifiés', 'Visites', 'Négociation', 'Vendus'];
 
-            foreach ($stepOrder as $index => $step) {
-                $count = $funnelSteps[$step] ?? 0;
+        foreach ($stepOrder as $index => $step) {
+            $count = $funnelSteps[$step] ?? 0;
 
-                // ✅ Pour la première étape (Leads), la perte est 0
-                if ($index === 0) {
-                    $dropOff = 0;
-                    $dropRate = 0;
-                } else {
-                    // ✅ Pour les étapes suivantes, la perte est calculée par rapport à l'étape précédente
-                    $dropOff = $prevCount - $count;
-                    $dropRate = $prevCount > 0 ? round(($dropOff / $prevCount) * 100, 2) : 0;
-                }
-
-                // ✅ Taux de conversion GLOBAL (par rapport au total des leads)
-                $conversionRate = $total > 0 ? round(($count / $total) * 100, 2) : 0;
-
-                // ✅ Pourcentage par rapport à l'étape précédente (taux de rétention)
-                $retentionRate = $prevCount > 0 ? round(($count / $prevCount) * 100, 2) : 0;
-
-                $funnelData[] = [
-                    'name' => $step,
-                    'value' => $count,
-                    'conversion_rate' => $conversionRate,        // % par rapport au total
-                    'drop_off' => $dropOff,                       // Perte depuis l'étape précédente
-                    'drop_rate' => $dropRate,                     // % de perte depuis l'étape précédente
-                    'retention_rate' => $retentionRate,           // % de rétention depuis l'étape précédente
-                    'percentage' => $total > 0 ? round(($count / $total) * 100, 2) : 0, // % du total
-                ];
-
-                // ✅ Mettre à jour prevCount avec le count actuel pour l'étape suivante
-                $prevCount = $count;
+            if ($index === 0) {
+                $dropOff = 0;
+                $dropRate = 0;
+            } else {
+                $dropOff = $prevCount - $count;
+                $dropRate = $prevCount > 0 ? round(($dropOff / $prevCount) * 100, 2) : 0;
             }
+
+            $conversionRate = $total > 0 ? round(($count / $total) * 100, 2) : 0;
+            $retentionRate = $prevCount > 0 ? round(($count / $prevCount) * 100, 2) : 0;
+
+            $funnelData[] = [
+                'name' => $step,
+                'value' => $count,
+                'conversion_rate' => $conversionRate,
+                'drop_off' => $dropOff,
+                'drop_rate' => $dropRate,
+                'retention_rate' => $retentionRate,
+                'percentage' => $total > 0 ? round(($count / $total) * 100, 2) : 0,
+            ];
+
+            $prevCount = $count;
+        }
+
+        $overallConversion = $total > 0 ? round(($funnelSteps['Vendus'] / $total) * 100, 2) : 0;
+
+        return [
+            'steps' => $funnelData,
+            'summary' => [
+                'total_leads' => $total,
+                'total_affected' => $funnelSteps['Affectés'],
+                'total_contacted' => $funnelSteps['Contactés'],
+                'total_qualified' => $funnelSteps['Qualifiés'],
+                'total_visits' => $funnelSteps['Visites'],
+                'total_negotiation' => $funnelSteps['Négociation'],
+                'total_sold' => $funnelSteps['Vendus'],
+                'overall_conversion' => $overallConversion,
+            ],
+            'drop_off_analysis' => $this->getDropOffAnalysis($funnelData),
+        ];
 
     } catch (\Exception $e) {
         Log::error('Error in getConversionFunnel: ' . $e->getMessage());
+        Log::error('Trace: ' . $e->getTraceAsString());
         return $this->getDefaultFunnel();
     }
 }
@@ -1559,7 +1474,7 @@ private function getDefaultFunnel()
 
     /**
      * 9. Performance des annonces
-     */
+
     private function getAdPerformance($pageId, $accessToken, $dateRange)
     {
         try {
@@ -1633,75 +1548,126 @@ private function getDefaultFunnel()
                 ]
             ];
         }
-    }
+    }*/
 
     /**
      * 10. Tendances et prévisions
      */
-    private function getTrends($projetId, $dateRange)
-    {
-        try {
-            $leads = DB::connection('temp')
-                ->table('prospects')
-                ->where('projet_id', $projetId)
-                ->where(function($query) {
-                    $query->where('origin', 'facebook')
-                        ->orWhere('source', 9);
-                })
-                ->whereNull('deleted_at')
-                ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']])
-                ->orderBy('created_at', 'asc')
-                ->get();
+   /**
+ * Analyse les tendances temporelles des leads (hebdomadaires, mensuelles et horaires)
+ *
+ * @param int $projetId L'identifiant du projet
+ * @param array $dateRange Tableau contenant 'since' (date début) et 'until' (date fin) au format Carbon
+ * @return array Tableau contenant les tendances et le meilleur moment pour les leads
+ */
+private function getTrends($projetId, $dateRange)
+{
+    try {
+        // ============================================================
+        // 1. RÉCUPÉRATION DES DONNÉES EN BASE DE DONNÉES
+        // ============================================================
 
-            if ($leads->isEmpty()) {
-                return [
-                    'weekly_trend' => [],
-                    'monthly_trend' => [],
-                    'best_time' => 'unknown',
-                    'seasonal_factors' => []
-                ];
-            }
+        $leads = DB::connection('temp')      // Connexion à la base 'temp'
+            ->table('prospects')              // Table 'prospects'
+            ->where('projet_id', $projetId)   // Filtrer par projet
+            // Condition OR : soit origine 'facebook', soit source = 9
+            ->where(function($query) {
+                $query->where('origin', 'facebook')
+                    ->orWhere('source', 9);
+            })
+            ->whereNull('deleted_at')         // Exclure les leads supprimés
+            ->whereBetween('created_at', [$dateRange['since'], $dateRange['until']]) // Période
+            ->orderBy('created_at', 'asc')    // Tri chronologique
+            ->get();                          // Exécution de la requête
 
-            $weekly = [];
-            $monthly = [];
-            $hourly = [];
+        // ============================================================
+        // 2. CAS PARTICULIER : AUCUN LEAD TROUVÉ
+        // ============================================================
 
-            foreach ($leads as $lead) {
-                $date = Carbon::parse($lead->created_at);
-                $week = $date->format('Y-W');
-                $weekly[$week] = ($weekly[$week] ?? 0) + 1;
-
-                $month = $date->format('Y-m');
-                $monthly[$month] = ($monthly[$month] ?? 0) + 1;
-
-                $hour = $date->format('H');
-                $hourly[$hour] = ($hourly[$hour] ?? 0) + 1;
-            }
-
-            // Trouver la meilleure heure
-            arsort($hourly);
-            $bestHour = !empty($hourly) ? key($hourly) . ':00' : 'unknown';
-
+        if ($leads->isEmpty()) {
+            // Retourne des tableaux vides et une valeur 'unknown'
             return [
-                'weekly_trend' => $weekly,
-                'monthly_trend' => $monthly,
-                'best_time' => $bestHour,
-                'seasonal_factors' => [
-                    'peak_hour' => $bestHour,
-                    'peak_hour_count' => !empty($hourly) ? max($hourly) : 0,
-                ]
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Error in getTrends: ' . $e->getMessage());
-            return [
-                'weekly_trend' => [],
-                'monthly_trend' => [],
-                'best_time' => 'unknown',
-                'seasonal_factors' => []
+                'weekly_trend' => [],        // Tendance hebdomadaire
+                'monthly_trend' => [],       // Tendance mensuelle
+                'best_time' => 'unknown',    // Meilleur moment inconnu
+                'seasonal_factors' => []     // Facteurs saisonniers vides
             ];
         }
+
+        // ============================================================
+        // 3. INITIALISATION DES TABLEAUX DE STATISTIQUES
+        // ============================================================
+
+        $weekly = [];   // Tableau pour compter les leads par semaine (clé = Année-Semaine)
+        $monthly = [];  // Tableau pour compter les leads par mois (clé = Année-Mois)
+        $hourly = [];   // Tableau pour compter les leads par heure (clé = Heure de 00 à 23)
+
+        // ============================================================
+        // 4. AGRÉGATION DES DONNÉES PAR PÉRIODE
+        // ============================================================
+
+        foreach ($leads as $lead) {
+            $date = Carbon::parse($lead->created_at); // Convertir en objet Carbon
+
+            // ---------- AGRÉGATION HEBDOMADAIRE ----------
+            // Format 'Y-W' donne par exemple '2026-03' pour la 3ème semaine de 2026
+            $week = $date->format('Y-W');
+            $weekly[$week] = ($weekly[$week] ?? 0) + 1; // Incrémente le compteur
+
+            // ---------- AGRÉGATION MENSUELLE ----------
+            // Format 'Y-m' donne par exemple '2026-07' pour juillet 2026
+            $month = $date->format('Y-m');
+            $monthly[$month] = ($monthly[$month] ?? 0) + 1; // Incrémente le compteur
+
+            // ---------- AGRÉGATION HORAIRE ----------
+            // Format 'H' donne l'heure sur 24h (00 à 23)
+            $hour = $date->format('H');
+            $hourly[$hour] = ($hourly[$hour] ?? 0) + 1; // Incrémente le compteur
+        }
+
+        // ============================================================
+        // 5. DÉTERMINATION DE LA MEILLEURE HEURE
+        // ============================================================
+
+        // arsort() trie le tableau par valeurs décroissantes (du plus grand au plus petit)
+        // tout en conservant l'association clé => valeur
+        arsort($hourly);
+
+        // key($hourly) récupère la première clé du tableau (l'heure avec le plus de leads)
+        $bestHour = !empty($hourly) ? key($hourly) . ':00' : 'unknown';
+        // Exemple : si key($hourly) = '14', $bestHour sera '14:00'
+
+        // ============================================================
+        // 6. RETOUR DU RÉSULTAT FINAL
+        // ============================================================
+
+        return [
+            'weekly_trend' => $weekly,    // Tableau [semaine => nombre de leads]
+            'monthly_trend' => $monthly,  // Tableau [mois => nombre de leads]
+            'best_time' => $bestHour,     // Meilleure heure (format 'HH:00')
+            'seasonal_factors' => [       // Facteurs saisonniers
+                'peak_hour' => $bestHour,     // Heure de pointe
+                'peak_hour_count' => !empty($hourly) ? max($hourly) : 0, // Nombre max de leads à cette heure
+            ]
+        ];
+
+    // ============================================================
+    // 7. GESTION DES ERREURS
+    // ============================================================
+
+    } catch (\Exception $e) {
+        // Log de l'erreur pour le debug
+        Log::error('Error in getTrends: ' . $e->getMessage());
+
+        // Retourne des valeurs par défaut en cas d'erreur
+        return [
+            'weekly_trend' => [],
+            'monthly_trend' => [],
+            'best_time' => 'unknown',
+            'seasonal_factors' => []
+        ];
     }
+}
 
     // ============================================
     // MÉTHODES AUXILIAIRES
