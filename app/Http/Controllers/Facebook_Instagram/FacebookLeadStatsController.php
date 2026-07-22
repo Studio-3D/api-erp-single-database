@@ -1350,17 +1350,15 @@ private function getConversionFunnel($projetId, $dateRange)
             $STATUT_RAPPEL = '7';
             $STATUT_WHATSAPP = '11';
 
-            // Actions de conviction
             $convictionActions = [$STATUT_NOUVEAU_APPEL, $STATUT_RAPPEL, $STATUT_WHATSAPP];
 
-            // Récupérer le dernier statut
             $lastStatus = end($statusCodes);
 
             // ============================================================
-            // 🏆 CLASSIFICATION AVEC PRIORITÉ (CORRIGÉE)
+            // 🏆 CLASSIFICATION AVEC PRIORITÉ (ORDRE CORRIGÉ)
             // ============================================================
 
-            // 1️⃣ VENDU (statut 10) - Priorité maximale
+            // 1️⃣ VENDU (statut 10)
             if (in_array($STATUT_VENDU, $statusCodes)) {
                 $funnelSteps['Vendus']++;
                 continue;
@@ -1386,7 +1384,6 @@ private function getConversionFunnel($projetId, $dateRange)
 
             // 5️⃣ RÉCEPTIF (statut 5)
             if (in_array($STATUT_RECEPTIF, $statusCodes)) {
-                // Vérifier si des actions de conviction ont été faites AVANT le réceptif
                 $hasConvictionBeforeReceptif = false;
                 $receptifIndex = array_search($STATUT_RECEPTIF, $statusCodes);
 
@@ -1412,7 +1409,7 @@ private function getConversionFunnel($projetId, $dateRange)
                 continue;
             }
 
-            // 7️⃣ À CONVAINCRE (un seul perdu)
+            // 7️⃣ À CONVAINCRE (un seul perdu) ← PRIORITÉ AVANT CONTACTÉ
             if ($lostCount === 1 && $lastStatus === $STATUT_PERDU) {
                 $funnelSteps['À convaincre']++;
                 continue;
@@ -1438,7 +1435,6 @@ private function getConversionFunnel($projetId, $dateRange)
         $funnelData = [];
         $prevCount = $total;
 
-        // Ordre logique du funnel
         $stepOrder = [
             'Leads',
             'Affectés',
@@ -1468,16 +1464,12 @@ private function getConversionFunnel($projetId, $dateRange)
                 $retentionRate = $prevCount > 0 ? round(($count / $prevCount) * 100, 2) : 0;
             }
 
-            // ✅ Éviter les valeurs négatives dans drop_off
-            $displayDropOff = $dropOff < 0 ? 0 : $dropOff;
-            $displayDropRate = $dropRate < 0 ? 0 : $dropRate;
-
             $funnelData[] = [
                 'name' => $step,
                 'value' => $count,
                 'conversion_rate' => $conversionRate,
-                'drop_off' => $displayDropOff,
-                'drop_rate' => $displayDropRate,
+                'drop_off' => $dropOff < 0 ? 0 : $dropOff,
+                'drop_rate' => $dropRate < 0 ? 0 : $dropRate,
                 'retention_rate' => $retentionRate,
                 'percentage' => $total > 0 ? round(($count / $total) * 100, 2) : 0,
             ];
@@ -1499,7 +1491,6 @@ private function getConversionFunnel($projetId, $dateRange)
             $dropRate = $fromValue > 0 ? round((($fromValue - $toValue) / $fromValue) * 100, 2) : 0;
             $conversionRate = $fromValue > 0 ? round(($toValue / $fromValue) * 100, 2) : 0;
 
-            // ✅ Éviter les valeurs négatives
             $dropOffAnalysis[] = [
                 'from' => $from,
                 'to' => $to,
