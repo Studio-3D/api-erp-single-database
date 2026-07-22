@@ -2761,6 +2761,7 @@ public function edit_visite($id)
                                     elseif($request->interet == InteretEnum::Intéressé->value){
                                                     $initialStatut = '7';//interesse
                                                     if ($hasRdv) {
+                                                    $initialStatut = '12';
                                                         $comment = 'Rendez-vous programmé via modification  visite';
                                                     }elseif ($hasRelance) {
                                                         $comment = 'Relance programmée via modification visite';
@@ -2786,7 +2787,7 @@ public function edit_visite($id)
                                     $statut_pro->save();
                                }
 
-                                 /* Ajouter la création du statut 10 si vente détectée
+                                 // Ajouter la création du statut 10 si vente détectée
                         if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
                                // propsect n'est pas un client
                                  $statut_convert_client_exist = 0;
@@ -2817,7 +2818,7 @@ public function edit_visite($id)
                             $statut_pro->commentaire = 'Converti en client via visite VENDU';
                             $statut_pro->save();
                             }
-                        }*/
+                        }
 
 
 
@@ -3779,6 +3780,7 @@ public function edit_visite($id)
                         $initialStatut = '7';
                         if ($hasRdv) {
                             $comment = 'Rendez-vous programmé via création de visite';
+                            $initialStatut = '7';
                         } elseif ($hasRelance) {
                             $comment = 'Relance programmée via création de visite';
                         } else {
