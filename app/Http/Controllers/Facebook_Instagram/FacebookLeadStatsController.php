@@ -1357,7 +1357,7 @@ private function getConversionFunnel($projetId, $dateRange)
             $lastStatus = end($statusCodes);
 
             // ============================================================
-            // 🏆 CLASSIFICATION AVEC PRIORITÉ
+            // 🏆 CLASSIFICATION AVEC PRIORITÉ (CORRIGÉE)
             // ============================================================
 
             // 1️⃣ VENDU (statut 10) - Priorité maximale
@@ -1379,25 +1379,19 @@ private function getConversionFunnel($projetId, $dateRange)
                 continue;
             }
 
-            // 4️⃣ À CONVAINCRE (un seul perdu)
-            if ($lostCount === 1 && $lastStatus === $STATUT_PERDU) {
-                $funnelSteps['À convaincre']++;
-                continue;
-            }
-
-            // 5️⃣ VISITE (statut 4)
+            // 4️⃣ VISITE (statut 4) - AVANT de vérifier les perdus
             if (in_array($STATUT_VISITE, $statusCodes)) {
                 $funnelSteps['Visites']++;
                 continue;
             }
 
-            // 6️⃣ INTÉRESSÉ (statut 7)
+            // 5️⃣ INTÉRESSÉ (statut 7)
             if (in_array($STATUT_INTERESSE, $statusCodes)) {
                 $funnelSteps['Intéressé']++;
                 continue;
             }
 
-            // 7️⃣ RÉCEPTIF (statut 5) - avec ou sans conviction
+            // 6️⃣ RÉCEPTIF (statut 5) - AVANT de vérifier les perdus
             if (in_array($STATUT_RECEPTIF, $statusCodes)) {
                 // Vérifier si des actions de conviction ont été faites AVANT le réceptif
                 $hasConvictionBeforeReceptif = false;
@@ -1415,6 +1409,12 @@ private function getConversionFunnel($projetId, $dateRange)
                 } else {
                     $funnelSteps['Receptif']++;
                 }
+                continue;
+            }
+
+            // 7️⃣ À CONVAINCRE (un seul perdu) - APRÈS les autres statuts
+            if ($lostCount === 1 && $lastStatus === $STATUT_PERDU) {
+                $funnelSteps['À convaincre']++;
                 continue;
             }
 
