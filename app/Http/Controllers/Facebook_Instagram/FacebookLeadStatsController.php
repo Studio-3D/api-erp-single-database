@@ -1311,19 +1311,29 @@ private function getConversionFunnel($projetId, $dateRange)
             ->orderBy('created_at', 'asc')
             ->get();
 
-        // ✅ Définir les étapes du funnel
+        // ✅ Définir les étapes du funnel avec tous les statuts
         $funnelSteps = [
             'Leads' => $total,
-            'Affectés' => 0,
-            'Contactés' => 0,
-            'À convaincre' => 0,
-            'En conviction' => 0,
-            'Receptif' => 0,
-            'Intéressé' => 0,
-            'Visites' => 0,
-            'Client Potentiel' => 0,
-            'Vendus' => 0,
-            'Perdus' => 0,
+            'Affectés' => 0,          // Statut 6
+            'Contactés' => 0,         // Statuts 1, 3, 5, 11
+            'À convaincre' => 0,      // Un seul perdu (statut 8)
+            'En conviction' => 0,     // Receptif + actions de conviction
+            'Receptif' => 0,          // Statut 5
+            'Intéressé' => 0,         // Statut 7
+            'Visites' => 0,           // Statut 4
+            'Client Potentiel' => 0,  // Statut 12 (pre_reservation)
+            'Vendus' => 0,            // Statut 10
+            'Perdus' => 0,            // Plusieurs perdu (statut 8)
+        ];
+
+        // 📊 Statistiques détaillées des parcours
+        $parcoursStats = [
+            'receptif_to_conviction' => 0,
+            'receptif_to_perdu' => 0,
+            'a_convaincre_to_perdu' => 0,
+            'a_convaincre_to_conviction' => 0,
+            'interesse_to_visite' => 0,
+            'visite_to_client_potentiel' => 0,
         ];
 
         foreach ($prospects as $prospect) {
@@ -1350,79 +1360,97 @@ private function getConversionFunnel($projetId, $dateRange)
             $STATUT_RAPPEL = '7';
             $STATUT_WHATSAPP = '11';
 
+            // Actions de conviction (Nouveau_appel, Rappel, WhatsApp)
             $convictionActions = [$STATUT_NOUVEAU_APPEL, $STATUT_RAPPEL, $STATUT_WHATSAPP];
 
+            // Récupérer le dernier statut
             $lastStatus = end($statusCodes);
 
             // ============================================================
-            // 🏆 CLASSIFICATION AVEC PRIORITÉ (ORDRE CORRIGÉ)
+            // 🏆 PRIORITÉ 1: VENDU (statut 10) - Priorité maximale
             // ============================================================
-
-            // 1️⃣ VENDU (statut 10)
             if (in_array($STATUT_VENDU, $statusCodes)) {
                 $funnelSteps['Vendus']++;
                 continue;
             }
 
-            // 2️⃣ CLIENT POTENTIEL (statut 12)
+            // ============================================================
+            // 🏆 PRIORITÉ 2: CLIENT POTENTIEL (statut 12)
+            // ============================================================
             if (in_array($STATUT_PRE_RESERVATION, $statusCodes)) {
                 $funnelSteps['Client Potentiel']++;
                 continue;
             }
 
-            // 3️⃣ VISITE (statut 4)
-            if (in_array($STATUT_VISITE, $statusCodes)) {
-                $funnelSteps['Visites']++;
-                continue;
-            }
-
-            // 4️⃣ INTÉRESSÉ (statut 7)
-            if (in_array($STATUT_INTERESSE, $statusCodes)) {
-                $funnelSteps['Intéressé']++;
-                continue;
-            }
-
-            // 5️⃣ RÉCEPTIF (statut 5)
-            if (in_array($STATUT_RECEPTIF, $statusCodes)) {
-                $hasConvictionBeforeReceptif = false;
-                $receptifIndex = array_search($STATUT_RECEPTIF, $statusCodes);
-
-                for ($i = 0; $i < $receptifIndex; $i++) {
-                    if (in_array($statusCodes[$i], $convictionActions)) {
-                        $hasConvictionBeforeReceptif = true;
-                        break;
-                    }
-                }
-
-                if ($hasConvictionBeforeReceptif) {
-                    $funnelSteps['En conviction']++;
-                } else {
-                    $funnelSteps['Receptif']++;
-                }
-                continue;
-            }
-
-            // 6️⃣ PERDU (plusieurs perdu)
+            // ============================================================
+            // 🏆 PRIORITÉ 3: PERDU DÉFINITIF (plusieurs perdu)
+            // ============================================================
             $lostCount = array_count_values($statusCodes)[$STATUT_PERDU] ?? 0;
             if ($lostCount >= 2) {
                 $funnelSteps['Perdus']++;
                 continue;
             }
 
-            // 7️⃣ À CONVAINCRE (un seul perdu) ← PRIORITÉ AVANT CONTACTÉ
+            // ============================================================
+            // 🏆 PRIORITÉ 4: À CONVAINCRE (un seul perdu)
+            // ============================================================
             if ($lostCount === 1 && $lastStatus === $STATUT_PERDU) {
                 $funnelSteps['À convaincre']++;
                 continue;
             }
 
-            // 8️⃣ CONTACTÉ (statuts 1, 3, 5, 11)
+            // ============================================================
+            // 🏆 PRIORITÉ 5: VISITE (statut 4)
+            // ============================================================
+            if (in_array($STATUT_VISITE, $statusCodes)) {
+                $funnelSteps['Visites']++;
+                $parcoursStats['visite_to_client_potentiel']++;
+                continue;
+            }
+
+            // ============================================================
+            // 🏆 PRIORITÉ 6: INTÉRESSÉ (statut 7)
+            // ============================================================
+            if (in_array($STATUT_INTERESSE, $statusCodes)) {
+                $funnelSteps['Intéressé']++;
+                $parcoursStats['interesse_to_visite']++;
+                continue;
+            }
+
+            // ============================================================
+            // 🏆 PRIORITÉ 7: RÉCEPTIF (statut 5)
+            // ============================================================
+            if (in_array($STATUT_RECEPTIF, $statusCodes)) {
+                // Vérifier si des actions de conviction ont été faites
+                $hasConviction = false;
+                foreach ($statusCodes as $code) {
+                    if (in_array($code, $convictionActions)) {
+                        $hasConviction = true;
+                        break;
+                    }
+                }
+
+                if ($hasConviction) {
+                    $funnelSteps['En conviction']++;
+                    $parcoursStats['receptif_to_conviction']++;
+                } else {
+                    $funnelSteps['Receptif']++;
+                }
+                continue;
+            }
+
+            // ============================================================
+            // 🏆 PRIORITÉ 8: CONTACTÉ (statuts 1, 3, 5, 11)
+            // ============================================================
             $contactStatuses = ['1', '3', '5', '11'];
             if (array_intersect($statusCodes, $contactStatuses)) {
                 $funnelSteps['Contactés']++;
                 continue;
             }
 
-            // 9️⃣ AFFECTÉ (statut 6)
+            // ============================================================
+            // 🏆 PRIORITÉ 9: AFFECTÉ (statut 6)
+            // ============================================================
             if (in_array($STATUT_AFFECTE, $statusCodes)) {
                 $funnelSteps['Affectés']++;
                 continue;
@@ -1435,6 +1463,7 @@ private function getConversionFunnel($projetId, $dateRange)
         $funnelData = [];
         $prevCount = $total;
 
+        // Ordre logique du funnel
         $stepOrder = [
             'Leads',
             'Affectés',
@@ -1468,14 +1497,21 @@ private function getConversionFunnel($projetId, $dateRange)
                 'name' => $step,
                 'value' => $count,
                 'conversion_rate' => $conversionRate,
-                'drop_off' => $dropOff < 0 ? 0 : $dropOff,
-                'drop_rate' => $dropRate < 0 ? 0 : $dropRate,
+                'drop_off' => $dropOff,
+                'drop_rate' => $dropRate,
                 'retention_rate' => $retentionRate,
                 'percentage' => $total > 0 ? round(($count / $total) * 100, 2) : 0,
             ];
 
             $prevCount = $count;
         }
+
+        // ============================================================
+        // 📊 Calcul des métriques finales
+        // ============================================================
+        $overallConversion = $total > 0 ? round(($funnelSteps['Vendus'] / $total) * 100, 2) : 0;
+        $lostRate = $total > 0 ? round(($funnelSteps['Perdus'] / $total) * 100, 2) : 0;
+        $convictionRate = $total > 0 ? round(($funnelSteps['En conviction'] / $total) * 100, 2) : 0;
 
         // ============================================================
         // 📊 Drop Off Analysis
@@ -1487,27 +1523,16 @@ private function getConversionFunnel($projetId, $dateRange)
             $fromValue = $funnelData[$i]['value'];
             $toValue = $funnelData[$i + 1]['value'];
 
-            $dropOff = $fromValue - $toValue;
-            $dropRate = $fromValue > 0 ? round((($fromValue - $toValue) / $fromValue) * 100, 2) : 0;
-            $conversionRate = $fromValue > 0 ? round(($toValue / $fromValue) * 100, 2) : 0;
-
             $dropOffAnalysis[] = [
                 'from' => $from,
                 'to' => $to,
                 'from_value' => $fromValue,
                 'to_value' => $toValue,
-                'drop_off' => $dropOff < 0 ? 0 : $dropOff,
-                'drop_rate' => $dropRate < 0 ? 0 : $dropRate,
-                'conversion_rate' => $conversionRate,
+                'drop_off' => $fromValue - $toValue,
+                'drop_rate' => $fromValue > 0 ? round((($fromValue - $toValue) / $fromValue) * 100, 2) : 0,
+                'conversion_rate' => $fromValue > 0 ? round(($toValue / $fromValue) * 100, 2) : 0,
             ];
         }
-
-        // ============================================================
-        // 📊 Métriques finales
-        // ============================================================
-        $overallConversion = $total > 0 ? round(($funnelSteps['Vendus'] / $total) * 100, 2) : 0;
-        $lostRate = $total > 0 ? round(($funnelSteps['Perdus'] / $total) * 100, 2) : 0;
-        $convictionRate = $total > 0 ? round(($funnelSteps['En conviction'] / $total) * 100, 2) : 0;
 
         return [
             'steps' => $funnelData,
@@ -1523,6 +1548,14 @@ private function getConversionFunnel($projetId, $dateRange)
                 'Client Potentiel' => $funnelSteps['Client Potentiel'],
                 'Vendus' => $funnelSteps['Vendus'],
                 'Perdus' => $funnelSteps['Perdus'],
+            ],
+            'parcours_analysis' => [
+                'Réceptif → En conviction' => $parcoursStats['receptif_to_conviction'],
+                'Réceptif → Perdu' => $parcoursStats['receptif_to_perdu'],
+                'À convaincre → Perdu' => $parcoursStats['a_convaincre_to_perdu'],
+                'À convaincre → En conviction' => $parcoursStats['a_convaincre_to_conviction'],
+                'Intéressé → Visite' => $parcoursStats['interesse_to_visite'],
+                'Visite → Client Potentiel' => $parcoursStats['visite_to_client_potentiel'],
             ],
             'summary' => [
                 'total_leads' => $total,
@@ -1541,14 +1574,6 @@ private function getConversionFunnel($projetId, $dateRange)
                 'conviction_rate' => $convictionRate,
             ],
             'drop_off_analysis' => $dropOffAnalysis,
-            'parcours_analysis' => [
-                'Réceptif → En conviction' => 0,
-                'Réceptif → Perdu' => 0,
-                'À convaincre → Perdu' => 0,
-                'À convaincre → En conviction' => 0,
-                'Intéressé → Visite' => 0,
-                'Visite → Client Potentiel' => 0,
-            ],
         ];
 
     } catch (\Exception $e) {
