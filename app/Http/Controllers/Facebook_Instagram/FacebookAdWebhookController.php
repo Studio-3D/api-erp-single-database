@@ -654,7 +654,7 @@ private function createProspectStatus($prospectId, $projetId)
             return $existingStatus;
         }
 
-        // Créer un nouveau statut "En attente" (statut = '0')
+        /* Créer un nouveau statut "En attente" (statut = '0')
         $statutProspect = new StatutProspect();
         $statutProspect->setConnection('temp');
         $statutProspect->prospect_id = $prospectId;
@@ -672,7 +672,7 @@ private function createProspectStatus($prospectId, $projetId)
             'statut' => '0 (En attente)',
             'statut_id' => $statutProspect->id,
             'commentaire' => 'Prospect créé par Facebook Ads'
-        ]);
+        ]);*/
 
         // ✅ AUTOMATIC ASSIGNMENT: Affecter le prospect au commercial avec le moins de prospects
         $assignmentResult = $this->autoAssignSingleProspect($prospectId, $projetId);
@@ -800,8 +800,8 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             $prospect->commercial_affecte = $newCommercialId;
             if ($systemUser) {
                 $prospect->affecte_par_admin_id = $systemUser->id;
-                $prospect->date_affectation = Carbon::now();
             }
+            $prospect->date_affectation = Carbon::now();
             $prospect->save();
 
             Log::info('✅ Prospect updated with commercial', [
