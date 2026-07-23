@@ -928,13 +928,13 @@ class Bien_Helper
             $bien->superficie_vendable = $sup + $bien->superficie_balcon_calculer + $bien->superficie_terrasse_calculer + $bien->superficie_jardin_calculer;
 
         }
-        /*if (array_key_exists("Prix", $row) && $row['Prix'] != null) {
+        if (array_key_exists("Prix", $row) && $row['Prix'] != null) {
             $bien->prix= $row['Prix'];
         }
         else{
                $bien->prix = $bien->prix_unitaire * $bien->superficie_vendable + $bien->prix_parking + $bien->prix_box;
-        }*/
-         $bien->prix = $bien->prix_unitaire * $bien->superficie_vendable + $bien->prix_parking + $bien->prix_box;
+        }
+     //    $bien->prix = $bien->prix_unitaire * $bien->superficie_vendable + $bien->prix_parking + $bien->prix_box;
 
         if ($bien->save()) {
             \Log::info("✅ Bien saved successfully: ID {$bien->id}");
