@@ -566,8 +566,15 @@ public function get_notifications(Request $request, $projet_id)
                 $baseQuery->where('type', '!=', 6);
             }
 
-            // Count ALL unseen notifications from the ENTIRE table (without any pagination)
+            // ⭐ CORRECTION : Créer une requête SÉPARÉE pour le compteur
+            // Clone sans les conditions de tri/pagination
             $unseenCountQuery = clone $baseQuery;
+            // Réinitialiser les ordres (s'ils existent)
+            $unseenCountQuery->getQuery()->orders = [];
+            $unseenCountQuery->getQuery()->limit = null;
+            $unseenCountQuery->getQuery()->offset = null;
+
+            // Compter UNIQUEMENT les notifications non lues
             $new_notifications_count = $unseenCountQuery->get()->filter(function ($notification) use ($userId) {
                 $seenArray = is_array($notification->seen) ? $notification->seen : [];
                 return !in_array($userId, $seenArray);
@@ -589,7 +596,7 @@ public function get_notifications(Request $request, $projet_id)
                 });
 
         } else {
-            // Build the base query (without pagination)
+            // MÊME CORRECTION pour la partie Commercial
             $baseQuery = Notification::on('temp')->with('prospect','user','reservation','avance','bien','projet')
                 ->where('projet_id', $projet_id)
                 ->where(function($q) {
@@ -601,8 +608,12 @@ public function get_notifications(Request $request, $projet_id)
                 ->withTrashed()
                 ->whereDate('date', '<=', Carbon::now());
 
-            // Count ALL unseen notifications from the ENTIRE table (without any pagination)
+            // ⭐ CORRECTION : Créer une requête SÉPARÉE pour le compteur
             $unseenCountQuery = clone $baseQuery;
+            $unseenCountQuery->getQuery()->orders = [];
+            $unseenCountQuery->getQuery()->limit = null;
+            $unseenCountQuery->getQuery()->offset = null;
+
             $new_notifications_count = $unseenCountQuery->get()->filter(function ($notification) use ($userId) {
                 $seenArray = is_array($notification->seen) ? $notification->seen : [];
                 return !in_array($userId, $seenArray);
@@ -612,7 +623,6 @@ public function get_notifications(Request $request, $projet_id)
             $baseQuery->orderByRaw("CASE WHEN seen IS NULL OR NOT JSON_CONTAINS(seen, JSON_ARRAY(?)) THEN 0 ELSE 1 END", [$userId])
                 ->orderBy('date', 'desc');
 
-            // Now get the paginated notifications for display
             $paginated_notifications = $baseQuery->paginate($perPage, ['*'], 'page', $page);
 
             $all_notifications = $paginated_notifications->getCollection()
