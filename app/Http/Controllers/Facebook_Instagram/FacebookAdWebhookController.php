@@ -682,7 +682,7 @@ private function createProspectStatus($prospectId, $projetId)
             'success' => $assignmentResult
         ]);
 
-        return $statutProspect;
+        //return $statutProspect;
 
     } catch (\Exception $e) {
         Log::error('Error creating prospect status: ' . $e->getMessage());
