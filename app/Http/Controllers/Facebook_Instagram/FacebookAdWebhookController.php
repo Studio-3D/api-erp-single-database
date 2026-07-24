@@ -733,8 +733,8 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             })
             ->where('role', 3)
             ->where('is_actif', 1)
+            ->whereNull('deleted_at')  // ✅ ADDED: Exclude soft-deleted users
             ->orderBy('id')
-            ->whereNull('deleted_at')
             ->get();
 
         if ($commercials->isEmpty()) {
@@ -754,6 +754,40 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
             ]);
         } else {
+            // ✅ CHECK: Are all commercials have last_affected = 1?
+            $allHaveLastAffected = true;
+            foreach ($commercials as $commercial) {
+                if ($commercial->last_affected == 0) {
+                    $allHaveLastAffected = false;
+                    break;
+                }
+            }
+
+            // ✅ If all have last_affected = 1, reset ALL to 0
+            if ($allHaveLastAffected) {
+                Log::info('🔄 All commercials have last_affected = 1, resetting all to 0');
+                User::on('temp')
+                    ->where('role', 3)
+                    ->where('is_actif', 1)
+                    ->whereNull('deleted_at')  // ✅ ADDED: Only update active users
+                    ->update(['last_affected' => 0]);
+
+                // Refresh the collection
+                $commercials = User::on('temp')
+                    ->where(function($query) use ($projetId) {
+                        $query->whereHas('projets', function($q) use ($projetId) {
+                            $q->where('projet_id', $projetId);
+                        });
+                    })
+                    ->where('role', 3)
+                    ->where('is_actif', 1)
+                    ->whereNull('deleted_at')  // ✅ ADDED
+                    ->orderBy('id')
+                    ->get();
+
+                Log::info('✅ All commercials reset to last_affected = 0');
+            }
+
             // ✅ Step 1: Find commercial with last_affected = 0
             $targetCommercial = null;
 
@@ -779,7 +813,10 @@ private function autoAssignSingleProspect($prospectId, $projetId)
         }
 
         // Get system user (Admin)
-        $systemUser = User::on('temp')->where('role', 1)->first();
+        $systemUser = User::on('temp')
+            ->where('role', 1)
+            ->whereNull('deleted_at')  // ✅ ADDED
+            ->first();
 
         // ✅ Start transaction
         DB::connection('temp')->beginTransaction();
@@ -839,6 +876,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 ->where('id', '!=', $newCommercialId)
                 ->where('role', 3)
                 ->where('is_actif', 1)
+                ->whereNull('deleted_at')  // ✅ ADDED
                 ->update(['last_affected' => 0]);
 
             Log::info('✅ Reset last_affected = 0 for other commercials');
@@ -857,7 +895,10 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 ->where('prospect_id', $prospectId)
                 ->orderBy('id', 'desc')
                 ->first();
-            $verifyUser = User::on('temp')->find($newCommercialId);
+            $verifyUser = User::on('temp')
+                ->where('id', $newCommercialId)
+                ->whereNull('deleted_at')  // ✅ ADDED
+                ->first();
 
             Log::info('🔍 Verification after commit', [
                 'prospect_commercial_id' => $verifyProspect ? $verifyProspect->commercial_affecte : null,

@@ -1991,7 +1991,7 @@ public function autoAssignProspects(Request $request)
             \Log::info('Total Commercials: ' . $totalCommercials);
 
             // ============================================================
-            // ✅ LOGIQUE SIMPLIFIÉE: SEULEMENT last_affected (Tour par Tour)
+            // ✅ LOGIQUE: last_affected avec Reset Automatique
             // ============================================================
 
             $assignments = [];
@@ -1999,6 +1999,39 @@ public function autoAssignProspects(Request $request)
 
             // Distribute prospects one by one
             for ($i = 0; $i < $totalProspects; $i++) {
+
+                // ✅ CHECK: Are all commercials have last_affected = 1?
+                $allHaveLastAffected = true;
+                foreach ($commercials as $commercial) {
+                    if ($commercial->last_affected == 0) {
+                        $allHaveLastAffected = false;
+                        break;
+                    }
+                }
+
+                // ✅ If all have last_affected = 1, reset ALL to 0
+                if ($allHaveLastAffected) {
+                    \Log::info('🔄 All commercials have last_affected = 1, resetting all to 0');
+                    \App\Models\User::on('temp')
+                        ->where('role', 3)
+                        ->where('is_actif', 1)
+                        ->whereNull('deleted_at')
+                        ->update(['last_affected' => 0]);
+
+                    // Refresh the collection
+                    $commercials = \App\Models\User::on('temp')
+                        ->whereHas('projets', function($query) use ($projetId) {
+                            $query->where('projet_id', $projetId);
+                        })
+                        ->where('role', 3)
+                        ->where('is_actif', 1)
+                        ->whereNull('deleted_at')
+                        ->orderBy('id')
+                        ->get();
+
+                    \Log::info('✅ All commercials reset to last_affected = 0');
+                }
+
                 // ✅ Step 1: Find commercial with last_affected = 0
                 $targetCommercial = null;
 
@@ -2013,7 +2046,7 @@ public function autoAssignProspects(Request $request)
                     }
                 }
 
-                // ✅ Step 2: If all have last_affected = 1, take the first one
+                // ✅ Step 2: If all have last_affected = 1 (should not happen after reset), take the first one
                 if (!$targetCommercial) {
                     $targetCommercial = $commercials->first();
                     \Log::info('🔄 All commercials have last_affected = 1, taking first', [
@@ -2037,6 +2070,9 @@ public function autoAssignProspects(Request $request)
 
                 \Log::info('Assigned prospect ' . $prospectIds[$i] . ' to commercial ' .
                           $targetCommercial->id . ' (' . $targetCommercial->name . ' ' . $targetCommercial->prenom . ')');
+
+                // ✅ Update last_affected for this commercial immediately (for next iteration)
+                $targetCommercial->last_affected = 1;
             }
 
             \Log::info('Assignments created: ' . count($assignments));
@@ -2080,6 +2116,7 @@ public function autoAssignProspects(Request $request)
                     if ($oldCommercialId) {
                         \App\Models\User::on('temp')
                             ->where('id', $oldCommercialId)
+                            ->whereNull('deleted_at')
                             ->decrement('nb_prospects');
                         \Log::info('  - Decremented nb_prospects for commercial ' . $oldCommercialId);
                     }
@@ -2087,6 +2124,7 @@ public function autoAssignProspects(Request $request)
                     if ($newCommercialId) {
                         \App\Models\User::on('temp')
                             ->where('id', $newCommercialId)
+                            ->whereNull('deleted_at')
                             ->increment('nb_prospects');
                         \Log::info('  - Incremented nb_prospects for commercial ' . $newCommercialId);
                     }
@@ -2098,6 +2136,7 @@ public function autoAssignProspects(Request $request)
             if (!empty($affectedCommercials)) {
                 \App\Models\User::on('temp')
                     ->whereIn('id', $affectedCommercials)
+                    ->whereNull('deleted_at')
                     ->update(['last_affected' => 1]);
 
                 \Log::info('Set last_affected = 1 for commercials: ' . json_encode($affectedCommercials));
@@ -2125,7 +2164,7 @@ public function autoAssignProspects(Request $request)
                 \Log::info('  - Commercial ' . $commercial->id . ' actual count: ' . $actualCount);
 
                 \App\Models\User::on('temp')
-                     ->whereNull('deleted_at')
+                    ->whereNull('deleted_at')
                     ->where('id', $commercial->id)
                     ->update(['nb_prospects' => $actualCount]);
             }
