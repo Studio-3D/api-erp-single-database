@@ -734,6 +734,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             ->where('role', 3)
             ->where('is_actif', 1)
             ->orderBy('id')
+            ->whereNull('deleted_at')
             ->get();
 
         if ($commercials->isEmpty()) {

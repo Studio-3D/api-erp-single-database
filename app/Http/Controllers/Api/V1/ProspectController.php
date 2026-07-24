@@ -1976,6 +1976,7 @@ public function autoAssignProspects(Request $request)
                 })
                 ->where('role', 3)
                 ->where('is_actif', 1)
+                ->whereNull('deleted_at')
                 ->orderBy('id')
                 ->get();
 
@@ -2106,6 +2107,7 @@ public function autoAssignProspects(Request $request)
             \App\Models\User::on('temp')
                 ->whereNotIn('id', $affectedCommercials)
                 ->where('role', 3)
+                ->whereNull('deleted_at')
                 ->where('is_actif', 1)
                 ->update(['last_affected' => 0]);
 
@@ -2123,6 +2125,7 @@ public function autoAssignProspects(Request $request)
                 \Log::info('  - Commercial ' . $commercial->id . ' actual count: ' . $actualCount);
 
                 \App\Models\User::on('temp')
+                     ->whereNull('deleted_at')
                     ->where('id', $commercial->id)
                     ->update(['nb_prospects' => $actualCount]);
             }
