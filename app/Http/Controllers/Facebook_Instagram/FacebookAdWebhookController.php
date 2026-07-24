@@ -640,53 +640,38 @@ private function getProjetIdFromPageId($pageId)
 private function createProspectStatus($prospectId, $projetId)
 {
     try {
-        // ✅ Configurer la connexion temp
         $this->configureTempConnection();
 
-        // Vérifier si un statut existe déjà pour ce prospect
+        // Vérifier si un statut existe déjà
         $existingStatus = StatutProspect::on('temp')
             ->where('prospect_id', $prospectId)
             ->whereNull('deleted_at')
             ->first();
 
         if ($existingStatus) {
-            Log::info('⚠️ Status already exists for prospect', ['prospect_id' => $prospectId]);
+            Log::info('⚠️ Status already exists', ['prospect_id' => $prospectId]);
             return $existingStatus;
         }
 
-        /* Créer un nouveau statut "En attente" (statut = '0')
-        $statutProspect = new StatutProspect();
-        $statutProspect->setConnection('temp');
-        $statutProspect->prospect_id = $prospectId;
-        $statutProspect->statut = '0'; // ✅ En attente
-        $statutProspect->date_traitement = Carbon::now();
-        $statutProspect->user_id_traite = null;
-        $statutProspect->commentaire = 'Prospect créé par Facebook Ads';
-        $statutProspect->type_traitement_rdv_relance = 0; // En attente
-        $statutProspect->created_at = now();
-        $statutProspect->updated_at = now();
-        $statutProspect->save();
+        // Auto-assign (cette fonction crée le statut "Affecté")
+        $this->autoAssignSingleProspect($prospectId, $projetId);
 
-        Log::info('✅ Statut prospect created successfully', [
+        // Récupérer le statut créé
+        $statutProspect = StatutProspect::on('temp')
+            ->where('prospect_id', $prospectId)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        Log::info('✅ Prospect status processed', [
             'prospect_id' => $prospectId,
-            'statut' => '0 (En attente)',
-            'statut_id' => $statutProspect->id,
-            'commentaire' => 'Prospect créé par Facebook Ads'
-        ]);*/
-
-        // ✅ AUTOMATIC ASSIGNMENT: Affecter le prospect au commercial avec le moins de prospects
-        $assignmentResult = $this->autoAssignSingleProspect($prospectId, $projetId);
-
-        Log::info('📊 Auto-assignment result', [
-            'prospect_id' => $prospectId,
-            'success' => $assignmentResult
+            'status_id' => $statutProspect ? $statutProspect->id : null
         ]);
 
-        //return $statutProspect;
+        return $statutProspect;
 
     } catch (\Exception $e) {
-        Log::error('Error creating prospect status: ' . $e->getMessage());
-        Log::error('Trace: ' . $e->getTraceAsString());
+        Log::error('Error in createProspectStatus: ' . $e->getMessage());
         return null;
     }
 }
