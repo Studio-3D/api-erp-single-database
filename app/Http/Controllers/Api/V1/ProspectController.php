@@ -1967,31 +1967,19 @@ public function autoAssignProspects(Request $request)
 
             \Log::info('========== AUTO ASSIGN PROSPECTS START ==========');
             \Log::info('Projet ID: ' . $projetId);
-            \Log::info('Prospect IDs: ' . json_encode($prospectIds));
             \Log::info('Total Prospects: ' . $totalProspects);
 
             // ===== RÉCUPÉRER TOUS LES COMMERCIAUX =====
-
-                // Get all commercials for this project with their current prospect counts
-                $commercials = \App\Models\User::on('temp')
-                    ->whereHas('projets', function($query) use ($projetId) {
-                        $query->where('projet_id', $projetId);
-                    })
-                    ->where('role', 3) // Assuming 3 is commercial role
-                    ->where('is_actif', 1)
-                     ->orderBy('id')
-                    ->get();
+            $commercials = \App\Models\User::on('temp')
+                ->whereHas('projets', function($query) use ($projetId) {
+                    $query->where('projet_id', $projetId);
+                })
+                ->where('role', 3)
+                ->where('is_actif', 1)
+                ->orderBy('id')
+                ->get();
 
             \Log::info('Commercials found: ' . $commercials->count());
-            \Log::info('Commercials details: ' . json_encode($commercials->map(function($c) {
-                return [
-                    'id' => $c->id,
-                    'name' => $c->name . ' ' . $c->prenom,
-                    'nb_prospects' => $c->nb_prospects,
-                    'is_actif' => $c->is_actif,
-                    'role' => $c->role
-                ];
-            })));
 
             if ($commercials->isEmpty()) {
                 \Log::error('No commercials found!');
@@ -2001,80 +1989,60 @@ public function autoAssignProspects(Request $request)
             $totalCommercials = count($commercials);
             \Log::info('Total Commercials: ' . $totalCommercials);
 
-            // ===== CALCULER LA DISTRIBUTION =====
-            $prospectsPerCommercial = floor($totalProspects / $totalCommercials);
-            $rest = $totalProspects % $totalCommercials;
+            // ============================================================
+            // ✅ LOGIQUE SIMPLIFIÉE: SEULEMENT last_affected (Tour par Tour)
+            // ============================================================
 
-            \Log::info('Calculated distribution:');
-            \Log::info('  - Prospects per commercial: ' . $prospectsPerCommercial);
-            \Log::info('  - Rest (remainder): ' . $rest);
-
-            // ===== PRÉPARER LES COMMERCIAUX AVEC LEURS CHARGES =====
-            $commercialsWithCount = [];
-            foreach ($commercials as $commercial) {
-                // Compter les prospects actuels sur ce projet
-                $currentCount = Prospect::on('temp')
-                    ->where('commercial_affecte', $commercial->id)
-                    ->where('projet_id', $projetId)
-                    ->count();
-
-                \Log::info('Commercial ' . $commercial->id . ' (' . $commercial->name . ' ' . $commercial->prenom . '):');
-                \Log::info('  - Current prospects on project: ' . $currentCount);
-                \Log::info('  - nb_prospects field: ' . $commercial->nb_prospects);
-
-                $commercialsWithCount[] = [
-                    'id' => $commercial->id,
-                    'name' => $commercial->name . ' ' . $commercial->prenom,
-                    'current_count' => $currentCount,
-                    'to_assign' => $prospectsPerCommercial,
-                ];
-            }
-
-            \Log::info('Commercials with count BEFORE distribution: ' . json_encode($commercialsWithCount));
-
-            // ===== DISTRIBUER LE RESTE =====
-            // Trier par current_count (croissant) pour donner le reste à ceux qui ont moins
-            usort($commercialsWithCount, function($a, $b) {
-                return $a['current_count'] - $b['current_count'];
-            });
-
-            \Log::info('Commercials sorted by current_count: ' . json_encode($commercialsWithCount));
-
-            // Distribuer le reste un par un
-            for ($i = 0; $i < $rest; $i++) {
-                $commercialsWithCount[$i % $totalCommercials]['to_assign']++;
-                \Log::info('Rest distribution #' . ($i+1) . ': Added to commercial ' . $commercialsWithCount[$i % $totalCommercials]['id']);
-            }
-
-            \Log::info('Commercials with count AFTER distribution: ' . json_encode($commercialsWithCount));
-
-            // ===== CRÉER LES ASSIGNATIONS =====
             $assignments = [];
-            $prospectIndex = 0;
+            $affectedCommercials = [];
 
-            foreach ($commercialsWithCount as $commercial) {
-                $numberToAssign = $commercial['to_assign'];
-                \Log::info('Commercial ' . $commercial['id'] . ' (' . $commercial['name'] . ') will receive ' . $numberToAssign . ' prospects');
+            // Distribute prospects one by one
+            for ($i = 0; $i < $totalProspects; $i++) {
+                // ✅ Step 1: Find commercial with last_affected = 0
+                $targetCommercial = null;
 
-                for ($i = 0; $i < $numberToAssign && $prospectIndex < $totalProspects; $i++) {
-                    $assignments[] = [
-                        'prospect_id' => $prospectIds[$prospectIndex],
-                        'commercial_id' => $commercial['id'],
-                        'commercial_name' => $commercial['name']
-                    ];
-                    \Log::info('  - Assigning prospect ' . $prospectIds[$prospectIndex] . ' to commercial ' . $commercial['id']);
-                    $prospectIndex++;
+                foreach ($commercials as $commercial) {
+                    if ($commercial->last_affected == 0) {
+                        $targetCommercial = $commercial;
+                        \Log::info('✅ Found commercial with last_affected = 0', [
+                            'commercial_id' => $commercial->id,
+                            'name' => $commercial->name . ' ' . $commercial->prenom
+                        ]);
+                        break;
+                    }
                 }
+
+                // ✅ Step 2: If all have last_affected = 1, take the first one
+                if (!$targetCommercial) {
+                    $targetCommercial = $commercials->first();
+                    \Log::info('🔄 All commercials have last_affected = 1, taking first', [
+                        'commercial_id' => $targetCommercial->id,
+                        'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
+                    ]);
+                }
+
+                // Track affected commercials
+                if (!in_array($targetCommercial->id, $affectedCommercials)) {
+                    $affectedCommercials[] = $targetCommercial->id;
+                }
+
+                // Create assignment
+                $assignments[] = [
+                    'prospect_id' => $prospectIds[$i],
+                    'commercial_id' => $targetCommercial->id,
+                    'commercial_name' => $targetCommercial->name . ' ' . $targetCommercial->prenom,
+                    'last_affected_before' => $targetCommercial->last_affected
+                ];
+
+                \Log::info('Assigned prospect ' . $prospectIds[$i] . ' to commercial ' .
+                          $targetCommercial->id . ' (' . $targetCommercial->name . ' ' . $targetCommercial->prenom . ')');
             }
 
-            \Log::info('Total assignments created: ' . count($assignments));
-            \Log::info('Assignments: ' . json_encode($assignments));
+            \Log::info('Assignments created: ' . count($assignments));
 
             // ===== APPLIQUER LES ASSIGNATIONS =====
             $user = Auth::user();
             $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
-
-            \Log::info('User auth: ' . ($userAuth ? $userAuth->id : 'null'));
 
             foreach ($assignments as $assignment) {
                 $prospect = Prospect::on('temp')->find($assignment['prospect_id']);
@@ -2124,12 +2092,32 @@ public function autoAssignProspects(Request $request)
                 }
             }
 
+            // ===== UPDATE last_affected FOR COMMERCIALS =====
+            // Set last_affected = 1 for all affected commercials
+            if (!empty($affectedCommercials)) {
+                \App\Models\User::on('temp')
+                    ->whereIn('id', $affectedCommercials)
+                    ->update(['last_affected' => 1]);
+
+                \Log::info('Set last_affected = 1 for commercials: ' . json_encode($affectedCommercials));
+            }
+
+            // Reset last_affected = 0 for all other active commercials
+            \App\Models\User::on('temp')
+                ->whereNotIn('id', $affectedCommercials)
+                ->where('role', 3)
+                ->where('is_actif', 1)
+                ->update(['last_affected' => 0]);
+
+            \Log::info('Reset last_affected = 0 for other commercials');
+
             // ===== SYNCHRONISATION FINALE =====
             \Log::info('Final synchronization:');
             foreach ($commercials as $commercial) {
                 $actualCount = Prospect::on('temp')
                     ->where('commercial_affecte', $commercial->id)
                     ->where('projet_id', $projetId)
+                    ->whereNull('deleted_at')
                     ->count();
 
                 \Log::info('  - Commercial ' . $commercial->id . ' actual count: ' . $actualCount);
@@ -2142,30 +2130,28 @@ public function autoAssignProspects(Request $request)
             \DB::connection('temp')->commit();
 
             // ===== RÉSUMÉ DE LA DISTRIBUTION =====
-            $distribution = [];
+            $distributionSummary = [];
             foreach ($assignments as $assignment) {
                 $commercialId = $assignment['commercial_id'];
-                if (!isset($distribution[$commercialId])) {
-                    $distribution[$commercialId] = [
+                if (!isset($distributionSummary[$commercialId])) {
+                    $distributionSummary[$commercialId] = [
                         'count' => 0,
                         'name' => $assignment['commercial_name']
                     ];
                 }
-                $distribution[$commercialId]['count']++;
+                $distributionSummary[$commercialId]['count']++;
             }
 
-            \Log::info('Final distribution: ' . json_encode($distribution));
+            \Log::info('Final distribution summary: ' . json_encode($distributionSummary));
             \Log::info('========== AUTO ASSIGN PROSPECTS END ==========');
 
             return response()->json([
                 'message' => 'Prospects assigned automatically',
                 'assignments' => $assignments,
-                'distribution' => $distribution,
+                'distribution' => $distributionSummary,
                 'total_prospects' => $totalProspects,
                 'total_commercials' => $totalCommercials,
-                'prospects_per_commercial' => $prospectsPerCommercial,
-                'rest_prospects' => $rest,
-                'commercials_details' => $commercialsWithCount
+                'affected_commercials' => $affectedCommercials
             ], 200);
 
         } catch (\Exception $e) {

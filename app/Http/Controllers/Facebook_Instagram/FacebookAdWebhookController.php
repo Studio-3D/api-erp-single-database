@@ -724,10 +724,9 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             return false;
         }
 
-        // Get all commercials (role = 3) for this project
+        // Get all active commercials (role = 3) for this project
         $commercials = User::on('temp')
             ->where(function($query) use ($projetId) {
-                // Soit ils sont associés au projet via la relation
                 $query->whereHas('projets', function($q) use ($projetId) {
                     $q->where('projet_id', $projetId);
                 });
@@ -737,55 +736,46 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             ->orderBy('id')
             ->get();
 
-
         if ($commercials->isEmpty()) {
             Log::warning('⚠️ No active commercials found', ['projet_id' => $projetId]);
             return false;
         }
 
-        Log::info('📊 Commercials found for assignment', [
-            'count' => $commercials->count(),
-            'commercials' => $commercials->map(function($c) {
-                return [
-                    'id' => $c->id,
-                    'name' => $c->name . ' ' . $c->prenom,
-                    'nb_prospects' => $c->nb_prospects
-                ];
-            })
-        ]);
+        // ============================================
+        // ✅ LOGIQUE SIMPLIFIÉE: SEULEMENT last_affected
+        // ============================================
 
-        // ===== CALCULER LES CHARGES ACTUELLES =====
-        $commercialCounts = $commercials->map(function($commercial) use ($projetId) {
-            $actualCount = Prospect::on('temp')
-                ->where('commercial_affecte', $commercial->id)
-                ->where('projet_id', $projetId)
-                ->whereNull('deleted_at')
-                ->count();
+        // If only one commercial, assign to them
+        if ($commercials->count() === 1) {
+            $targetCommercial = $commercials->first();
+            Log::info('✅ Only one commercial found', [
+                'commercial_id' => $targetCommercial->id,
+                'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
+            ]);
+        } else {
+            // ✅ Step 1: Find commercial with last_affected = 0
+            $targetCommercial = null;
 
-            return [
-                'id' => $commercial->id,
-                'name' => $commercial->name . ' ' . $commercial->prenom,
-                'count' => $actualCount,
-                'model' => $commercial
-            ];
-        })->sortBy('count')->values();
+            foreach ($commercials as $commercial) {
+                if ($commercial->last_affected == 0) {
+                    $targetCommercial = $commercial;
+                    Log::info('✅ Found commercial with last_affected = 0', [
+                        'commercial_id' => $commercial->id,
+                        'name' => $commercial->name . ' ' . $commercial->prenom
+                    ]);
+                    break;
+                }
+            }
 
-        Log::info('📊 Commercial counts before assignment', $commercialCounts->toArray());
-
-        // ===== DISTRIBUTION ÉQUITABLE =====
-        // Prendre le commercial avec le moins de prospects
-        $targetCommercial = $commercialCounts->first();
-
-        if (!$targetCommercial) {
-            Log::error('❌ No target commercial found');
-            return false;
+            // ✅ Step 2: If all have last_affected = 1, take the first one
+            if (!$targetCommercial) {
+                $targetCommercial = $commercials->first();
+                Log::info('🔄 All commercials have last_affected = 1, taking first', [
+                    'commercial_id' => $targetCommercial->id,
+                    'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
+                ]);
+            }
         }
-
-        Log::info('✅ Commercial selected for assignment', [
-            'commercial_id' => $targetCommercial['id'],
-            'commercial_name' => $targetCommercial['name'],
-            'current_count' => $targetCommercial['count']
-        ]);
 
         // Get system user (Admin)
         $systemUser = User::on('temp')->where('role', 1)->first();
@@ -794,7 +784,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
         DB::connection('temp')->beginTransaction();
 
         try {
-            $newCommercialId = $targetCommercial['id'];
+            $newCommercialId = $targetCommercial->id;
 
             // ✅ 1. Update prospect assignment
             $prospect->commercial_affecte = $newCommercialId;
@@ -828,26 +818,39 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             ]);
 
             // ✅ 3. Update nb_prospects counter
-            $commercialUser = $targetCommercial['model'];
+            $commercialUser = $targetCommercial;
             $oldCount = $commercialUser->nb_prospects ?? 0;
             $commercialUser->nb_prospects = $oldCount + 1;
+
+            // ✅ 4. Set last_affected = 1 for the selected commercial
+            $commercialUser->last_affected = 1;
             $commercialUser->save();
 
-            Log::info('✅ nb_prospects incremented', [
+            Log::info('✅ Commercial counters updated', [
                 'commercial_id' => $newCommercialId,
                 'old_count' => $oldCount,
-                'new_count' => $oldCount + 1
+                'new_count' => $oldCount + 1,
+                'last_affected' => 1
             ]);
 
-            // ✅ 4. COMMIT transaction BEFORE sending notification
+            // ✅ 5. Reset last_affected = 0 for all other commercials
+            User::on('temp')
+                ->where('id', '!=', $newCommercialId)
+                ->where('role', 3)
+                ->where('is_actif', 1)
+                ->update(['last_affected' => 0]);
+
+            Log::info('✅ Reset last_affected = 0 for other commercials');
+
+            // ✅ 6. COMMIT transaction
             DB::connection('temp')->commit();
 
             Log::info('✅ Transaction committed successfully');
 
-            // ✅ 5. Send notification (OUTSIDE transaction)
+            // ✅ 7. Send notification (OUTSIDE transaction)
             $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
 
-            // ✅ 6. Verify data was saved (for debugging)
+            // ✅ 8. Verify data was saved
             $verifyProspect = Prospect::on('temp')->find($prospectId);
             $verifyStatus = StatutProspect::on('temp')
                 ->where('prospect_id', $prospectId)
@@ -859,19 +862,19 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 'prospect_commercial_id' => $verifyProspect ? $verifyProspect->commercial_affecte : null,
                 'status_id' => $verifyStatus ? $verifyStatus->id : null,
                 'status_statut' => $verifyStatus ? $verifyStatus->statut : null,
-                'user_nb_prospects' => $verifyUser ? $verifyUser->nb_prospects : null
+                'user_nb_prospects' => $verifyUser ? $verifyUser->nb_prospects : null,
+                'user_last_affected' => $verifyUser ? $verifyUser->last_affected : null
             ]);
 
             Log::info('✅ Auto-assignment completed successfully', [
                 'prospect_id' => $prospectId,
                 'commercial_id' => $newCommercialId,
-                'commercial_name' => $targetCommercial['name']
+                'commercial_name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
             ]);
 
             return true;
 
         } catch (\Exception $e) {
-            // ✅ Rollback on error
             DB::connection('temp')->rollBack();
             Log::error('❌ Auto-assignment transaction failed: ' . $e->getMessage());
             Log::error('Trace: ' . $e->getTraceAsString());
