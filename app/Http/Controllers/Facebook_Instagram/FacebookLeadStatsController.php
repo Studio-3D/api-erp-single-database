@@ -13,6 +13,7 @@ use Carbon\Carbon;
 class FacebookLeadStatsController extends Controller
 {
     private $projetId;
+    private const API_VERSION = 'v25.0'; // ✅ Updated to latest version
 
     /**
      * ✅ Configurer la connexion temp
@@ -90,10 +91,8 @@ class FacebookLeadStatsController extends Controller
                 'leads' => $this->getLeadStats($pageId, $accessToken, $dateRange),
                 'forms' => $this->getFormStats($pageId, $accessToken),
                 'prospects' => $this->getProspectStats($projet_id, $dateRange),
-                //'ads' => $this->getAdStats($pageId, $accessToken, $dateRange),
                 'temporal' => $this->getTemporalAnalysis($projet_id, $dateRange),
                 'funnel' => $this->getConversionFunnel($projet_id, $dateRange),
-              //  'ad_performance' => $this->getAdPerformance($pageId, $accessToken, $dateRange),
                 'trends' => $this->getTrends($projet_id, $dateRange),
             ];
 
@@ -122,7 +121,7 @@ class FacebookLeadStatsController extends Controller
     /**
      * Obtenir la plage de dates selon la période
      */
-    private function getDateRange($period)
+     private function getDateRange($period)
     {
         $now = Carbon::now();
         $endDate = $now->copy()->endOfDay();
@@ -164,53 +163,72 @@ class FacebookLeadStatsController extends Controller
     /**
      * 1. Statistiques générales - AVEC FILTRE DE PÉRIODE
      */
-    private function getGeneralStats($pageId, $accessToken, $dateRange)
+   /**
+ * 1. Statistiques générales - AVEC FILTRE DE PÉRIODE
+ */
+ private function getGeneralStats($pageId, $accessToken, $dateRange)
     {
         try {
-            // Récupérer les infos de la page
+            // ✅ Use correct API version and valid fields
             $pageInfo = Http::withToken($accessToken)
-                ->get("https://graph.facebook.com/v22.0/{$pageId}", [
-                    'fields' => 'name,fan_count,posts_count,talking_about_count'
+                ->get("https://graph.facebook.com/" . self::API_VERSION . "/{$pageId}", [
+                    'fields' => 'name,fan_count,talking_about_count,engagement,likes' // ✅ Removed posts_count
                 ]);
 
             $pageData = $pageInfo->successful() ? $pageInfo->json() : [];
 
-            // ✅ Récupérer les posts avec filtre de période
+            // ✅ Safe access with default values
+            $pageName = $pageData['name'] ?? 'Inconnu';
+            $pageFans = isset($pageData['fan_count']) ? (int)$pageData['fan_count'] : 0;
+            $talkingAbout = isset($pageData['talking_about_count']) ? (int)$pageData['talking_about_count'] : 0;
+
+            // ✅ Récupérer les posts avec filtre de période - Fixed API version
             $postsResponse = Http::withToken($accessToken)
-                ->get("https://graph.facebook.com/v22.0/{$pageId}/posts", [
+                ->get("https://graph.facebook.com/" . self::API_VERSION . "/{$pageId}/posts", [
                     'fields' => 'id,created_time,likes.summary(true),comments.summary(true),shares',
                     'limit' => 100,
                     'since' => $dateRange['since']->timestamp,
                     'until' => $dateRange['until']->timestamp,
                 ]);
 
-            $posts = $postsResponse->successful() ? $postsResponse->json()['data'] ?? [] : [];
+            $posts = $postsResponse->successful() ? ($postsResponse->json()['data'] ?? []) : [];
 
             $totalLikes = 0;
             $totalComments = 0;
             $totalShares = 0;
 
             foreach ($posts as $post) {
-                $totalLikes += $post['likes']['summary']['total_count'] ?? 0;
-                $totalComments += $post['comments']['summary']['total_count'] ?? 0;
-                $totalShares += $post['shares']['count'] ?? 0;
+                $totalLikes += isset($post['likes']['summary']['total_count']) ? (int)$post['likes']['summary']['total_count'] : 0;
+                $totalComments += isset($post['comments']['summary']['total_count']) ? (int)$post['comments']['summary']['total_count'] : 0;
+                $totalShares += isset($post['shares']['count']) ? (int)$post['shares']['count'] : 0;
             }
 
+            $engagementRate = 0;
+            if ($pageFans > 0) {
+                $engagementRate = round(($totalLikes + $totalComments + $totalShares) / $pageFans * 100, 2);
+            }
+
+            Log::info('General stats calculated', [
+                'page_name' => $pageName,
+                'page_fans' => $pageFans,
+                'total_posts' => count($posts),
+                'engagement_rate' => $engagementRate
+            ]);
+
             return [
-                'page_name' => $pageData['name'] ?? 'Inconnu',
-                'page_fans' => $pageData['fan_count'] ?? 0,
-                'posts_count' => $pageData['posts_count'] ?? 0,
-                'talking_about' => $pageData['talking_about_count'] ?? 0,
+                'page_name' => $pageName,
+                'page_fans' => $pageFans,
+                'posts_count' => count($posts), // ✅ Calculate from fetched posts
+                'talking_about' => $talkingAbout,
                 'total_likes' => $totalLikes,
                 'total_comments' => $totalComments,
                 'total_shares' => $totalShares,
-                'engagement_rate' => $pageData['fan_count'] > 0
-                    ? round(($totalLikes + $totalComments + $totalShares) / $pageData['fan_count'] * 100, 2)
-                    : 0,
+                'engagement_rate' => $engagementRate,
             ];
 
         } catch (\Exception $e) {
             Log::error('Error in getGeneralStats: ' . $e->getMessage());
+            Log::error('Trace: ' . $e->getTraceAsString());
             return [
                 'page_name' => 'Erreur',
                 'page_fans' => 0,
@@ -227,7 +245,10 @@ class FacebookLeadStatsController extends Controller
     /**
      * 2. Statistiques des leads - AVEC FILTRE DE PÉRIODE
      */
-    private function getLeadStats($pageId, $accessToken, $dateRange)
+    /**
+ * 2. Statistiques des leads - AVEC FILTRE DE PÉRIODE
+ */
+ private function getLeadStats($pageId, $accessToken, $dateRange)
     {
         try {
             $totalLeads = 0;
@@ -238,20 +259,46 @@ class FacebookLeadStatsController extends Controller
             $leadsByCountry = [];
             $leadsByCity = [];
 
-            // Récupérer les formulaires
+            // ✅ Récupérer les formulaires avec API version correcte
             $formsResponse = Http::withToken($accessToken)
-                ->get("https://graph.facebook.com/v22.0/{$pageId}/leadgen_forms", [
-                    'fields' => 'id,name,status,created_time'
+                ->get("https://graph.facebook.com/" . self::API_VERSION . "/{$pageId}/leadgen_forms", [
+                    'fields' => 'id,name,status,created_time,leads_count'
                 ]);
 
-            $forms = $formsResponse->successful() ? $formsResponse->json()['data'] ?? [] : [];
+            if (!$formsResponse->successful()) {
+                Log::error('Failed to fetch forms', [
+                    'status' => $formsResponse->status(),
+                    'body' => $formsResponse->body()
+                ]);
+                return $this->getEmptyLeadStats();
+            }
+
+            $forms = $formsResponse->successful() ? ($formsResponse->json()['data'] ?? []) : [];
+
+            Log::info('Found forms', ['count' => count($forms), 'forms' => $forms]);
+
+            if (empty($forms)) {
+                Log::info('No forms found for page', ['page_id' => $pageId]);
+                return $this->getEmptyLeadStats();
+            }
 
             foreach ($forms as $form) {
-                $formId = $form['id'];
+                $formId = $form['id'] ?? null;
+                if (!$formId) continue;
 
-                // ✅ Récupérer les leads avec filtre de période (since et until)
+                $formName = $form['name'] ?? 'Sans nom';
+                $formStatus = $form['status'] ?? 'unknown';
+                $formLeadsCount = $form['leads_count'] ?? 0;
+
+                Log::info('Fetching leads for form', [
+                    'form_id' => $formId,
+                    'form_name' => $formName,
+                    'leads_count' => $formLeadsCount
+                ]);
+
+                // ✅ Récupérer les leads avec API version correcte
                 $leadsResponse = Http::withToken($accessToken)
-                    ->get("https://graph.facebook.com/v22.0/{$formId}/leads", [
+                    ->get("https://graph.facebook.com/" . self::API_VERSION . "/{$formId}/leads", [
                         'fields' => 'id,created_time,field_data,ad_id,ad_name,adgroup_id',
                         'limit' => 1000,
                         'since' => $dateRange['since']->timestamp,
@@ -260,17 +307,32 @@ class FacebookLeadStatsController extends Controller
 
                 if ($leadsResponse->successful()) {
                     $leads = $leadsResponse->json()['data'] ?? [];
-                    $totalLeads += count($leads);
+                    $leadCount = count($leads);
+                    $totalLeads += $leadCount;
+
+                    Log::info('Retrieved leads for form', [
+                        'form_id' => $formId,
+                        'lead_count' => $leadCount
+                    ]);
 
                     $leadsByForm[] = [
                         'form_id' => $formId,
-                        'form_name' => $form['name'] ?? 'Sans nom',
-                        'total' => count($leads),
-                        'status' => $form['status'] ?? 'unknown'
+                        'form_name' => $formName,
+                        'total' => $leadCount,
+                        'status' => $formStatus
                     ];
 
                     foreach ($leads as $lead) {
-                        $created = Carbon::parse($lead['created_time']);
+                        if (empty($lead['created_time'])) {
+                            continue;
+                        }
+
+                        try {
+                            $created = Carbon::parse($lead['created_time']);
+                        } catch (\Exception $e) {
+                            Log::warning('Invalid date format', ['created_time' => $lead['created_time']]);
+                            continue;
+                        }
 
                         // Par jour
                         $day = $created->format('Y-m-d');
@@ -282,21 +344,34 @@ class FacebookLeadStatsController extends Controller
 
                         // Par annonce
                         $adName = $lead['ad_name'] ?? 'Annonce inconnue';
-                        $leadsByAd[$adName] = ($leadsByAd[$adName] ?? 0) + 1;
+                        if (!empty($adName)) {
+                            $leadsByAd[$adName] = ($leadsByAd[$adName] ?? 0) + 1;
+                        }
 
                         // Extraire les données du formulaire
                         $fieldData = $lead['field_data'] ?? [];
                         foreach ($fieldData as $field) {
-                            if ($field['name'] === 'country') {
-                                $country = $field['values'][0] ?? 'Inconnu';
-                                $leadsByCountry[$country] = ($leadsByCountry[$country] ?? 0) + 1;
+                            $fieldName = $field['name'] ?? '';
+                            if ($fieldName === 'country') {
+                                $country = isset($field['values'][0]) ? $field['values'][0] : 'Inconnu';
+                                if (!empty($country) && $country !== 'Inconnu') {
+                                    $leadsByCountry[$country] = ($leadsByCountry[$country] ?? 0) + 1;
+                                }
                             }
-                            if ($field['name'] === 'city') {
-                                $city = $field['values'][0] ?? 'Inconnu';
-                                $leadsByCity[$city] = ($leadsByCity[$city] ?? 0) + 1;
+                            if ($fieldName === 'city') {
+                                $city = isset($field['values'][0]) ? $field['values'][0] : 'Inconnu';
+                                if (!empty($city) && $city !== 'Inconnu') {
+                                    $leadsByCity[$city] = ($leadsByCity[$city] ?? 0) + 1;
+                                }
                             }
                         }
                     }
+                } else {
+                    Log::warning('Failed to fetch leads for form', [
+                        'form_id' => $formId,
+                        'status' => $leadsResponse->status(),
+                        'body' => $leadsResponse->body()
+                    ]);
                 }
             }
 
@@ -327,6 +402,12 @@ class FacebookLeadStatsController extends Controller
                 ];
             }
 
+            Log::info('Lead stats summary', [
+                'total_leads' => $totalLeads,
+                'forms_count' => count($leadsByForm),
+                'days_count' => count($leadsByDay)
+            ]);
+
             return [
                 'total_leads' => $totalLeads,
                 'leads_by_form' => $leadsByForm,
@@ -341,38 +422,48 @@ class FacebookLeadStatsController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error in getLeadStats: ' . $e->getMessage());
-            return [
-                'total_leads' => 0,
-                'leads_by_form' => [],
-                'leads_by_day' => [],
-                'leads_by_day_raw' => [],
-                'leads_by_hour' => [],
-                'leads_by_hour_raw' => [],
-                'leads_by_ad' => [],
-                'leads_by_country' => [],
-                'leads_by_city' => [],
-
-            ];
+            Log::error('Trace: ' . $e->getTraceAsString());
+            return $this->getEmptyLeadStats();
         }
     }
 
     /**
-     * 3. Statistiques des formulaires
+     * Helper method to return empty lead stats
+     */
+    private function getEmptyLeadStats()
+    {
+        return [
+            'total_leads' => 0,
+            'leads_by_form' => [],
+            'leads_by_day' => [],
+            'leads_by_day_raw' => [],
+            'leads_by_hour' => [],
+            'leads_by_hour_raw' => [],
+            'leads_by_ad' => [],
+            'leads_by_country' => [],
+            'leads_by_city' => [],
+        ];
+    }
+
+    /**
+     * 3. Statistiques des formulaires - FIXED
      */
     private function getFormStats($pageId, $accessToken)
     {
         try {
             $formsResponse = Http::withToken($accessToken)
-                ->get("https://graph.facebook.com/v22.0/{$pageId}/leadgen_forms", [
+                ->get("https://graph.facebook.com/" . self::API_VERSION . "/{$pageId}/leadgen_forms", [
                     'fields' => 'id,name,status,created_time,questions,leads_count'
                 ]);
 
-            $forms = $formsResponse->successful() ? $formsResponse->json()['data'] ?? [] : [];
+            $forms = $formsResponse->successful() ? ($formsResponse->json()['data'] ?? []) : [];
+
+            Log::info('Form stats retrieved', ['total_forms' => count($forms)]);
 
             $formStats = [];
             foreach ($forms as $form) {
                 $formStats[] = [
-                    'id' => $form['id'],
+                    'id' => $form['id'] ?? null,
                     'name' => $form['name'] ?? 'Sans nom',
                     'status' => $form['status'] ?? 'unknown',
                     'created_at' => $form['created_time'] ?? null,
@@ -384,7 +475,9 @@ class FacebookLeadStatsController extends Controller
 
             return [
                 'total_forms' => count($forms),
-                'active_forms' => count(array_filter($forms, fn($f) => in_array($f['status'], ['ACTIVE', 'PUBLISHED']))),
+                'active_forms' => count(array_filter($forms, function($f) {
+                    return in_array($f['status'] ?? '', ['ACTIVE', 'PUBLISHED']);
+                })),
                 'forms' => $formStats,
             ];
 
@@ -397,6 +490,66 @@ class FacebookLeadStatsController extends Controller
             ];
         }
     }
+
+    // ... [rest of your methods remain the same - getProspectStats, getTemporalAnalysis,
+    // getConversionFunnel, getTrends, and all helper methods]
+
+    /**
+     * Helper method to get default general stats
+     */
+    private function getDefaultGeneralStats()
+    {
+        return [
+            'page_name' => 'Inconnu',
+            'page_fans' => 0,
+            'posts_count' => 0,
+            'talking_about' => 0,
+            'total_likes' => 0,
+            'total_comments' => 0,
+            'total_shares' => 0,
+            'engagement_rate' => 0,
+        ];
+    }
+/**
+ * Debug Facebook API Response
+ */
+private function debugFacebookResponse($pageId, $accessToken)
+{
+    try {
+        // Test page info
+        $response = Http::withToken($accessToken)
+            ->get("https://graph.facebook.com/v22.0/{$pageId}", [
+                'fields' => 'name,fan_count,posts_count,talking_about_count,engagement'
+            ]);
+
+        Log::info('Facebook Page Info Response', [
+            'status' => $response->status(),
+            'success' => $response->successful(),
+            'data' => $response->successful() ? $response->json() : $response->body(),
+            'headers' => $response->headers()
+        ]);
+
+        // Test forms
+        $formsResponse = Http::withToken($accessToken)
+            ->get("https://graph.facebook.com/v22.0/{$pageId}/leadgen_forms");
+
+        Log::info('Facebook Forms Response', [
+            'status' => $formsResponse->status(),
+            'success' => $formsResponse->successful(),
+            'data' => $formsResponse->successful() ? $formsResponse->json() : $formsResponse->body()
+        ]);
+
+        return true;
+    } catch (\Exception $e) {
+        Log::error('Debug failed: ' . $e->getMessage());
+        return false;
+    }
+}
+
+    /**
+     * 3. Statistiques des formulaires
+     */
+
 /**
  * ✅ Statistiques des commerciaux (UNIQUEMENT ceux avec prospects)
  */
