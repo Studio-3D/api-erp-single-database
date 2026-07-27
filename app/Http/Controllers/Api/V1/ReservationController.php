@@ -617,7 +617,7 @@ private function processReservationFiles($reservation, $request, $societe)
                     }
 
                     // Set fields individually
-                    $reservation->prix = $request->prix;
+                    $reservation->prix = $request->prix_final;  // ✅ Stocker prix_final
                     $reservation->mode_financement =$request->mode_financement;
                     $reservation->nb_acquereurs = $request->nb_acquereurs;
                      $reservation->code_reservation = $codeReservation; // Use generated or provided
