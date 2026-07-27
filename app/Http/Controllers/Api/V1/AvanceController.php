@@ -443,7 +443,7 @@ class AvanceController extends Controller
 
     public function traiter_avance($id, Request $request)
     {
-        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()||RoleHelper::Comptable()) {
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ||RoleHelper::Comptable()) {
 
             DatabaseHelper::Config();
             $user = Auth::user();
@@ -671,11 +671,13 @@ class AvanceController extends Controller
                 $avance->statut = StatutReservationEnum::Validé->value;
             } else {
 
-                if (RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
+               /* if (RoleHelper::Com()||RoleHelper::Notaire()||RoleHelper::RespoLivraison()||RoleHelper::RespoCommercial()) {
                     $avance->statut = StatutReservationEnum::En_Attente->value;
                 } elseif (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ) {
                     $avance->statut = StatutReservationEnum::Validé->value;
-                }
+                }*/
+               $avance->statut = StatutReservationEnum::Validé->value;
+
             }
 
             // If montant is 0, automatically validate the avance

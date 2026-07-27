@@ -467,7 +467,7 @@ private function processReservationFiles($reservation, $request, $societe)
 // Update finalizeReservation to remove file processing
  private function finalizeReservation($reservation,$userAuth_name,$userAuth_prenom,$userAuth,$prix,$prix_final)
         {
-             if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
+             /*if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
             //create histo reservation en attente
                 $histo = new HistoReservation();
                 $histo->setConnection('temp');
@@ -477,7 +477,7 @@ private function processReservationFiles($reservation, $request, $societe)
                 $histo->action = 1;//en attente
                 $histo->description = null;
                 $histo->save();
-             }
+             }*/
             // Create status record if validated
             if ($reservation->statut == StatutReservationEnum::Validé->value) {
                 //Validation
@@ -2382,7 +2382,7 @@ private function getAllHistoriquesWithAncien($reservationId)
             $reservation = Reservation::on('temp')->findOrFail($id);
             $reservation->statut = $request->statut_res;
             if ($reservation->save()) {
-                $res_statut = new statutReservation();
+                $res_statut = new stauttReservation();
                 $res_statut->setConnection('temp');
                 $res_statut->reservation_id = $id;
                 $res_statut->statut = $request->statut_res;
