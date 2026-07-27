@@ -811,7 +811,7 @@ class AvanceController extends Controller
                     $isCommercialRole = RoleHelper::Com() || RoleHelper::Notaire() || RoleHelper::RespoLivraison() || RoleHelper::RespoCommercial();
                     \Log::info('Is commercial role? ' . ($isCommercialRole ? 'Yes' : 'No'));
 
-                    // Only send notifications if montant > 0
+                    /* Only send notifications if montant > 0
                     if ($isCommercialRole && $request->montant > 0) {
                         \Log::info('Sending notifications to admins and comptables');
 
@@ -888,7 +888,7 @@ class AvanceController extends Controller
                         Config::set('broadcasting.default', 'pusher_notify');
                         broadcast(new NotifMenuEvent(2));
                         \Log::info('NotifMenuEvent broadcasted');
-                    }
+                    }*/
                 //}
 
                 $num_recu = '';
