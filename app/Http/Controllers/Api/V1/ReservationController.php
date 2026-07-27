@@ -87,6 +87,59 @@ class ReservationController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+/**
+ * Export des réservations avec filtres de date
+ *
+ * @param Request $request
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function exportReservations(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    DatabaseHelper::Config();
+
+    $projetId = $request->input('projet_id');
+    $dateStart = $request->input('date_start');
+    $dateEnd = $request->input('date_end');
+
+    // Construire la requête de base
+    $query = Reservation::on('temp')
+        ->withSum('avances', 'montant')
+        ->withCount('avances')
+        ->with([
+            'user',
+            'bien',
+            'bien.tranche',
+            'bien.bloc',
+            'bien.immeuble',
+            'aquereurs.client',
+        ])
+        ->where('projet_id', $projetId)
+        ->where('etat', 1)
+        ->orderBy('created_at', 'desc');
+
+    // Filtrer par date
+    $query->when($dateStart, function ($q) use ($dateStart) {
+        $start = Carbon::parse($dateStart);
+        return $q->whereDate('reservations.date_reservation', '>=', $start);
+    });
+
+    $query->when($dateEnd, function ($q) use ($dateEnd) {
+        $end = Carbon::parse($dateEnd);
+        return $q->whereDate('reservations.date_reservation', '<=', $end);
+    });
+
+    // Récupérer toutes les données
+    $reservations = $query->get();
+
+    return response()->json([
+        'data' => $reservations,
+        'total' => $reservations->count()
+    ], 200);
+}
     public function indexByProjet(Request $request, $projet_id)
     {
         if (Auth::guard('api')->check()) {
@@ -96,7 +149,8 @@ class ReservationController extends Controller
             DatabaseHelper::Config();
 
 
-            $query = Reservation::on('temp')->withSum('avances','montant')->with('desistement_att_validation_rejete','last_statut','first_avance','contrat_vente')
+            $query = Reservation::on('temp')->withSum('avances','montant')->withCount('avances')  // 🔥 AJOUT: Compte le nombre d'avances
+            ->with('desistement_att_validation_rejete','last_statut','first_avance','contrat_vente')
             ->orderBy('created_at', 'desc')
                 ->where('projet_id', $projet_id)
                 ->where('etat', 1);

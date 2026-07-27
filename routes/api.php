@@ -343,6 +343,7 @@ Route::middleware('auth:api')->group(function () {
 
         //lapi reservaton
         Route::resource('reservations', V1ReservationController::class);
+        Route::get('export-reservations', [V1ReservationController::class, 'exportReservations']);
         Route::get('show_dossier_in_dd/{id}', [V1ReservationController::class, 'show_dossier_in_dd']);
         Route::get('projets/{idprojet}/reservations', [V1ReservationController::class, 'indexByProjet']);
         Route::get('search_reservation_by_code/{code_res}', [V1ReservationController::class, 'search_reservation_by_code']);
