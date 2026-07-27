@@ -1714,7 +1714,7 @@ private function getAllHistoriquesWithAncien($reservationId)
         $reservation->setConnection('temp');
         $reservation->nb_acquereurs = $request->input('nb_acquereurs');
         $reservation->code_reservation = $request->input('code_reservation');
-        $reservation->prix = $request->input('prix');
+        $reservation->prix = $request->input('prix_final');
         $reservation->mode_financement = $request->mode_financement;
         $reservation->date_reservation = $request->input('date_reservation');
         $reservation->commentaire = $request->input('commentaire') == "null" ? null : $request->input('commentaire');
