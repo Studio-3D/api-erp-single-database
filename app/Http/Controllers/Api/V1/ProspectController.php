@@ -351,7 +351,7 @@ public function exportByProjet(Request $request, $projet_id)
 }
 public function indexByProjet(Request $request, $projet_id)
 {
-    if (RoleHelper::ACSup_RC()) {
+    if (RoleHelper::ACSup_RC()|| RoleHelper::AgentAdmin()  ) {
         $size = $request->input('size', null);
         $page = $request->input('page', null);
 

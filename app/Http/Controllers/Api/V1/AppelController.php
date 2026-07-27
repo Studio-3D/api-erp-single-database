@@ -46,7 +46,7 @@ class AppelController extends Controller
      */
  public function indexByProjet(Request $request, $projet_id)
 {
-    if (RoleHelper::ACSup_RC() ) {
+    if (RoleHelper::ACSup_RC()|| RoleHelper::AgentAdmin()  ) {
         // Default values for pagination
         $size = $request->input('size', null);
         $page = $request->input('page', null);
