@@ -617,7 +617,7 @@ private function processReservationFiles($reservation, $request, $societe)
                     }
 
                     // Set fields individually
-                    $reservation->prix = $request->prix_final;  // ✅ Stocker prix_final
+                    $reservation->prix = $request->filled('prix_final') ? $request->prix_final : $request->prix;
                     $reservation->mode_financement =$request->mode_financement;
                     $reservation->nb_acquereurs = $request->nb_acquereurs;
                      $reservation->code_reservation = $codeReservation; // Use generated or provided
@@ -1267,136 +1267,140 @@ private function getAllHistoriquesWithAncien($reservationId)
                             ])
                             ->orderBy('created_at', 'desc');
                     },*/
-   public function show($id)
-    {
-        if (RoleHelper::ACSup_RC()  || RoleHelper::AgentAdmin()||RoleHelper::NotaireRespoL()||RoleHelper::Comptable()) {
-            DatabaseHelper::Config();
+ public function show($id)
+{
+    if (RoleHelper::ACSup_RC()  || RoleHelper::AgentAdmin()||RoleHelper::NotaireRespoL()||RoleHelper::Comptable()) {
+        DatabaseHelper::Config();
 
-            $reservation = Reservation::on('temp')
-                ->withSum('avances','montant')
-                ->without('avances_valides')
-                ->with([
-                    'bien' => function($query) {
-                        $query->with([
-                            'immeuble' => function($q) {
-                                $q->select('id', 'nom')
-                                ->without(['projet', 'tranche','bloc']);
-                            },
-                            'bloc' => function($q) {
-                                $q->select('id', 'nom')
-                                ->without(['projet', 'tranche']);
-                            },
-                            'tranche' => function($q) {
-                                $q->select('id', 'nom')
-                                ->without(['projet']);
-                            }
-                        ]);
-                    },
-                    'last_statut' => function($query) {
-                        $query->without('reservation','user');
-                    },
-                    'compromis_vente' => function($query) {
-                        $query->select('*')->without('reservation','user');
-                    },
-                    'contrat_vente' => function($query) {
-                        $query->without('reservation','user');
-                    },
-                    'first_avance' => function($query) {
-                        $query->without('reservation','user');
-                    },
-                    'projet' => function($query) {
-                        $query->select('id', 'nom', 'adresse')
-                            ->without('user_projet', 'type_projet');
-                    },
-                    'notaire' => function($query) {
-                        $query->select('id', 'user_id_origin','name', 'prenom')
-                            ->without('societe');
-                    },
-                  'avances' => function($query) {
-                        $query->select('id', 'reservation_id', 'montant', 'statut', 'in_contrat', 'mode_paiement', 'numero_paiement', 'num_recu', 'banque_id')
-                    ->with(['banque' => function($q) {
-                        $q->select('id', 'nom');
-                    }])
-                    ->without('reservation', 'user', 'piece_jointe'); // Exclure les relations inutiles
-}
-                ])
-                ->findOrFail($id);
-
-            // Hide avances_valides from response
-            $reservation->makeHidden('avances_valides');
-
-            $sum_avances_valides = 0;
-            $sum_avance_valide_in_contrat = 0;
-
-            // Conditionally replace aquereurs with aquereurs_ancien if etat > 1
-            if ($reservation->etat > 1) {
-                $reservation->load('remboursement_dd_with_transfert');
-                // Load aquereurs_ancien relationship
-                $reservation->load('aquereurs_ancien');
-                // Replace aquereurs with aquereurs_ancien for the response
-                $reservation->aquereurs = $reservation->aquereurs_ancien;
-                // Hide the original aquereurs_ancien from response if needed
-                $reservation->load('desistements_ancien');
-
-                // Load piece_jointe_desiste when etat > 1
-                $reservation->load('piece_jointe_desiste');
-                // Hide piece_jointe from response
-                $reservation->makeHidden('piece_jointe');
-
-                foreach ($reservation->avances_desist as $av) {
-                    if ($av->statut == StatutReservationEnum::Validé->value) {
-                        $sum_avances_valides += $av->montant;
-                        // Check if avance has in_contrat = 1
-                        if (isset($av->in_contrat) && $av->in_contrat == 1) {
-                            $sum_avance_valide_in_contrat += $av->montant;
+        $reservation = Reservation::on('temp')
+            ->withSum('avances','montant')
+            ->without('avances_valides')
+            ->with([
+                'bien' => function($query) {
+                    $query->with([
+                        'immeuble' => function($q) {
+                            $q->select('id', 'nom')
+                            ->without(['projet', 'tranche','bloc']);
+                        },
+                        'bloc' => function($q) {
+                            $q->select('id', 'nom')
+                            ->without(['projet', 'tranche']);
+                        },
+                        'tranche' => function($q) {
+                            $q->select('id', 'nom')
+                            ->without(['projet']);
                         }
-                    }
+                    ]);
+                },
+                'last_statut' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'compromis_vente' => function($query) {
+                    $query->select('*')->without('reservation','user');
+                },
+                'contrat_vente' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'first_avance' => function($query) {
+                    $query->without('reservation','user');
+                },
+                'projet' => function($query) {
+                    $query->select('id', 'nom', 'adresse')
+                        ->without('user_projet', 'type_projet');
+                },
+                'notaire' => function($query) {
+                    $query->select('id', 'user_id_origin','name', 'prenom')
+                        ->without('societe');
+                },
+                // 🔥 CORRECTION: Pas de date_encaissement dans select
+                'avances' => function($query) {
+                    $query->select('id', 'reservation_id', 'montant', 'statut', 'in_contrat', 'mode_paiement', 'numero_paiement', 'num_recu', 'banque_id')
+                        ->with([
+                            'banque' => function($q) {
+                                $q->select('id', 'nom');
+                            },
+                            'last_statut' => function($q) {
+                                $q->select('id', 'avance_id', 'date_encaissement', 'num_remise', 'statut', 'created_at');
+                            }
+                        ])
+                        ->without('reservation', 'user', 'piece_jointe');
                 }
-            } else if($reservation->etat == 1) {
-                // Load piece_jointe when etat == 1
-                $reservation->load('piece_jointe');
-                // Hide piece_jointe_desiste from response
-                $reservation->makeHidden('piece_jointe_desiste');
-                // Load desistement_att_validation_rejete only when etat == 1
-                $reservation->load('desistement_att_validation_rejete');
+            ])
+            ->findOrFail($id);
 
-                foreach ($reservation->avances_valides as $av) {
+        // Hide avances_valides from response
+        $reservation->makeHidden('avances_valides');
+
+        $sum_avances_valides = 0;
+        $sum_avance_valide_in_contrat = 0;
+
+        // Conditionally replace aquereurs with aquereurs_ancien if etat > 1
+        if ($reservation->etat > 1) {
+            $reservation->load('remboursement_dd_with_transfert');
+            $reservation->load('aquereurs_ancien');
+            $reservation->aquereurs = $reservation->aquereurs_ancien;
+            $reservation->load('desistements_ancien');
+            $reservation->load('piece_jointe_desiste');
+            $reservation->makeHidden('piece_jointe');
+
+            foreach ($reservation->avances_desist as $av) {
+                if ($av->statut == StatutReservationEnum::Validé->value) {
                     $sum_avances_valides += $av->montant;
-                    // Check if avance has in_contrat = 1
                     if (isset($av->in_contrat) && $av->in_contrat == 1) {
                         $sum_avance_valide_in_contrat += $av->montant;
                     }
                 }
             }
+        } else if($reservation->etat == 1) {
+            $reservation->load('piece_jointe');
+            $reservation->makeHidden('piece_jointe_desiste');
+            $reservation->load('desistement_att_validation_rejete');
 
-            // Get all historiques (with ancien if applicable)
-            $allHistoriques = $this->getAllHistoriquesWithAncien($id);
-
-            // Set the relation on reservation object
-            $reservation->setRelation('historiques', $allHistoriques);
-        // 🔥 AJOUTER: Calculer si toutes les avances in_contrat sont validées
-                $allAvancesInContratValide = false;
-                $avancesInContrat = $reservation->avances->filter(function($av) {
-                    return isset($av->in_contrat) && $av->in_contrat == 1;
-                });
-
-                if ($avancesInContrat->count() > 0) {
-                    $allValide = $avancesInContrat->every(function($av) {
-                        return $av->statut == StatutReservationEnum::Validé->value;
-                    });
-                    $allAvancesInContratValide = $allValide;
+            foreach ($reservation->avances_valides as $av) {
+                $sum_avances_valides += $av->montant;
+                if (isset($av->in_contrat) && $av->in_contrat == 1) {
+                    $sum_avance_valide_in_contrat += $av->montant;
                 }
-            return response()->json([
-                'reservation' => $reservation,
-                'sum_avances_valides' => $sum_avances_valides,
-                'sum_avance_valide_in_contrat' => $sum_avance_valide_in_contrat,
-                'all_avances_in_contrat_valide' => $allAvancesInContratValide // Ajouter cette clé
-
-                ], 200);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            }
         }
+
+        // Get all historiques (with ancien if applicable)
+        $allHistoriques = $this->getAllHistoriquesWithAncien($id);
+        $reservation->setRelation('historiques', $allHistoriques);
+
+        // 🔥 CALCULER SI TOUTES LES AVANCES IN_CONTRAT SONT VALIDÉES ET ENCAISSÉES
+        $allAvancesInContratValide = false;
+        $avancesInContrat = $reservation->avances->filter(function($av) {
+            return isset($av->in_contrat) && $av->in_contrat == 1;
+        });
+
+        if ($avancesInContrat->count() > 0) {
+            $allValide = $avancesInContrat->every(function($av) {
+                // Vérifier statut = 1
+                $isStatutValide = $av->statut == StatutReservationEnum::Validé->value;
+
+                // Vérifier date_encaissement via last_statut
+                $hasDateEncaissement = false;
+                if ($av->last_statut) {
+                    $hasDateEncaissement = $av->last_statut->date_encaissement !== null
+                        && $av->last_statut->date_encaissement !== '';
+                }
+
+                return $isStatutValide && $hasDateEncaissement;
+            });
+            $allAvancesInContratValide = $allValide;
+        }
+
+        return response()->json([
+            'reservation' => $reservation,
+            'sum_avances_valides' => $sum_avances_valides,
+            'sum_avance_valide_in_contrat' => $sum_avance_valide_in_contrat,
+            'all_avances_in_contrat_valide' => $allAvancesInContratValide
+        ], 200);
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
     public function get_etat_dossier($id)
     {
@@ -1714,7 +1718,7 @@ private function getAllHistoriquesWithAncien($reservationId)
         $reservation->setConnection('temp');
         $reservation->nb_acquereurs = $request->input('nb_acquereurs');
         $reservation->code_reservation = $request->input('code_reservation');
-        $reservation->prix = $request->input('prix_final');
+        $reservation->prix = $request->filled('prix_final') ? $request->prix_final : $request->prix;
         $reservation->mode_financement = $request->mode_financement;
         $reservation->date_reservation = $request->input('date_reservation');
         $reservation->commentaire = $request->input('commentaire') == "null" ? null : $request->input('commentaire');
