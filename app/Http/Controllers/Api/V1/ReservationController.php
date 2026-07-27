@@ -1258,9 +1258,13 @@ private function getAllHistoriquesWithAncien($reservationId)
                         $query->select('id', 'user_id_origin','name', 'prenom')
                             ->without('societe');
                     },
-                     'avances' => function($query) {
-                    $query->select('id', 'reservation_id', 'montant', 'statut', 'in_contrat');
-                }
+                  'avances' => function($query) {
+                        $query->select('id', 'reservation_id', 'montant', 'statut', 'in_contrat', 'mode_paiement', 'numero_paiement', 'num_recu', 'banque_id')
+                    ->with(['banque' => function($q) {
+                        $q->select('id', 'nom');
+                    }])
+                    ->without('reservation', 'user', 'piece_jointe'); // Exclure les relations inutiles
+}
                 ])
                 ->findOrFail($id);
 

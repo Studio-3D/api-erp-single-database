@@ -35,6 +35,7 @@ return new class extends Migration
             $table->string('fonction')->nullable();
             $table->integer('solde_conge')->nullable();
             $table->integer('nb_prospects')->default(0);
+            $table->tinyInteger('last_affected')->default(0)->after('nb_prospects');
             $table->timestamps();
             $table->softDeletes();
         });

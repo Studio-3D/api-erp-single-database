@@ -330,10 +330,43 @@
     </div>
 
   {{-- Header Title & Subtitle --}}
+
+{{-- Header Title & Subtitle --}}
 <div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">
     <div class="header-title">CONTRAT DE RÉSERVATION</div>
     <div class="header-subtitle" style="border-bottom: 2px solid #b8973a; padding-bottom: 8px; display: inline-block;">
-        Dossier : {{ $reservation['code_reservation'] ?? '' }} | N° : {{ $num_recu ?? '' }} | Identifiant bien : {{ $bien['tranche']['nom'] ?? 'Tranche' }}/{{ $bien['bloc']['nom'] ?? 'GH' }}/{{ $bien['immeuble']['nom'] ?? 'IMM' }}/{{ $bien['niveau'] ?? 'ETAGE' }}/{{ $bien['numero'] ?? 'APT' }}
+        N° : {{ date('Y') }}-{{ $num_recu }} | Identifiant bien :
+        {{ $bien['tranche']['nom'] ?? 'Tranche' }}/
+        {{ $bien['bloc']['nom'] ?? 'GH' }}/
+        {{ $bien['immeuble']['nom'] ?? 'IMM' }}/
+     @php
+    $niveau = $bien['niveau'] ?? '';
+    $etageLabel = '';
+
+    if ($niveau === 0 || $niveau === '0') {
+        $etageLabel = 'RDC';
+    } elseif ($niveau !== '' && $niveau !== null) {
+        $niveauInt = (int) $niveau;
+        if ($niveauInt == 1) {
+            $etageLabel = '1er étage';
+        } elseif ($niveauInt == 2) {
+            $etageLabel = '2ème étage';
+        } elseif ($niveauInt == 3) {
+            $etageLabel = '3ème étage';
+        } elseif ($niveauInt == 4) {
+            $etageLabel = '4ème étage';
+        } elseif ($niveauInt == 5) {
+            $etageLabel = '5ème étage';
+        } else {
+            $etageLabel = $niveauInt . 'ème étage';
+        }
+            } else {
+                $etageLabel = 'ETAGE';
+            }
+        @endphp
+        {{ $etageLabel }}/
+        {{ $bien['type_bien']['type'] ?? 'Type' }}/
+        {{ $bien['numero'] ?? 'APT' }}
     </div>
 </div>
 
@@ -362,7 +395,7 @@
                     @php $client = $aquereur['client'] ?? []; @endphp
                     <div class="beneficiary-block mt-1">
                         <p class="text-sm font-semibold text-gray-800">
-                            {{ $formatCivilite($client['civilite'] ?? '') }} / Madame :
+                            {{ $formatCivilite($client['civilite'] ?? 'Monsieur/Madame') }}  :
                             <span class="font-normal">{{ $client['nom'] ?? '' }} {{ $client['prenom'] ?? '' }}</span>
                         </p>
                         <p class="text-sm text-gray-700">CIN / Passeport n° : <span class="font-semibold">{{ $client['cin'] ?? '  ' }}</span></p>
@@ -421,20 +454,39 @@
     </div>
 
     {{-- ==================== ARTICLE 1 – OBJET ==================== --}}
-    <div class="mb-3">
-        <h2 class="article-title">ARTICLE 1 – OBJET</h2>
-        <div class="pl-4">
-            <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet Green Land, le bien immobilier ci-après désigné :</p>
-            <div class="mt-1">
-                <p class="text-sm text-gray-800"><span class="font-semibold">Localisation :</span> Ain Chock — Projet Green Land, Casablanca</p>
-                <p class="text-sm text-gray-800"><span class="font-semibold">Identifiant :</span> {{ $bien['tranche']['nom'] ?? 'Tranche' }}/{{ $bien['bloc']['nom'] ?? 'GH' }}/{{ $bien['immeuble']['nom'] ?? 'IMM' }}/{{ $bien['niveau'] ?? 'ETAGE' }}/{{ $bien['numero'] ?? 'APPARTEMENT' }}</p>
-                <p class="text-sm text-gray-800"><span class="font-semibold">Superficie approximative :</span> {{ $surfaceVendable ?? ' ' }} m²</p>
-                <p class="text-xs text-gray-600 mt-1 italic">
-                    La superficie est susceptible de connaître une variation une fois les titres fonciers des fractions divises établis, conformément à l'article 49 de la loi 18-00 relative au statut de la copropriété des immeubles bâtis.
-                </p>
-            </div>
+    {{-- ==================== ARTICLE 1 – OBJET ==================== --}}
+<div class="mb-3">
+    <h2 class="article-title">ARTICLE 1 – OBJET</h2>
+    <div class="pl-4">
+        <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet Green Land, le bien immobilier ci-après désigné :</p>
+        <div class="mt-1">
+            <p class="text-sm text-gray-800"><span class="font-semibold">Localisation :</span> Ain Chock — Projet Green Land, Casablanca</p>
+            @php
+                $niveau = $bien['niveau'] ?? '';
+                $etageLabel = '';
+                if ($niveau === 0 || $niveau === '0' || $niveau === '') {
+                    $etageLabel = 'RDC';
+                } else {
+                    $niveauInt = (int) $niveau;
+                    $etageLabel = ($niveauInt == 1) ? '1er étage' : $niveauInt . 'ème  étage';
+                }
+            @endphp
+            <p class="text-sm text-gray-800">
+                <span class="font-semibold">Identifiant :</span>
+                {{ $bien['tranche']['nom'] ?? 'Tranche' }}/
+                {{ $bien['bloc']['nom'] ?? 'GH' }}/
+                {{ $bien['immeuble']['nom'] ?? 'IMM' }}/
+                {{ $etageLabel }}/
+                {{ $bien['type_bien']['type'] ?? 'Type' }}/
+                {{ $bien['numero'] ?? 'numero' }}
+            </p>
+            <p class="text-sm text-gray-800"><span class="font-semibold">Superficie approximative :</span> {{ $surfaceVendable ?? ' ' }} m²</p>
+            <p class="text-xs text-gray-600 mt-1 italic">
+                La superficie est susceptible de connaître une variation une fois les titres fonciers des fractions divises établis, conformément à l'article 49 de la loi 18-00 relative au statut de la copropriété des immeubles bâtis.
+            </p>
         </div>
     </div>
+</div>
 
     {{-- ==================== ARTICLE 2 – PRIX ==================== --}}
     <div class="mb-3">
@@ -487,37 +539,90 @@
         {{-- 2.2 Échéancier de paiement --}}
         <div class="pl-4">
             <h3 class="article-subtitle">2.2 Échéancier de paiement lié à l'avancement des travaux</h3>
-            <p class="text-sm text-gray-700 mb-1">Le prix global est payable selon l'échéancier ci-après, attesté à chaque stade par le bureau de contrôle technique :</p>
+            <p class="text-sm text-gray-700 mb-1">Le prix global est payable selon l'échéancier ci-après :</p>
 
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th style="width:8%;" class="text-center">#</th>
-                        <th style="width:50%;">Stade d'avancement des travaux</th>
-                        <th style="width:17%;" class="text-center">% Prix</th>
-                        <th style="width:25%;" class="text-right">Montant (DH TTC)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($paymentSchedule as $schedule)
-                    <tr>
-                        <td class="text-center">{{ $schedule['step'] }}</td>
-                        <td>{{ $schedule['label'] }}</td>
-                        <td class="text-center">{{ $schedule['percentage'] }} %</td>
-                        <td class="text-right">{{ $totalPrice > 0 ? $formatCurrency($schedule['amount']) : 'DH' }}</td>
-                    </tr>
+            @php
+                $avances = $avancesInContrat ?? [];
+                $totalAvanceMontant = 0;
+                foreach($avances as $avance) {
+                    $totalAvanceMontant += $avance['montant'] ?? 0;
+                }
+                $montantReliquat = $totalPrice - $totalAvanceMontant;
+                $pourcentageReliquat = $totalPrice > 0 ? round(($montantReliquat / $totalPrice) * 100) : 0;
+                $pourcentageAvance = $totalPrice > 0 ? round(($totalAvanceMontant / $totalPrice) * 100) : 0;
+            @endphp
+
+            <div style="padding-left: 8px; margin-top: 6px;">
+                {{-- Total des avances --}}
+                <p class="text-sm text-gray-800" style="margin-bottom: 6px;">
+                    La somme de l'avance lors de la réservation soit :
+                    <strong>{{ $totalAvanceMontant > 0 ? $formatCurrency($totalAvanceMontant) : 'XXXXX' }} </strong>,
+                    représentant les <strong>{{ $pourcentageAvance }} %</strong> du prix de vente,
+                </p>
+
+                {{-- Détails de chaque avance --}}
+                @if(count($avances) > 0)
+                    @foreach($avances as $index => $avance)
+                        @php
+                            $modeCode = $avance['mode_code'] ?? null;
+                            $modeLabel = $avance['mode_label'] ?? '';
+                            $numeroPaiement = $avance['numero_paiement'] ?? '';
+                            $banque = $avance['banque'] ?? '';
+                            $montant = $avance['montant'] ?? 0;
+                            $compteNum = $avance['compte_num'] ?? '';
+                            $compteIntitule = $avance['compte_intitule'] ?? '';
+                        @endphp
+                        <p class="text-sm text-gray-800" style="padding-left: 20px; margin-bottom: 4px;">
+                            Avance N°{{ $index + 1 }} :
+                            <strong>{{ $montant > 0 ? $formatCurrency($montant) : 'XXXXX' }} </strong>
+                            @if($modeCode == 1)
+                                payé en espèces
+                            @elseif(in_array($modeCode, [2, 3, 4]))
+                                payé par <strong>{{ $modeLabel }}</strong>
+                                @if($numeroPaiement)
+                                      N° Paiement :{{ $numeroPaiement }}
+                                @endif
+                                @if($banque)
+                                    , Banque {{ $banque }}
+                                @endif
+                                @if($compteNum)
+                                    , numéro de compte {{ $compteNum }}
+                                @endif
+                                @if($compteIntitule)
+                                    , Intitulé de compte {{ $compteIntitule }}
+                                @endif
+                            @elseif(in_array($modeCode, [5, 6]))
+                                payé par <strong>{{ $modeLabel }}</strong>
+                                @if($banque)
+                                    , Banque {{ $banque }}
+                                @endif
+                                 @if($numeroPaiement)
+                                      N° Paiement :{{ $numeroPaiement }}
+                                @endif
+
+                                @if($compteNum)
+                                    , numéro de compte {{ $compteNum }}
+                                @endif
+                                @if($compteIntitule)
+                                    , Intitulé de compte {{ $compteIntitule }}
+                                @endif
+                            @else
+                                payé par ________
+                            @endif
+                            (Reçu N° <strong>{{ $avance['num_recu'] ?: '—' }}</strong>)
+                        </p>
                     @endforeach
-                    <tr class="row-total">
-                        <td class="text-center"></td>
-                        <td><strong>TOTAL</strong></td>
-                        <td class="text-center"><strong>100 %</strong></td>
-                        <td class="text-right text-primary"><strong>{{ $totalPrice > 0 ? $formatCurrency($totalPrice) : 'DH' }}</strong></td>
-                    </tr>
-                </tbody>
-            </table>
+                @endif
 
-            <p class="text-xs text-gray-600 mt-1 italic">
-                Chaque appel de fonds sera conditionné à la présentation d'une attestation du bureau de contrôle technique certifiant l'achèvement du stade concerné.
+                {{-- Reliquat --}}
+                <p class="text-sm text-gray-800" style="margin-top: 8px;">
+                    Le reliquat soit la somme de
+                    <strong>{{ $totalPrice > 0 ? $formatCurrency($montantReliquat) : 'xxx' }} </strong>,
+                    représentant les <strong>{{ $pourcentageReliquat }} %</strong> du prix de vente total, sera payé à la livraison.
+                </p>
+            </div>
+
+            <p class="text-xs text-gray-600 mt-2 italic">
                 Les paiements s'effectueront exclusivement par chèque certifié ou virement bancaire — aucun paiement en espèces ne sera accepté.
             </p>
         </div>
@@ -532,13 +637,6 @@
                 et un mois après l'envoi par lettre recommandée avec accusé de réception d'une mise en demeure
                 restée sans effet, le BÉNÉFICIAIRE sera de plein droit redevable d'une <strong>indemnité de retard fixée
                 à 10 % du solde dû.</strong>
-            </p>
-            <p class="text-sm mt-2 text-gray-800">
-                À défaut de paiement de l'acompte et de l'indemnité de retard dans le délai de 15 jours suivant
-                l'expiration du délai d'un mois imparti par la mise en demeure, la présente réservation sera,
-                le BÉNÉFICIAIRE y consent expressément, nulle et non avenue. Le VENDEUR aura droit à une
-                indemnité équivalente à <strong>10 % du prix total de réservation.</strong> Les acomptes versés seront
-                remboursés sous déduction de cette indemnité dans un délai de deux (2) mois.
             </p>
         </div>
     </div>
@@ -569,36 +667,56 @@
         </div>
     </div>
 
-    {{-- ==================== ARTICLE 6 – CONTRAT DÉFINITIF DE VENTE ==================== --}}
-    <div class="mb-3">
-        <h2 class="article-title">ARTICLE 6 – CONTRAT DÉFINITIF DE VENTE</h2>
-        <div class="pl-4">
-            <p class="text-sm text-gray-800">
-                Le VENDEUR soumettra le contrat définitif de vente au BÉNÉFICIAIRE dès achèvement des travaux.
-                Les travaux devraient être achevés au plus tard le : <span class="font-semibold">……………………………</span>, sauf cas de force majeure.
-            </p>
-            <p class="text-sm mt-2 text-gray-800">
-                Le BÉNÉFICIAIRE s'engage à se présenter auprès du notaire dans un délai de 15 jours suivant
-                la réunion de l'ensemble des conditions suspensives visées à l'article 5. En cas d'abstention
-                dans ce délai, la clause résolutoire de l'article 3 s'appliquera de plein droit.
-            </p>
+  {{-- ==================== ARTICLE 6 – ENGAGEMENT ==================== --}}
+        <div class="mb-3">
+            <h2 class="article-title">ARTICLE 6 – ENGAGEMENT</h2>
+            <div class="pl-4">
+                <p class="text-sm text-gray-800">Le réservataire s'engage dès à présent à :</p>
+                <ul class="list-disc text-sm text-gray-800" style="padding-left: 20px; margin-top: 4px;">
+                    <li style="margin-bottom: 4px;">
+                        Ne pratiquer aucune procédure dont le but serait l'inscription d'une pré notation ou autre sur le titre foncier originel, sans l'accord écrit du réservant es-qualités.
+                    </li>
+                    <li style="margin-bottom: 4px;">
+                        Ne point s'immiscer dans les opérations de construction à la charge du réservant es-qualités, ni donner des instructions aux maîtres d'œuvres et aux entrepreneurs.
+                    </li>
+                    <li style="margin-bottom: 4px;">
+                        Et ne point faire effectuer sur le bien objet des présentes, tous travaux pouvant faire obstacle à l'obtention du permis d'habiter ou de conformité pour la totalité de l'immeuble.
+                    </li>
+                </ul>
+            </div>
         </div>
-    </div>
 
-    {{-- ==================== ARTICLE 7 – INTERDICTION DE CÉDER SES DROITS ==================== --}}
-    <div class="mb-3">
-        <h2 class="article-title">ARTICLE 7 – INTERDICTION DE CÉDER SES DROITS</h2>
-        <div class="pl-4">
-            <p class="text-sm text-gray-800">
-                Il est expressément convenu que le BÉNÉFICIAIRE s'interdit de céder les droits qu'il tient
-                des présentes à une tierce personne, sans l'accord exprès et préalable du VENDEUR.
-            </p>
-        </div>
+  {{-- ==================== ARTICLE 7 – CONTRAT DÉFINITIF DE VENTE ==================== --}}
+<div class="mb-3">
+    <h2 class="article-title">ARTICLE 7 – CONTRAT DÉFINITIF DE VENTE</h2>
+    <div class="pl-4">
+        <p class="text-sm text-gray-800">
+            Le VENDEUR soumettra le contrat définitif de vente au BÉNÉFICIAIRE dès achèvement des travaux.
+            Les travaux devraient être achevés au plus tard le
+            <span style="border-bottom: 1px solid #000; padding: 0 30px; display: inline-block; min-width: 100px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>,
+            sauf cas de force majeure.
+        </p>
+        <p class="text-sm mt-2 text-gray-800">
+            Le BÉNÉFICIAIRE s'engage à se présenter auprès du notaire dans un délai de <strong>15 jours</strong> suivant
+            la réunion de l'ensemble des conditions suspensives visées à l'article 5. En cas d'abstention
+            dans ce délai, la clause résolutoire de l'article 3 s'appliquera de plein droit.
+        </p>
     </div>
+</div>
+{{-- ==================== ARTICLE 8 – INTERDICTION DE CÉDER SES DROITS ==================== --}}
+<div class="mb-3">
+    <h2 class="article-title">ARTICLE 8 – INTERDICTION DE CÉDER SES DROITS</h2>
+    <div class="pl-4">
+        <p class="text-sm text-gray-800">
+            Il est expressément convenu que le BÉNÉFICIAIRE s'interdit de céder les droits qu'il tient
+            des présentes à une tierce personne, sans l'accord exprès et préalable du VENDEUR.
+        </p>
+    </div>
+</div>
 
-    {{-- ==================== ARTICLE 8 – NOTIFICATIONS ==================== --}}
+    {{-- ==================== ARTICLE 9 – NOTIFICATIONS ==================== --}}
     <div class="mb-3">
-        <h2 class="article-title">ARTICLE 8 – NOTIFICATIONS</h2>
+        <h2 class="article-title">ARTICLE 9 – NOTIFICATIONS</h2>
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 Toute notification sera considérée comme valable dès lors qu'elle est envoyée par courriel,
@@ -635,9 +753,9 @@
         </div>
     </div>
 
-    {{-- ==================== ARTICLE 9 – ENTRÉE EN JOUISSANCE ==================== --}}
+    {{-- ==================== ARTICLE 10 – ENTRÉE EN JOUISSANCE ==================== --}}
     <div class="mb-3">
-        <h2 class="article-title">ARTICLE 9 – ENTRÉE EN JOUISSANCE</h2>
+        <h2 class="article-title">ARTICLE 10 – ENTRÉE EN JOUISSANCE</h2>
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 Le BÉNÉFICIAIRE aura la jouissance du bien à compter de la signature du contrat de vente définitif,
@@ -647,9 +765,9 @@
         </div>
     </div>
 
-    {{-- ==================== ARTICLE 10 – FRAIS ==================== --}}
+    {{-- ==================== ARTICLE 11 – FRAIS ==================== --}}
     <div class="mb-3">
-        <h2 class="article-title">ARTICLE 10 – FRAIS</h2>
+        <h2 class="article-title">ARTICLE 11 – FRAIS</h2>
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 Tous les frais, droits et honoraires liés au présent acte et à ses suites — y compris les droits
@@ -659,9 +777,9 @@
         </div>
     </div>
 
-    {{-- ==================== ARTICLE 11 – PROTECTION DES DONNÉES ==================== --}}
+    {{-- ==================== ARTICLE 12 – PROTECTION DES DONNÉES ==================== --}}
     <div class="mb-3">
-        <h2 class="article-title">ARTICLE 11 – PROTECTION DES DONNÉES À CARACTÈRE PERSONNEL</h2>
+        <h2 class="article-title">ARTICLE 12 – PROTECTION DES DONNÉES À CARACTÈRE PERSONNEL</h2>
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 En application de la loi n° 09-08 relative à la protection des personnes physiques à l'égard du
@@ -674,9 +792,9 @@
         </div>
     </div>
 
-    {{-- ==================== ARTICLE 12 – ÉLECTION DE DOMICILE ==================== --}}
+    {{-- ==================== ARTICLE 13 – ÉLECTION DE DOMICILE ==================== --}}
     <div class="mb-3">
-        <h2 class="article-title">ARTICLE 12 – ÉLECTION DE DOMICILE</h2>
+        <h2 class="article-title">ARTICLE 13 – ÉLECTION DE DOMICILE</h2>
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 Les Parties font élection de domicile en leurs adresses sus-indiquées.
@@ -684,9 +802,9 @@
         </div>
     </div>
 
-    {{-- ==================== ARTICLE 13 – COMPÉTENCE JURIDICTIONNELLE ==================== --}}
+    {{-- ==================== ARTICLE 14 – COMPÉTENCE JURIDICTIONNELLE ==================== --}}
     <div class="mb-3">
-        <h2 class="article-title">ARTICLE 13 – COMPÉTENCE JURIDICTIONNELLE</h2>
+        <h2 class="article-title">ARTICLE 14 – COMPÉTENCE JURIDICTIONNELLE</h2>
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 Les tribunaux de Casablanca seront seuls compétents pour connaître tout litige qui pourrait
@@ -721,7 +839,7 @@
                     @foreach($reservation['aquereurs'] as $aquereur)
                         @php $client = $aquereur['client'] ?? []; @endphp
                         <p class="text-sm font-semibold text-gray-800">
-                            M. / Mme {{ $client['nom'] ?? '' }} {{ $client['prenom'] ?? '' }}
+                             {{ $formatCivilite($client['civilite'] ?? 'Monsieur/Madame') }} {{ $client['nom'] ?? '' }} {{ $client['prenom'] ?? '' }}
                         </p>
                     @endforeach
                 @else
