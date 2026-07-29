@@ -18,7 +18,7 @@ class EncaissementController extends Controller
 
     public function indexByProjet(Request $request, $projet_id)
 {
-        if(RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()||RoleHelper::Comptable()){
+        if(RoleHelper::AdminSup() || RoleHelper::AgentAdmin()||RoleHelper::Comptable()){
         // Default values for pagination null si non pas envoyer avec la raquete
         $size = $request->input('size', null);
         $page = $request->input('page', null);

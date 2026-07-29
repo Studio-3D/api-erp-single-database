@@ -1210,6 +1210,8 @@ private function generateReservationCode($projetId)
                                                     $commentaireKey = 'commentaireAvance_' . $suffix;
                                                     $numRemiseKey = 'num_remise_' . $suffix;
                                                     $dateEncaissementKey = 'date_encaissement_' . $suffix;
+                                                     $compteNumKey = 'compte_num_' . $suffix; // 🔥 NOUVEAU
+                                                    $intituleCompteKey = 'intitule_compte_' . $suffix; // 🔥 NOUVEAU
 
                                                     \Log::info('Looking for mode_paiement at key: ' . $modePaiementKey);
                                                     \Log::info('Mode paiement value: ' . ($list_biens[$modePaiementKey] ?? 'NULL'));
@@ -1228,6 +1230,9 @@ private function generateReservationCode($projetId)
                                                             'commentaire' => $list_biens[$commentaireKey] ?? null,
                                                             'num_remise' => $list_biens[$numRemiseKey] ?? null,
                                                             'date_encaissement' => $list_biens[$dateEncaissementKey] ?? null,
+                                                            'compte_num' => $list_biens[$compteNumKey] ?? null, // 🔥 AJOUTER
+                                                            'intitule_compte' => $list_biens[$intituleCompteKey] ?? null, // 🔥 AJOUTER
+                                                            'in_contrat' => '1', // 🔥 AJOUTER
                                                         ];
 
                                                         \Log::info('Extracted avance data:', $avanceData);
@@ -1253,7 +1258,10 @@ private function generateReservationCode($projetId)
                                                     'commentaire' => $list_biens['commentaireAvance'] ?? null,
                                                     'num_remise' => $list_biens['num_remise'] ?? null,
                                                     'date_encaissement' => $list_biens['date_encaissement'] ?? null,
-                                                ];
+                                                    'compte_num' => $list_biens['compte_num'] ?? null, // 🔥 AJOUTER
+                                                    'intitule_compte' => $list_biens['intitule_compte'] ?? null, // 🔥 AJOUTER
+                                                    'in_contrat' => '1', // 🔥 AJOUTER
+                                                    ];
                                             }
 
                                             \Log::info('Total avances collected: ' . count($avancesData));
@@ -1527,7 +1535,8 @@ private function generateReservationCode($projetId)
                                                             $commentaireKey = 'commentaireAvance_' . $suffix;
                                                             $numRemiseKey = 'num_remise_' . $suffix;
                                                             $dateEncaissementKey = 'date_encaissement_' . $suffix;
-
+                                                            $compteNumKey = 'compte_num_' . $suffix; // 🔥 NOUVEAU
+                                                            $intituleCompteKey = 'intitule_compte_' . $suffix; // 🔥 NOUVEAU
                                                             \Log::info('Looking for mode_paiement at key: ' . $modePaiementKey);
                                                             \Log::info('Mode paiement value: ' . ($list_biens[$modePaiementKey] ?? 'NULL'));
 
@@ -1557,7 +1566,10 @@ private function generateReservationCode($projetId)
                                                                     'commentaire' => $list_biens[$commentaireKey] ?? null,
                                                                     'num_remise' => $numRemise,
                                                                     'date_encaissement' => $dateEncaissement,
-                                                                ];
+                                                                    'compte_num' => $list_biens[$compteNumKey] ?? null, // 🔥 AJOUTER
+                                                                    'intitule_compte' => $list_biens[$intituleCompteKey] ?? null, // 🔥 AJOUTER
+                                                                    'in_contrat' => '1', // 🔥 AJOUTER
+                                                                    ];
 
                                                                 \Log::info('Extracted avance data:', $avanceData);
 
@@ -1582,7 +1594,10 @@ private function generateReservationCode($projetId)
                                                             'commentaire' => $list_biens['commentaireAvance'] ?? null,
                                                             'num_remise' => $list_biens['num_remise'] ?? null,
                                                             'date_encaissement' => $list_biens['date_encaissement'] ?? null,
-                                                        ];
+                                                            'compte_num' => $list_biens['compte_num'] ?? null, // 🔥 AJOUTER
+                                                            'intitule_compte' => $list_biens['intitule_compte'] ?? null, // 🔥 AJOUTER
+                                                            'in_contrat' => '1', // 🔥 AJOUTER
+                                                            ];
                                                     }
 
                                                     \Log::info('Total avances collected: ' . count($avancesData));
@@ -2634,34 +2649,115 @@ public function edit_visite($id)
                     }
 
                     //if($old_visite->statut!=StatutVisiteEnum::Vendu->value ){
-                    if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
+                  if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Vendu->value) {
                         /***********************Track reservation************* */
                         $reservationController = new ReservationController();
                         $reservationRequest    = new StoreReservationRequest();
-                // 🔥 GENERER LE CODE DE RESERVATION AUTO-INCREMENTE
-                $codeReservation = $request->code_reservation;
-                if (empty($codeReservation)) {
-                    // Utiliser la méthode generateReservationCode du VisiteController
-                    $codeReservation = $this->generateReservationCode($visite->projet_id);
-                }
+
+                        // 🔥 GENERER LE CODE DE RESERVATION AUTO-INCREMENTE
+                        $codeReservation = $request->code_reservation;
+                        if (empty($codeReservation)) {
+                            $codeReservation = $this->generateReservationCode($visite->projet_id);
+                        }
+
                         $numberToWords          = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
                         $prix_remise_lettre     = $numberToWords->format($request->prix_remise);
                         $prix_forfetaire_lettre = $numberToWords->format($request->prix_forfetaire);
 
+                        // 🔥 COLLECT ALL AVANCES FROM THE BIEN DATA
+                        $avancesData = [];
+
+                        // Récupérer les données d'avances depuis la requête (format JSON)
+                        $avancesInput = $request->input('avances');
+                        if (!empty($avancesInput) && $avancesInput != 'null' && $avancesInput != '[]') {
+                            $avancesData = json_decode($avancesInput, true);
+                            if (json_last_error() !== JSON_ERROR_NONE) {
+                                \Log::error('JSON decode error for avances: ' . json_last_error_msg());
+                                $avancesData = [];
+                            }
+                        }
+
+                        // FALLBACK: Si pas d'avances dans le format JSON, chercher les champs individuels
+                        if (empty($avancesData)) {
+                            // Chercher les avances dans le format avance_bien_X_montant
+                            $avanceIndex = 0;
+                            while (true) {
+                                $montantKey = "avance_bien_{$avanceIndex}_montant";
+                                if (!$request->has($montantKey)) {
+                                    break;
+                                }
+
+                                $montant = $request->input($montantKey);
+                                if (empty($montant) && $montant !== '0') {
+                                    $avanceIndex++;
+                                    continue;
+                                }
+
+                                $modePaiementKey = "avance_bien_{$avanceIndex}_mode_paiement";
+                                $banqueIdKey = "avance_bien_{$avanceIndex}_banque_id";
+                                $numeroPaiementKey = "avance_bien_{$avanceIndex}_numero_paiement";
+                                $echeanceKey = "avance_bien_{$avanceIndex}_echeance";
+                                $checkMontantKey = "avance_bien_{$avanceIndex}_check_montant";
+                                $commentaireKey = "avance_bien_{$avanceIndex}_commentaire";
+                                $numRemiseKey = "avance_bien_{$avanceIndex}_num_remise";
+                                $dateEncaissementKey = "avance_bien_{$avanceIndex}_date_encaissement";
+                                $compteNumKey = "avance_bien_{$avanceIndex}_compte_num"; // 🔥 NOUVEAU
+                                $intituleCompteKey = "avance_bien_{$avanceIndex}_intitule_compte"; // 🔥 NOUVEAU
+
+                                $avance = [
+                                    'montant' => $request->input($montantKey),
+                                    'mode_paiement' => $request->input($modePaiementKey) ?? null,
+                                    'banque_id' => $request->input($banqueIdKey) ?? null,
+                                    'numero_paiement' => $request->input($numeroPaiementKey) ?? null,
+                                    'echeance' => $request->input($echeanceKey) ?? null,
+                                    'check_montant' => $request->input($checkMontantKey) ?? false,
+                                    'commentaire' => $request->input($commentaireKey) ?? null,
+                                    'num_remise' => $request->input($numRemiseKey) ?? null,
+                                    'date_encaissement' => $request->input($dateEncaissementKey) ?? null,
+                                    'compte_num' => $request->input($compteNumKey) ?? null, // 🔥 NOUVEAU
+                                    'intitule_compte' => $request->input($intituleCompteKey) ?? null, // 🔥 NOUVEAU
+                                    'in_contrat' => true,
+                                ];
+
+                                if (!empty($avance['montant']) || $avance['montant'] === '0') {
+                                    $avancesData[] = $avance;
+                                }
+
+                                $avanceIndex++;
+                            }
+                        }
+
+                        // FALLBACK ULTIME: Si toujours aucune avance, utiliser avance_res
+                        if (empty($avancesData) && $request->has('avance_res') && !empty($request->avance_res)) {
+                            $avancesData[] = [
+                                'montant' => $request->avance_res,
+                                'mode_paiement' => $request->mode_paiement ?? null,
+                                'banque_id' => $request->banque_id ?? null,
+                                'numero_paiement' => $request->numero_paiement ?? null,
+                                'echeance' => $request->echeance ?? null,
+                                'check_montant' => $request->check_montant ?? false,
+                                'commentaire' => $request->commentaireAvance ?? null,
+                                'num_remise' => $request->num_remise ?? null,
+                                'date_encaissement' => $request->date_encaissement ?? null,
+                                'compte_num' => $request->compte_num ?? null, // 🔥 NOUVEAU
+                                'intitule_compte' => $request->intitule_compte ?? null, // 🔥 NOUVEAU
+                                'in_contrat' => true,
+                            ];
+                        }
+
                         $dataReservation = [
                             'nb_acquereurs'          => 1,
-                            //'code_reservation'       => $request->code_reservation,
-                            'code_reservation'       => $codeReservation, // Utiliser le code généré
+                            'code_reservation'       => $codeReservation,
                             'prix'                   => $request->prix,
                             'mode_financement'       => $request->mode_financement,
                             'date_reservation'       => $request->date_reservation,
                             'commentaire'            => $request->commentaire_res,
                             'visite_id'              => $visite->id,
-                            'prix_unitaire'          =>$request->prix_unitaire,
+                            'prix_unitaire'          => $request->prix_unitaire,
                             'prix_remise'            => $request->prix_remise,
-                            'prix_remise_lettre'     => $request->prix_remise_lettre,
+                            'prix_remise_lettre'     => $prix_remise_lettre,
                             'prix_forfetaire'        => $request->prix_forfetaire,
-                            'prix_forfetaire_lettre' => $request->prix_forfetaire_lettre,
+                            'prix_forfetaire_lettre' => $prix_forfetaire_lettre,
                             'bien_id'                => $request->bien_id,
                             'projet_id'              => $visite->projet_id,
                             'verifierPourcentages'   => true,
@@ -2680,21 +2776,13 @@ public function edit_visite($id)
                             'sr'                     => ($request->sr === 'false' || $request->sr === null) ? 0 : 1,
                             'check_montant'          => ($request->check_montant === 'false' || $request->check_montant === null) ? 0 : 1,
                             'type_encaissement'      => 1,
-                            'avance'                 => $request->avance_res,
-                            'mode_paiement'          => $request->mode_paiement,
-                            'numero_paiement'        => $request->numero_paiement,
-                            'date_reglement'         => $request->date_reglement,
-                            'echeance'               => $request->echeance,
-                            'banque_id'              => $request->banque_id,
-                            'commentaireAvance'      => $request->commentaireAvance,
-                            'num_remise'             => $request->num_remise,
-                            'date_encaissement'      => $request->date_encaissement,
-                            'files_avance'           => $request->selectedFiles_avc,
-
+                            // 🔥 SEND AVANCES AS JSON ARRAY
+                            'avances'                => json_encode($avancesData),
+                            'files_avance'           => $request->selectedFiles_avc ?? [],
                         ];
+
                         $reservationRequest->merge($dataReservation);
                         $reservationController->store($reservationRequest);
-
                     }
 
 
@@ -3392,7 +3480,8 @@ public function edit_visite($id)
                                                     $commentaireKey = 'commentaireAvance_' . $suffix;
                                                     $numRemiseKey = 'num_remise_' . $suffix;
                                                     $dateEncaissementKey = 'date_encaissement_' . $suffix;
-
+                                                    $compteNumKey = 'compte_num_' . $suffix; // 🔥 NOUVEAU
+                                                    $intituleCompteKey = 'intitule_compte_' . $suffix; // 🔥 NOUVEAU
                                                     // Handle empty date_encaissement
                                                     $dateEncaissement = $list_biens[$dateEncaissementKey] ?? null;
                                                     if (empty($dateEncaissement) || $dateEncaissement == "null" || $dateEncaissement == "") {
@@ -3415,6 +3504,9 @@ public function edit_visite($id)
                                                         'commentaire' => $list_biens[$commentaireKey] ?? null,
                                                         'num_remise' => $numRemise,
                                                         'date_encaissement' => $dateEncaissement,
+                                                        'compte_num' => $list_biens[$compteNumKey] ?? null, // 🔥 AJOUTER
+                                                        'intitule_compte' => $list_biens[$intituleCompteKey] ?? null, // 🔥 AJOUTER
+                                                        'in_contrat' => '1', // 🔥 AJOUTER
                                                     ];
 
                                                     // Only add if montant is not empty
@@ -3436,8 +3528,10 @@ public function edit_visite($id)
                                                 'check_montant' => $list_biens['check_montant'] ?? false,
                                                 'commentaire' => $list_biens['commentaireAvance'] ?? null,
                                                 'num_remise' => $list_biens['num_remise'] ?? null,
-                                                'date_encaissement' => $list_biens['date_encaissement'] ?? null,
-                                                'in_contrat' => '1'
+                                                 'date_encaissement' => $list_biens['date_encaissement'] ?? null,
+                                                'compte_num' => $list_biens['compte_num'] ?? null, // 🔥 AJOUTER
+                                                'intitule_compte' => $list_biens['intitule_compte'] ?? null, // 🔥 AJOUTER
+                                                'in_contrat' => '1', // 🔥 AJOUTER
                                             ];
                                         }
 
@@ -3573,7 +3667,8 @@ public function edit_visite($id)
                                                 $commentaireKey = 'commentaireAvance_' . $suffix;
                                                 $numRemiseKey = 'num_remise_' . $suffix;
                                                 $dateEncaissementKey = 'date_encaissement_' . $suffix;
-
+                                                $compteNumKey = 'compte_num_' . $suffix; // 🔥 NOUVEAU
+                                                $intituleCompteKey = 'intitule_compte_' . $suffix; // 🔥 NOUVEAU
                                                 // Handle empty date_encaissement
                                                 $dateEncaissement = $list_biens[$dateEncaissementKey] ?? null;
                                                 if (empty($dateEncaissement) || $dateEncaissement == "null" || $dateEncaissement == "") {
@@ -3596,6 +3691,9 @@ public function edit_visite($id)
                                                     'commentaire' => $list_biens[$commentaireKey] ?? null,
                                                     'num_remise' => $numRemise,
                                                     'date_encaissement' => $dateEncaissement,
+                                                    'compte_num' => $list_biens[$compteNumKey] ?? null, // 🔥 AJOUTER
+                                                    'intitule_compte' => $list_biens[$intituleCompteKey] ?? null, // 🔥 AJOUTER
+                                                    'in_contrat' => '1', // 🔥 AJOUTER
                                                 ];
 
                                                 // Only add if montant is not empty

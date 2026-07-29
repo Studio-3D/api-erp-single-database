@@ -28,6 +28,8 @@ return new class extends Migration
             $table->boolean('sr')->default(false);
             $table->boolean('in_contrat')->default(false);
             $table->string('commentaireAvance')->nullable();
+            $table->string('compte_num')->nullable();
+            $table->string('intitule_compte')->nullable();
             $table->enum('statut',[StatutReservationEnum::Validé->value,StatutReservationEnum::Refusé->value,StatutReservationEnum::En_Attente->value])->comment('1=>valide 2=>refusé 3=>en_attent');
             $table->foreignId('banque_id')->nullable()->constrained('banques')->onDelete('cascade');
             $table->foreignId('reservation_id')->constrained('reservations')->onDelete('cascade');

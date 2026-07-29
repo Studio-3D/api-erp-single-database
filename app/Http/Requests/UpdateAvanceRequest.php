@@ -26,17 +26,17 @@ class UpdateAvanceRequest extends FormRequest
         $rules['montant'] = 'required';
         $rules['mode_paiement'] = 'required';
 
-        // mode_paiement chèque/chèque banque/chèque certifié
+        /*mode_paiement chèque/chèque banque/chèque certifié
         if ($request->mode_paiement == 2 || $request->mode_paiement == 3 || $request->mode_paiement == 4) {
             $rules['banque_id'] = 'required';
-            $rules['numero_paiement'] = 'required';
-            $rules['echeance'] = 'required';
+           // $rules['numero_paiement'] = 'required';
+           // $rules['echeance'] = 'required';
         }
         // virement versement
         elseif ($request->mode_paiement == 5 || $request->mode_paiement == 6) {
             $rules['banque_id'] = 'required';
-            $rules['numero_paiement'] = 'required';
-        }
+           // $rules['numero_paiement'] = 'required';
+        }*/
 
         return $rules;
     }

@@ -467,6 +467,10 @@ private function processReservationFiles($reservation, $request, $societe)
 // Update finalizeReservation to remove file processing
  private function finalizeReservation($reservation,$userAuth_name,$userAuth_prenom,$userAuth,$prix,$prix_final)
         {
+             // Vérifier que la réservation existe
+                if (!$reservation || !$reservation->exists) {
+                    throw new \Exception('Reservation does not exist');
+                }
              /*if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
             //create histo reservation en attente
                 $histo = new HistoReservation();
@@ -578,9 +582,9 @@ private function processReservationFiles($reservation, $request, $societe)
                 }
             }
             /**
- * Generate a unique reservation code
- * Format: 001, 002, 003, etc. per project
- */
+             * Generate a unique reservation code
+             * Format: 001, 002, 003, etc. per project
+             */
                 private function generateReservationCode($projetId)
                 {
                     // Get the last reservation for this project
@@ -997,6 +1001,8 @@ private function createSingleAvance($reservation, $avanceData, $request, $index)
         'montant' => $montant,
         'mode_paiement' => $avanceData['mode_paiement'] ?? null,
         'numero_paiement' => $avanceData['numero_paiement'] ?? null,
+         'compte_num' => $avanceData['compte_num'] ?? null, // 🔥 NOUVEAU
+        'intitule_compte' => $avanceData['intitule_compte'] ?? null, // 🔥 NOUVEAU
         'date_reglement' => $request->date_reglement ?? now(),
         'echeance' => $avanceData['echeance'] ?? null,
         'banque_id' => $avanceData['banque_id'] ?? null,
@@ -1314,7 +1320,7 @@ private function getAllHistoriquesWithAncien($reservationId)
                 },
                 // 🔥 CORRECTION: Pas de date_encaissement dans select
                 'avances' => function($query) {
-                    $query->select('id', 'reservation_id', 'montant', 'statut', 'in_contrat', 'mode_paiement', 'numero_paiement', 'num_recu', 'banque_id')
+                    $query->select('id', 'reservation_id', 'montant', 'statut', 'in_contrat', 'mode_paiement', 'numero_paiement', 'num_recu', 'banque_id', 'compte_num','intitule_compte','montant_par_lettre')
                         ->with([
                             'banque' => function($q) {
                                 $q->select('id', 'nom');

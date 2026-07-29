@@ -20,6 +20,8 @@ return new class extends Migration
             $table->string('num_recu');
             $table->bigInteger('numero_paiement')->nullable();
             $table->date('date_reglement');
+            $table->string('compte_num')->nullable();
+            $table->string('intitule_compte')->nullable();
             $table->enum('mode_paiement',[ModePaiement::Espèce->value,ModePaiement::Chèque->value,ModePaiement::Chèque_Banque->value,ModePaiement::Chèque_Certifié->value,ModePaiement::Virement->value,ModePaiement::Versement->value,ModePaiement::transfert_dossier->value])->comment('1=>espece 2=>cheque 3=>cheque banque 4=>cheque certifie 5=>virement 6=>versement 7=>transfert dossier');
             $table->date('echeance')->nullable();
             $table->string('fichier')->nullable();
