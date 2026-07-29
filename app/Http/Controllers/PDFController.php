@@ -1365,9 +1365,9 @@ public function generateQuittance_n_avance_PDF(Request $request)
             'margin_left' => 25,
             'margin_right' => 25,
         ]);
-
-        return $pdf->download("quittance_{$num_recu}.pdf");
-
+        $codeReservation = $reservation['code_reservation'] ?? 'temp';
+        $filename = "quittance_{$num_recu}_{$codeReservation}.pdf";
+        return $pdf->download($filename);
     } catch (\Exception $e) {
         Log::error('Quittance N Avance PDF Generation Error: ' . $e->getMessage());
         Log::error('Stack trace: ' . $e->getTraceAsString());
