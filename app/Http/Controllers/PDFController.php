@@ -1060,208 +1060,7 @@ public function generateContratVentePDF(Request $request)
 
     /****************contrat de vente reservation**************************/
 
-    public function generateContratVentePDF_reservation(Request $request)
-    {
-        try {
-            $data = $request->input('data');
-
-            if (!$data) {
-                return response()->json(['error' => 'No data provided'], 400);
-            }
-
-            $societe = $data['societe'] ?? [];
-
-            // Process logo (IMOZINE logo - left side)
-            $logoBase64 = null;
-            if (isset($societe['logo']) &&
-                isset($societe['raison_sociale_concatene']) &&
-                isset($societe['id'])) {
-
-                $logoFilename = $societe['logo'];
-                $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $logoFilename;
-
-                $fileContent = null;
-
-                if (app()->environment('production')) {
-                    if (Storage::disk('s3')->exists($logoPath)) {
-                        $fileContent = Storage::disk('s3')->get($logoPath);
-                    }
-                } else {
-                    $localPath = public_path('docs/' . $logoPath);
-                    if (file_exists($localPath)) {
-                        $fileContent = file_get_contents($localPath);
-                    }
-                }
-
-                if ($fileContent !== null) {
-                    $extension = pathinfo($logoFilename, PATHINFO_EXTENSION);
-                    $mimeType = match($extension) {
-                        'png' => 'image/png',
-                        'jpg', 'jpeg' => 'image/jpeg',
-                        'gif' => 'image/gif',
-                        'svg' => 'image/svg+xml',
-                        default => 'image/png'
-                    };
-                    $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
-                }
-            }
-
-            // Try to load green_ang.png from logos folder
-            $greenLandBase64 = null;
-            if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-                $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
-                $fileContent = null;
-
-                if (app()->environment('production')) {
-                    if (Storage::disk('s3')->exists($greenLandPath)) {
-                        $fileContent = Storage::disk('s3')->get($greenLandPath);
-                    }
-                } else {
-                    $localPath = public_path('docs/' . $greenLandPath);
-                    if (file_exists($localPath)) {
-                        $fileContent = file_get_contents($localPath);
-                    }
-                }
-
-                if ($fileContent !== null) {
-                    $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
-                }
-            }
-
-            $reservation = $data['reservation'] ?? [];
-            $bien = $reservation['bien'] ?? [];
-
-            // Map des modes de paiement
-            $modeLabels = [
-                '1' => 'Espèce',
-                '2' => 'Chèque',
-                '3' => 'Chèque Banque',
-                '4' => 'Chèque Certifié',
-                '5' => 'Virement',
-                '6' => 'Versement',
-            ];
-
-            // Récupérer UNIQUEMENT les avances avec in_contrat = 1 ET statut = 1 (valide)
-            $avancesInContrat = [];
-            if (isset($reservation['avances']) && is_array($reservation['avances'])) {
-                foreach ($reservation['avances'] as $avance) {
-                    // Vérifier in_contrat = 1 ET statut = 1 (valide)
-                    if (isset($avance['in_contrat']) && $avance['in_contrat'] == 1 &&
-                        isset($avance['statut']) && $avance['statut'] == 1) {
-
-                        $modeCode = $avance['mode_paiement'] ?? null;
-                        if (is_string($modeCode)) {
-                            $modeCode = (int) $modeCode;
-                        }
-
-                        $avancesInContrat[] = [
-                            'montant' => $avance['montant'] ?? 0,
-                            'montant_lettre' => $avance['montant_par_lettre'] ?? '',
-                            'mode_code' => $modeCode,
-                            'mode_label' => $modeLabels[(string)$modeCode] ?? '',
-                            'numero_paiement' => $avance['numero_paiement'] ?? '',
-                            'banque' => $avance['banque']['nom'] ?? '',
-                            'compte_num' => $avance['compte_num'] ?? '',
-                            'compte_intitule' => $avance['compte_intitule'] ?? '',
-                            'date_reglement' => $avance['date_reglement'] ?? '',
-                            'num_recu' => $avance['num_recu'] ?? '',
-                            'statut' => $avance['statut'] ?? '',
-                            'in_contrat' => $avance['in_contrat'] ?? '',
-                        ];
-                    }
-                }
-            }
-
-            // Get total price from reservation
-            $totalPrice = $reservation['prix'] ?? 0;
-
-            // Get parking and box prices from BIEN
-            $prixParking = $bien['prix_parking'] ?? 0;
-            $prixBox = $bien['prix_box'] ?? 0;
-            $nbParking = $bien['nb_parking'] ?? 0;
-            $nbBox = $bien['nb_box'] ?? 0;
-
-            // Calculate prices
-            $parkingTotal = $prixParking * $nbParking;
-            $boxTotal = $prixBox * $nbBox;
-            $apartmentPrice = $totalPrice - $parkingTotal - $boxTotal;
-
-            // Get surface areas from BIEN
-            $surfaceParking = $bien['superficie_parking'] ?? 0;
-            $surfaceBox = $bien['superficie_box'] ?? 0;
-            $surfaceVendable = $bien['superficie_vendable'] ?? 0;
-
-            // Prepare data for PDF
-            $pdfData = [
-                'avancesInContrat' => $avancesInContrat,
-                'logoBase64' => $logoBase64,
-                'greenLandBase64' => $greenLandBase64,
-                'societe' => $societe,
-                'reservation' => $reservation,
-                'bien' => $bien,
-                'apartmentPrice' => $apartmentPrice,
-                'parkingTotal' => $parkingTotal,
-                'boxTotal' => $boxTotal,
-                'totalPrice' => $totalPrice,
-                'prixParking' => $prixParking,
-                'prixBox' => $prixBox,
-                'nbParking' => $nbParking,
-                'nbBox' => $nbBox,
-                'surfaceParking' => $surfaceParking,
-                'surfaceBox' => $surfaceBox,
-                'surfaceVendable' => $surfaceVendable,
-                'sum_avances_valides' => $data['sum_avances_valides'] ?? 0,
-                'num_recu' => $data['num_recu'] ?? 'temp',
-                'currentDate' => now()->format('d/m/Y'),
-                'page' => 1,
-                'totalPages' => 5,
-                'formatDate' => function($date) {
-                    if (!$date) return '';
-                    return Carbon::parse($date)->format('d/m/Y');
-                },
-                'formatCivilite' => function($civilite) {
-                    switch ($civilite) {
-                        case "1": return "Monsieur";
-                        case "2": return "Madame";
-                        case "3": return "Mademoiselle";
-                        default: return "Monsieur / Madame";
-                    }
-                },
-                'formatCurrency' => function($amount) {
-                    if ($amount <= 0) return '……… DH';
-                    return number_format($amount, 0, ',', ' ') . ' DH';
-                },
-                'formatPercentage' => function($amount, $percentage) {
-                    if ($amount <= 0) return '……… DH';
-                    return number_format(($amount * $percentage / 100), 0, ',', ' ') . ' DH';
-                }
-            ];
-
-            $pdf = Pdf::loadView('pdfs.contrat_vente_reservation', $pdfData);
-            $pdf->setPaper('A4', 'portrait');
-            $pdf->setOptions([
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => false,
-                'isPhpEnabled' => true,
-                'defaultFont' => 'dejavu sans',
-                'margin_top' => 10,
-                'margin_bottom' => 10,
-                'margin_left' => 15,
-                'margin_right' => 15,
-            ]);
-
-            // Fix: Use a variable for the filename
-            $numRecu = $data['num_recu'] ?? 'temp';
-            return $pdf->download("contrat_vente_{$numRecu}.pdf");
-
-        } catch (\Exception $e) {
-            Log::error('Contrat Vente PDF Generation Error: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
-            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
-        }
-    }
-
-public function generateQuittance_n_avance_PDF(Request $request)
+public function generateContratVentePDF_reservation(Request $request)
 {
     try {
         $data = $request->input('data');
@@ -1271,18 +1070,16 @@ public function generateQuittance_n_avance_PDF(Request $request)
         }
 
         $societe = $data['societe'] ?? [];
-        $num_recu = $data['num_recu'] ?? 'temp';
-        $aquereurs = $data['aquereurs'] ?? [];
-        $reservation = $data['reservation'] ?? [];
-        $allAvances = $data['allAvances'] ?? [];
-        $totalMontant = $data['totalMontant'] ?? 0;
-        $currentDate = $data['currentDate'] ?? now()->format('d/m/Y');
-        $projet_nom = $data['projet_nom'] ?? 'GreenLand';
 
-        // Process logo
+        // Process logo (IMOZINE logo - left side)
         $logoBase64 = null;
-        if (isset($societe['logo']) && isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-            $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $societe['logo'];
+        if (isset($societe['logo']) &&
+            isset($societe['raison_sociale_concatene']) &&
+            isset($societe['id'])) {
+
+            $logoFilename = $societe['logo'];
+            $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $logoFilename;
+
             $fileContent = null;
 
             if (app()->environment('production')) {
@@ -1297,7 +1094,7 @@ public function generateQuittance_n_avance_PDF(Request $request)
             }
 
             if ($fileContent !== null) {
-                $extension = pathinfo($societe['logo'], PATHINFO_EXTENSION);
+                $extension = pathinfo($logoFilename, PATHINFO_EXTENSION);
                 $mimeType = match($extension) {
                     'png' => 'image/png',
                     'jpg', 'jpeg' => 'image/jpeg',
@@ -1309,7 +1106,7 @@ public function generateQuittance_n_avance_PDF(Request $request)
             }
         }
 
-        // Process GreenLand image
+        // Try to load green_land.png from logos folder
         $greenLandBase64 = null;
         if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
             $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
@@ -1331,51 +1128,162 @@ public function generateQuittance_n_avance_PDF(Request $request)
             }
         }
 
-        // Prepare data for PDF
-        $pdfData = [
-            'societe' => $societe,
-            'num_recu' => $num_recu,
-            'aquereurs' => $aquereurs,
-            'reservation' => $reservation,
-            'allAvances' => $allAvances,
-            'totalMontant' => $totalMontant,
-            'currentDate' => $currentDate,
-            'projet_nom' => $projet_nom,
-            'logoBase64' => $logoBase64,
-            'greenLandBase64' => $greenLandBase64,
-            'getCivilite' => function($civilite) {
-                switch ($civilite) {
-                    case "1": return "M.";
-                    case "2": return "Mme";
-                    case "3": return "Mlle";
-                    default: return "M./Mme";
-                }
-            }
+        $reservation = $data['reservation'] ?? [];
+         // Get date_signature from frontend
+        $dateSignature = $reservation['date_signature'] ?? now()->format('d/m/Y');
+
+        // If date is in yyyy-mm-dd format, convert to dd/mm/yyyy
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateSignature)) {
+            $dateSignature = Carbon::parse($dateSignature)->format('d/m/Y');
+        }
+
+        $bien = $reservation['bien'] ?? [];
+
+        // Map des modes de paiement
+        $modeLabels = [
+            '1' => 'Espèces',
+            '2' => 'Chèque',
+            '3' => 'Chèque ',
+            '4' => 'Chèque Certifié',
+            '5' => 'Virement',
+            '6' => 'Versement',
         ];
 
-        $pdf = Pdf::loadView('pdfs.quittance_n_avance', $pdfData);
+        // Récupérer les avances depuis les données
+        $avancesInContrat = [];
+        if (isset($reservation['avances']) && is_array($reservation['avances'])) {
+            foreach ($reservation['avances'] as $avance) {
+                $modeCode = $avance['mode_paiement'] ?? null;
+                $modeCodeStr = (string) $modeCode;
+
+                $avancesInContrat[] = [
+                    'montant' => $avance['montant'] ?? 0,
+                    'montant_lettre' => $avance['montant_par_lettre'] ?? '',
+                    'mode_code' => $modeCodeStr,
+                    'mode_label' => $modeLabels[$modeCodeStr] ?? '',
+                    'numero_paiement' => $avance['numero_paiement'] ?? '',
+                    'banque' => $avance['banque']['nom'] ?? '',
+                    'compte_num' => $avance['compte_num'] ?? '',
+                    'compte_intitule' => $avance['compte_intitule'] ?? '',
+                    'date_reglement' => $avance['date_reglement'] ?? '',
+                    'num_recu' => $avance['num_recu'] ?? '',
+                    'statut' => $avance['statut'] ?? '',
+                    'in_contrat' => $avance['in_contrat'] ?? '',
+                ];
+            }
+        }
+
+        // Get ALL values from frontend form data (not from database)
+        $totalPrice = $reservation['prix'] ?? 0;
+
+        // SURFACE VALUES - FROM FRONTEND TAB 2
+        // Surface approximative (from input in Tab 2)
+        $surfaceApproximative = $reservation['superficie_approximative'] ?? 0;
+
+        // Surface Appartement (from input in Tab 2 - Détails des prix)
+        $surfaceAppartement = $reservation['surface_appartement'] ?? 0;
+
+        // Surface Garage (from input in Tab 2 - Détails des prix)
+        $surfaceGarage = $reservation['surface_garage'] ?? 0;
+
+        // Surface Box (from input in Tab 2 - Détails des prix)
+        $surfaceBox = $reservation['surface_box'] ?? 0;
+
+        // PRICE VALUES - FROM FRONTEND TAB 2
+        // Prix Appartement (from input in Tab 2 - Détails des prix)
+        $prixAppartement = $reservation['prix_appartement'] ?? 0;
+
+        // Prix Garage (from input in Tab 2 - Détails des prix)
+        $prixGarage = $reservation['prix_garage'] ?? 0;
+
+        // Prix Box (from input in Tab 2 - Détails des prix)
+        $prixBox = $reservation['prix_box'] ?? 0;
+
+        // Prix Total (from input in Tab 2 - Détails des prix)
+        $prixTotal = $reservation['prix_total'] ?? $totalPrice;
+
+        // Use these values for the PDF
+        $surfaceVendable = $surfaceAppartement > 0 ? $surfaceAppartement : $surfaceApproximative;
+
+        // Calculate total if not set
+        if ($prixTotal == 0) {
+            $prixTotal = $prixAppartement + $prixGarage + $prixBox;
+        }
+
+        // Prepare data for PDF
+        $pdfData = [
+            'avancesInContrat' => $avancesInContrat,
+            'logoBase64' => $logoBase64,
+            'greenLandBase64' => $greenLandBase64,
+            'societe' => $societe,
+            'reservation' => array_merge($reservation, ['date_signature' => $dateSignature]),
+            'bien' => $bien,
+            // Price values from frontend
+            'apartmentPrice' => $prixAppartement,
+            'parkingTotal' => $prixGarage,
+            'boxTotal' => $prixBox,
+            'totalPrice' => $prixTotal,
+            // Surface values from frontend
+            'surfaceVendable' => $surfaceVendable,
+            'surfaceParking' => $surfaceGarage,
+            'surfaceBox' => $surfaceBox,
+            'surfaceApproximative' => $surfaceApproximative,
+            'num_recu' => $data['num_recu'] ?? 'temp',
+            'formatDate' => function($date) {
+                if (!$date) return '';
+                return Carbon::parse($date)->format('d/m/Y');
+            },
+            'formatCivilite' => function($civilite) {
+                switch ($civilite) {
+                    case "1": return "Monsieur";
+                    case "2": return "Madame";
+                    case "3": return "Mademoiselle";
+                    default: return "Monsieur / Madame";
+                }
+            },
+            'formatCurrency' => function($amount) {
+                if ($amount <= 0) return '……… DH';
+                return number_format($amount, 0, ',', ' ') . ' DH';
+            },
+            'formatDate' => function($date) {
+                if (!$date) return now()->format('d/m/Y');
+                // If already in dd/mm/yyyy format, return it
+                if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $date)) {
+                    return $date;
+                }
+                // Otherwise parse it
+                try {
+                    return Carbon::parse($date)->format('d/m/Y');
+                } catch (\Exception $e) {
+                    return now()->format('d/m/Y');
+                }
+            },
+        ];
+
+        $pdf = Pdf::loadView('pdfs.contrat_vente_reservation', $pdfData);
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOptions([
             'isHtml5ParserEnabled' => true,
             'isRemoteEnabled' => false,
             'isPhpEnabled' => true,
             'defaultFont' => 'dejavu sans',
-            'margin_top' => 20,
-            'margin_bottom' => 20,
-            'margin_left' => 25,
-            'margin_right' => 25,
+            'margin_top' => 10,
+            'margin_bottom' => 10,
+            'margin_left' => 15,
+            'margin_right' => 15,
         ]);
-        $codeReservation = $reservation['code_reservation'] ?? 'temp';
-        $filename = "quittance_{$num_recu}_{$codeReservation}.pdf";
-        return $pdf->download($filename);
+
+        $numRecu = $data['num_recu'] ?? 'temp';
+        return $pdf->download("contrat_vente_{$numRecu}.pdf");
+
     } catch (\Exception $e) {
-        Log::error('Quittance N Avance PDF Generation Error: ' . $e->getMessage());
+        Log::error('Contrat Vente PDF Generation Error: ' . $e->getMessage());
         Log::error('Stack trace: ' . $e->getTraceAsString());
         return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
     }
 }
 
-    public function generateQuittance_one_avance_PDF(Request $request)
+public function generateQuittancePDF(Request $request)
 {
     try {
         $data = $request->input('data');
@@ -1392,6 +1300,8 @@ public function generateQuittance_n_avance_PDF(Request $request)
         $totalMontant = $data['totalMontant'] ?? 0;
         $currentDate = $data['currentDate'] ?? now()->format('d/m/Y');
         $projet_nom = $data['projet_nom'] ?? 'GreenLand';
+        $type = $data['type'] ?? 'avance'; // 'avance' or 'reservation'
+        $codeReservation = $reservation['code_reservation'] ?? 'temp';
 
         // Process logo
         $logoBase64 = null;
@@ -1457,6 +1367,7 @@ public function generateQuittance_n_avance_PDF(Request $request)
             'projet_nom' => $projet_nom,
             'logoBase64' => $logoBase64,
             'greenLandBase64' => $greenLandBase64,
+            'type' => $type,
             'getCivilite' => function($civilite) {
                 switch ($civilite) {
                     case "1": return "M.";
@@ -1471,7 +1382,15 @@ public function generateQuittance_n_avance_PDF(Request $request)
             }
         ];
 
-        $pdf = Pdf::loadView('pdfs.quittance_one_avance', $pdfData);
+        // Determine filename based on type
+        if ($type === 'reservation') {
+            $filename = "quittance_{$codeReservation}.pdf";
+        } else {
+            $filename = "quittance_{$num_recu}.pdf";
+        }
+
+        // Use the SAME blade template for both
+        $pdf = Pdf::loadView('pdfs.quittance_n_avance', $pdfData);
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOptions([
             'isHtml5ParserEnabled' => true,
@@ -1484,7 +1403,7 @@ public function generateQuittance_n_avance_PDF(Request $request)
             'margin_right' => 25,
         ]);
 
-        return $pdf->download("quittance_{$num_recu}.pdf");
+        return $pdf->download($filename);
 
     } catch (\Exception $e) {
         Log::error('Quittance PDF Generation Error: ' . $e->getMessage());

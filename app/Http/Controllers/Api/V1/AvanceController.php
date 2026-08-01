@@ -635,11 +635,11 @@ class AvanceController extends Controller
                 $avance->num_recu = '001';
             }
 
-            if($request->sr=='0'||$request->sr==0){
+            /*if($request->sr=='0'||$request->sr==0){
                 $avance->sr=0;
             } else {
                 $avance->sr=1;
-            }
+            }*/
 
             if (isset($request->in_contrat) ) {
                 $avance->in_contrat=true;

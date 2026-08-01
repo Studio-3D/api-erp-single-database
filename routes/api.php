@@ -629,9 +629,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/generate_contrat_vente_pdf ', [PDFController::class, 'generateContratVentePDF']);
     Route::post('/generate_contrat_vente_reservation_pdf ', [PDFController::class, 'generateContratVentePDF_reservation']);
 
-    Route::post('/generate_quittance_n_avance_pdf', [PDFController::class, 'generateQuittance_n_avance_PDF']);
-
-    Route::post('/generate_quittance_one_avance', [PDFController::class, 'generateQuittance_one_avance_PDF']);
+    Route::post('/generate_quittance', [PDFController::class, 'generateQuittancePDF']);
 
     /***********************************Livraison*******************/
     /*******rdv notaire*** */

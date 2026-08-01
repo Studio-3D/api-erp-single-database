@@ -15,7 +15,7 @@
             font-size: 11px;
             color: #1a1a1a;
             line-height: 1.6;
-            padding: 30px 35px;
+            padding: 20px 35px 30px 35px;
             background: white;
         }
 
@@ -26,24 +26,17 @@
 
         .text-primary { color: #0d4a35; }
 
+        /* HEADER - Logo section */
         .header-container {
             display: table;
             width: 100%;
-            border-bottom: 2px solid #0d4a35;
-            padding-bottom: 12px;
-            margin-bottom: 20px;
+            padding-bottom: 8px;
+            margin-bottom: 5px;
         }
 
         .header-left {
             display: table-cell;
             width: 20%;
-            vertical-align: middle;
-        }
-
-        .header-center {
-            display: table-cell;
-            width: 60%;
-            text-align: center;
             vertical-align: middle;
         }
 
@@ -55,16 +48,25 @@
         }
 
         .header-logo {
-            max-height: 60px;
-            max-width: 80px;
+            max-height: 55px;
+            max-width: 75px;
         }
 
         .header-greenland {
-            max-height: 50px;
-            max-width: 100px;
+            max-height: 45px;
+            max-width: 90px;
         }
 
-        .header-title {
+        /* TITLE SECTION - Centered with green styling */
+        .title-section {
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0d4a35;
+        }
+
+        .title-quittance {
             font-size: 22px;
             font-weight: bold;
             color: #0d4a35;
@@ -72,22 +74,15 @@
             letter-spacing: 3px;
         }
 
-        .header-subtitle {
-            font-size: 10px;
-            color: #4a4a4a;
-            font-weight: 600;
-            margin-top: 4px;
-        }
-
         .content {
-            margin-top: 10px;
+            margin-top: 5px;
         }
 
         .recognition-text {
             font-size: 11px;
             text-align: justify;
-            margin-bottom: 12px;
-            padding: 8px 0;
+            margin-bottom: 10px;
+            padding: 4px 0;
         }
 
         .recognition-text strong {
@@ -96,7 +91,7 @@
 
         .client-info {
             padding-left: 20px;
-            margin: 8px 0 12px 0;
+            margin: 6px 0 10px 0;
         }
 
         .client-info p {
@@ -104,26 +99,26 @@
         }
 
         .payment-item {
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             padding-left: 20px;
         }
 
         .amount-box {
             background: #f8f9fa;
             border-left: 4px solid #b8973a;
-            padding: 10px 16px;
-            margin: 4px 0 12px 20px;
+            padding: 8px 14px;
+            margin: 3px 0 10px 20px;
         }
 
         .amount-row {
             display: table;
             width: 100%;
-            margin: 4px 0;
+            margin: 3px 0;
         }
 
         .amount-label {
             display: table-cell;
-            width: 100px;
+            width: 90px;
             font-weight: 600;
             color: #4a4a4a;
         }
@@ -135,7 +130,7 @@
         }
 
         .signature-section {
-            margin-top: 30px;
+            margin-top: 25px;
             display: table;
             width: 100%;
         }
@@ -159,15 +154,15 @@
         }
 
         .conditions {
-            margin-top: 20px;
-            padding-top: 12px;
+            margin-top: 18px;
+            padding-top: 10px;
         }
 
         .conditions-title {
             font-size: 10px;
             font-weight: bold;
             color: #0d4a35;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
         .conditions-list {
@@ -193,23 +188,20 @@
         .text-center { text-align: center; }
         .font-bold { font-weight: bold; }
         .pl-4 { padding-left: 16px; }
-        .mt-2 { margin-top: 8px; }
-        .mt-4 { margin-top: 16px; }
-        .mb-2 { margin-bottom: 8px; }
+        .mt-2 { margin-top: 6px; }
+        .mt-4 { margin-top: 12px; }
+        .mb-2 { margin-bottom: 6px; }
     </style>
 </head>
 <body>
 <div class="container">
 
-    {{-- HEADER --}}
+    {{-- HEADER - Logos only --}}
     <div class="header-container">
         <div class="header-left">
             @if($logoBase64)
                 <img src="{{ $logoBase64 }}" alt="Logo IMOZINE" class="header-logo">
             @endif
-        </div>
-        <div class="header-center">
-            <div class="header-title">QUITTANCE</div>
         </div>
         <div class="header-right">
             @if($greenLandBase64)
@@ -220,6 +212,11 @@
                 </div>
             @endif
         </div>
+    </div>
+
+    {{-- TITLE - Centered with green color and border bottom --}}
+    <div class="title-section">
+        <div class="title-quittance">QUITTANCE DE PAIEMENT</div>
     </div>
 
     {{-- CONTENT --}}
@@ -316,7 +313,7 @@
         @endforeach
 
         {{-- Property Description --}}
-        <div style="margin: 12px 0 8px 0;">
+        <div style="margin: 10px 0 6px 0;">
             <p style="font-size: 10px;">
                 En compte et à valoir sur le prix de vente du bien situé sur le projet
                 <strong style="color: #0d4a35;">{{ $projet_nom ?? 'GreenLand' }}</strong>
@@ -328,12 +325,12 @@
         {{-- Signatures --}}
         <div class="signature-section">
             <div class="signature-col">
-                <div style="height: 50px; margin-bottom: 4px;"></div>
+                <div style="height: 45px; margin-bottom: 3px;"></div>
                 <div class="signature-label">Le Client</div>
                 <div class="signature-sub">Signature</div>
             </div>
             <div class="signature-col">
-                <div style="height: 50px; margin-bottom: 4px;"></div>
+                <div style="height: 45px; margin-bottom: 3px;"></div>
                 <div class="signature-label">Agent Commercial</div>
                 <div class="signature-sub">Signature</div>
             </div>
@@ -351,7 +348,7 @@
         </div>
 
         {{-- Date at bottom --}}
-        <div style="text-align: center; margin-top: 15px; padding-top: 10px;">
+        <div style="text-align: center; margin-top: 12px; padding-top: 8px;">
             <p style="font-size: 10px; font-weight: 600; color: #0d4a35;">
                 Fait le {{ $currentDate }}
             </p>

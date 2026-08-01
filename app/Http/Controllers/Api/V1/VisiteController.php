@@ -903,6 +903,8 @@ private function generateReservationCode($projetId)
                                                     'commentaireAvance' => $request->commentaire_av_suivi,
                                                     'num_remise' => $request->num_remise_suivi,
                                                     'date_encaissement' => $request->date_encaissement_suivi,
+                                                    'compte_num' => $request->compte_num_suivi, // 🔥 NOUVEAU
+                                                    'intitule_compte' => $request->intitule_compte_suivi, // 🔥 NOUVEAU
                                                 ];
 
                                                 $avanceRequest->merge($dataAvance);
@@ -1867,7 +1869,15 @@ private function generateReservationCode($projetId)
                                     if ($request->num_paiement_suivi) {
                                         $comment .= ' - Ref paiement: ' . $request->num_paiement_suivi;
                                     }
+                        // Add compte_num if available
+                                if ($request->compte_num_suivi) {
+                                    $comment .= ' - N° Compte: ' . $request->compte_num_suivi;
+                                }
 
+                                // Add intitule_compte if available
+                                if ($request->intitule_compte_suivi) {
+                                    $comment .= ' - Intitulé: ' . $request->intitule_compte_suivi;
+                                }
                                     // Add check/echeance info for checks
                                     if ($request->mode_paiement_suivi == '2' || $request->mode_paiement_suivi == '3' || $request->mode_paiement_suivi == '4') {
                                         if ($request->echeance_suivi) {
@@ -2044,7 +2054,7 @@ private function generateReservationCode($projetId)
                     $query->with(['avance' => function($q) {
                         $q->with('banque:id,nom'); // Seulement les colonnes nécessaires
                         $q->select('id', 'montant', 'mode_paiement', 'banque_id',
-                                   'numero_paiement', 'echeance','commentaireAvance'); // Ajoutez d'autres colonnes si nécessaire
+                                   'numero_paiement', 'echeance','commentaireAvance','compte_num','intitule_compte'); // Ajoutez d'autres colonnes si nécessaire
                     }])->without('reservation','user');
                 },
                 'freins',
@@ -2541,44 +2551,42 @@ public function edit_visite($id)
                             $rdv->visite_id       = $visite->id;
                             $rdv->save();
                         }
-                        if($request->statut_client_id!=null && $request->statut_client_id!=''){
-                            $statut_client=StatutClient::on('temp')->findOrFail($request->statut_client_id);
-                            if($statut_client){
-                                $statut_client->delete();
-                            }
 
-                            if($request->statut_suivi==StatutSuiviDossier::Nouvelle_avance->value){
-                                    $avanceController = new AvanceController();
-                                    $avanceRequest = new StoreAvanceRequest();
-                                    $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-                                    $mnt_lettre = $inWords->format($request->montant_suivi);
-                                    $dataAvance = [
-                                        'origin'=>'visite',
-                                        'avance_with_reservation' => false,
-                                        'sr' => $request->sr_suivi,
-                                        'type_encaissement' => 1,
-                                        'montant' => $request->montant_suivi,
-                                        'mode_paiement' => $request->mode_paiement_suivi,
-                                        'numero_paiement' => $request->num_paiement_suivi,
-                                        'date_reglement' => $request->date_paiement_suivi,
-                                        'echeance' => $request->echeance_suivi,
-                                        'banque_id' => $request->banque_id_suivi,
-                                        'montant_par_lettre' => $mnt_lettre,
-                                        'reservation_id' => $request->dossier_id_suivi,
-                                        'commentaireAvance' => $request->commentaire_av_suivi,
-                                        'num_remise' => $request->num_remise_suivi,
-                                        'date_encaissement' => $request->date_encaissement_suivi,
-                                    ];
 
-                                    $avanceRequest->merge($dataAvance);
+                                if($request->statut_suivi==StatutSuiviDossier::Nouvelle_avance->value){
+                                        $avanceController = new AvanceController();
+                                        $avanceRequest = new StoreAvanceRequest();
+                                        $inWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
+                                        $mnt_lettre = $inWords->format($request->montant_suivi);
+                                        $dataAvance = [
+                                            'origin'=>'visite',
+                                            'avance_with_reservation' => false,
+                                            'sr' => $request->sr_suivi,
+                                            'type_encaissement' => 1,
+                                            'montant' => $request->montant_suivi,
+                                            'mode_paiement' => $request->mode_paiement_suivi,
+                                            'numero_paiement' => $request->num_paiement_suivi,
+                                            'date_reglement' => $request->date_paiement_suivi,
+                                            'echeance' => $request->echeance_suivi,
+                                            'banque_id' => $request->banque_id_suivi,
+                                            'montant_par_lettre' => $mnt_lettre,
+                                            'reservation_id' => $request->dossier_id_suivi,
+                                            'commentaireAvance' => $request->commentaire_av_suivi,
+                                            'num_remise' => $request->num_remise_suivi,
+                                            'date_encaissement' => $request->date_encaissement_suivi,
+                                                'compte_num' => $request->compte_num_suivi, // 🔥 NOUVEAU
+                                                 'intitule_compte' => $request->intitule_compte_suivi, // 🔥 NOUVEAU
+                                            ];
 
-                                     // Store avance and get the response
-                                    $avanceResponse = $avanceController->store($avanceRequest);
+                                        $avanceRequest->merge($dataAvance);
 
-                                            // Get the avance_id from the response
-                                    $avanceData = json_decode($avanceResponse->getContent(), true);
-                                    $avance_id = isset($avanceData['avance']) ? $avanceData['avance']['id'] : null;
-                            }
+                                        // Store avance and get the response
+                                        $avanceResponse = $avanceController->store($avanceRequest);
+
+                                                // Get the avance_id from the response
+                                        $avanceData = json_decode($avanceResponse->getContent(), true);
+                                        $avance_id = isset($avanceData['avance']) ? $avanceData['avance']['id'] : null;
+                                }
                                     $new_staut_client = new StatutClient();
                                     $new_staut_client->setConnection('temp');
                                     $new_staut_client->visite_id = $visite->id;
@@ -2604,6 +2612,15 @@ public function edit_visite($id)
                                                 $comment .= ' - Échéance: ' . Carbon::parse($request->echeance_suivi)->format('d/m/Y');
                                             }
                                         }
+                                         // 🔥 Add compte_num if available
+                                        if ($request->compte_num_suivi) {
+                                            $comment .= ' - N° Compte: ' . $request->compte_num_suivi;
+                                        }
+
+                                        // 🔥 Add intitule_compte if available
+                                        if ($request->intitule_compte_suivi) {
+                                            $comment .= ' - Intitulé: ' . $request->intitule_compte_suivi;
+                                        }
                                     } else {
                                         // Use the existing comment for other statuts
                                         $comment = $request->commentaire;
@@ -2612,7 +2629,7 @@ public function edit_visite($id)
                                     $new_staut_client->commentaire = $comment;
                                     $new_staut_client->save();
                         }
-                    }
+
                     /*//store code pre reserve to table ==>PreReservation
                     if ($old_visite->statut != StatutVisiteEnum::Pré_Réservation->value) {
                         if ($visite->interet == InteretEnum::Intéressé->value && $visite->statut == StatutVisiteEnum::Pré_Réservation->value) {
@@ -3203,6 +3220,8 @@ public function edit_visite($id)
                                         'commentaireAvance' => $request->commentaire_av_suivi,
                                         'num_remise' => $request->num_remise_suivi,
                                         'date_encaissement' => $request->date_encaissement_suivi,
+                                        'compte_num' => $request->compte_num_suivi, // 🔥 NOUVEAU
+                                        'intitule_compte' => $request->intitule_compte_suivi, // 🔥
                                     ];
 
                                     $avanceRequest->merge($dataAvance);

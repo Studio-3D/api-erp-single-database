@@ -1,4 +1,4 @@
-{{-- resources/views/pdfs/contrat_vente.blade.php --}}
+{{-- resources/views/pdfs/contrat_vente_reservation.blade.php --}}
 <!DOCTYPE html>
 <html>
 <head>
@@ -285,7 +285,7 @@
 <div class="contract-container">
 
     {{-- ==================== HEADER ==================== --}}
-    <div class="header-container" >
+    <div class="header-container">
         {{-- Left: Company Logo --}}
         <div class="header-left">
             @if($logoBase64)
@@ -295,80 +295,26 @@
 
         {{-- Center: Project Name --}}
         <div class="header-center">
-            <div class="greenland-badge">Projet Green Land</div>
+            <div class="greenland-badge">Projet {{ $reservation['projet_nom'] ?? 'Green Land' }}</div>
         </div>
 
         {{-- Right: Green Land Image --}}
         <div class="header-right">
-            @php
-                $greenLandBase64 = null;
-                // Try to load green_ang.png from logos folder
-                if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-                    $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
-                    $fileContent = null;
-
-                    if (app()->environment('production')) {
-                        if (Storage::disk('s3')->exists($greenLandPath)) {
-                            $fileContent = Storage::disk('s3')->get($greenLandPath);
-                        }
-                    } else {
-                        $localPath = public_path('docs/' . $greenLandPath);
-                        if (file_exists($localPath)) {
-                            $fileContent = file_get_contents($localPath);
-                        }
-                    }
-
-                    if ($fileContent !== null) {
-                        $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
-                    }
-                }
-            @endphp
             @if($greenLandBase64)
                 <img src="{{ $greenLandBase64 }}" alt="Green Land" class="header-greenland">
             @endif
         </div>
     </div>
 
-  {{-- Header Title & Subtitle --}}
-
-{{-- Header Title & Subtitle --}}
-<div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">
-    <div class="header-title">CONTRAT DE RÉSERVATION</div>
-    <div class="header-subtitle" style="border-bottom: 2px solid #b8973a; padding-bottom: 8px; display: inline-block;">
-        N° : {{ date('Y') }}-{{ $num_recu }} | Identifiant bien :
-        {{ $bien['tranche']['nom'] ?? 'Tranche' }}/
-        {{ $bien['bloc']['nom'] ?? 'GH' }}/
-        {{ $bien['immeuble']['nom'] ?? 'IMM' }}/
-     @php
-    $niveau = $bien['niveau'] ?? '';
-    $etageLabel = '';
-
-    if ($niveau === 0 || $niveau === '0') {
-        $etageLabel = 'RDC';
-    } elseif ($niveau !== '' && $niveau !== null) {
-        $niveauInt = (int) $niveau;
-        if ($niveauInt == 1) {
-            $etageLabel = '1er étage';
-        } elseif ($niveauInt == 2) {
-            $etageLabel = '2ème étage';
-        } elseif ($niveauInt == 3) {
-            $etageLabel = '3ème étage';
-        } elseif ($niveauInt == 4) {
-            $etageLabel = '4ème étage';
-        } elseif ($niveauInt == 5) {
-            $etageLabel = '5ème étage';
-        } else {
-            $etageLabel = $niveauInt . 'ème étage';
-        }
-            } else {
-                $etageLabel = 'ETAGE';
-            }
-        @endphp
-        {{ $etageLabel }}/
-        {{ $bien['type_bien']['type'] ?? 'Type' }}/
-        {{ $bien['numero'] ?? 'APT' }}
+    {{-- Header Title & Subtitle --}}
+   {{-- Header Title & Subtitle --}}
+    <div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">
+        <div class="header-title">CONTRAT DE RÉSERVATION</div>
+        <div class="header-subtitle" style="border-bottom: 2px solid #b8973a; padding-bottom: 8px; display: inline-block;">
+            N° : {{ date('Y') }}-{{ $num_recu }} | Identifiant bien :
+            {{ $reservation['identifiant_bien'] ?? $bien['tranche']['nom'] ?? 'Tranche' . '/' . ($bien['bloc']['nom'] ?? 'GH') . '/' . ($bien['immeuble']['nom'] ?? 'IMM') . '/' . ($etageLabel ?? 'ETAGE') . '/' . ($bien['type_bien']['type'] ?? 'Type') . '/' . ($bien['numero'] ?? 'APT') }}
+        </div>
     </div>
-</div>
 
     {{-- ==================== ENTRE LES SOUSSIGNÉS ==================== --}}
     <div class="mb-3">
@@ -377,9 +323,9 @@
         {{-- VENDEUR --}}
         <div class="pl-4 mb-2">
             <p class="text-sm text-gray-800">
-                La société « <strong class="text-primary">IMOZINE</strong> », Société à responsabilité limitée,
-                au capital social de 141.050.000 dirhams,
-                dont le siège social est au 13 Angle Rue de Rome et Rue de Varsovie, Résidence Amina, 1er Etage Appt N° 01, Casablanca,
+                La société « <strong class="text-primary">{{ $societe['raison_social'] ?? 'IMOZINE' }}</strong> », Société à responsabilité limitée,
+                au capital social de {{ $societe['capital'] ?? '141.050.000' }} dirhams,
+                dont le siège social est au {{ $societe['adresse'] ?? '13 Angle Rue de Rome et Rue de Varsovie, Résidence Amina, 1er Etage Appt N° 01, Casablanca' }},
                 représentée par Mr Driss MOUSS et Mr Othmane MOUSS, dûment habilités aux fins des présentes,
             </p>
             <p class="text-sm italic mt-1 text-gray-700">
@@ -398,7 +344,15 @@
                             {{ $formatCivilite($client['civilite'] ?? 'Monsieur/Madame') }}  :
                             <span class="font-normal">{{ $client['nom'] ?? '' }} {{ $client['prenom'] ?? '' }}</span>
                         </p>
-                        <p class="text-sm text-gray-700">CIN / Passeport n° : <span class="font-semibold">{{ $client['cin'] ?? '  ' }}</span></p>
+                        {{-- In the BÉNÉFICIAIRE section --}}
+                        <p class="text-sm text-gray-700">CIN / Passeport n° :
+                            <span class="font-semibold">
+                                {{ $client['cin'] ?? '' }}
+                                @if(!empty($client['passeport']))
+                                    / {{ $client['passeport'] }}
+                                @endif
+                            </span>
+                        </p>
                         <p class="text-sm text-gray-700">De nationalité : <span class="font-semibold">{{ $client['nationalite'] ?? '  ' }}</span></p>
                         <p class="text-sm text-gray-700">Né(e) le : <span class="font-semibold">{{ isset($client['date_naissance']) ? $formatDate($client['date_naissance']) : ' ' }}</span></p>
                         <p class="text-sm text-gray-700">Demeurant à : <span class="font-semibold">{{ $client['adresse'] ?? ' ' }}{{ isset($client['ville']) ? ', ' . $client['ville'] : '' }}</span></p>
@@ -444,8 +398,8 @@
         <h2 class="article-title">PRÉAMBULE</h2>
         <div class="pl-4">
             <p class="text-sm text-gray-800">
-                Sur le terrain objet du titre foncier n° T26886/D, le Vendeur développe l'ensemble immobilier
-                dénommé  <strong class="text-primary">« Projet Green Land »</strong>, situé à Ain Chock, Casablanca. Le titre foncier fera l'objet d'un
+                Sur le terrain objet du titre foncier n° {{ $reservation['titre_foncier'] ?? 'T26886/D' }}, le Vendeur développe l'ensemble immobilier
+                dénommé  <strong class="text-primary">« {{ $reservation['projet_nom'] ?? 'Projet Green Land' }} »</strong>, situé à {{ $reservation['localisation'] ?? 'Ain Chock, Casablanca' }}. Le titre foncier fera l'objet d'un
                 éclatement comportant une série de fractions divises. Le règlement de copropriété en cours
                 d'élaboration sera déposé à la conservation foncière et communiqué au BÉNÉFICIAIRE avant la
                 signature de l'acte d'acquisition, auquel il s'imposera dès cette signature.
@@ -454,39 +408,23 @@
     </div>
 
     {{-- ==================== ARTICLE 1 – OBJET ==================== --}}
-    {{-- ==================== ARTICLE 1 – OBJET ==================== --}}
-<div class="mb-3">
-    <h2 class="article-title">ARTICLE 1 – OBJET</h2>
-    <div class="pl-4">
-        <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet Green Land, le bien immobilier ci-après désigné :</p>
-        <div class="mt-1">
-            <p class="text-sm text-gray-800"><span class="font-semibold">Localisation :</span> Ain Chock — Projet Green Land, Casablanca</p>
-            @php
-                $niveau = $bien['niveau'] ?? '';
-                $etageLabel = '';
-                if ($niveau === 0 || $niveau === '0' || $niveau === '') {
-                    $etageLabel = 'RDC';
-                } else {
-                    $niveauInt = (int) $niveau;
-                    $etageLabel = ($niveauInt == 1) ? '1er étage' : $niveauInt . 'ème  étage';
-                }
-            @endphp
-            <p class="text-sm text-gray-800">
-                <span class="font-semibold">Identifiant :</span>
-                {{ $bien['tranche']['nom'] ?? 'Tranche' }}/
-                {{ $bien['bloc']['nom'] ?? 'GH' }}/
-                {{ $bien['immeuble']['nom'] ?? 'IMM' }}/
-                {{ $etageLabel }}/
-                {{ $bien['type_bien']['type'] ?? 'Type' }}/
-                {{ $bien['numero'] ?? 'numero' }}
-            </p>
-            <p class="text-sm text-gray-800"><span class="font-semibold">Superficie approximative :</span> {{ $surfaceVendable ?? ' ' }} m²</p>
-            <p class="text-xs text-gray-600 mt-1 italic">
-                La superficie est susceptible de connaître une variation une fois les titres fonciers des fractions divises établis, conformément à l'article 49 de la loi 18-00 relative au statut de la copropriété des immeubles bâtis.
-            </p>
+    <div class="mb-3">
+        <h2 class="article-title">ARTICLE 1 – OBJET</h2>
+        <div class="pl-4">
+            <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet {{ $reservation['projet_nom'] ?? 'Green Land' }}, le bien immobilier ci-après désigné :</p>
+            <div class="mt-1">
+                <p class="text-sm text-gray-800"><span class="font-semibold">Localisation :</span> {{ $reservation['localisation'] ?? 'Ain Chock — Projet Green Land, Casablanca' }}</p>
+                <p class="text-sm text-gray-800">
+                    <span class="font-semibold">Identifiant :</span>
+                    {{ $reservation['identifiant_bien'] }}
+                </p>
+                <p class="text-sm text-gray-800"><span class="font-semibold">Superficie approximative :</span> {{ $surfaceApproximative ?? $surfaceVendable ?? ' ' }} m²</p>
+                <p class="text-xs text-gray-600 mt-1 italic">
+                    La superficie est susceptible de connaître une variation une fois les titres fonciers des fractions divises établis, conformément à l'article 49 de la loi 18-00 relative au statut de la copropriété des immeubles bâtis.
+                </p>
+            </div>
         </div>
     </div>
-</div>
 
     {{-- ==================== ARTICLE 2 – PRIX ==================== --}}
     <div class="mb-3">
@@ -599,7 +537,6 @@
                                  @if($numeroPaiement)
                                       N° Paiement :{{ $numeroPaiement }}
                                 @endif
-
                                 @if($compteNum)
                                     , numéro de compte {{ $compteNum }}
                                 @endif
@@ -667,52 +604,53 @@
         </div>
     </div>
 
-  {{-- ==================== ARTICLE 6 – ENGAGEMENT ==================== --}}
-        <div class="mb-3">
-            <h2 class="article-title">ARTICLE 6 – ENGAGEMENT</h2>
-            <div class="pl-4">
-                <p class="text-sm text-gray-800">Le réservataire s'engage dès à présent à :</p>
-                <ul class="list-disc text-sm text-gray-800" style="padding-left: 20px; margin-top: 4px;">
-                    <li style="margin-bottom: 4px;">
-                        Ne pratiquer aucune procédure dont le but serait l'inscription d'une pré notation ou autre sur le titre foncier originel, sans l'accord écrit du réservant es-qualités.
-                    </li>
-                    <li style="margin-bottom: 4px;">
-                        Ne point s'immiscer dans les opérations de construction à la charge du réservant es-qualités, ni donner des instructions aux maîtres d'œuvres et aux entrepreneurs.
-                    </li>
-                    <li style="margin-bottom: 4px;">
-                        Et ne point faire effectuer sur le bien objet des présentes, tous travaux pouvant faire obstacle à l'obtention du permis d'habiter ou de conformité pour la totalité de l'immeuble.
-                    </li>
-                </ul>
-            </div>
+    {{-- ==================== ARTICLE 6 – ENGAGEMENT ==================== --}}
+    <div class="mb-3">
+        <h2 class="article-title">ARTICLE 6 – ENGAGEMENT</h2>
+        <div class="pl-4">
+            <p class="text-sm text-gray-800">Le réservataire s'engage dès à présent à :</p>
+            <ul class="list-disc text-sm text-gray-800" style="padding-left: 20px; margin-top: 4px;">
+                <li style="margin-bottom: 4px;">
+                    Ne pratiquer aucune procédure dont le but serait l'inscription d'une pré notation ou autre sur le titre foncier originel, sans l'accord écrit du réservant es-qualités.
+                </li>
+                <li style="margin-bottom: 4px;">
+                    Ne point s'immiscer dans les opérations de construction à la charge du réservant es-qualités, ni donner des instructions aux maîtres d'œuvres et aux entrepreneurs.
+                </li>
+                <li style="margin-bottom: 4px;">
+                    Et ne point faire effectuer sur le bien objet des présentes, tous travaux pouvant faire obstacle à l'obtention du permis d'habiter ou de conformité pour la totalité de l'immeuble.
+                </li>
+            </ul>
         </div>
+    </div>
 
-  {{-- ==================== ARTICLE 7 – CONTRAT DÉFINITIF DE VENTE ==================== --}}
-<div class="mb-3">
-    <h2 class="article-title">ARTICLE 7 – CONTRAT DÉFINITIF DE VENTE</h2>
-    <div class="pl-4">
-        <p class="text-sm text-gray-800">
-            Le VENDEUR soumettra le contrat définitif de vente au BÉNÉFICIAIRE dès achèvement des travaux.
-            Les travaux devraient être achevés au plus tard le
-            <span style="border-bottom: 1px solid #000; padding: 0 30px; display: inline-block; min-width: 100px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>,
-            sauf cas de force majeure.
-        </p>
-        <p class="text-sm mt-2 text-gray-800">
-            Le BÉNÉFICIAIRE s'engage à se présenter auprès du notaire dans un délai de <strong>15 jours</strong> suivant
-            la réunion de l'ensemble des conditions suspensives visées à l'article 5. En cas d'abstention
-            dans ce délai, la clause résolutoire de l'article 3 s'appliquera de plein droit.
-        </p>
+    {{-- ==================== ARTICLE 7 – CONTRAT DÉFINITIF DE VENTE ==================== --}}
+    <div class="mb-3">
+        <h2 class="article-title">ARTICLE 7 – CONTRAT DÉFINITIF DE VENTE</h2>
+        <div class="pl-4">
+            <p class="text-sm text-gray-800">
+                Le VENDEUR soumettra le contrat définitif de vente au BÉNÉFICIAIRE dès achèvement des travaux.
+                Les travaux devraient être achevés au plus tard le
+                <span style="border-bottom: 1px solid #000; padding: 0 30px; display: inline-block; min-width: 100px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>,
+                sauf cas de force majeure.
+            </p>
+            <p class="text-sm mt-2 text-gray-800">
+                Le BÉNÉFICIAIRE s'engage à se présenter auprès du notaire dans un délai de <strong>15 jours</strong> suivant
+                la réunion de l'ensemble des conditions suspensives visées à l'article 5. En cas d'abstention
+                dans ce délai, la clause résolutoire de l'article 3 s'appliquera de plein droit.
+            </p>
+        </div>
     </div>
-</div>
-{{-- ==================== ARTICLE 8 – INTERDICTION DE CÉDER SES DROITS ==================== --}}
-<div class="mb-3">
-    <h2 class="article-title">ARTICLE 8 – INTERDICTION DE CÉDER SES DROITS</h2>
-    <div class="pl-4">
-        <p class="text-sm text-gray-800">
-            Il est expressément convenu que le BÉNÉFICIAIRE s'interdit de céder les droits qu'il tient
-            des présentes à une tierce personne, sans l'accord exprès et préalable du VENDEUR.
-        </p>
+
+    {{-- ==================== ARTICLE 8 – INTERDICTION DE CÉDER SES DROITS ==================== --}}
+    <div class="mb-3">
+        <h2 class="article-title">ARTICLE 8 – INTERDICTION DE CÉDER SES DROITS</h2>
+        <div class="pl-4">
+            <p class="text-sm text-gray-800">
+                Il est expressément convenu que le BÉNÉFICIAIRE s'interdit de céder les droits qu'il tient
+                des présentes à une tierce personne, sans l'accord exprès et préalable du VENDEUR.
+            </p>
+        </div>
     </div>
-</div>
 
     {{-- ==================== ARTICLE 9 – NOTIFICATIONS ==================== --}}
     <div class="mb-3">
@@ -726,8 +664,8 @@
                 <div class="pl-4">
                     <p class="text-sm font-semibold text-gray-800">Au Vendeur :</p>
                     <p class="text-sm text-gray-700" style="border-bottom: 2px solid #b8973a; padding-bottom: 4px;">
-                        À Mr. Le Directeur Général de la Ste. IMOZINE SARL,
-                        13 Angle Rue de Rome et Rue Varsovie, Résidence Amina, 1er Etage, Appart N°1, Casablanca
+                        À Mr. Le Directeur Général de la Ste. {{ $societe['raison_social'] ?? 'IMOZINE' }} SARL,
+                        {{ $societe['adresse'] ?? '13 Angle Rue de Rome et Rue Varsovie, Résidence Amina, 1er Etage, Appart N°1, Casablanca' }}
                     </p>
                 </div>
                 <div class="pl-4 mt-1">
@@ -783,7 +721,7 @@
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 En application de la loi n° 09-08 relative à la protection des personnes physiques à l'égard du
-                traitement des données à caractère personnel, le BÉNÉFICIAIRE consent à ce que la société IMOZINE
+                traitement des données à caractère personnel, le BÉNÉFICIAIRE consent à ce que la société {{ $societe['raison_social'] ?? 'IMOZINE' }}
                 collecte et traite ses données personnelles aux fins exclusives de la gestion de son dossier
                 d'acquisition. Ces données pourront être communiquées aux sous-traitants, héritiers, ayants droit
                 et mandataires habilités. Le BÉNÉFICIAIRE dispose d'un droit d'accès, de rectification et
@@ -813,12 +751,20 @@
         </div>
     </div>
 
-
     {{-- ==================== SIGNATURES ==================== --}}
     <div class="mt-4 pt-3 border-t-2 border-primary">
         <div class="text-center mb-3">
             <p class="text-sm font-semibold text-gray-800">
-                Fait à Casablanca, le {{ isset($date_enreg) ? $formatDate($date_enreg) : '………………' }}
+                Fait à {{ $reservation['lieu_signature'] ?? 'Casablanca' }},, le
+            @php
+                $dateSig = $reservation['date_signature'] ?? now()->format('d/m/Y');
+                // If date is in yyyy-mm-dd format, convert to dd/mm/yyyy
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateSig)) {
+                    $dateSig = \Carbon\Carbon::parse($dateSig)->format('d/m/Y');
+                }
+            @endphp
+            {{ $dateSig }}
+
             </p>
         </div>
 
@@ -827,7 +773,7 @@
             <div class="col">
                 <div class="signature-box"></div>
                 <p class="signature-label">LE VENDEUR</p>
-                <p class="text-sm font-semibold text-gray-800">Société IMOZINE SARL</p>
+                <p class="text-sm font-semibold text-gray-800">Société {{ $societe['raison_social'] ?? 'IMOZINE' }} SARL</p>
                 <p class="text-xs text-gray-500 mt-1">(Cachet et signature)</p>
             </div>
 
@@ -851,7 +797,7 @@
 
         {{-- Footer --}}
         <div class="footer">
-            IMOZINE SARL — Contrat de Réservation — Projet Green Land — Ain Chock, Casablanca
+            {{ $societe['raison_social'] ?? 'IMOZINE' }} SARL — Contrat de Réservation — Projet {{ $reservation['projet_nom'] ?? 'Green Land' }} — {{ $reservation['localisation'] ?? 'Ain Chock, Casablanca' }}
         </div>
 
     </div>
