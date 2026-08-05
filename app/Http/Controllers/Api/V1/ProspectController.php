@@ -1095,6 +1095,7 @@ public function indexByProjet(Request $request, $projet_id)
         $prospect->email     = null;
         $prospect->origin    = 'whatsapp';
         $prospect->source    = 1;
+        $prospect->etat    = 1;
         $prospect->projet_id = $projet_id; // link prospect to project from WhatsApp config
         $prospect->save();
 
@@ -1160,6 +1161,7 @@ public function indexByProjet(Request $request, $projet_id)
           $prospect->facebook_id     = $facebookId;
         $prospect->origin    = $type;
         $prospect->source    = null;
+        $prospect->etat    = 1;
         $prospect->projet_id = $projet_id; // link prospect to project from WhatsApp config
         $prospect->save();
 
@@ -1211,6 +1213,7 @@ public function indexByProjet(Request $request, $projet_id)
          $prospect->projet_id     = $projet_id;
         $prospect->origin    = 'landingPage';
         $prospect->source    = 3;
+        $prospect->etat    = 1;
         $prospect->save();
 
         // Create default "en_attente" status (numeric)

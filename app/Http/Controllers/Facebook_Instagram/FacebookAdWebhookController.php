@@ -593,7 +593,7 @@ private function getProjetIdFromPageId($pageId)
             $prospect->telephone_num2 = $data['phone2'] ?? null;
             $prospect->message = $data['message'] ?? null;
             $prospect->ville = $data['ville'] ?? null;
-
+            $prospect->etat =1;
             // Champs Facebook spécifiques
             $prospect->facebook_id = $data['facebook_id'] ?? null;
             $prospect->facebook_lead_id = $data['facebook_lead_id'] ?? null;
@@ -1954,6 +1954,7 @@ private function updateProspectWithPhoneNumber($senderName, $phoneNumber, $socie
             $prospect->origin = 'facebook';
             $prospect->source = $sourceId;
             $prospect->notifie = 0;
+            $prospect->etat    = 1;
             $prospect->message = $message;
             $prospect->created_at = now();
             $prospect->updated_at = now();

@@ -1118,6 +1118,7 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
     $prospect->email = isset($row['email']) ? $row['email'] : null;
     $prospect->origin = 'import';
     $prospect->notifie = 0;
+    $prospect->etat    = 1;
     $prospect->source = $source_id;
     $prospect->partenaire_id = $partenaire_id;
     $prospect->message = null;
