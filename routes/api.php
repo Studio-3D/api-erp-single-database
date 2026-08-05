@@ -53,6 +53,8 @@ use App\Http\Controllers\Api\V1\VueController as V1VueController;
 use App\Http\Controllers\Api\V1\GestionRolesController as V1GestionRolesController;
 use App\Http\Controllers\Api\V1\NotaireController as V1NotaireController;
 
+use App\Http\Controllers\Api\V1\AgentController as V1AgentController;
+
 use App\Http\Controllers\EnumController;
 use App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController;
 use App\Http\Controllers\Facebook_Instagram\FacebookAdWebhookController;
@@ -108,8 +110,11 @@ Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify'])
 
 Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
 Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
+        Route::post('/agent/chat', [V1AgentController::class, 'chat']);
 
 Route::middleware('auth:api')->group(function () {
+
+
     Route::prefix('v1')->group(function () {
         /************************************facebook statistiques*********************** */
         Route::get('/facebook-leads-full-stats/{projet_id}', [FacebookLeadStatsController::class, 'getFullStats']);

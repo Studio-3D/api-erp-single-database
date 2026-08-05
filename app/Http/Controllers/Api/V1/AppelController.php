@@ -337,6 +337,9 @@ class AppelController extends Controller
                     $validatedData['nom']=$request->nom=="null"?null:$request->nom;
                     $validatedData['prenom']=$request->prenom=="null"?null:$request->prenom;
                     $validatedData['source']=$request->source=="null"?null:$request->source;
+                    $validatedData['lead_qualifie'] = filter_var($request->lead_qualifie, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+
+
                     if($request->source_txt == 'PARTENAIRE'|| $request->source_txt == 'Partenaire'){
                        $validatedData['partenaire_id']=$request->partenaire_id=="null"?null:$request->partenaire_id;
                     }else{
@@ -356,6 +359,10 @@ class AppelController extends Controller
 
                     //recupere le prospect //modifier info
                     $prospect= Prospect::on('temp')->findorfail($request->prospect_id);
+                    // 👇 AJOUTER CETTE LIGNE (optionnel)
+                    if ($request->has('lead_qualifie')) {
+                        $prospect->etat = $request->lead_qualifie;
+                    }
                     //$prospect->cin=$request->cin;
                     if($request->cin!="null"){
                         $cin_exist=Prospect::on('temp')->where('cin',$request->cin)->where('id','!=',$request->prospect_id)->count();

@@ -717,6 +717,7 @@ private function generateReservationCode($projetId)
                             $validatedData['email']     = $request->email;
                             $validatedData['source']    = $request->source_id;
                             $validatedData['projet_id'] = $request->selectedProjet;
+                            $validatedData['lead_qualifie'] = filter_var($request->lead_qualifie, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
 
                             if ($request->source_txt == 'Partenaire') {
                                 $validatedData['partenaire_id'] = $request->partenaire_id;
@@ -736,6 +737,9 @@ private function generateReservationCode($projetId)
                             //recupere le prospect //modifier info
                             $prospect = Prospect::on('temp')->findorfail($request->prospect_id);
                             //$prospect->cin=$request->cin;
+                           if ($request->has('lead_qualifie')) {
+                                $prospect->etat = $request->lead_qualifie;
+                            }
                             if ($request->cin != null) {
                                 $cin_exist = Prospect::on('temp')->where('cin', $request->cin)->where('id', '!=', $request->prospect_id)->count();
                                 if ($cin_exist == 0) {
