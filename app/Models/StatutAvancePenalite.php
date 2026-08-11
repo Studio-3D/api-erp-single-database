@@ -22,5 +22,9 @@ class StatutAvancePenalite extends Model
     {
         return $this->belongsTo(PenaliteDesistement::class,'penalite_id');
     }
+     public function user_valide()
+    {
+        return $this->belongsTo(User::class,'user_id_valider');
+    }
 
 }

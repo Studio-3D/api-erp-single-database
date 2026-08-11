@@ -83,8 +83,12 @@ class AvanceController extends Controller
 
             $query = Avance::on('temp')
                 ->with([
-                    'last_statut' => function ($query) {
-                        $query->without(['avance', 'penalite']); // Désactive les relations prédéfinies
+                     'last_statut' => function ($query) {
+                        $query->with([
+                            'user_valide' => function ($q) {
+                                $q->select('id', 'name', 'prenom'); // Select only these fields
+                            }
+                        ])->without(['avance', 'penalite']);
                     },
                     'user' => function ($q) {
                         $q->select('id', 'name', 'prenom');
