@@ -152,6 +152,118 @@ class AgentController extends Controller
         return $history;
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // 🗑️ SUPPRIMER UNE CONVERSATION
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Supprimer une conversation
+     */
+    public function deleteConversation($sessionId)
+    {
+        try {
+            Log::info('🗑️ Suppression de la conversation', ['session_id' => $sessionId]);
+
+            // ✅ Nettoyer le session_id (sécurité)
+            $sessionId = preg_replace('/[^a-zA-Z0-9_\-]/', '', $sessionId);
+
+            if (empty($sessionId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Session ID invalide'
+                ], 400);
+            }
+
+            // ✅ Récupérer la conversation
+            $conversation = Conversation::where('session_id', $sessionId)->first();
+
+            if (!$conversation) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conversation non trouvée',
+                    'session_id' => $sessionId
+                ], 404);
+            }
+
+            // ✅ Supprimer de la base de données
+            $deleted = $conversation->delete();
+
+            if ($deleted) {
+                Log::info('✅ Conversation supprimée avec succès', [
+                    'session_id' => $sessionId,
+                    'id' => $conversation->id
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conversation supprimée avec succès',
+                    'session_id' => $sessionId,
+                    'deleted' => true
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'session_id' => $sessionId
+            ], 500);
+
+        } catch (\Throwable $e) {
+            Log::error('❌ Erreur suppression conversation', [
+                'session_id' => $sessionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Supprimer toutes les conversations (optionnel)
+     */
+    public function deleteAllConversations()
+    {
+        try {
+            Log::info('🗑️ Suppression de toutes les conversations');
+
+            $count = Conversation::count();
+
+            if ($count === 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Aucune conversation à supprimer',
+                    'count' => 0
+                ]);
+            }
+
+            $deleted = Conversation::truncate();
+
+            Log::info('✅ Toutes les conversations supprimées', ['count' => $count]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Toutes les conversations supprimées',
+                'count' => $count
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('❌ Erreur suppression toutes conversations', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Nettoyer les conversations expirées
      */

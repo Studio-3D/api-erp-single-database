@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\AsArrayObject;
+use Illuminate\Support\Facades\Log;
 
 class Conversation extends Model
 {
@@ -13,7 +13,7 @@ class Conversation extends Model
         'history',
         'user_ip',
         'user_agent',
-        'expires_at',
+        'expires_at'
     ];
 
     protected $casts = [
@@ -22,34 +22,76 @@ class Conversation extends Model
         'expires_at' => 'datetime',
     ];
 
-    // Nettoyer les conversations expirées (plus de 24h)
-    public static function cleanExpired(): void
+    /**
+     * Obtenir ou créer une conversation
+     */
+    public static function getOrCreate(string $sessionId, array $metadata = [])
     {
-        self::where('expires_at', '<', now())->delete();
-    }
+        // Nettoyer le session_id
+        $sessionId = preg_replace('/[^a-zA-Z0-9_\-]/', '', $sessionId);
 
-    // Créer ou récupérer une conversation
-    public static function getOrCreate(string $sessionId, array $defaults = []): self
-    {
-        return self::firstOrCreate(
-            ['session_id' => $sessionId],
-            array_merge([
+        $conversation = self::where('session_id', $sessionId)->first();
+
+        if (!$conversation) {
+            $conversation = self::create([
+                'session_id' => $sessionId,
                 'state' => [],
                 'history' => [],
-                'expires_at' => now()->addDay(),
-            ], $defaults)
-        );
+                'user_ip' => $metadata['user_ip'] ?? null,
+                'user_agent' => $metadata['user_agent'] ?? null,
+                'expires_at' => now()->addDays(7),
+            ]);
+            Log::info('Nouvelle conversation créée', ['session_id' => $sessionId]);
+        }
+
+        return $conversation;
     }
 
-    // Mettre à jour la conversation
-    public function updateConversation(array $state, array $history): self
+    /**
+     * Mettre à jour la conversation
+     */
+    public function updateConversation(array $state, array $history): void
     {
-        $this->update([
-            'state' => $state,
-            'history' => $history,
-            'expires_at' => now()->addDay(), // Prolonger l'expiration
+        $this->state = $state;
+        $this->history = $history;
+        $this->expires_at = now()->addDays(7);
+        $this->save();
+
+        Log::info('Conversation mise à jour', [
+            'session_id' => $this->session_id,
+            'id' => $this->id,
+            'history_count' => count($history),
+        ]);
+    }
+
+    /**
+     * Nettoyer les conversations expirées
+     */
+    public static function cleanExpired(): int
+    {
+        $count = self::where('expires_at', '<', now())->delete();
+        Log::info('Conversations expirées nettoyées', ['count' => $count]);
+        return $count;
+    }
+
+    /**
+     * Supprimer une conversation (méthode helper)
+     */
+    public static function deleteBySessionId(string $sessionId): bool
+    {
+        $sessionId = preg_replace('/[^a-zA-Z0-9_\-]/', '', $sessionId);
+
+        if (empty($sessionId)) {
+            return false;
+        }
+
+        $deleted = self::where('session_id', $sessionId)->delete();
+
+        Log::info('Conversation supprimée', [
+            'session_id' => $sessionId,
+            'deleted' => $deleted
         ]);
 
-        return $this;
+        return $deleted > 0;
     }
 }
