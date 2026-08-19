@@ -585,26 +585,55 @@ private function processReservationFiles($reservation, $request, $societe)
              * Generate a unique reservation code
              * Format: 001, 002, 003, etc. per project
              */
-                private function generateReservationCode($projetId)
-                {
-                    // Get the last reservation for this project
-                    $lastReservation = Reservation::on('temp')
-                        ->where('projet_id', $projetId)
-                        ->orderBy('id', 'desc')
-                        ->first();
+                /**
+ * Generate a unique reservation code
+ * Format: XXXMM where XXX is sequential number and MM is current month
+ * Example: 04008 for the 40th reservation in August
+ */
+private function generateReservationCode($projetId)
+{
+    // Get current month with leading zero (01-12)
+    $currentMonth = date('m');
 
-                    if ($lastReservation && $lastReservation->code_reservation) {
-                        // Extract the number from the code (e.g., "001" -> 1)
-                        $lastNumber = intval($lastReservation->code_reservation);
-                        $newNumber = $lastNumber + 1;
-                    } else {
-                        // Start from 1
-                        $newNumber = 1;
-                    }
+    // Get the LAST reservation for this project (regardless of month)
+    // This ensures sequential numbering continues across months
+    $lastReservation = Reservation::on('temp')
+        ->where('projet_id', $projetId)
+        ->whereNotNull('code_reservation')
+        ->where('code_reservation', '!=', '')
+        ->orderBy('id', 'desc')
+        ->first();
 
-                    // Format as 3-digit with leading zeros (001, 002, 003, ...)
-                    return str_pad($newNumber, 3, '0', STR_PAD_LEFT);
-                }
+    if ($lastReservation && $lastReservation->code_reservation) {
+        // Extract the numeric part from the code
+        // If code is "040", extract "040"
+        // If code is "04008", extract "040"
+        $code = $lastReservation->code_reservation;
+
+        // Remove the month suffix if it exists (last 2 digits)
+        // Check if the last 2 characters are numeric and likely a month (01-12)
+        $lastTwoChars = substr($code, -2);
+        if (is_numeric($lastTwoChars) && intval($lastTwoChars) >= 1 && intval($lastTwoChars) <= 12) {
+            // Remove the month suffix
+            $sequentialPart = substr($code, 0, -2);
+        } else {
+            // No month suffix, use the whole code
+            $sequentialPart = $code;
+        }
+
+        $lastNumber = intval($sequentialPart);
+        $newNumber = $lastNumber + 1;
+    } else {
+        // Start from 1
+        $newNumber = 1;
+    }
+
+    // Format as 3-digit with leading zeros (001, 002, 003, ...)
+    $sequentialCode = str_pad($newNumber, 3, '0', STR_PAD_LEFT);
+
+    // Combine sequential code with current month
+    return $sequentialCode . $currentMonth;
+}
 
             /**
              * Create temporary reservation with minimal data

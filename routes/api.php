@@ -110,8 +110,10 @@ Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify'])
 
 Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
 Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
-        Route::post('/agent/chat', [V1AgentController::class, 'chat']);
-
+Route::post('/agent/chat', [V1AgentController::class, 'chat']);
+Route::post('/chat', [V1AgentController::class, 'chat']);
+Route::get('/conversation', [V1AgentController::class, 'getConversation']);
+Route::delete('/conversations/clean-expired', [V1AgentController::class, 'cleanExpired']);
 Route::middleware('auth:api')->group(function () {
 
 
