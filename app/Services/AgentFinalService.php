@@ -196,6 +196,7 @@ class AgentFinalService
     private array $pendingContact = [];
 
 
+
     /*
     |--------------------------------------------------------------------------
     | CONSTRUCTEUR
@@ -287,6 +288,253 @@ class AgentFinalService
         ]);
     }
 
+    /**
+ * Utiliser l'IA pour comprendre le sens du message du client
+ * Retourne le type d'intention et la réponse appropriée
+ */
+private function understandWithAI(string $message): array
+{
+    // Si l'API Key n'existe pas, fallback sur les méthodes classiques
+    if (!$this->apiKey) {
+        return $this->understandManually($message);
+    }
+
+    $prompt = "Tu es un assistant qui comprend le langage naturel des clients pour un projet immobilier appelé GreenLand.
+
+Message du client: \"$message\"
+
+Données du projet GreenLand:
+- Projet: GreenLand, groupe résidentiel à SIDI MESSOUD
+- Typologies: F3 (2 chambres + salon + 2 sdb, 83-123 m²), F4 (3 chambres + salon + 2 sdb, 97-130 m²)
+- Équipements: Padel, Sport, Patio, Parking, Ascenseur
+- Livraison: Mars 2027
+- Horaires: 7j/7, 10h à 18h
+- Contact: Mr Oussama/Mr Maghraoui : 212660446758
+
+Instructions:
+Analyse le message du client et détermine son INTENTION.
+
+Réponds UNIQUEMENT au format JSON avec cette structure:
+{
+    \"intent\": \"localisation|prix|surface|equipement|livraison|description|contact|horaire|typologie|achat|budget|visite|salutation|inconnu\",
+    \"value\": \"la valeur extraite si applicable\",
+    \"confidence\": 0.9,
+    \"response\": \"la réponse à donner au client (si déjà générée)\",
+    \"explanation\": \"pourquoi tu as fait ce choix\"
+}
+
+Exemples:
+- Message: \"livraison\" → {\"intent\":\"livraison\",\"value\":\"livraison\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande la date de livraison\"}
+- Message: \"surfaces\" → {\"intent\":\"surface\",\"value\":\"surface\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande les surfaces\"}
+- Message: \"chn akhor\" → {\"intent\":\"description\",\"value\":\"description\",\"confidence\":0.9,\"response\":\"\",\"explanation\":\"client demande plus d'informations sur le projet\"}
+- Message: \"wch fih des apprtement l bi3\" → {\"intent\":\"typologie\",\"value\":\"typologie\",\"confidence\":0.95,\"response\":\"\",\"explanation\":\"client demande les typologies disponibles\"}
+- Message: \"brit nchri appartement\" → {\"intent\":\"achat\",\"value\":\"achat\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client veut acheter un appartement\"}
+- Message: \"prix\" → {\"intent\":\"prix\",\"value\":\"prix\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande les prix\"}
+- Message: \"adresse\" → {\"intent\":\"localisation\",\"value\":\"adresse\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande l'adresse\"}
+
+IMPORTANT:
+- Comprends le SENS, pas seulement les mots
+- Si le client demande des informations sur le projet, retourne l'intention correspondante
+- Si le client veut acheter, retourne \"achat\"
+- Ne réponds JAMAIS avec les typologies par défaut si ce n'est pas approprié
+
+Réponds UNIQUEMENT en JSON, sans autre texte.";
+
+    try {
+        $response = Http::timeout(15)
+            ->withToken($this->apiKey)
+            ->acceptJson()
+            ->post(
+                'https://openrouter.ai/api/v1/chat/completions',
+                [
+                    'model' => $this->model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'Tu es un assistant qui comprend le langage naturel. Réponds UNIQUEMENT en JSON.'],
+                        ['role' => 'user', 'content' => $prompt]
+                    ],
+                    'temperature' => 0.1,
+                    'max_tokens' => 300,
+                ]
+            );
+
+        if ($response->successful()) {
+            $json = $response->json();
+            $content = $json['choices'][0]['message']['content'] ?? '';
+
+            Log::info('📥 Réponse IA pour compréhension', ['content' => $content]);
+
+            // Extraire le JSON
+            if (preg_match('/\{[^{}]*\}/', $content, $matches)) {
+                $result = json_decode($matches[0], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    Log::info('✅ IA a compris le message', [
+                        'intent' => $result['intent'] ?? 'inconnu',
+                        'confidence' => $result['confidence'] ?? 0,
+                        'explanation' => $result['explanation'] ?? ''
+                    ]);
+                    return $result;
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        Log::error('❌ Erreur IA pour compréhension', ['error' => $e->getMessage()]);
+    }
+
+    // Fallback: méthode manuelle
+    return $this->understandManually($message);
+}
+/**
+ * Fallback manuel quand l'IA n'est pas disponible
+ */
+private function understandManually(string $message): array
+{
+    $lower = $this->normalize($message);
+
+    // Définir les mots-clés avec leurs intentions
+    $intentMap = [
+        'localisation' => ['localisation', 'adresse', 'fin kayn', 'ou se trouve', 'sidi messoud'],
+        'prix' => ['prix', 'chhal', 'combien', 'tarif', 'cout', 'coût'],
+        'surface' => ['surface', 'superficie', 'metre', 'm2', 'm²', 'taille'],
+        'equipement' => ['équipement', 'equipement', 'padel', 'sport', 'patio', 'parking', 'ascenseur'],
+        'livraison' => ['livraison', 'date livraison', 'mars', 'delai', 'quand'],
+        'description' => ['description', 'details', 'detail', 'info', 'infos'],
+        'contact' => ['contact', 'téléphone', 'telephone', 'numero', 'appel', 'commercial'],
+        'horaire' => ['horaire', 'horaires', 'ouverture', 'fermeture'],
+        'typologie' => ['typologie', 'type', 'chambre', 'salon', 'f3', 'f4'],
+        'achat' => ['acheter', 'achat', 'brit', 'bghit', 'nchri', 'nchry', 'appartement', 'apprt', 'logement'],
+        'visite' => ['visite', 'visiter', 'nzour', 'nchouf', 'nchof'],
+        'budget' => ['budget'],
+        'salutation' => ['bonjour', 'salam', 'salut', 'hello', 'slm', 'marhba']
+    ];
+
+    foreach ($intentMap as $intent => $keywords) {
+        foreach ($keywords as $keyword) {
+            if (mb_stripos($lower, $keyword) !== false) {
+                if ($intent === 'salutation') {
+                    return ['intent' => 'salutation', 'confidence' => 0.9];
+                }
+                return ['intent' => $intent, 'value' => $keyword, 'confidence' => 0.7];
+            }
+        }
+    }
+
+    return ['intent' => 'inconnu', 'confidence' => 0.3];
+}
+/**
+ * Générer la réponse selon l'intention détectée
+ */
+private function generateResponseFromIntent(array $intentResult): ?string
+{
+    $intent = $intentResult['intent'] ?? 'inconnu';
+    $lang = $this->detectLanguage($this->conversationState['last_user_message'] ?? 'fr');
+
+    switch ($intent) {
+        case 'localisation':
+            $response = "📍 **Localisation GreenLand :**\n\n" .
+                        "🏠 SIDI MESSOUD, entre Californie et la ville verte,\n" .
+                        "🚗 À proximité immédiate de l'entrée d'autoroute A3.\n\n" .
+                        "📌 Un emplacement stratégique alliant calme et accessibilité.";
+            return $this->translateResponse($response, $lang);
+
+        case 'prix':
+            $response = "📊 **Prix GreenLand :**\n\n" .
+                        "📐 **Typologies :**\n" .
+                        "   • F3 (83 à 123 m²) " .
+                        "   • F4 (97 à 130 m²) " .
+                        "📌 Prix indicatifs selon étage, vue et orientation.";
+            return $this->translateResponse($response, $lang);
+
+        case 'surface':
+            $response = "📐 **Surfaces GreenLand :**\n\n" .
+                        "📐 **Typologies :**\n" .
+                        "   • F3 : **83 à 123 m²** (2 chambres + salon + 2 salles de bains)\n" .
+                        "   • F4 : **97 à 130 m²** (3 chambres + salon + 2 salles de bains)";
+            return $this->translateResponse($response, $lang);
+
+        case 'equipement':
+            $response = "🏋️ **Équipements GreenLand :**\n\n" .
+                        "🎾 Deux terrains de Padel\n" .
+                        "🏋️ Une salle de sport\n" .
+                        "🌿 Un patio paysager\n" .
+                        "🅿️ Parking souterrain\n" .
+                        "🛗 Ascenseur OTIS\n\n" .
+                        "✨ Six immeubles en R+4, un patio central propice à la convivialité.";
+            return $this->translateResponse($response, $lang);
+
+        case 'livraison':
+            $response = "📅 **Date de livraison GreenLand :**\n\n" .
+                        "🏗️ Le projet est déjà construit et entre dans ses dernières étapes de finition.\n" .
+                        "📆 Livraison prévue : **Mars 2027**\n\n" .
+                        "✅ Une résidence concrète et tangible, dont la livraison approche.";
+            return $this->translateResponse($response, $lang);
+
+        case 'description':
+            $response = "🏠 **Description GreenLand :**\n\n" .
+                        "GreenLand est un groupe résidentiel fermé et sécurisé qui bénéficie d'un environnement calme et proche des commodités essentielles.\n\n" .
+                        "🏗️ Six immeubles en R+4\n" .
+                        "🌿 Un patio central propice à la convivialité\n" .
+                        "🅿️ Parking souterrain\n" .
+                        "🛗 Ascenseur OTIS\n\n" .
+                        "📅 Livraison : Mars 2027\n" .
+                        "📍 SIDI MESSOUD, entre Californie et la ville verte";
+            return $this->translateResponse($response, $lang);
+
+        case 'contact':
+            $response = "📞 **Contacts GreenLand :**\n\n" .
+                        "• Mr Oussama : 212660446758\n" .
+                        "• Mr Maghraoui : 212660446758\n\n" .
+                        "📧 Contactez-nous pour toute question ou visite.";
+            return $this->translateResponse($response, $lang);
+
+        case 'horaire':
+            $response = "🕐 **Horaires GreenLand :**\n\n" .
+                        "📅 7j/7, de 10h à 18h.\n\n" .
+                        "📍 Visites sur rendez-vous.";
+            return $this->translateResponse($response, $lang);
+
+        case 'typologie':
+            $response = "📐 **Typologies GreenLand :**\n\n" .
+                        "📐 **F3 :**\n" .
+                        "   • 2 chambres + salon + 2 salles de bains\n" .
+                        "   • 83 à 123 m²\n\n" .
+                        "📐 **F4 :**\n" .
+                        "   • 3 chambres + salon + 2 salles de bains\n" .
+                        "   • 97 à 130 m²\n\n" .
+                        "Quel type vous intéresse ?";
+            return $this->translateResponse($response, $lang);
+
+        case 'achat':
+            // Vérifier si le type est déjà connu
+            $type = $this->conversationState['property_type'] ?? null;
+            if (empty($type)) {
+                $response = "📐 **Typologies GreenLand :**\n\n" .
+                            "📐 **F3 :**\n" .
+                            "   • 2 chambres + salon + 2 salles de bains\n" .
+                            "   • 83 à 123 m²\n\n" .
+                            "📐 **F4 :**\n" .
+                            "   • 3 chambres + salon + 2 salles de bains\n" .
+                            "   • 97 à 130 m²\n\n" .
+                            "Quel type vous intéresse ?";
+                return $this->translateResponse($response, $lang);
+            } else {
+                if (empty($this->conversationState['budget']) || !$this->conversationState['budget_given_by_user']) {
+                    $response = "Parfait 😊 Vous êtes intéressé par un " . $type . ".\n\n" .
+                                "💰 Quel budget avez-vous prévu pour votre appartement ?";
+                    return $this->translateResponse($response, $lang);
+                }
+            }
+            return null;
+
+        case 'salutation':
+            return $this->greetingResponse();
+
+        case 'inconnu':
+        default:
+            return null;
+    }
+
+    return null;
+}
 
     /*
     |--------------------------------------------------------------------------
@@ -2696,16 +2944,6 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             return $this->translateResponse($response, $lang);
         }
 
-        if (mb_stripos($lower, 'prix') !== false || mb_stripos($lower, 'chhal') !== false) {
-            $response = "📊 **Prix GreenLand :**\n\n" .
-               // "💰 Prix au m² : **14 000 à 16 500 DH/m²**\n\n" : **1 162 000 à 2 029 500 DH**. : **1 358 000 à 2 145 000 DH**
-                " **Typologies :**\n" .
-                "   • F3 (83 à 123 m²) \n" .
-                "   • F4 (97 à 130 m²) \n\n" .
-                "📌 Prix indicatifs selon étage, vue et orientation.";
-            return $this->translateResponse($response, $lang);
-        }
-
         if (preg_match('/^(salam|salam alaykom|bonjour|bonsoir|salut|hello|slm)\b/iu', $lower)) {
             return $this->greetingResponse();
         }
@@ -2738,7 +2976,28 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 Tu es le conseiller virtuel officiel de Greenland.
 
 Tu représentes uniquement le projet GreenLand.
+============================================================
+🚨 FORMAT DES TYPOLOGIES - OBLIGATOIRE
+============================================================
 
+TOUJOURS présenter les typologies avec ce format EXACT :
+
+📐 **Typologies GreenLand :**
+
+📐 **F3 :**
+   • 2 chambres + salon + 2 salles de bains
+   • 83 à 123 m²
+
+
+📐 **F4 :**
+   • 3 chambres + salon + 2 salles de bains
+   • 97 à 130 m²
+
+⚠️ **NE JAMAIS** utiliser ce format :
+- "F3 (2 chambres + salon + 2 sdb, 83-123 m²)"
+- "F3 avec un prix variant de..."
+
+✅ **TOUJOURS** utiliser le format avec des puces (•)
 ============================================================
 RÈGLE ABSOLUE — LE STATE PHP EST PRIORITAIRE
 ============================================================
@@ -2996,10 +3255,11 @@ private function isMeaninglessMessage(string $message): bool
     }
 
     // ✅ Si le message contient seulement des lettres aléatoires sans sens
-    if (preg_match('/^[a-zA-Z]{1,15}$/', $message) &&
-        !preg_match('/^(bonjour|salam|salut|hello|ok|oui|non|yes|no|merci|svp|stp|ah|wa|la|f3|f4|adresse|localisation|prix|equipement|description|contact|horaire|surface|typologie|visite|nchri|bghit|brit|appartement)$/i', $message)) {
+     if (preg_match('/^[a-zA-Z]{1,15}$/', $message) &&
+        !preg_match('/^(bonjour|salam|salut|hello|ok|oui|non|yes|no|merci|svp|stp|ah|wa|la|f3|f4|adresse|localisation|prix|equipement|description|contact|horaire|surface|typologie|visite|nchri|bghit|brit|appartement|livraison|mars|delai|quand|etat|construction|avancement|horaires|ouverture|fermeture|commercial|telephone|numero|appel)$/i', $message)) {
         return true;
     }
+
 
     // ✅ Si le message contient des lettres répétées sans sens (ex: aaaaa, bbbbb)
     if (preg_match('/^([a-zA-Z])\1{2,}$/', $message)) {
@@ -3085,34 +3345,60 @@ private function isMeaninglessMessage(string $message): bool
     // 🔍 VÉRIFIER SI LE MESSAGE EST VIDE OU SANS SENS  ← AJOUTER ICI
     // ════════════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════════════
-// 🔍 VÉRIFIER SI LE MESSAGE EST VIDE OU SANS SENS
-// ════════════════════════════════════════════════════════════════
-if ($this->isMeaninglessMessage($message)) {
-    $lang = $this->detectLanguage($message);
+    // 🔍 VÉRIFIER SI LE MESSAGE EST VIDE OU SANS SENS
+    // ════════════════════════════════════════════════════════════════
+    if ($this->isMeaninglessMessage($message)) {
+        $lang = $this->detectLanguage($message);
 
-    if ($lang === 'fr') {
-        $response = "Je n'ai pas bien compris votre message 😊\n\n" .
-                    "Pourriez-vous reformuler votre demande ?\n" .
-                    "Exemples :\n" .
-                    "   • F3 ou F4 ?\n" .
-                    "   • Prix ?\n" .
-                    "   • Localisation ?\n" .
-                    "   • Je veux acheter un appartement";
-    } else {
-        $response = "Ma fhemtch mzyan had l'message dialek 😊\n\n" .
-                    "Wach t9der t3tini message wa7ed akhor ?\n" .
-                    "Mthal :\n" .
-                    "   • F3 wla F4 ?\n" .
-                    "   • Prix ?\n" .
-                    "   • Localisation ?\n" .
-                    "   • Bghit nchri appartement";
+        if ($lang === 'fr') {
+            $response = "Je n'ai pas bien compris votre message 😊\n\n" .
+                        "Pourriez-vous reformuler votre demande ?\n" .
+                        "Exemples :\n" .
+                        "   • F3 ou F4 ?\n" .
+                        "   • Prix ?\n" .
+                        "   • Localisation ?\n" .
+                        "   • Je veux acheter un appartement";
+        } else {
+            $response = "Ma fhemtch mzyan had l'message dialek 😊\n\n" .
+                        "Wach t9der t3tini message wa7ed akhor ?\n" .
+                        "Mthal :\n" .
+                        "   • F3 wla F4 ?\n" .
+                        "   • Prix ?\n" .
+                        "   • Localisation ?\n" .
+                        "   • Bghit nchri appartement";
+        }
+
+        $this->conversationState['last_bot_message'] = $response;
+        $this->buildPendingContact();
+        return $this->response($response);
     }
 
-    $this->conversationState['last_bot_message'] = $response;
-    $this->buildPendingContact();
-    return $this->response($response);
-}
+     // ════════════════════════════════════════════════════════════════
+    // 🧠 UTILISER L'IA POUR COMPRENDRE LE SENS DU MESSAGE  ← AJOUTER ICI
+    // ════════════════════════════════════════════════════════════════
 
+    // Si le message n'a pas été reconnu par les règles précédentes
+    // on utilise l'IA pour comprendre le sens
+    $intentResult = $this->understandWithAI($message);
+     // Si l'IA a détecté une intention avec une bonne confiance
+    if (isset($intentResult['intent']) && $intentResult['intent'] !== 'inconnu' && $intentResult['confidence'] > 0.6) {
+
+        // Si l'IA a fourni une réponse directe
+        if (!empty($intentResult['response'])) {
+            $response = $intentResult['response'];
+            $this->conversationState['last_bot_message'] = $response;
+            $this->buildPendingContact();
+            return $this->response($response);
+        }
+
+        // Sinon, générer la réponse selon l'intention
+        $response = $this->generateResponseFromIntent($intentResult);
+        if ($response !== null) {
+            $this->conversationState['last_bot_message'] = $response;
+            $this->buildPendingContact();
+            return $this->response($response);
+        }
+    }
     // ════════════════════════════════════════════════════════════════
     // 📊 VÉRIFIER SI L'UTILISATEUR POSE UNE QUESTION
     // ════════════════════════════════════════════════════════════════
