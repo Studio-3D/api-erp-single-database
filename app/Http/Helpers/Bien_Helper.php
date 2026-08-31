@@ -228,18 +228,18 @@ class Bien_Helper
             }
         }
 
-        if (array_key_exists("Typologie", $row) && $row['Typologie'] != null) {
+        if (array_key_exists("Disposition", $row) && $row['Disposition'] != null) {
             $type = Typologie::on('temp')->where('projet_id', $projet_id)->get();
             $typeFound = false;
             foreach ($type as $key => $value) {
-                if ($value->id == intval($row['Typologie'])) {
+                if ($value->id == intval($row['Disposition'])) {
                     $bien->typologie_id = $value->id;
                     $typeFound = true;
                     break;
                 }
             }
             if (!$typeFound) {
-                throw new \Exception("Typologie invalide ou non trouvé");
+                throw new \Exception("Disposition invalide ou non trouvé");
             }
         }
 
@@ -737,18 +737,18 @@ class Bien_Helper
                 throw new \Exception("Type de bien invalide ou non trouvé");
             }
         }
-            if (array_key_exists("Typologie", $row) && $row['Typologie'] != null) {
+            if (array_key_exists("Disposition", $row) && $row['Disposition'] != null) {
             $type      = Typologie::on('temp')->where('projet_id', $projet_id)->get();
             $typeFound = false;
             foreach ($type as $key => $value) {
-                if ($value->id == intval($row['Typologie'])) {
+                if ($value->id == intval($row['Disposition'])) {
                     $bien->typologie_id = $value->id;
                     $typeFound     = true;
                     break;
                 }
             }
             if (!$typeFound) {
-                throw new \Exception("Typologie invalide ou non trouvé");
+                throw new \Exception("Disposition invalide ou non trouvé");
             }
         }
         if (array_key_exists("Vue", $row) && $row['Vue'] != null) {
