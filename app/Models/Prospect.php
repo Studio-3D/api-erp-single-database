@@ -16,6 +16,7 @@ class Prospect extends Model
     protected $table='prospects';
     protected $dates=['deleted_at'];
     protected $with=['source','partenaire','affecte_par_admin','traite_par_user','commercial_affecte'];
+    protected $appends = ['visites_count', 'appels_count'];
 
     protected $fillable = [
         'cin', 'nom', 'prenom', 'telephone', 'telephone_num2', 'email',
@@ -74,6 +75,7 @@ class Prospect extends Model
         return $this->belongsTo(User::class, 'commercial_affecte');
     }
 
+
     public function affecte_par_admin()
     {
         return $this->belongsTo(User::class, 'affecte_par_admin_id');
@@ -83,4 +85,15 @@ class Prospect extends Model
     {
         return $this->belongsTo(User::class, 'traite_par_user_id');
     }
+    // Ajouter ces accesseurs
+
+public function getVisitesCountAttribute()
+{
+    return $this->visites()->count();
+}
+
+public function getAppelsCountAttribute()
+{
+    return $this->appels()->count(); // ou all_appels() selon votre relation
+}
 }

@@ -381,7 +381,7 @@ public function indexByProjet(Request $request, $projet_id)
             }
         ])->withCount([
             'visites',
-            'appels'
+            'all_appels as appels_count'
         ])->where('projet_id', $projet_id);
 
         // Filtrer par commercial affecté
