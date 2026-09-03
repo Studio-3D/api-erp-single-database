@@ -48,7 +48,8 @@ return new class extends Migration
         $table->bigInteger('numero_paiement')->nullable();
         $table->enum('mode_paiement',[ModePaiement::Espèce->value,ModePaiement::Chèque->value,ModePaiement::Chèque_Banque->value,ModePaiement::Chèque_Certifié->value,ModePaiement::Virement->value,ModePaiement::Versement->value])->nullable()->comment('1=>espece 2=>cheque 3=>cheque banque 4=>cheque certifie 5=>virement 6=>versement 7=>transfert dossier');
         $table->date('echeance')->nullable();
-
+        $table->string('num_compte')->nullable();
+        $table->string('intitule_compte')->nullable();
         $table->boolean('archive')->default(0)->comment('si desistement rejete apres re create desistement on fait archive=1');
         $table->integer('penalite_id')->nullable();
         $table->String('commentaire')->nullable();

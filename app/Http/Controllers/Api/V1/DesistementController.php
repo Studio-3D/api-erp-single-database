@@ -155,6 +155,8 @@ private function handleReimbursement($request, $desistement, $reservation, $user
                                                     $remboursement->mode_rembourse_client = !empty($cl_remb['mode_rembourse']) ? $cl_remb['mode_rembourse'] : null;
                                                     $remboursement->pour_le_compte = !empty($cl_remb['pour_le_compte']) ? $cl_remb['pour_le_compte'] : null;
                                                     $remboursement->num_paiement = !empty($cl_remb['num_paiement']) ? $cl_remb['num_paiement'] : null;
+                                                    $remboursement->num_compte = !empty($cl_remb['num_compte']) ? $cl_remb['num_compte'] : null; // ADD THIS
+                                                    $remboursement->intitule_compte = !empty($cl_remb['intitule_compte']) ? $cl_remb['intitule_compte'] : null; // ADD THIS
                                                     $remboursement->montant_transfert = !empty($cl_remb['montant_transferer']) ? $cl_remb['montant_transferer'] : null;
 
                                             $remboursement->montant_a_rembourser = $mont_a_rembourser;
@@ -178,6 +180,8 @@ private function handleReimbursement($request, $desistement, $reservation, $user
                                             $remboursement->mode_rembourse_client = $cl_remb['mode_rembourse'];
                                             $remboursement->pour_le_compte = $cl_remb['pour_le_compte'];
                                             $remboursement->num_paiement = $cl_remb['num_paiement'];
+                                            $remboursement->num_compte = $cl_remb['num_compte'] ?? null; // ADD THIS
+                                             $remboursement->intitule_compte = $cl_remb['intitule_compte'] ?? null; // A
                                             $remboursement->statut = 1;
                                             $remboursement->user_id_valider =  $userAuth->id;
                                             $remboursement->etat = 1;
@@ -341,6 +345,8 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                         'montant' => $montant,
                         'mode_paiement' => ModePaiement::transfert_dossier->value,
                         'numero_paiement' => null,
+                        'num_compte' => $cl_remb['num_compte'] ?? null, // ADD THIS
+                        'intitule_compte' => $cl_remb['intitule_compte'] ?? null, // ADD THIS
                         'date_reglement' => Carbon::now(),
                         'echeance' => null,
                         'banque_id' => null,
@@ -429,12 +435,17 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                             if ($request->mode_paiement == 2 || $request->mode_paiement == 3 || $request->mode_paiement == 4) {
                                 $desistement->numero_paiement = $request->numero_paiement;
                                 $desistement->banque_id = $request->banque_id;
-                                $desistement->echeance = $request->echeance;
+                                 $desistement->num_compte = $request->num_compte ?? null; // ADD THIS
+                               $desistement->intitule_compte = $request->intitule_compte ?? null; // ADD T
+                                $desistement->echeance = !empty($request->echeance) ? $request->echeance : null;
                             }
                             //virement versement
                             elseif ($request->mode_paiement == 5 || $request->mode_paiement == 6) {
                                 $desistement->numero_paiement = $request->numero_paiement;
                                 $desistement->banque_id = $request->banque_id;
+                                $desistement->num_compte = $request->num_compte ?? null; // ADD THIS
+                                $desistement->intitule_compte = $request->intitule_compte ?? null; // ADD THIS
+                                $desistement->echeance = null;
                             }
                         }
                     }else{
@@ -726,13 +737,19 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                     //cheque cheque-banque cheque cetifice
                     if ($request->mode_paiement_pen == 2 || $request->mode_paiement_pen == 3 || $request->mode_paiement_pen == 4) {
                         $pen->numero_paiement = $request->numero_paiement_pen;
+                         $pen->num_compte = $request->num_compte_pen ?? null; // ADD THIS
+                         $pen->intitule_compte = $request->intitule_compte_pen ?? null; // ADD THIS
                         $pen->banque_id = $request->banque_id_pen;
-                        $pen->echeance = $request->echeance_pen;
+                        $pen->echeance = !empty($request->echeance_pen) ? $request->echeance_pen : null;
                     }
                     //virement versement
                     elseif ($request->mode_paiement_pen == 5 || $request->mode_paiement_pen == 6) {
                         $pen->numero_paiement = $request->numero_paiement_pen;
                         $pen->banque_id = $request->banque_id_pen;
+                         $pen->num_compte = $request->num_compte_pen ?? null; // ADD THIS
+                         $pen->intitule_compte = $request->intitule_compte_pen ?? null; // ADD THIS
+
+                        $pen->echeance = null;
                     }
                     //les pices jointes des penalité a jouter
 

@@ -91,13 +91,13 @@ class StoreDesistementRequest extends FormRequest
             // mode_paiement cheque/cheque_banque/cheque_certifie/
             if ($request->mode_paiement_pen == 2 || $request->mode_paiement_pen == 3 || $request->mode_paiement_pen == 4) {
                 $rules['banque_id_pen'] = 'required';
-                $rules['numero_paiement_pen'] = 'required';
+                //$rules['numero_paiement_pen'] = 'required';
                 $rules['echeance_pen'] = 'required';
             }
             // virement versement
             elseif ($request->mode_paiement_pen == 5 || $request->mode_paiement_pen == 6) {
                 $rules['banque_id_pen'] = 'required';
-                $rules['numero_paiement_pen'] = 'required';
+              //  $rules['numero_paiement_pen'] = 'required';
             }
         }
 

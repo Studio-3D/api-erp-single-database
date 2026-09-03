@@ -30,6 +30,8 @@ return new class extends Migration
             $table->date('date_rembourse')->nullable();
             $table->string('mode_rembourse_client')->nullable()->comment('cheque/virement');
             $table->bigInteger('num_paiement')->nullable();
+            $table->string('num_compte')->nullable();
+            $table->string('intitule_compte')->nullable();
             $table->string('pour_le_compte')->nullable();
             $table->string('fichier_autorisation')->nullable();
             $table->string('nom_autorisation')->nullable();

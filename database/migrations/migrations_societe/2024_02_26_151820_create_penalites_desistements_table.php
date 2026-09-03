@@ -24,6 +24,8 @@ return new class extends Migration
         $table->boolean('sr')->default(0);
         $table->foreignId('banque_id')->nullable()->constrained('banques')->onDelete('cascade');
         $table->bigInteger('numero_paiement')->nullable();
+        $table->string('num_compte')->nullable()->after('banque_id');
+        $table->string('intitule_compte')->nullable()->after('num_compte');
         $table->enum('mode_paiement',[ModePaiement::Espèce->value,ModePaiement::Chèque->value,ModePaiement::Chèque_Banque->value,ModePaiement::Chèque_Certifié->value,ModePaiement::Virement->value,ModePaiement::Versement->value])->nullable()->comment('1=>espece 2=>cheque 3=>cheque banque 4=>cheque certifie 5=>virement 6=>versement 7=>transfert dossier');
         $table->date('echeance')->nullable();
         $table->string('num_remise')->nullable();
