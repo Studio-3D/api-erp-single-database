@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\WhatsApp;
 use App\Http\Helpers\RoleHelper;
+use App\Models\Conversation; // 🔥 AJOUTER CETTE LIGNE
+
 use App\Services\AgentFinalService; // 🔥 AJOUTER CETTE LIGNE
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
@@ -21,6 +23,7 @@ use App\Enum\TypeNotificationEnum;
 use App\Enum\RoleEnum;
 use Carbon\Carbon;
 use App\Models\StatutProspect;
+use App\Models\Prospect;
 
 use Illuminate\Support\Facades\Config;
 use App\Events\NewWhatsAppMessageEvent;  // AJOUTER CETTE LIGNE
@@ -31,31 +34,93 @@ use App\Models\Societe;
 
 class WhatsAppBusinessController extends Controller
 {
-     private function processWithAgent($message, $from, $sessionId)
-    {
-        try {
-            Log::info("🤖 Agent virtuel: Traitement du message de {$from}", [
-                'message' => $message,
-                'session_id' => $sessionId
-            ]);
+     /**
+ * 🔥 TRAITER LE MESSAGE AVEC L'AGENT VIRTUEL
+ */
 
-            // 🔥 Créer une instance de l'agent
+
+    /**
+     * 🔥 METTRE À JOUR LA CONVERSATION EN BASE DE DONNÉES
+     */
+
+
+    /**
+     * 🔥 TRAITER LE MESSAGE AVEC L'AGENT VIRTUEL ET SAUVEGARDER L'HISTORIQUE
+     */
+   /**
+ * 🔥 TRAITER LE MESSAGE AVEC L'AGENT VIRTUEL
+ */
+private function processWithAgent($message, $from, $sessionId, $projetId = 1)
+{
+    try {
+        Log::info("🤖 Agent virtuel: Traitement du message de {$from}", [
+            'message' => $message,
+            'session_id' => $sessionId
+        ]);
+
+        // 🔥 UTILISER LA MÊME MÉTHODE QUE DANS AgentController
+        // Conversation::getOrCreate() est une méthode statique du modèle
+        $conversation = Conversation::getOrCreate($sessionId, [
+            'user_ip' => 'whatsapp',
+            'user_agent' => 'WhatsApp Business',
+        ]);
+
+        if (!$conversation) {
+            // Fallback: créer l'agent sans historique
             $agent = new AgentFinalService();
-
-            // 🔥 Traiter le message
             $response = $agent->processMessage($message, $sessionId);
-
-            Log::info("🤖 Agent virtuel: Réponse générée", [
-                'response' => $response
-            ]);
-
             return $response;
-
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur agent virtuel: " . $e->getMessage());
-            return "Je suis désolé, une erreur s'est produite. Veuillez réessayer plus tard. 😊";
         }
+
+        // 🔥 Récupérer l'état et l'historique
+        $state = $conversation->state ?? [];
+        $history = $conversation->history ?? [];
+
+        // 🔥 Créer l'agent avec l'état sauvegardé
+        $agent = new AgentFinalService($state);
+
+        // 🔥 Appeler reply avec l'historique
+        $result = $agent->reply($message, $history);
+
+        // 🔥 Récupérer la réponse
+        $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
+
+        // 🔥 Récupérer le nouvel état
+        $newState = $result['state'] ?? $agent->getConversationState();
+
+        // 🔥 Mettre à jour l'historique
+        $history[] = [
+            'role' => 'user',
+            'content' => $message,
+            'timestamp' => now()->toDateTimeString()
+        ];
+
+        $history[] = [
+            'role' => 'assistant',
+            'content' => $response,
+            'timestamp' => now()->toDateTimeString()
+        ];
+
+        // 🔥 Sauvegarder en base de données (comme dans AgentController)
+        $conversation->updateConversation($newState, $history);
+
+        Log::info("🤖 Agent virtuel: Réponse générée et sauvegardée", [
+            'response' => $response,
+            'history_count' => count($history)
+        ]);
+
+        return $response;
+
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur agent virtuel: " . $e->getMessage(), [
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        // Fallback: répondre sans historique
+        $agent = new AgentFinalService();
+        return $agent->processMessage($message, $sessionId);
     }
+}
      /**
      * 🔥 VÉRIFIER SI LE NUMÉRO EXISTE DÉJÀ DANS WHATSAPP_MESSAGES
      */
@@ -200,6 +265,254 @@ public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
      * 🔥 VERSION MODIFIÉE DU WEBHOOK AVEC AGENT VIRTUEL
      * (Remplacer la fonction existante par celle-ci)
      */
+    /**
+ * 🔥 AUTO-AFFECTATION D'UN PROSPECT À UN COMMERCIAL
+ * Logique circulaire basée sur last_affected
+ *
+ * @param int $prospectId ID du prospect à affecter
+ * @param int $projetId ID du projet
+ * @return int|false ID du commercial affecté ou false si échec
+ */
+/**
+ * 🔥 AUTO-AFFECTATION D'UN PROSPECT À UN COMMERCIAL
+ * Logique circulaire basée sur last_affected
+ *
+ * @param int $prospectId ID du prospect à affecter
+ * @param int $projetId ID du projet
+ * @return int|false ID du commercial affecté ou false si échec
+ */
+private function autoAssignSingleProspect($prospectId, $projetId)
+{
+    try {
+        Log::info('🔄 Début de l\'auto-affectation pour le prospect', [
+            'prospect_id' => $prospectId,
+            'projet_id' => $projetId
+        ]);
+
+        // ✅ La connexion temp est déjà configurée dans le webhook
+        // On n'appelle PAS DatabaseHelper::Config() ici
+
+        // Get prospect
+        $prospect = Prospect::on('temp')->find($prospectId);
+        if (!$prospect) {
+            Log::error('❌ Prospect non trouvé pour l\'auto-affectation', ['prospect_id' => $prospectId]);
+            return false;
+        }
+
+        // ✅ Vérifier si le prospect a déjà un commercial affecté
+        if (!empty($prospect->commercial_affecte)) {
+            Log::info('ℹ️ Prospect déjà affecté', [
+                'prospect_id' => $prospectId,
+                'commercial_id' => $prospect->commercial_affecte
+            ]);
+            return $prospect->commercial_affecte;
+        }
+
+        // Get all active commercials (role = 3) for this project
+        $commercials = User::on('temp')
+            ->where(function($query) use ($projetId) {
+                $query->whereHas('projets', function($q) use ($projetId) {
+                    $q->where('projet_id', $projetId);
+                });
+            })
+            ->where('role', 3) // ROLE_COMMERCIAL
+            ->where('is_actif', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($commercials->isEmpty()) {
+            Log::warning('⚠️ Aucun commercial actif trouvé', ['projet_id' => $projetId]);
+            return false;
+        }
+
+        // ============================================
+        // ✅ LOGIQUE CIRCULAIRE basée sur last_affected
+        // ============================================
+
+        // If only one commercial, assign to them
+        if ($commercials->count() === 1) {
+            $targetCommercial = $commercials->first();
+            Log::info('✅ Un seul commercial trouvé', [
+                'commercial_id' => $targetCommercial->id,
+                'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
+            ]);
+        } else {
+            // ✅ CHECK: Are all commercials have last_affected = 1?
+            $allHaveLastAffected = true;
+            foreach ($commercials as $commercial) {
+                if ($commercial->last_affected == 0) {
+                    $allHaveLastAffected = false;
+                    break;
+                }
+            }
+
+            // ✅ If all have last_affected = 1, reset ALL to 0
+            if ($allHaveLastAffected) {
+                Log::info('🔄 Tous les commerciaux ont last_affected = 1, reset de tous à 0');
+                User::on('temp')
+                    ->where('role', 3)
+                    ->where('is_actif', 1)
+                    ->whereNull('deleted_at')
+                    ->update(['last_affected' => 0]);
+
+                // Refresh the collection
+                $commercials = User::on('temp')
+                    ->where(function($query) use ($projetId) {
+                        $query->whereHas('projets', function($q) use ($projetId) {
+                            $q->where('projet_id', $projetId);
+                        });
+                    })
+                    ->where('role', 3)
+                    ->where('is_actif', 1)
+                    ->whereNull('deleted_at')
+                    ->orderBy('id')
+                    ->get();
+
+                Log::info('✅ Tous les commerciaux réinitialisés à last_affected = 0');
+            }
+
+            // ✅ Step 1: Find commercial with last_affected = 0
+            $targetCommercial = null;
+
+            foreach ($commercials as $commercial) {
+                if ($commercial->last_affected == 0) {
+                    $targetCommercial = $commercial;
+                    Log::info('✅ Commercial trouvé avec last_affected = 0', [
+                        'commercial_id' => $commercial->id,
+                        'name' => $commercial->name . ' ' . $commercial->prenom
+                    ]);
+                    break;
+                }
+            }
+
+            // ✅ Step 2: If all have last_affected = 1, take the first one
+            if (!$targetCommercial) {
+                $targetCommercial = $commercials->first();
+                Log::info('🔄 Tous les commerciaux ont last_affected = 1, prise du premier', [
+                    'commercial_id' => $targetCommercial->id,
+                    'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
+                ]);
+            }
+        }
+
+        // Get system user (Admin)
+        $systemUser = User::on('temp')
+            ->where('role', 1) // ROLE_ADMIN
+            ->whereNull('deleted_at')
+            ->first();
+
+        // ✅ Start transaction
+        DB::connection('temp')->beginTransaction();
+
+        try {
+            $newCommercialId = $targetCommercial->id;
+
+            // ✅ 1. Update prospect assignment
+            $prospect->commercial_affecte = $newCommercialId;
+            if ($systemUser) {
+                $prospect->affecte_par_admin_id = $systemUser->id;
+            }
+            $prospect->date_affectation = Carbon::now();
+            $prospect->save();
+
+            Log::info('✅ Prospect mis à jour avec le commercial', [
+                'prospect_id' => $prospectId,
+                'commercial_id' => $newCommercialId
+            ]);
+
+            // ✅ 2. Create "Affecte" status for the prospect
+            $statutProspect = new StatutProspect();
+            $statutProspect->setConnection('temp');
+            $statutProspect->prospect_id = $prospectId;
+            $statutProspect->statut = '6'; // Affecté
+            $statutProspect->date_traitement = Carbon::now();
+            $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
+            $statutProspect->commentaire = 'Prospect affecté automatiquement après création via WhatsApp';
+            $statutProspect->type_traitement_rdv_relance = 0;
+            $statutProspect->created_at = now();
+            $statutProspect->updated_at = now();
+            $statutProspect->save();
+
+            Log::info('✅ Statut "Affecté" créé', [
+                'prospect_id' => $prospectId,
+                'statut_id' => $statutProspect->id
+            ]);
+
+            // ✅ 3. Update nb_prospects counter
+            $commercialUser = $targetCommercial;
+            $oldCount = $commercialUser->nb_prospects ?? 0;
+            $commercialUser->nb_prospects = $oldCount + 1;
+
+            // ✅ 4. Set last_affected = 1 for the selected commercial
+            $commercialUser->last_affected = 1;
+            $commercialUser->save();
+
+            Log::info('✅ Compteurs du commercial mis à jour', [
+                'commercial_id' => $newCommercialId,
+                'old_count' => $oldCount,
+                'new_count' => $oldCount + 1,
+                'last_affected' => 1
+            ]);
+
+            // ✅ 5. Reset last_affected = 0 for all other commercials
+            User::on('temp')
+                ->where('id', '!=', $newCommercialId)
+                ->where('role', 3)
+                ->where('is_actif', 1)
+                ->whereNull('deleted_at')
+                ->update(['last_affected' => 0]);
+
+            Log::info('✅ Reset last_affected = 0 pour les autres commerciaux');
+
+            // ✅ 6. COMMIT transaction
+            DB::connection('temp')->commit();
+
+            Log::info('✅ Transaction validée avec succès');
+
+            // ✅ 7. Send notification (OUTSIDE transaction)
+            $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
+
+            // ✅ 8. Verify data was saved
+            $verifyProspect = Prospect::on('temp')->find($prospectId);
+            $verifyStatus = StatutProspect::on('temp')
+                ->where('prospect_id', $prospectId)
+                ->orderBy('id', 'desc')
+                ->first();
+            $verifyUser = User::on('temp')
+                ->where('id', $newCommercialId)
+                ->whereNull('deleted_at')
+                ->first();
+
+            Log::info('🔍 Vérification après commit', [
+                'prospect_commercial_id' => $verifyProspect ? $verifyProspect->commercial_affecte : null,
+                'status_id' => $verifyStatus ? $verifyStatus->id : null,
+                'status_statut' => $verifyStatus ? $verifyStatus->statut : null,
+                'user_nb_prospects' => $verifyUser ? $verifyUser->nb_prospects : null,
+                'user_last_affected' => $verifyUser ? $verifyUser->last_affected : null
+            ]);
+
+            Log::info('✅ Auto-affectation terminée avec succès', [
+                'prospect_id' => $prospectId,
+                'commercial_id' => $newCommercialId,
+                'commercial_name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
+            ]);
+
+            return $newCommercialId;
+
+        } catch (\Exception $e) {
+            DB::connection('temp')->rollBack();
+            Log::error('❌ Transaction d\'auto-affectation échouée: ' . $e->getMessage());
+            Log::error('Trace: ' . $e->getTraceAsString());
+            return false;
+        }
+
+    } catch (\Exception $e) {
+        Log::error('❌ Auto-affectation échouée: ' . $e->getMessage());
+        Log::error('Trace: ' . $e->getTraceAsString());
+        return false;
+    }
+}
  public function webhook_whatsapp_business(Request $request)
     {
         try {
@@ -305,10 +618,17 @@ public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
 
             $prospectId = null;
             $isNewProspect = false;
+            $assignedCommercialId = null;
 
             if ($prospect) {
                 $prospectId = $prospect->id;
                 Log::info("📞 Prospect existant trouvé: {$from} (ID: {$prospectId})");
+
+                // ✅ Récupérer le commercial déjà affecté si existant
+                if (!empty($prospect->commercial_affecte)) {
+                    $assignedCommercialId = $prospect->commercial_affecte;
+                    Log::info("✅ Prospect déjà affecté au commercial ID: {$assignedCommercialId}");
+                }
             } else {
                 // Création d'un nouveau prospect
                 $sourceId = null;
@@ -352,6 +672,29 @@ public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
                 $statutProspect->save();
                 Log::info("✅ Nouveau prospect créé: {$from} (ID: {$prospectId})");
             }
+            Log::info('🔄 Début de l\'auto-affectation pour le nouveau prospect', [
+                'prospect_id' => $prospectId,
+                'projet_id' => $foundConfig->projet_id
+            ]);
+
+            if ($isNewProspect) {
+
+                $assignedCommercialId = $this->autoAssignSingleProspect($prospectId, $foundConfig->projet_id);
+
+                if ($assignedCommercialId) {
+                    Log::info('✅ Prospect affecté automatiquement', [
+                        'prospect_id' => $prospectId,
+                        'commercial_id' => $assignedCommercialId
+                    ]);
+                    // 🔥 NOTIFICATION 1: Envoyer au commercial affecté UNIQUEMENT
+                $this->sendAffectationNotification($assignedCommercialId, $prospectId, $foundConfig->projet_id);
+                } else {
+                    Log::warning('⚠️ Aucun commercial disponible pour l\'affectation', [
+                        'prospect_id' => $prospectId
+                    ]);
+                }
+            }
+
 
             // ========== TÉLÉCHARGER ET STOCKER LE MÉDIA ==========
             $localMediaUrl = null;
@@ -402,39 +745,9 @@ public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
                 // Vérifier si c'est une conversation existante
                 $isExisting = $this->isExistingConversation($foundConfig->projet_id, $from);
 
-                // Liste des mots-clés pour déclencher l'agent
-                $triggerKeywords = [
-                    'bonjour', 'salut', 'salam', 'slm', 'hello', 'hi',
-                    'prix', 'taman', 'budget', 'appartement', 'projet',
-                    'visite', 'disponible', 'f3', 'f4', 'greenland',
-                    'casa', 'casablanca', 'contact', 'numéro', 'info',
-                    'bien', 'achat', 'location', 'vendre', 'investir',
-                    'bghit', 'nchri', 'nzour', 'baghi', 'tbaghi',
-                    'مرحبا', 'سلام', 'شحال', 'ثمن', 'شقة', 'مشروع'
-                ];
-
-                $msgLower = strtolower($body);
-                $shouldReplyWithAgent = false;
-
-                // Vérifier les mots-clés
-                foreach ($triggerKeywords as $keyword) {
-                    if (strpos($msgLower, $keyword) !== false) {
-                        $shouldReplyWithAgent = true;
-                        break;
-                    }
-                }
-
-                $agentResponse = $this->processWithAgent($body, $from, $sessionId);
-                $this->sendAgentResponse(
-                            $from,
-                            $agentResponse,
-                            $foundConfig,
-                            $foundConfig->projet_id,
-                            $sessionId
-                        );
-                        Log::info("✅ Réponse de l'agent envoyée à {$from}");
-                /* Si c'est un nouveau prospect OU si le message contient des mots-clés
-                if ($isNewProspect || $shouldReplyWithAgent) {
+                $agentResponse = $this->processWithAgent($body, $from, $sessionId,$foundConfig->projet_id);
+                if ($isNewProspect ||$isExisting==false) {
+                    Log::info("🤖 Agent virtuel déclenché pour {$from} - " . ($isNewProspect ? "Nouveau prospect" : "Prospect existant"));
                     Log::info("🤖 Déclenchement de l'agent virtuel pour {$from}");
 
                     // Traiter avec l'agent
@@ -453,7 +766,7 @@ public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
                     }
                 } else {
                     Log::info("⏭️ Pas de déclenchement de l'agent pour {$from} (conversation existante sans mots-clés)");
-                }*/
+                }
             }
 
             // ========== BROADCAST ==========
@@ -465,17 +778,17 @@ public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
                 Log::warning("⚠️ Erreur broadcast Pusher: " . $e->getMessage());
             }
 
-            // ========== WEBOOK EVENT ==========
+            /* ========== WEBOOK EVENT ==========
             $web = new WebhookEvent();
             $web->setConnection('temp');
             $web->platform = 'whatsapp';
             $web->type = 'whatsapp_message';
             $web->data = $request->all();
-            $web->save();
+            $web->save();*/
 
             // ========== NOTIFICATION ==========
             broadcast(new NotificationEvent(0));
-            $this->createWhatsAppNotification($prospectId, $from, $profileName, $body, $foundConfig->projet_id, $isNewProspect);
+            $this->createWhatsAppNotification($prospectId, $from, $profileName, $body, $foundConfig->projet_id, $isNewProspect,$assignedCommercialId);
 
             Log::info("✅ Message WhatsApp traité avec succès: {$messageSid}");
 
@@ -800,11 +1113,72 @@ private function downloadAndStoreMedia($mediaUrl, $config, $from, $messageSid, $
     }
 }
 /**
- * Créer une notification pour les commerciaux
+ * Envoyer une notification d'affectation au commercial
  */
-private function createWhatsAppNotification($prospectId, $phoneNumber, $profileName, $message, $projetId, $isNewProspect = false)
+private function sendAffectationNotification($commercialId, $prospectId, $projetId)
 {
     try {
+        $commercial = User::on('temp')->find($commercialId);
+        $prospect = Prospect::on('temp')->find($prospectId);
+
+        if (!$commercial || !$prospect) {
+            Log::warning('⚠️ Impossible d\'envoyer la notification d\'affectation', [
+                'commercial_id' => $commercialId,
+                'prospect_id' => $prospectId
+            ]);
+            return false;
+        }
+
+        $description = "📋 *NOUVEAU PROSPECT AFFECTÉ*\n\n";
+        $description .= "👤 Prospect: " . ($prospect->nom ?? $prospect->telephone ?? 'Inconnu') . "\n";
+        $description .= "📞 Téléphone: " . ($prospect->telephone ?? 'Non renseigné') . "\n";
+        $description .= "📱 Source: WhatsApp\n";
+        $description .= "🏢 Projet ID: {$projetId}\n\n";
+        $description .= "✅ Affecté automatiquement à: " . $commercial->name . ' ' . $commercial->prenom;
+
+        $link = "/prospects/edit/" . $prospectId;
+
+        $notification = new Notification();
+        $notification->setConnection('temp');
+        $notification->date = now();
+        $notification->type = 52; // Type: Affectation automatique
+        $notification->description_type = $description;
+        $notification->lien = $link;
+        $notification->role = 3; // ADMIN_COMMERCIAL
+        $notification->user_id = $commercialId; // ✅ Notification UNIQUEMENT pour le commercial affecté
+        $notification->projet_id = $projetId;
+        $notification->prospect_id = $prospectId;
+        $notification->save();
+
+        Config::set('broadcasting.default', 'pusher_notify');
+        broadcast(new NotificationEvent($notification->id));
+
+        Log::info('✅ Notification d\'affectation envoyée au commercial', [
+            'commercial_id' => $commercialId,
+            'notification_id' => $notification->id,
+            'prospect_id' => $prospectId
+        ]);
+
+        return $notification;
+
+    } catch (\Exception $e) {
+        Log::error('❌ Erreur envoi notification affectation: ' . $e->getMessage());
+        return false;
+    }
+}
+/**
+ * Créer une notification pour les commerciaux
+ */
+private function createWhatsAppNotification($prospectId, $phoneNumber, $profileName, $message, $projetId, $isNewProspect = false, $assignedCommercialId = null)
+{
+    try {
+        if (!$assignedCommercialId) {
+            $prospect = Prospect::on('temp')->find($prospectId);
+            if ($prospect && !empty($prospect->commercial_affecte)) {
+                $assignedCommercialId = $prospect->commercial_affecte;
+            }
+        }
+
         if ($isNewProspect) {
             $description = "📱 *NOUVEAU CONTACT WHATSAPP*\n\n";
             $description .= "📞 Numéro: {$phoneNumber}\n";
@@ -814,7 +1188,7 @@ private function createWhatsAppNotification($prospectId, $phoneNumber, $profileN
         } else {
             $description = "💬 *NOUVEAU MESSAGE WHATSAPP*\n\n";
             $description .= "📞 De: {$phoneNumber}\n";
-            $description .= "👤 Client: {$profileName}\n";
+            $description .= "👤 Prospect: {$profileName}\n";
             $description .= "💬 Message: " . (strlen($message) > 100 ? substr($message, 0, 100) . '...' : $message);
             $type = 50;
         }
@@ -826,8 +1200,14 @@ private function createWhatsAppNotification($prospectId, $phoneNumber, $profileN
         $notification->type = $type;
         $notification->description_type = $description;
         $notification->lien = $link;
-       $notification->role = 3; // ADMIN_COMMERCIAL
-       // $notification->user_id = 17; // ADMIN_COMMERCIAL
+        $notification->role = 3; // ADMIN_COMMERCIAL
+        if ($assignedCommercialId) {
+            $notification->user_id = $assignedCommercialId;
+            Log::info("🔔 Notification affectée au commercial ID: {$assignedCommercialId}");
+        } else {
+            $notification->user_id = null;
+            Log::info("🔔 Notification sans affectation spécifique");
+        }
         $notification->projet_id = $projetId;
         $notification->prospect_id = $prospectId;
         $notification->save();

@@ -12,6 +12,7 @@ class AgentFinalService
     | CONFIGURATION
     |--------------------------------------------------------------------------
     */
+    private array $sessionHistory = [];
 
     private ?string $apiKey = null;
 
@@ -904,24 +905,44 @@ private function generateResponseFromIntent(array $intentResult): ?string
     |--------------------------------------------------------------------------
     */
 
-    private function extractPropertyType(string $message): ?string
-    {
-        $message = strtoupper($message);
+  private function extractPropertyType(string $message): ?string
+{
+    $message = strtoupper($message);
 
-        if (preg_match('/\bF4\b/', $message)) {
-            return 'F4';
-        }
-
-        if (preg_match('/\bF3\b/', $message)) {
-            return 'F3';
-        }
-
-        if (preg_match('/\bF[2-9]\b/', $message)) {
-            return 'INVALID';
-        }
-
-        return null;
+    // ✅ Vérifier F3
+    if (preg_match('/\bF3\b/', $message) ||
+        preg_match('/\bF 3\b/', $message) ||
+        preg_match('/\bF-3\b/', $message) ||
+        strpos($message, 'F3') !== false) {
+        return 'F3';
     }
+
+    // ✅ Vérifier F4
+    if (preg_match('/\bF4\b/', $message) ||
+        preg_match('/\bF 4\b/', $message) ||
+        preg_match('/\bF-4\b/', $message) ||
+        strpos($message, 'F4') !== false) {
+        return 'F4';
+    }
+
+    // ✅ Vérifier "3 chambres" -> F3
+    if (strpos($message, '3 CHAMBRES') !== false ||
+        strpos($message, '3 CHAMBRE') !== false) {
+        return 'F4';
+    }
+
+    // ✅ Vérifier "2 chambres" -> F3
+    if (strpos($message, '2 CHAMBRES') !== false ||
+        strpos($message, '2 CHAMBRE') !== false) {
+        return 'F3';
+    }
+
+    if (preg_match('/\bF[2-9]\b/', $message)) {
+        return 'INVALID';
+    }
+
+    return null;
+}
 
 
     /*
@@ -3268,11 +3289,37 @@ private function isMeaninglessMessage(string $message): bool
 
     return false;
 }
+/**
+ * 🔥 RÉPONSE QUAND LE CLIENT CHOISIT UN TYPE F3 OU F4
+ */
+private function getTypeResponse($type, $lang)
+{
+    $projet = $this->data['projet'];
+    $typologies = $projet['typologies'];
+
+    $typeUpper = strtoupper($type);
+    $info = $typologies[$typeUpper] ?? null;
+
+    if ($lang === 'fr') {
+        return "🏠 Parfait ! Le {$typeUpper} est un excellent choix.\n\n" .
+               "📐 **Superficie** : " . ($info['surface'] ?? '83 à 130 m²') . "\n" .
+               "🛏️ **Composition** : " . ($info['composition'] ?? '2 chambres + salon + 2 salles de bains') . "\n" .
+               "📍 **Projet GreenLand - Casablanca**\n\n" .
+               "Souhaitez-vous organiser une visite ? 😊";
+    } else {
+        return "🏠 Mzyan ! {$typeUpper} choix mzyan.\n\n" .
+               "📐 **Superficie** : " . ($info['surface'] ?? '83 à 130 m²') . "\n" .
+               "🛏️ **Composition** : " . ($info['composition'] ?? '2 chambres + salon + 2 salles de bains') . "\n" .
+               "📍 **Projet GreenLand - Casablanca**\n\n" .
+               "Wash tbaghi tzour ? 😊";
+    }
+}
     /*
     |--------------------------------------------------------------------------
     | MAIN REPLY
     |--------------------------------------------------------------------------
     */
+
 
  public function reply(string $message, array $history = []): array
 {
@@ -3297,6 +3344,32 @@ private function isMeaninglessMessage(string $message): bool
 
     $lower = $this->normalize($message);
 
+     // ════════════════════════════════════════════════════════════════
+    // 🔥 PRIORITÉ 1 : DÉTECTION DU TYPE F3/F4 (AVANT TOUT)
+    // ════════════════════════════════════════════════════════════════
+    $type = $this->extractPropertyType($message);
+    if ($type === 'F3' || $type === 'F4') {
+        // ✅ Enregistrer le type
+        $this->conversationState['property_type'] = $type;
+        $this->conversationState['first_message_done'] = true;
+
+        // ✅ Générer la réponse pour le type
+        $response = $this->getTypeResponse(strtolower($type), $this->detectLanguage($message));
+        $this->conversationState['last_bot_message'] = $response;
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+      // ════════════════════════════════════════════════════════════════
+    // 🔍 DÉTECTION HORS PROJET
+    // ════════════════════════════════════════════════════════════════
+    $outOfProject = $this->detectOutOfProject($message);
+    if ($outOfProject !== null) {
+        $response = $this->outOfProjectResponse($outOfProject);
+        $this->conversationState['last_bot_message'] = $response;
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+
     // ════════════════════════════════════════════════════════════════
     // 🚨 PRIORITÉ ABSOLUE: SI C'EST LE PREMIER MESSAGE
     // ════════════════════════════════════════════════════════════════
@@ -3314,16 +3387,7 @@ private function isMeaninglessMessage(string $message): bool
         return $this->response($answer);
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // 🔍 DÉTECTION HORS PROJET
-    // ════════════════════════════════════════════════════════════════
-    $outOfProject = $this->detectOutOfProject($message);
-    if ($outOfProject !== null) {
-        $response = $this->outOfProjectResponse($outOfProject);
-        $this->conversationState['last_bot_message'] = $response;
-        $this->buildPendingContact();
-        return $this->response($response);
-    }
+
 
     // ════════════════════════════════════════════════════════════════
     // 🔍 VÉRIFIER SI C'EST UNE SALUTATION (après le premier message)
@@ -3357,7 +3421,7 @@ private function isMeaninglessMessage(string $message): bool
                         "   • F3 ou F4 ?\n" .
                         "   • Prix ?\n" .
                         "   • Localisation ?\n" .
-                        "   • Je veux acheter un appartement";
+                        "   .....";
         } else {
             $response = "Ma fhemtch mzyan had l'message dialek 😊\n\n" .
                         "Wach t9der t3tini message wa7ed akhor ?\n" .
@@ -3365,7 +3429,7 @@ private function isMeaninglessMessage(string $message): bool
                         "   • F3 wla F4 ?\n" .
                         "   • Prix ?\n" .
                         "   • Localisation ?\n" .
-                        "   • Bghit nchri appartement";
+                        "   .....";
         }
 
         $this->conversationState['last_bot_message'] = $response;
@@ -3825,4 +3889,70 @@ private function isMeaninglessMessage(string $message): bool
     {
         return $this->pendingContact;
     }
+    // Dans AgentFinalService
+   /**
+ * 🔥 RÉCUPÉRER L'HISTORIQUE D'UNE SESSION
+ */
+private function getHistoryForSession(string $sessionId): array
+{
+    return $this->sessionHistory[$sessionId] ?? [];
+}
+
+/**
+ * 🔥 AJOUTER UN MESSAGE À L'HISTORIQUE
+ */
+private function addToSessionHistory(string $sessionId, string $role, string $content): void
+{
+    if (!isset($this->sessionHistory[$sessionId])) {
+        $this->sessionHistory[$sessionId] = [];
+    }
+
+    $this->sessionHistory[$sessionId][] = [
+        'role' => $role,
+        'content' => $content,
+        'timestamp' => now()->toDateTimeString()
+    ];
+
+    // Garder seulement les 30 derniers messages
+    if (count($this->sessionHistory[$sessionId]) > 30) {
+        $this->sessionHistory[$sessionId] = array_slice($this->sessionHistory[$sessionId], -30);
+    }
+}
+
+/**
+ * 🔥 TRAITER UN MESSAGE AVEC HISTORIQUE
+ */
+public function processMessage(string $message, string $sessionId): string
+{
+    try {
+        Log::info('📩 AgentFinalService::processMessage', [
+            'message' => $message,
+            'session_id' => $sessionId
+        ]);
+
+        // 🔥 Récupérer l'historique
+        $history = $this->getHistoryForSession($sessionId);
+
+        // 🔥 Appeler reply AVEC l'historique
+        $result = $this->reply($message, $history);
+
+        // 🔥 Récupérer la réponse
+        $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
+
+        // 🔥 Sauvegarder dans l'historique
+        $this->addToSessionHistory($sessionId, 'user', $message);
+        $this->addToSessionHistory($sessionId, 'assistant', $response);
+
+        Log::info('✅ AgentFinalService::processMessage terminé', [
+            'session_id' => $sessionId,
+            'history_count' => count($this->getHistoryForSession($sessionId))
+        ]);
+
+        return $response;
+
+    } catch (\Exception $e) {
+        Log::error('❌ Erreur processMessage: ' . $e->getMessage());
+        return "Je suis désolé, une erreur s'est produite. Veuillez réessayer plus tard. 😊";
+    }
+}
 }

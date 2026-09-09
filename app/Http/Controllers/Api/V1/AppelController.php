@@ -44,123 +44,265 @@ class AppelController extends Controller
     /**
      * Display a listing of the resource.
      */
- public function indexByProjet(Request $request, $projet_id)
-{
-    if (RoleHelper::ACSup_RC()|| RoleHelper::AgentAdmin()  ) {
-        // Default values for pagination
-        $size = $request->input('size', null);
-        $page = $request->input('page', null);
+    public function exportAppels(Request $request)
+    {
+        if (!Auth::guard('api')->check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         DatabaseHelper::Config();
-        $query = Appel::on('temp')->with([
-            'projet',
-            'prospect.source',
-            'last_traitement_appel'
-        ])->where('projet_id', $projet_id);
 
-        // Filter by CIN
-        if ($request->filled('cin')) {
-            $query->whereHas('prospect', function ($q) use ($request) {
-                $q->where('cin', 'like', '%' . $request->input('cin') . '%');
+        $projetId = $request->input('projet_id');
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
+
+        // Construire la requête de base (comme dans indexByProjet)
+        $query = Appel::on('temp')
+            ->with([
+                'projet',
+                'prospect.source',
+                'last_traitement_appel'
+            ])
+            ->where('projet_id', $projetId);
+
+        // Filtrer par date
+        $query->when($dateStart, function ($q) use ($dateStart) {
+            $start = Carbon::parse($dateStart)->startOfDay();
+            return $q->whereHas('last_traitement_appel', function ($q2) use ($start) {
+                $q2->whereDate('date', '>=', $start);
             });
-        }
+        });
 
-        // Filter by nom
-        if ($request->filled('nom')) {
-            $query->whereHas('prospect', function ($q) use ($request) {
-                $q->where('nom', 'like', '%' . $request->input('nom') . '%');
+        $query->when($dateEnd, function ($q) use ($dateEnd) {
+            $end = Carbon::parse($dateEnd)->endOfDay();
+            return $q->whereHas('last_traitement_appel', function ($q2) use ($end) {
+                $q2->whereDate('date', '<=', $end);
             });
-        }
+        });
 
-        // Filter by prenom
-        if ($request->filled('prenom')) {
-            $query->whereHas('prospect', function ($q) use ($request) {
-                $q->where('prenom', 'like', '%' . $request->input('prenom') . '%');
-            });
-        }
-
-        // Filter by date
-        if ($request->filled('date')) {
-            $date = Carbon::parse($request->input('date'))->format('Y-m-d');
-            $query->whereHas('last_traitement_appel', function ($q) use ($date) {
-                $q->whereDate('date', $date);
-            });
-        }
-
-        // Filter by telephone (either primary or secondary)
-        if ($request->filled('telephone')) {
-            $query->whereHas('prospect', function ($q) use ($request) {
-                $q->where(function ($q) use ($request) {
-                    $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
-                        ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
-                });
-            });
-        }
-
-        // Filter by secondary phone
-        if ($request->filled('telephone_num2')) {
-            $query->whereHas('prospect', function ($q) use ($request) {
-                $q->where('telephone_num2', 'like', '%' . $request->input('telephone_num2') . '%');
-            });
-        }
-
-        // ✅ ADD SOURCE FILTER
-        if ($request->filled('source')) {
-            $sourceValue = $request->input('source');
-            $query->whereHas('prospect', function ($q) use ($sourceValue) {
-                if (is_numeric($sourceValue)) {
-                    $q->where('source', $sourceValue);
-                } else {
-                    $q->whereHas('source', function ($q2) use ($sourceValue) {
-                        $q2->where('source', 'like', '%' . $sourceValue . '%');
-                    });
-                }
-            });
-        }
-
-        // ✅ FIXED: ADD INTEREST FILTER - Use whereHas with proper comparison
-       // In your indexByProjet function, before pagination
- // ✅ FIXED: INTEREST FILTER using subquery
-        if ($request->filled('interet')) {
-            $interetValue = $request->input('interet');
-
-            // Use a subquery to filter by the latest traitement_appel
-            $query->whereIn('id', function($subQuery) use ($interetValue) {
-                $subQuery->select('appel_id')
-                    ->from('traitements_appels as ta1')
-                    ->where('interet', (string) $interetValue)
-                    ->whereRaw('created_at = (
-                        SELECT MAX(created_at)
-                        FROM traitements_appels as ta2
-                        WHERE ta2.appel_id = ta1.appel_id
-                    )');
-            });
-        }
-
-        // Apply pagination if parameters are valid
-        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-            $appels = $query->orderBy('created_at', 'desc')
-                ->paginate($size, ['*'], 'page', $page);
-
-            $pagination = [
-                'currentPage' => $appels->currentPage(),
-                'totalItems' => $appels->total(),
-                'totalPages' => $appels->lastPage(),
-            ];
-
-            return response()->json([
-                'data' => $appels->items(),
-                'pagination' => $pagination,
-            ], 200);
-        }
-
-        // Return all results if no pagination parameters
+        // Récupérer toutes les données (sans pagination)
         $appels = $query->orderBy('created_at', 'desc')->get();
-        return response()->json(['appels' => $appels]);
+
+        // Formater les données pour l'export
+        $formattedData = $appels->map(function ($appel) {
+            return [
+                'id' => $appel->id,
+                'date' => $appel->last_traitement_appel?->date,
+                'nom' => $appel->prospect?->nom ?? '',
+                'prenom' => $appel->prospect?->prenom ?? '',
+                'telephone' => $appel->prospect?->telephone ?? '',
+                'telephone_num2' => $appel->prospect?->telephone_num2 ?? '',
+                'cin' => $appel->prospect?->cin ?? '',
+                'source' => $appel->prospect?->source?->source ?? '',
+                'interet' => $appel->last_traitement_appel?->interet,
+                'date_traitement' => $appel->last_traitement_appel?->date_traitement,
+                'type_appel' => $appel->last_traitement_appel?->type_appel,
+                'prospect_id' => $appel->prospect_id,
+            ];
+        });
+
+        return response()->json([
+            'data' => $formattedData,
+            'total' => $formattedData->count()
+        ], 200);
     }
 
-    return response()->json(['error' => 'Unauthorized'], 401);
-}
+    public function exportJournalAppels(Request $request)
+    {
+        if (!Auth::guard('api')->check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        DatabaseHelper::Config();
+
+        $appelId = $request->input('appel_id');
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
+
+        // Construire la requête de base (comme dans index_traitement_appel)
+        $query = TraitementAppel::on('temp')
+            ->with([
+                'appel' => function($query) {
+                    $query->select('*')
+                        ->with([
+                            'prospect' => function($q) {
+                                $q->select('*')
+                                ->without('affecte_par_admin','commercial_affecte');
+                            }
+                        ])->without('projet');
+                },
+                'frein',
+                'relance',
+                'rdv',
+                'tranche',
+                'bloc',
+                'immeuble',
+                'type_biens',
+                'user:id,name,prenom'
+            ])
+            ->where('appel_id', $appelId);
+
+        // Filtrer par date (plage de dates)
+        $query->when($dateStart, function ($q) use ($dateStart) {
+            $start = Carbon::parse($dateStart)->startOfDay();
+            return $q->whereDate('date', '>=', $start);
+        });
+
+        $query->when($dateEnd, function ($q) use ($dateEnd) {
+            $end = Carbon::parse($dateEnd)->endOfDay();
+            return $q->whereDate('date', '<=', $end);
+        });
+
+        // Appliquer les mêmes filtres que index_traitement_appel
+        // Récupérer toutes les données (sans pagination)
+        $traitements = $query->orderBy('created_at', 'desc')->get();
+
+        // Formater les données pour l'export
+        $formattedData = $traitements->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'date' => $item->date,
+                'nomcc' => $item->user ? ($item->user->name . ' ' . $item->user->prenom) : '',
+                'type_appel' => $item->type_appel,
+                'interet' => $item->interet,
+                'tranche_nom' => $item->tranche?->nom,
+                'bloc_nom' => $item->bloc?->nom,
+                'immeuble_nom' => $item->immeuble?->nom,
+                'type_biens' => $item->type_biens,
+                'orientation' => $item->orientation,
+                'etage' => $item->etage,
+                'rdv' => $item->rdv?->rdv,
+                'date_relance' => $item->relance?->date_relance,
+                'mode_relance' => $item->relance?->mode_relance,
+                'commentaire' => $item->commentaire,
+                'commentaire_rel' => $item->relance?->commentaire,
+                'commentaire_rdv' => $item->rdv?->commentaire,
+                'user_id' => $item->user?->id,
+            ];
+        });
+
+        return response()->json([
+            'data' => $formattedData,
+            'total' => $formattedData->count()
+        ], 200);
+    }
+ public function indexByProjet(Request $request, $projet_id)
+    {
+        if (RoleHelper::ACSup_RC()|| RoleHelper::AgentAdmin()  ) {
+            // Default values for pagination
+            $size = $request->input('size', null);
+            $page = $request->input('page', null);
+
+            DatabaseHelper::Config();
+            $query = Appel::on('temp')->with([
+                'projet',
+                'prospect.source',
+                'last_traitement_appel'
+            ])->where('projet_id', $projet_id);
+
+            // Filter by CIN
+            if ($request->filled('cin')) {
+                $query->whereHas('prospect', function ($q) use ($request) {
+                    $q->where('cin', 'like', '%' . $request->input('cin') . '%');
+                });
+            }
+
+            // Filter by nom
+            if ($request->filled('nom')) {
+                $query->whereHas('prospect', function ($q) use ($request) {
+                    $q->where('nom', 'like', '%' . $request->input('nom') . '%');
+                });
+            }
+
+            // Filter by prenom
+            if ($request->filled('prenom')) {
+                $query->whereHas('prospect', function ($q) use ($request) {
+                    $q->where('prenom', 'like', '%' . $request->input('prenom') . '%');
+                });
+            }
+
+            // Filter by date
+            if ($request->filled('date')) {
+                $date = Carbon::parse($request->input('date'))->format('Y-m-d');
+                $query->whereHas('last_traitement_appel', function ($q) use ($date) {
+                    $q->whereDate('date', $date);
+                });
+            }
+
+            // Filter by telephone (either primary or secondary)
+            if ($request->filled('telephone')) {
+                $query->whereHas('prospect', function ($q) use ($request) {
+                    $q->where(function ($q) use ($request) {
+                        $q->where('telephone', 'like', '%' . $request->input('telephone') . '%')
+                            ->orWhere('telephone_num2', 'like', '%' . $request->input('telephone') . '%');
+                    });
+                });
+            }
+
+            // Filter by secondary phone
+            if ($request->filled('telephone_num2')) {
+                $query->whereHas('prospect', function ($q) use ($request) {
+                    $q->where('telephone_num2', 'like', '%' . $request->input('telephone_num2') . '%');
+                });
+            }
+
+            // ✅ ADD SOURCE FILTER
+            if ($request->filled('source')) {
+                $sourceValue = $request->input('source');
+                $query->whereHas('prospect', function ($q) use ($sourceValue) {
+                    if (is_numeric($sourceValue)) {
+                        $q->where('source', $sourceValue);
+                    } else {
+                        $q->whereHas('source', function ($q2) use ($sourceValue) {
+                            $q2->where('source', 'like', '%' . $sourceValue . '%');
+                        });
+                    }
+                });
+            }
+
+            // ✅ FIXED: ADD INTEREST FILTER - Use whereHas with proper comparison
+        // In your indexByProjet function, before pagination
+     // ✅ FIXED: INTEREST FILTER using subquery
+            if ($request->filled('interet')) {
+                $interetValue = $request->input('interet');
+
+                // Use a subquery to filter by the latest traitement_appel
+                $query->whereIn('id', function($subQuery) use ($interetValue) {
+                    $subQuery->select('appel_id')
+                        ->from('traitements_appels as ta1')
+                        ->where('interet', (string) $interetValue)
+                        ->whereRaw('created_at = (
+                            SELECT MAX(created_at)
+                            FROM traitements_appels as ta2
+                            WHERE ta2.appel_id = ta1.appel_id
+                        )');
+                });
+            }
+
+            // Apply pagination if parameters are valid
+            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+                $appels = $query->orderBy('created_at', 'desc')
+                    ->paginate($size, ['*'], 'page', $page);
+
+                $pagination = [
+                    'currentPage' => $appels->currentPage(),
+                    'totalItems' => $appels->total(),
+                    'totalPages' => $appels->lastPage(),
+                ];
+
+                return response()->json([
+                    'data' => $appels->items(),
+                    'pagination' => $pagination,
+                ], 200);
+            }
+
+            // Return all results if no pagination parameters
+            $appels = $query->orderBy('created_at', 'desc')->get();
+            return response()->json(['appels' => $appels]);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
     /**
      * Show the form for creating a new resource.
      */

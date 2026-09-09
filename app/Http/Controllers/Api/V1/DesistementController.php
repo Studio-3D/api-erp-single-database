@@ -3576,11 +3576,16 @@ public function validation_desitement($id,Request $request){
                 $pen->numero_paiement = $request->numero_paiement_pen;
                 $pen->banque_id = $request->banque_id_pen;
                 $pen->echeance = $request->echeance_pen;
+                $pen->num_compte = $request->numero_compte_pen;
+                $pen->intitule_compte = $request->intitule_compte_pen;
+
             }
             //virement versement
             elseif ($request->mode_paiement_pen == 5 || $request->mode_paiement_pen == 6) {
                 $pen->numero_paiement = $request->numero_paiement_pen;
                 $pen->banque_id = $request->banque_id_pen;
+                $pen->num_compte = $request->numero_compte_pen;
+                $pen->intitule_compte = $request->intitule_compte_pen;
             }
 
             if ($pen->save()) {

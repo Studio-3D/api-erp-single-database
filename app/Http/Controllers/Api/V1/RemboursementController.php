@@ -221,6 +221,9 @@ class RemboursementController extends Controller
             $remboursement->mode_rembourse_client=$request->mode_rembourse_client;
             $remboursement->pour_le_compte=$request->pour_le_compte;
             $remboursement->num_paiement=$request->num_paiement;
+            $remboursement->num_compte=$request->num_compte;
+            $remboursement->intitule_compte=$request->intitule_compte;
+
             $codeReservation = $remboursement->reservation->code_reservation;
 
             // MODIFICATION: Utiliser FichierHelper pour fichier_autorisation

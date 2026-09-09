@@ -283,8 +283,10 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API visite
         Route::resource('visites', V1VisiteController::class);
+        Route::get('export-visites', [V1VisiteController::class, 'exportVisites']);
 
         Route::get('projets/{idprojet}/visites_by_prospect_client', [V1VisiteController::class, 'index_visites_by_prospect_client']);
+        Route::get('/export-visites-by-prospect-client', [V1VisiteController::class, 'exportVisitesByProspectClient']);
         Route::get('edit_visite/{id}', [V1VisiteController::class, 'edit_visite']);
         Route::get('projets/{idprojet}/visites', [V1VisiteController::class, 'indexByProjet']);
         Route::put('update_visite_bien_pre_reserve/{origin_id}', [V1VisiteController::class, 'update_visite_bien_pre_reserve'])->name('');
@@ -396,7 +398,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('show_t_appel/{id}', [V1AppelController::class, 'show_t_appel']);
         Route::get('index_traitement_appel/{id}', [V1AppelController::class, 'index_traitement_appel']);
         Route::delete('destroy_t_appel/{id}/{number}', [V1AppelController::class, 'destroy_t_appel'])->name('');
-
+        Route::get('/export-appels', [V1AppelController::class, 'exportAppels']);
+        Route::get('/export-journal-appels', [V1AppelController::class, 'exportJournalAppels']);
         Route::put('traiter_relance_rdv_appel/{id}', [V1AppelController::class, 'traiter_relance_rdv_appel'])->name('');
         Route::get('get_info_cin_unique/{prospect_id}/{cin}', [V1AppelController::class, 'get_info_cin_unique']);
         //RELANCES RDV APPELS

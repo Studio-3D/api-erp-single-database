@@ -111,6 +111,70 @@ class VisiteController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    public function exportVisites(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    DatabaseHelper::Config();
+    $projetId = $request->input('projet_id');
+    $dateStart = $request->input('date_start');
+    $dateEnd = $request->input('date_end');
+
+    // Construire la requête de base (comme dans indexByProjet)
+    $query = Visite::on('temp')
+                ->latest('created_at')
+                ->where('projet_id', $projetId)
+                ->where('etat', 1);
+
+    // Filtrer par date
+    $query->when($dateStart, function ($q) use ($dateStart) {
+        $start = Carbon::parse($dateStart)->startOfDay();
+        return $q->whereDate('visites.created_at', '>=', $start);
+    });
+
+    $query->when($dateEnd, function ($q) use ($dateEnd) {
+        $end = Carbon::parse($dateEnd)->endOfDay();
+        return $q->whereDate('visites.created_at', '<=', $end);
+    });
+
+    // Récupérer toutes les données (sans pagination)
+    $visites = $query->get();
+
+    // Grouper par origin_id comme dans indexByProjet
+    $groupedVisites = $visites->groupBy('origin_id');
+
+    // Formater les données comme dans indexByProjet
+    $formattedData = $groupedVisites->map(function ($group) {
+        $firstVisite = $group->first();
+        return [
+            'id' => $firstVisite->id,
+            'origin_id' => $firstVisite->origin_id,
+            'nom_cc' => $firstVisite->user ? $firstVisite->user->name : null,
+            'prenom_cc' => $firstVisite->user ? $firstVisite->user->prenom : null,
+            'date' => $firstVisite->created_at,
+            'cin' => $firstVisite->prospect ? $firstVisite->prospect->cin : null,
+            'nom' => $firstVisite->prospect ? $firstVisite->prospect->nom : null,
+            'prenom' => $firstVisite->prospect ? $firstVisite->prospect->prenom : null,
+            'telephone' => $firstVisite->prospect ? $firstVisite->prospect->telephone : null,
+            'telephone2' => $firstVisite->prospect ? $firstVisite->prospect->telephone_num2 : null,
+            'prospect_id' => $firstVisite->prospect ? $firstVisite->prospect->id : null,
+            'interet' => $firstVisite->interet,
+            'statut' => $firstVisite->statut,
+            'propriete_dite_bien' => $firstVisite->bien ? $firstVisite->bien->propriete_dite_bien : '',
+            'etat_bien' => $firstVisite->bien ? $firstVisite->bien->etat : '',
+            'bien_id' => $firstVisite->bien_id ?? '',
+            'visit_count' => $group->count(),
+            'reservation' => $firstVisite->reservation ?? null,
+        ];
+    })->values();
+
+    return response()->json([
+        'data' => $formattedData,
+        'total' => $formattedData->count()
+    ], 200);
+}
     public function indexByProjet(Request $request, $projet_id)
     {
         if (Auth::guard('api')->check()) {
@@ -346,6 +410,106 @@ class VisiteController extends Controller
                     return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+
+    public function exportVisitesByProspectClient(Request $request)
+    {
+        if (!Auth::guard('api')->check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        DatabaseHelper::Config();
+
+        $projetId = $request->input('projet_id');
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
+
+        // Construire la requête de base (comme dans index_visites_by_prospect_client)
+        $query = Visite::on('temp')
+            ->with([
+                'bien' => function($q) {
+                    $q->select('id', 'propriete_dite_bien', 'numero', 'tranche_id', 'bloc_id', 'immeuble_id')
+                    ->without(['projet', 'typologie', 'vue', 'compositionBien', 'typeBien'])
+                    ->with([
+                        'immeuble' => function($t) {
+                            $t->select('id', 'nom')->without(['projet', 'tranche', 'bloc']);
+                        },
+                        'bloc' => function($b) {
+                            $b->select('id', 'nom')->without(['projet', 'tranche']);
+                        },
+                        'tranche' => function($i) {
+                            $i->select('id', 'nom')->without(['projet']);
+                        }
+                    ]);
+                },
+                'user:id,name,prenom',
+                'prospect:*'
+            ])
+            ->latest('created_at')
+            ->where('projet_id', $projetId)
+            ->where('etat', 1);
+
+        // Filtrer par date
+        $query->when($dateStart, function ($q) use ($dateStart) {
+            $start = Carbon::parse($dateStart)->startOfDay();
+            return $q->whereDate('visites.created_at', '>=', $start);
+        });
+
+        $query->when($dateEnd, function ($q) use ($dateEnd) {
+            $end = Carbon::parse($dateEnd)->endOfDay();
+            return $q->whereDate('visites.created_at', '<=', $end);
+        });
+
+        // Appliquer les mêmes filtres que index_visites_by_prospect_client
+        if ($request->filled('prospect_id')) {
+            $query->where('prospect_id', $request->input('prospect_id'));
+        }
+
+        if ($request->filled('client_id')) {
+            $client = Client::on('temp')->findOrFail($request->input('client_id'));
+            $query->where('prospect_id', $client->prospect_id);
+        }
+
+
+        if ($request->filled('user_id')) {
+            $realUserId = User::on('temp')
+                ->where('user_id_origin', $request->user_id)
+                ->value('id');
+
+            if ($realUserId) {
+                $query->where('user_id', $realUserId);
+            }
+        }
+
+
+        // Récupérer toutes les données (sans pagination)
+        $visites = $query->get();
+
+        // Formater les données comme dans index_visites_by_prospect_client
+        $formattedData = $visites->map(function ($visite) {
+            return [
+                'id' => $visite->id,
+                'origin_id' => $visite->origin_id,
+                'nom_cc' => $visite->user ? $visite->user->name : null,
+                'prenom_cc' => $visite->user ? $visite->user->prenom : null,
+                'date' => $visite->created_at,
+                'cin' => $visite->prospect ? $visite->prospect->cin : null,
+                'nom' => $visite->prospect ? $visite->prospect->nom : null,
+                'prenom' => $visite->prospect ? $visite->prospect->prenom : null,
+                'telephone' => $visite->prospect ? $visite->prospect->telephone : null,
+                'telephone2' => $visite->prospect ? $visite->prospect->telephone_num2 : null,
+                'prospect_id' => $visite->prospect ? $visite->prospect->id : null,
+                'interet' => $visite->interet,
+                'statut' => $visite->statut,
+                'bien' => $visite->bien ? $visite->bien : '',
+                'bien_id' => $visite->bien_id ?? '',
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => $formattedData,
+            'total' => $formattedData->count()
+        ], 200);
+    }
 
 
                 public function get_historiques($origin_id)
