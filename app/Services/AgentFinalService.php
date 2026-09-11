@@ -61,8 +61,8 @@ class AgentFinalService
                 ],
             ],
             'horaires' => '7j/7, de 10h à 18h.',
-            'contact_agents' =>
-                'Mr Oussama : 212660446758 / Mr Maghraoui : 212660446758',
+            /*'contact_agents' =>
+                'Mr Oussama : 212660446758 / Mr Maghraoui : 212660446758',*/
         ],
     ];
 
@@ -218,24 +218,24 @@ class AgentFinalService
      */
     private function appendQuestion(string $response, string $context = 'default'): string
     {
-        // ✅ Vérifier si la réponse se termine déjà par une question
+        //  Vérifier si la réponse se termine déjà par une question
         $trimmed = trim($response);
         if (preg_match('/[?؟]\s*[😊😉🙂]?\s*$/u', $trimmed)) {
             return $response;
         }
 
-        // ✅ Récupérer l'état actuel de la conversation
+        //  Récupérer l'état actuel de la conversation
         $state = $this->conversationState;
         $lang = $this->detectLanguage($this->conversationState['last_user_message'] ?? 'fr');
 
-        // ✅ Vérifier ce qui est DÉJÀ connu
+        //  Vérifier ce qui est DÉJÀ connu
         $hasType = !empty($state['property_type']) && in_array(strtoupper($state['property_type']), ['F3', 'F4']);
         $hasBudget = !empty($state['budget']) && !empty($state['budget_given_by_user']);
         $hasVisit = !empty($state['visit_accepted']) || !empty($state['visit_requested']);
         $hasName = !empty($state['name']);
         $hasDate = !empty($state['appointment_date']);
 
-        // ✅ Générer la bonne question selon le contexte ET l'état
+        //  Générer la bonne question selon le contexte ET l'état
         $question = $this->getSmartQuestion($lang, $context, [
             'has_type' => $hasType,
             'has_budget' => $hasBudget,
@@ -244,7 +244,7 @@ class AgentFinalService
             'has_date' => $hasDate,
         ]);
 
-        // ✅ Si aucune question pertinente, ne rien ajouter
+        //  Si aucune question pertinente, ne rien ajouter
         if (empty($question)) {
             return $response;
         }
@@ -257,37 +257,37 @@ class AgentFinalService
      */
     private function getSmartQuestion(string $lang, string $context, array $state): string
     {
-        // ✅ ÉTAPE 1 : Si le client a TOUT (type + budget + visite + nom + date) → Confirmer
+        //  ÉTAPE 1 : Si le client a TOUT (type + budget + visite + nom + date) → Confirmer
         if ($state['has_visit'] && $state['has_name'] && $state['has_date']) {
-            return ''; // ✅ Plus rien à demander, la visite est confirmée
+            return ''; //  Plus rien à demander, la visite est confirmée
         }
 
-        // ✅ ÉTAPE 2 : Si le client a visité mais pas de nom → Demander le nom
+        //  ÉTAPE 2 : Si le client a visité mais pas de nom → Demander le nom
         if ($state['has_visit'] && !$state['has_name']) {
             return $this->getQuestion($lang, 'name');
         }
 
-        // ✅ ÉTAPE 3 : Si le client a nom mais pas de date → Demander la date
+        //  ÉTAPE 3 : Si le client a nom mais pas de date → Demander la date
         if ($state['has_name'] && !$state['has_date']) {
             return $this->getQuestion($lang, 'date');
         }
 
-        // ✅ ÉTAPE 4 : Si le client a un type et budget → Proposer la visite
+        //  ÉTAPE 4 : Si le client a un type et budget → Proposer la visite
         if ($state['has_type'] && $state['has_budget'] && !$state['has_visit']) {
             return $this->getQuestion($lang, 'visit');
         }
 
-        // ✅ ÉTAPE 5 : Si le client a un type mais pas de budget → Demander le budget
+        //  ÉTAPE 5 : Si le client a un type mais pas de budget → Demander le budget
         if ($state['has_type'] && !$state['has_budget']) {
             return $this->getQuestion($lang, 'budget');
         }
 
-        // ✅ ÉTAPE 6 : Si le client n'a pas de type → Demander le type
+        //  ÉTAPE 6 : Si le client n'a pas de type → Demander le type
         if (!$state['has_type']) {
             return $this->getQuestion($lang, 'type');
         }
 
-        // ✅ ÉTAPE 7 : Fallback générique
+        //  ÉTAPE 7 : Fallback générique
         return $this->getQuestion($lang, $context);
     }
 
@@ -298,28 +298,28 @@ class AgentFinalService
     {
         $questions = [
             'fr' => [
-                'name'    => "\n\nPour réserver la visite, donnez-moi votre **nom complet** 😊",
-                'date'    => "\n\nQuelle **date** vous conviendrait pour la visite ? 😊",
-                'visit'   => "\n\nSouhaitez-vous organiser une visite ? 😊",
-                'budget'  => "\n\nQuel est votre **budget approximatif** ? 😊",
-                'type'    => "\n\nQuel type vous intéresse (**F3** ou **F4**) ? 😊",
-                'default' => "\n\nQue souhaitez-vous savoir d'autre ? 😊",
+                'name'    => "\n\nPour réserver la visite, donnez-moi votre **nom complet** ",
+                'date'    => "\n\nQuelle **date** vous conviendrait pour la visite ? ",
+                'visit'   => "\n\nSouhaitez-vous organiser une visite ? ",
+                'budget'  => "\n\nQuel est votre **budget approximatif** ? ",
+                'type'    => "\n\nQuel type vous intéresse (**F3** ou **F4**) ? ",
+                'default' => "\n\nQue souhaitez-vous savoir d'autre ? ",
             ],
             'en' => [
-                'name'    => "\n\nTo book the visit, give me your **full name** 😊",
-                'date'    => "\n\nWhat **date** would work for you for the visit? 😊",
-                'visit'   => "\n\nWould you like to schedule a visit? 😊",
-                'budget'  => "\n\nWhat is your **approximate budget**? 😊",
-                'type'    => "\n\nWhich type are you interested in (**F3** or **F4**)? 😊",
-                'default' => "\n\nWhat else would you like to know? 😊",
+                'name'    => "\n\nTo book the visit, give me your **full name** ",
+                'date'    => "\n\nWhat **date** would work for you for the visit? ",
+                'visit'   => "\n\nWould you like to schedule a visit? ",
+                'budget'  => "\n\nWhat is your **approximate budget**? ",
+                'type'    => "\n\nWhich type are you interested in (**F3** or **F4**)? ",
+                'default' => "\n\nWhat else would you like to know? ",
             ],
             'darija' => [
-                'name'    => "\n\nBach n7jz lik visite, 3tini **smiytek kamla** 😊",
-                'date'    => "\n\n**Ach mn nhar** mzyan lik l'visite ? 😊",
-                'visit'   => "\n\nWach baghi t'planifier visite ? 😊",
-                'budget'  => "\n\nChhal l'**budget dyalk** ? 😊",
-                'type'    => "\n\nAch mn type m'7tam bik (**F3** wla **F4**) ? 😊",
-                'default' => "\n\nAch baghi t3ref akhor ? 😊",
+                'name'    => "\n\nBach n7jaz lik visite, 3tini **smiytek kamla** ",
+                'date'    => "\n\n**Ach mn nhar** mzyan lik l'visite ? ",
+                'visit'   => "\n\nWach baghi t'planifier visite ? ",
+                'budget'  => "\n\nChhal l'**budget dyalk** ? ",
+                'type'    => "\n\nAch mn type m'7tam bik (**F3** wla **F4**) ? ",
+                'default' => "\n\nAch baghi t3ref akhor ? ",
             ],
         ];
 
@@ -348,7 +348,6 @@ Données du projet GreenLand:
 - Équipements: Padel, Sport, Patio, Parking, Ascenseur
 - Livraison: Mars 2027
 - Horaires: 7j/7, 10h à 18h
-- Contact: Mr Oussama/Mr Maghraoui : 212660446758
 
 Instructions:
 Analyse le message du client et détermine son INTENTION.
@@ -405,7 +404,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                 if (preg_match('/\{[^{}]*\}/', $content, $matches)) {
                     $result = json_decode($matches[0], true);
                     if (json_last_error() === JSON_ERROR_NONE) {
-                        Log::info('✅ IA a compris le message', [
+                        Log::info(' IA a compris le message', [
                             'intent' => $result['intent'] ?? 'inconnu',
                             'confidence' => $result['confidence'] ?? 0,
                             'explanation' => $result['explanation'] ?? ''
@@ -462,74 +461,74 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         switch ($intent) {
             case 'localisation':
-                $response = "📍 **Localisation GreenLand :**\n\n" .
-                            "🏠 SIDI MESSOUD, entre Californie et la ville verte,\n" .
-                            "🚗 À proximité immédiate de l'entrée d'autoroute A3.\n\n" .
-                            "📌 Un emplacement stratégique alliant calme et accessibilité.";
+                $response = "**Localisation GreenLand :**\n\n" .
+                            " SIDI MESSOUD, entre Californie et la ville verte,\n" .
+                            " À proximité immédiate de l'entrée d'autoroute A3.\n\n" .
+                            " Un emplacement stratégique alliant calme et accessibilité.";
                 return $this->translateResponse($response, $lang);
 
             case 'prix':
-                $response = "📊 **Prix GreenLand :**\n\n" .
-                            "📐 **Typologies :**\n" .
+                $response = " **Prix GreenLand :**\n\n" .
+                            " **Typologies :**\n" .
                             "   • F3 (83 à 123 m²) " .
                             "   • F4 (97 à 130 m²) " .
-                            "📌 Prix indicatifs selon étage, vue et orientation.";
+                            " Prix indicatifs selon étage, vue et orientation.";
                 return $this->translateResponse($response, $lang);
 
             case 'surface':
-                $response = "📐 **Surfaces GreenLand :**\n\n" .
-                            "📐 **Typologies :**\n" .
+                $response = " **Surfaces GreenLand :**\n\n" .
+                            " **Typologies :**\n" .
                             "   • F3 : **83 à 123 m²** (2 chambres + salon + 2 salles de bains)\n" .
                             "   • F4 : **97 à 130 m²** (3 chambres + salon + 2 salles de bains)";
                 return $this->translateResponse($response, $lang);
 
             case 'equipement':
-                $response = "🏋️ **Équipements GreenLand :**\n\n" .
-                            "🎾 Deux terrains de Padel\n" .
-                            "🏋️ Une salle de sport\n" .
-                            "🌿 Un patio paysager\n" .
-                            "🅿️ Parking souterrain\n" .
-                            "🛗 Ascenseur OTIS\n\n" .
-                            "✨ Six immeubles en R+4, un patio central propice à la convivialité.";
+                $response = " **Équipements GreenLand :**\n\n" .
+                            "Deux terrains de Padel\n" .
+                            " Une salle de sport\n" .
+                            " Un patio paysager\n" .
+                            " Parking souterrain\n" .
+                            "Ascenseur OTIS\n\n" .
+                            " Six immeubles en R+4, un patio central propice à la convivialité.";
                 return $this->translateResponse($response, $lang);
 
             case 'livraison':
-                $response = "📅 **Date de livraison GreenLand :**\n\n" .
-                            "🏗️ Le projet est déjà construit et entre dans ses dernières étapes de finition.\n" .
-                            "📆 Livraison prévue : **Mars 2027**\n\n" .
-                            "✅ Une résidence concrète et tangible, dont la livraison approche.";
+                $response = " **Date de livraison GreenLand :**\n\n" .
+                            " Le projet est déjà construit et entre dans ses dernières étapes de finition.\n" .
+                            " Livraison prévue : **Mars 2027**\n\n" .
+                            " Une résidence concrète et tangible, dont la livraison approche.";
                 return $this->translateResponse($response, $lang);
 
             case 'description':
-                $response = "🏠 **Description GreenLand :**\n\n" .
+                $response = " **Description GreenLand :**\n\n" .
                             "GreenLand est un groupe résidentiel fermé et sécurisé qui bénéficie d'un environnement calme et proche des commodités essentielles.\n\n" .
-                            "🏗️ Six immeubles en R+4\n" .
-                            "🌿 Un patio central propice à la convivialité\n" .
-                            "🅿️ Parking souterrain\n" .
+                            " Six immeubles en R+4\n" .
+                            " Un patio central propice à la convivialité\n" .
+                            " Parking souterrain\n" .
                             "🛗 Ascenseur OTIS\n\n" .
-                            "📅 Livraison : Mars 2027\n" .
-                            "📍 SIDI MESSOUD, entre Californie et la ville verte";
+                            " Livraison : Mars 2027\n" .
+                            "SIDI MESSOUD, entre Californie et la ville verte";
                 return $this->translateResponse($response, $lang);
 
-            case 'contact':
-                $response = "📞 **Contacts GreenLand :**\n\n" .
+            /*case 'contact':
+                $response = " **Contacts GreenLand :**\n\n" .
                             "• Mr Oussama : 212660446758\n" .
                             "• Mr Maghraoui : 212660446758\n\n" .
-                            "📧 Contactez-nous pour toute question ou visite.";
-                return $this->translateResponse($response, $lang);
+                            "Contactez-nous pour toute question ou visite.";
+                return $this->translateResponse($response, $lang);*/
 
             case 'horaire':
-                $response = "🕐 **Horaires GreenLand :**\n\n" .
-                            "📅 7j/7, de 10h à 18h.\n\n" .
-                            "📍 Visites sur rendez-vous.";
+                $response = " **Horaires GreenLand :**\n\n" .
+                            " 7j/7, de 10h à 18h.\n\n" .
+                            "Visites sur rendez-vous.";
                 return $this->translateResponse($response, $lang);
 
             case 'typologie':
-                $response = "📐 **Typologies GreenLand :**\n\n" .
-                            "📐 **F3 :**\n" .
+                $response = " **Typologies GreenLand :**\n\n" .
+                            " **F3 :**\n" .
                             "   • 2 chambres + salon + 2 salles de bains\n" .
                             "   • 83 à 123 m²\n\n" .
-                            "📐 **F4 :**\n" .
+                            " **F4 :**\n" .
                             "   • 3 chambres + salon + 2 salles de bains\n" .
                             "   • 97 à 130 m²\n\n" .
                             "Quel type vous intéresse ?";
@@ -538,19 +537,19 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             case 'achat':
                 $type = $this->conversationState['property_type'] ?? null;
                 if (empty($type)) {
-                    $response = "📐 **Typologies GreenLand :**\n\n" .
-                                "📐 **F3 :**\n" .
+                    $response = " **Typologies GreenLand :**\n\n" .
+                                " **F3 :**\n" .
                                 "   • 2 chambres + salon + 2 salles de bains\n" .
                                 "   • 83 à 123 m²\n\n" .
-                                "📐 **F4 :**\n" .
+                                " **F4 :**\n" .
                                 "   • 3 chambres + salon + 2 salles de bains\n" .
                                 "   • 97 à 130 m²\n\n" .
                                 "Quel type vous intéresse ?";
                     return $this->translateResponse($response, $lang);
                 } else {
                     if (empty($this->conversationState['budget']) || !$this->conversationState['budget_given_by_user']) {
-                        $response = "Parfait 😊 Vous êtes intéressé par un " . $type . ".\n\n" .
-                                    "💰 Quel budget avez-vous prévu pour votre appartement ?";
+                        $response = "Parfait  Vous êtes intéressé par un " . $type . ".\n\n" .
+                                    " Quel budget avez-vous prévu pour votre appartement ?";
                         return $this->translateResponse($response, $lang);
                     }
                 }
@@ -1024,7 +1023,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         $lang = $this->detectLanguage($message);
 
         if ($lang === 'fr') {
-            return "Je n'ai pas bien compris votre demande 😊\n\n" .
+            return "Je n'ai pas bien compris votre demande \n\n" .
                    "Pourriez-vous reformuler votre question ?\n" .
                    "Je peux vous aider avec :\n" .
                    "   • Les typologies (F3 ou F4)\n" .
@@ -1034,7 +1033,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                    "   • Les horaires\n" .
                    "   • Ou pour planifier une visite";
         } else {
-            return "Ma fhemtch mzyan had l'talab dialek 😊\n\n" .
+            return "Ma fhemtch mzyan had l'talab dialek \n\n" .
                    "Wach t9der t3tini question wa7da akhra ?\n" .
                    "N9der n3awnek f :\n" .
                    "   • L'typologies (F3 wla F4)\n" .
@@ -1092,7 +1091,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         ];
 
         $default = [
-            'fr' => "🏠 Je comprends votre demande.\n\n" .
+            'fr' => " Je comprends votre demande.\n\n" .
                     "GreenLand est un **groupe résidentiel** composé uniquement d'appartements F3 et F4.\n\n" .
                     " **Typologies :**\n" .
                     "   • F3 : 2 chambres + salon + 2 salles de bains (83 à 123 m²)\n" .
@@ -1100,7 +1099,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                     " **Équipements disponibles :**\n" .
                     "   • Padel, Sport, Patio, Parking, Ascenseur\n\n" .
                     "Souhaitez-vous plus d'informations sur les appartements ?",
-            'darija' => "🏠  fhemt had l'talab dialek.\n\n" .
+            'darija' => "  fhemt had l'talab dialek.\n\n" .
                         "GreenLand howa **groupe résidentiel** fih ghir appartements F3 ou F4.\n\n" .
                         " **L'typologies :**\n" .
                         "   • F3 : 2 chambres + salon + 2 salles de bains (83 à 123 m²)\n" .
@@ -1133,17 +1132,17 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             mb_stripos($lower, 'renseignement') !== false ||
             mb_stripos($lower, 'savoir') !== false) {
 
-            $response = "🏢 **PROJET GREENLAND - CASABLANCA**\n\n" .
+            $response = " **PROJET GREENLAND - CASABLANCA**\n\n" .
                         "GreenLand est un **groupe résidentiel fermé et sécurisé** " .
                         "situé à **SIDI MESSOUD**, entre Californie et la ville verte, " .
                         "à proximité immédiate de l'entrée d'autoroute A3.\n\n" .
-                        "📐 **Typologies disponibles :**\n" .
+                        " **Typologies disponibles :**\n" .
                         "   • **F3** : 2 chambres + salon + 2 salles de bains (83 à 123 m²)\n" .
                         "   • **F4** : 3 chambres + salon + 2 salles de bains (97 à 130 m²)\n\n" .
-                        "🏋️ **Équipements :** Padel, Salle de sport, Patio paysager, " .
+                        " **Équipements :** Padel, Salle de sport, Patio paysager, " .
                         "Parking souterrain, Ascenseur OTIS\n\n" .
-                        "📅 **Livraison :** Mars 2027\n" .
-                        "**Quel type d'appartement vous intéresse (F3 ou F4) ?** 😊";
+                        " **Livraison :** Mars 2027\n" .
+                        "**Quel type d'appartement vous intéresse (F3 ou F4) ?";
 
             return $this->translateResponse($response, $lang);
         }
@@ -1153,10 +1152,10 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             mb_stripos($lower, 'fin kayn') !== false ||
             mb_stripos($lower, 'ou se trouve') !== false) {
 
-            $response = "📍 **Localisation GreenLand :**\n\n" .
-                        "🏠 SIDI MESSOUD, entre Californie et la ville verte,\n" .
-                        "🚗 À proximité immédiate de l'entrée d'autoroute A3.\n\n" .
-                        "📌 Un emplacement stratégique alliant calme et accessibilité.";
+            $response = "**Localisation GreenLand :**\n\n" .
+                        " SIDI MESSOUD, entre Californie et la ville verte,\n" .
+                        " À proximité immédiate de l'entrée d'autoroute A3.\n\n" .
+                        " Un emplacement stratégique alliant calme et accessibilité.";
             return $this->translateResponse($response, $lang);
         }
 
@@ -1167,13 +1166,13 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             mb_stripos($lower, 'parking') !== false ||
             mb_stripos($lower, 'ascenseur') !== false) {
 
-            $response = "🏋️ **Équipements GreenLand :**\n\n" .
-                        "🎾 Deux terrains de Padel\n" .
-                        "🏋️ Une salle de sport\n" .
+            $response = " **Équipements GreenLand :**\n\n" .
+                        "Deux terrains de Padel\n" .
+                        " Une salle de sport\n" .
                         " Un patio paysager\n" .
-                        "🅿️ Parking souterrain\n" .
-                        "🛗 Ascenseur OTIS\n\n" .
-                        "✨ Une architecture maîtrisée : six immeubles en R+4, un patio central propice à la convivialité.";
+                        " Parking souterrain\n" .
+                        " Ascenseur OTIS\n\n" .
+                        " Une architecture maîtrisée : six immeubles en R+4, un patio central propice à la convivialité.";
             return $this->translateResponse($response, $lang);
         }
 
@@ -1183,10 +1182,10 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             mb_stripos($lower, 'delai') !== false ||
             mb_stripos($lower, 'quand') !== false) {
 
-            $response = "📅 **Date de livraison GreenLand :**\n\n" .
+            $response = " **Date de livraison GreenLand :**\n\n" .
                         " Le projet est déjà construit et entre dans ses dernières étapes de finition.\n" .
-                        "📆 Livraison prévue : **Mars 2027**\n\n" .
-                        "✅ Une résidence concrète et tangible, dont la livraison approche — pour une acquisition en toute confiance.";
+                        " Livraison prévue : **Mars 2027**\n\n" .
+                        " Une résidence concrète et tangible, dont la livraison approche — pour une acquisition en toute confiance.";
             return $this->translateResponse($response, $lang);
         }
 
@@ -1196,37 +1195,37 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             mb_stripos($lower, 'info') !== false ||
             mb_stripos($lower, 'infos') !== false) {
 
-            $response = "🏠 **Description GreenLand :**\n\n" .
+            $response = " **Description GreenLand :**\n\n" .
                         "GreenLand est un groupe résidentiel fermé et sécurisé qui bénéficie d'un environnement calme et proche des commodités essentielles.\n\n" .
                         " Six immeubles en R+4\n" .
                         " Un patio central propice à la convivialité\n" .
-                        "🅿️ Parking souterrain\n" .
-                        "🛗 Ascenseur OTIS\n\n" .
-                        "📅 Livraison : Mars 2027\n" .
-                        "📍 SIDI MESSOUD, entre Californie et la ville verte";
+                        " Parking souterrain\n" .
+                        " Ascenseur OTIS\n\n" .
+                        " Livraison : Mars 2027\n" .
+                        "SIDI MESSOUD, entre Californie et la ville verte";
             return $this->translateResponse($response, $lang);
         }
 
-        if (mb_stripos($lower, 'contact') !== false ||
+       /* if (mb_stripos($lower, 'contact') !== false ||
             mb_stripos($lower, 'téléphone') !== false ||
             mb_stripos($lower, 'numero') !== false ||
             mb_stripos($lower, 'appel') !== false ||
             mb_stripos($lower, 'commercial') !== false) {
 
-            $response = "📞 **Contacts GreenLand :**\n\n" .
+            $response = " **Contacts GreenLand :**\n\n" .
                         "• Mr Oussama : 212660446758\n" .
                         "• Mr Maghraoui : 212660446758\n\n" .
-                        "📧 Contactez-nous pour toute question ou visite.";
+                        "Contactez-nous pour toute question ou visite.";
             return $this->translateResponse($response, $lang);
-        }
+        }*/
 
         if (mb_stripos($lower, 'horaire') !== false ||
             mb_stripos($lower, 'ouverture') !== false ||
             mb_stripos($lower, 'fermeture') !== false) {
 
-            $response = "🕐 **Horaires GreenLand :**\n\n" .
-                        "📅 7j/7, de 10h à 18h.\n\n" .
-                        "📍 Visites sur rendez-vous.";
+            $response = " **Horaires GreenLand :**\n\n" .
+                        " 7j/7, de 10h à 18h.\n\n" .
+                        "Visites sur rendez-vous.";
             return $this->translateResponse($response, $lang);
         }
 
@@ -1269,11 +1268,11 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             mb_stripos($lower, 'cout') !== false ||
             mb_stripos($lower, 'coût') !== false) {
 
-            $response = "📊 **Prix GreenLand :**\n\n" .
+            $response = " **Prix GreenLand :**\n\n" .
                         " **Typologies :**\n" .
                         "   • F3 (83 à 123 m²) \n" .
                         "   • F4 (97 à 130 m²) \n\n" .
-                        "📌 Prix indicatifs selon étage, vue et orientation.\n\n" .
+                        " Prix indicatifs selon étage, vue et orientation.\n\n" .
                         "Quel type vous intéresse ?";
             return $this->translateResponse($response, $lang);
         }
@@ -1285,8 +1284,8 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
             $response = " **État du projet GreenLand :**\n\n" .
                         "Le projet est déjà construit et entre dans ses dernières étapes de finition.\n\n" .
-                        "✅ Une résidence concrète et tangible, dont la livraison approche — pour une acquisition en toute confiance.\n" .
-                        "📅 Livraison prévue : **Mars 2027**";
+                        " Une résidence concrète et tangible, dont la livraison approche — pour une acquisition en toute confiance.\n" .
+                        " Livraison prévue : **Mars 2027**";
             return $this->translateResponse($response, $lang);
         }
 
@@ -1308,11 +1307,11 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         }
 
         $response = "Bien sûr  Je peux vous renseigner sur GreenLand :\n" .
-                    "• 📍 Localisation : SIDI MESSOUD\n" .
+                    "• Localisation : SIDI MESSOUD\n" .
                     "•  Typologies : F3 et F4\n" .
                     "•  Surfaces : 83 à 130 m²\n" .
                     "•  Équipements : Padel, Sport, Patio, Parking\n" .
-                    "• 📅 Livraison : Mars 2027\n\n" .
+                    "•  Livraison : Mars 2027\n\n" .
                     "Que souhaitez-vous savoir exactement ?";
 
         return $this->translateResponse($response, $lang);
@@ -1426,7 +1425,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
     $trimmed = trim($message);
     $lower = mb_strtolower($trimmed);
 
-    // ✅ FILTRE : Si le message contient des mots-clés de demande d'info, ce n'est PAS un nom
+    //  FILTRE : Si le message contient des mots-clés de demande d'info, ce n'est PAS un nom
     $infoKeywords = [
         'information', 'informations', 'info', 'infos',
         'demande', 'demander', 'savoir', 'connaitre', 'connaître',
@@ -1443,19 +1442,19 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         }
     }
 
-    // ✅ FILTRE : Si le message contient plus de 4 mots, ce n'est probablement pas un nom
+    //  FILTRE : Si le message contient plus de 4 mots, ce n'est probablement pas un nom
     $wordCount = count(preg_split('/\s+/', $trimmed));
     if ($wordCount > 4) {
         Log::info('⏭️ extractNameWithAI: message trop long (>4 mots)', ['message' => $message]);
         return null;
     }
 
-    // ✅ FILTRE : Si le message contient un chiffre, ignorer
+    //  FILTRE : Si le message contient un chiffre, ignorer
     if (preg_match('/\d/', $trimmed)) {
         return null;
     }
 
-    // ✅ FILTRE : Négations et réponses courtes
+    //  FILTRE : Négations et réponses courtes
     $shortAnswers = [
         'oui', 'non', 'ok', 'okay', 'yes', 'no', 'nan', 'la', 'laa', 'laaa',
         'wakha', 'bghit', 'brit', 'wah', 'saha', 'mzyan', 'daccord', 'dac',
@@ -1536,9 +1535,9 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                         'original' => $message
                     ]);
 
-                    // ✅ Vérifier que c'est un nom valide
+                    //  Vérifier que c'est un nom valide
                     if ($name !== null && $confidence > 0.7 && mb_strlen($name) >= 2 && mb_strlen($name) <= 30) {
-                        // ✅ Filtrer les noms suspects
+                        //  Filtrer les noms suspects
                         $nameLower = mb_strtolower($name);
                         $forbidden = ['tini', 'donne', 'information', 'informations', 'info', 'infos'];
                         foreach ($forbidden as $word) {
@@ -1569,7 +1568,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         if ($this->apiKey) {
             $aiName = $this->extractNameWithAI($message);
             if ($aiName !== null) {
-                Log::info('✅ Nom extrait par IA', ['name' => $aiName, 'original' => $message]);
+                Log::info(' Nom extrait par IA', ['name' => $aiName, 'original' => $message]);
                 return $aiName;
             }
         }
@@ -1937,7 +1936,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         return null;
     }
 
-    // ✅ FILTRE : Si le message ne contient AUCUN mot-clé de date, ne pas appeler l'IA
+    //  FILTRE : Si le message ne contient AUCUN mot-clé de date, ne pas appeler l'IA
     $lower = $this->normalize($message);
     $dateKeywords = [
         'demain', 'demin', 'ghda', 'ghadda', 'apres', 'après',
@@ -1956,13 +1955,13 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         }
     }
 
-    // ✅ Vérifier aussi si le message contient un chiffre (ex: 15, 12)
+    //  Vérifier aussi si le message contient un chiffre (ex: 15, 12)
     if (!$hasDateKeyword && !preg_match('/\d/', $message)) {
         Log::info('⏭️ extractDateWithAI: aucun mot-clé de date détecté', ['message' => $message]);
         return null;
     }
 
-    // ✅ NOUVEAU : Refuser les messages courts qui ne sont pas des dates
+    //  NOUVEAU : Refuser les messages courts qui ne sont pas des dates
     $trimmed = trim($message);
     $negationsAndAnswers = [
         'oui', 'non', 'ok', 'okay', 'yes', 'no', 'nan', 'la', 'laa',
@@ -1975,7 +1974,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         return null;
     }
 
-    // ✅ Si le message est trop court (< 3 caractères), ignorer
+    //  Si le message est trop court (< 3 caractères), ignorer
     if (mb_strlen($trimmed) < 3) {
         return null;
     }
@@ -2036,7 +2035,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                     $date = $result['date'] ?? null;
                     $confidence = $result['confidence'] ?? 0;
 
-                    // ✅ Si date est null ou vide → retourner null
+                    //  Si date est null ou vide → retourner null
                     if ($date === null || $date === '' || $date === 'null') {
                         return null;
                     }
@@ -2067,7 +2066,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         if ($this->apiKey) {
             $aiDate = $this->extractDateWithAI($message);
             if ($aiDate !== null) {
-                Log::info('✅ Date extraite par IA', ['date' => $aiDate, 'original' => $message]);
+                Log::info(' Date extraite par IA', ['date' => $aiDate, 'original' => $message]);
                 return $aiDate;
             }
         }
@@ -2081,7 +2080,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         foreach ($tomorrowVariants as $variant) {
             if (mb_stripos($lower, $variant) !== false) {
                 $date = date('d/m/Y', strtotime('+1 day'));
-                Log::info('📅 Date extraite: DEMAIN', ['date' => $date]);
+                Log::info(' Date extraite: DEMAIN', ['date' => $date]);
                 return $date;
             }
         }
@@ -2095,7 +2094,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         foreach ($afterTomorrowVariants as $variant) {
             if (mb_stripos($lower, $variant) !== false) {
                 $date = date('d/m/Y', strtotime('+2 days'));
-                Log::info('📅 Date extraite: APRÈS-DEMAIN', ['date' => $date]);
+                Log::info(' Date extraite: APRÈS-DEMAIN', ['date' => $date]);
                 return $date;
             }
         }
@@ -2107,7 +2106,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         foreach ($todayVariants as $variant) {
             if (mb_stripos($lower, $variant) !== false) {
                 $date = date('d/m/Y');
-                Log::info('📅 Date extraite: AUJOURD\'HUI', ['date' => $date]);
+                Log::info(' Date extraite: AUJOURD\'HUI', ['date' => $date]);
                 return $date;
             }
         }
@@ -2143,7 +2142,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         foreach ($nextWeekVariants as $variant) {
             if (mb_stripos($lower, $variant) !== false) {
                 $date = date('N') === 1 ? date('d/m/Y', strtotime('+7 days')) : date('d/m/Y', strtotime('next monday'));
-                Log::info('📅 Date extraite: SEMAINE PROCHAINE', ['date' => $date]);
+                Log::info(' Date extraite: SEMAINE PROCHAINE', ['date' => $date]);
                 return $date;
             }
         }
@@ -2157,7 +2156,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         foreach ($weekendVariants as $variant) {
             if (mb_stripos($lower, $variant) !== false) {
                 $date = date('N') === 6 ? date('d/m/Y', strtotime('+7 days')) : date('d/m/Y', strtotime('next saturday'));
-                Log::info('📅 Date extraite: WEEK-END', ['date' => $date]);
+                Log::info(' Date extraite: WEEK-END', ['date' => $date]);
                 return $date;
             }
         }
@@ -2303,7 +2302,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             $this->conversationState['last_question'] = 'budget';
 
             $response = "Parfait  Vous êtes intéressé par un " . $state['property_type'] . ".\n\n" .
-                        "💰 Quel budget avez-vous prévu pour votre appartement ?";
+                        " Quel budget avez-vous prévu pour votre appartement ?";
 
             $lang = $this->detectLanguage($state['last_user_message'] ?? 'fr');
             return $this->translateResponse($response, $lang);
@@ -2322,7 +2321,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             number_format((int) $state['budget'], 0, ',', ' ') .
             " DH.\n\n" .
             " Le projet GreenLand est déjà construit et entre dans ses dernières étapes de finition.\n\n" .
-            "📅 Livraison prévue : Mars 2027\n\n" .
+            " Livraison prévue : Mars 2027\n\n" .
             "Souhaitez-vous que je transmette votre demande de visite à notre équipe ?";
 
         $lang = $this->detectLanguage($state['last_user_message'] ?? 'fr');
@@ -2341,7 +2340,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             $answer = "Merci de nous avoir contactés \n\n" .
                       "Votre demande de visite a déjà été enregistrée.\n" .
                       "Notre équipe vous contactera très prochainement.\n\n" .
-                      "📞 Pour toute urgence : " . $this->data['projet']['contact_agents'];
+                      " Pour toute urgence : " . $this->data['projet']['contact_agents'];
             $this->conversationState['last_bot_message'] = $answer;
             return $this->response($answer);
         }
@@ -2388,7 +2387,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                 $this->conversationState['last_question_type'] = 'visit_date';
 
                 $answer = "Merci {$name} \n\n" .
-                          "📅 Quel jour vous conviendrait pour la visite ?\n" .
+                          " Quel jour vous conviendrait pour la visite ?\n" .
                           "Exemples : lundi, demain, 15/12, lundi prochain...";
 
                 $this->conversationState['last_bot_message'] = $answer;
@@ -2418,18 +2417,18 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
                 $this->trySendContact();
 
-                $answer = "✅ Parfait {$this->conversationState['name']} \n\n" .
-                          "📅 J'ai bien enregistré votre visite pour le **" . $date . "**.\n\n" .
-                          "🏠 Un de nos commerciaux vous contactera très prochainement pour confirmer les détails.\n\n" .
-                          "📞 Pour toute question : " . $this->data['projet']['contact_agents'] . "\n\n" .
-                          "🙏 Merci de nous avoir contactés et à bientôt !";
+                $answer = " Parfait {$this->conversationState['name']} \n\n" .
+                          " J'ai bien enregistré votre visite pour le **" . $date . "**.\n\n" .
+                          " Un de nos commerciaux vous contactera très prochainement pour confirmer les détails.\n\n" .
+                          " Pour toute question : " . $this->data['projet']['contact_agents'] . "\n\n" .
+                          " Merci de nous avoir contactés et à bientôt !";
                 $this->conversationState['last_bot_message'] = $answer;
-                // ✅ ICI : has_visit + has_name + has_date = true → appendQuestion ne rajoute rien
+                //  ICI : has_visit + has_name + has_date = true → appendQuestion ne rajoute rien
                 return $this->response($this->appendQuestion($answer, 'default'));
             }
 
             if ($this->isPositive($lastMessage)) {
-                $answer = "📅 Quel jour vous conviendrait pour la visite ?\n" .
+                $answer = " Quel jour vous conviendrait pour la visite ?\n" .
                           "Exemples : lundi, demain, 15/12, lundi prochain...";
                 $this->conversationState['last_bot_message'] = $answer;
                 return $this->response($this->appendQuestion($answer, 'date'));
@@ -2455,10 +2454,10 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         $date = $this->conversationState['appointment_date'] ?? '';
 
-        $answer = "✅ Parfait {$this->conversationState['name']} \n\n" .
-                  "📅 Visite enregistrée pour le **" . $date . "**.\n\n" .
-                  "🏠 Notre équipe vous contactera pour confirmer les détails.\n\n" .
-                  "🙏 Merci de nous avoir contactés et à bientôt !";
+        $answer = " Parfait {$this->conversationState['name']} \n\n" .
+                  " Visite enregistrée pour le **" . $date . "**.\n\n" .
+                  " Notre équipe vous contactera pour confirmer les détails.\n\n" .
+                  " Merci de nous avoir contactés et à bientôt !";
 
         $this->conversationState['last_bot_message'] = $answer;
         return $this->response($this->appendQuestion($answer, 'default'));
@@ -2484,8 +2483,8 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         $answer = "Pas de problème, pas d'obligation ! \n\n" .
             "Si vous changez d'avis, n'hésitez pas à nous contacter au :\n" .
             $this->data['projet']['contact_agents'] . "\n\n" .
-            "📧 Ou envoyez-nous un message, nous vous répondrons avec plaisir.\n\n" .
-            "🙏 Merci et à bientôt !";
+            "Ou envoyez-nous un message, nous vous répondrons avec plaisir.\n\n" .
+            " Merci et à bientôt !";
 
         $this->conversationState['last_bot_message'] = $answer;
         $this->buildPendingContact();
@@ -2551,9 +2550,9 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
                 $this->conversationState['last_bot_message'] =
                     "Merci  J'ai bien noté votre recherche d'un " . $type . " avec un budget de " . number_format($amount, 0, ',', ' ') . " DH.\n\n" .
-                    "💰 Ce budget correspond bien à la fourchette de prix d'un " . $type . " à GreenLand.\n\n" .
+                    " Ce budget correspond bien à la fourchette de prix d'un " . $type . " à GreenLand.\n\n" .
                     " Le projet GreenLand est déjà construit et entre dans ses dernières étapes de finition.\n\n" .
-                    "📅 Livraison prévue : Mars 2027\n\n" .
+                    " Livraison prévue : Mars 2027\n\n" .
                     "Souhaitez-vous que je transmette votre demande de visite à notre équipe ?";
 
                 $this->buildPendingContact();
@@ -2664,7 +2663,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                 $this->conversationState['conversation_stage'] = 'visit_name';
                 $this->conversationState['last_question_type'] = 'visit_name';
 
-                Log::info('✅ Visite ACCEPTÉE');
+                Log::info(' Visite ACCEPTÉE');
                 $this->buildPendingContact();
                 return;
             }
@@ -2985,31 +2984,31 @@ private function thankYouResponse(string $message): string
 {
     $lang = $this->detectLanguage($message);
 
-    // ✅ Si la visite est déjà complétée → remercier + confirmer
+    //  Si la visite est déjà complétée → remercier + confirmer
     if ($this->conversationState['completed']) {
         if ($lang === 'fr') {
-            return "Avec plaisir 😊\n\n" .
-                   "✅ Votre demande de visite a bien été enregistrée.\n" .
-                   "📞 Notre équipe vous contactera très prochainement.\n\n" .
-                   "🙏 À bientôt !";
+            return "Avec plaisir \n\n" .
+                   " Votre demande de visite a bien été enregistrée.\n" .
+                   " Notre équipe vous contactera très prochainement.\n\n" .
+                   " À bientôt !";
         }
-        return "Bla jmil 😊\n\n" .
-               "✅ Demande dialek t'sijilat mzyan.\n" .
-               "📞 L'équipe taycontacti m3ak qrib.\n\n" .
-               "🙏 Bslama !";
+        return "Bla jmil \n\n" .
+               " Demande dialek t'sijilat mzyan.\n" .
+               " L'équipe taycontacti m3ak qrib.\n\n" .
+               " Bslama !";
     }
 
     if ($lang === 'fr') {
         return "Avec plaisir 😊\n\n" .
                "N'hésitez pas à nous contacter si vous avez d'autres questions.\n\n" .
-               "📞 " . $this->data['projet']['contact_agents'] . "\n\n" .
-               "🙏 À bientôt !";
+               " " . $this->data['projet']['contact_agents'] . "\n\n" .
+               " À bientôt !";
     }
 
     return "Bla jmil 😊\n\n" .
            "Ila 3ndek chi soual akhor, ma t'khafch t'contactina.\n\n" .
-           "📞 " . $this->data['projet']['contact_agents'] . "\n\n" .
-           "🙏 Bslama !";
+           " " . $this->data['projet']['contact_agents'] . "\n\n" .
+           " Bslama !";
 }
     /*
     |--------------------------------------------------------------------------
@@ -3065,15 +3064,15 @@ private function thankYouResponse(string $message): string
         $info = $typologies[$typeUpper] ?? null;
 
         if ($lang === 'fr') {
-            return "🏠 Parfait ! Le {$typeUpper} est un excellent choix.\n\n" .
-                   "📐 **Superficie** : " . ($info['surface'] ?? '83 à 130 m²') . "\n" .
-                   "🛏️ **Composition** : " . ($info['composition'] ?? '2 chambres + salon + 2 salles de bains') . "\n" .
-                   "📍 **Projet GreenLand - Casablanca**";
+            return "Parfait ! Le {$typeUpper} est un excellent choix.\n\n" .
+                   "Superficie : " . ($info['surface'] ?? '83 à 130 m²') . "\n" .
+                   "*Composition** : " . ($info['composition'] ?? '2 chambres + salon + 2 salles de bains') . "\n" .
+                   " **Projet GreenLand - Casablanca**";
         } else {
-            return "🏠 Mzyan ! {$typeUpper} choix mzyan.\n\n" .
-                   "📐 **Superficie** : " . ($info['surface'] ?? '83 à 130 m²') . "\n" .
-                   "🛏️ **Composition** : " . ($info['composition'] ?? '2 chambres + salon + 2 salles de bains') . "\n" .
-                   "📍 **Projet GreenLand - Casablanca**";
+            return " Mzyan ! {$typeUpper} choix mzyan.\n\n" .
+                   " **Superficie** : " . ($info['surface'] ?? '83 à 130 m²') . "\n" .
+                   " **Composition** : " . ($info['composition'] ?? '2 chambres + salon + 2 salles de bains') . "\n" .
+                   "**Projet GreenLand - Casablanca**";
         }
     }
 
@@ -3120,7 +3119,7 @@ private function thankYouResponse(string $message): string
             $response = $this->getTypeResponse(strtolower($type), $this->detectLanguage($message));
             $this->conversationState['last_bot_message'] = $response;
             $this->buildPendingContact();
-            // ✅ has_type=true → appendQuestion demandera le budget
+            //  has_type=true → appendQuestion demandera le budget
             return $this->response($this->appendQuestion($response, 'type'));
         }
 
@@ -3146,28 +3145,181 @@ private function thankYouResponse(string $message): string
             $answer = $this->greetingResponse();
             $this->conversationState['last_bot_message'] = $answer;
             $this->buildPendingContact();
-            // ✅ Pas de type → appendQuestion demandera le type
+            //  Pas de type → appendQuestion demandera le type
             return $this->response($answer);
         }
 
         // ════════════════════════════════════════════════════════════════
         // 🔍 VÉRIFIER SI C'EST UNE SALUTATION (après le premier message)
         // ════════════════════════════════════════════════════════════════
-        if ($this->isGreetingMessage($message)) {
-            $lang = $this->detectLanguage($message);
+                    // ════════════════════════════════════════════════════════════════
+// 🔍 VÉRIFIER SI C'EST UNE SALUTATION (après le premier message)
+// ════════════════════════════════════════════════════════════════
+if ($this->isGreetingMessage($message)) {
+    $lang = $this->detectLanguage($message);
 
-            if ($lang === 'fr') {
-                $response = "Bonjour 😊 Bienvenue chez Greenland, Comment puis-je vous aider ?";
-            } else {
-                $response = "Salam 😊 Mrahba f  Greenland. Kifash n9der n3awnek ?";
-            }
+    // ════════════════════════════════════════════════════════
+    // 🔥 RÉCUPÉRER L'ÉTAT COMPLET DE LA CONVERSATION
+    // ════════════════════════════════════════════════════════
+    $hasType   = !empty($this->conversationState['property_type'])
+                 && in_array(strtoupper($this->conversationState['property_type']), ['F3', 'F4']);
+    $hasBudget = !empty($this->conversationState['budget'])
+                 && !empty($this->conversationState['budget_given_by_user']);
+    $hasVisit  = !empty($this->conversationState['visit_accepted'])
+                 || !empty($this->conversationState['visit_requested']);
+    $hasName   = !empty($this->conversationState['name']);
+    $hasDate   = !empty($this->conversationState['appointment_date']);
+    $isCompleted = !empty($this->conversationState['completed']);
 
-            $this->conversationState['last_bot_message'] = $response;
-            $this->buildPendingContact();
-                return $this->response($response);
+    $type   = $this->conversationState['property_type'] ?? null;
+    $budget = $this->conversationState['budget'] ?? null;
 
-            //return $this->response($this->appendQuestion($response, 'greeting'));
+    // ════════════════════════════════════════════════════════
+    // 🎯 CAS 1 : TOUT EST COMPLET (visite enregistrée)
+    // ════════════════════════════════════════════════════════
+    if ($isCompleted && $hasVisit && $hasName && $hasDate) {
+        if ($lang === 'fr') {
+            $response = "Bonjour 😊\n\n" .
+                        "✅ Votre demande de visite est déjà enregistrée pour le **" . $this->conversationState['appointment_date'] . "**.\n\n" .
+                        "📞 Notre équipe vous contactera prochainement.\n\n" .
+                        "Que puis-je faire pour vous ?";
+        } else {
+            $response = "Salam 😊\n\n" .
+                        "✅ Demande dialek déjà msijla l'visite **" . $this->conversationState['appointment_date'] . "**.\n\n" .
+                        "📞 L'équipe taycontacti m3ak qrib.\n\n" .
+                        "Kifash n9der n3awnek ?";
         }
+        $this->conversationState['last_bot_message'] = $response;
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 🎯 CAS 2 : VISITE ACCEPTÉE mais DATE manquante
+    // ════════════════════════════════════════════════════════
+    if ($hasVisit && $hasName && !$hasDate) {
+        if ($lang === 'fr') {
+            $response = "Bonjour " . $this->conversationState['name'] . " 😊\n\n" .
+                        "📅 Nous attendons toujours votre **date de visite**.\n\n" .
+                        "Quelle date vous conviendrait ?\n" .
+                        "Exemples : demain, lundi, 15/12...";
+        } else {
+            $response = "Salam " . $this->conversationState['name'] . " 😊\n\n" .
+                        "📅 Mazal kantsenaw **nhar l'visite**.\n\n" .
+                        "Ach mn nhar mzyan lik ?\n" .
+                        "Mthal : ghda, tnin, 15/12...";
+        }
+        $this->conversationState['last_bot_message'] = $response;
+        $this->conversationState['last_question_type'] = 'visit_date';
+        $this->conversationState['conversation_stage'] = 'visit_date';
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 🎯 CAS 3 : VISITE ACCEPTÉE mais NOM manquant
+    // ════════════════════════════════════════════════════════
+    if ($hasVisit && !$hasName) {
+        if ($lang === 'fr') {
+            $response = "Bonjour 😊\n\n" .
+                        "Pour finaliser votre demande de visite, donnez-moi simplement votre **nom complet**.";
+        } else {
+            $response = "Salam 😊\n\n" .
+                        "Bach nkemmlo demande dialek, 3tini **smiytek kamla**.";
+        }
+        $this->conversationState['last_bot_message'] = $response;
+        $this->conversationState['last_question_type'] = 'visit_name';
+        $this->conversationState['conversation_stage'] = 'visit_name';
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 🎯 CAS 4 : TYPE + BUDGET mais PAS de VISITE
+    // ════════════════════════════════════════════════════════
+    if ($hasType && $hasBudget && !$hasVisit) {
+        if ($lang === 'fr') {
+            $response = "Bonjour 😊\n\n" .
+                        "Vous recherchez un **" . $type . "** avec un budget de **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                        "Souhaitez-vous organiser une **visite** ?";
+        } else {
+            $response = "Salam 😊\n\n" .
+                        "Kant9leb 3la **" . $type . "** b budget **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                        "Wach baghi t'planifier **visite** ?";
+        }
+        $this->conversationState['last_bot_message'] = $response;
+        $this->conversationState['last_question_type'] = 'visit_offer';
+        $this->conversationState['conversation_stage'] = 'visit_offer';
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 🎯 CAS 5 : TYPE mais PAS de BUDGET
+    // ════════════════════════════════════════════════════════
+    if ($hasType && !$hasBudget) {
+        if ($lang === 'fr') {
+            $response = "Bonjour 😊\n\n" .
+                        "Vous êtes intéressé par un **" . $type . "**.\n\n" .
+                        "💰 Quel budget avez-vous prévu pour votre appartement ?";
+        } else {
+            $response = "Salam 😊\n\n" .
+                        "Nta m'7tam b **" . $type . "**.\n\n" .
+                        "💰 Chhal l'budget dyalk ?";
+        }
+        $this->conversationState['last_bot_message'] = $response;
+        $this->conversationState['last_question_type'] = 'budget';
+        $this->conversationState['conversation_stage'] = 'budget';
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 🎯 CAS 6 : BUDGET mais PAS de TYPE
+    // ════════════════════════════════════════════════════════
+    if ($hasBudget && !$hasType) {
+        if ($lang === 'fr') {
+            $response = "Bonjour 😊\n\n" .
+                        "J'ai bien noté votre budget de **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                        "📐 **Typologies GreenLand :**\n\n" .
+                        " **F3 :**\n" .
+                        "   • 2 chambres + salon + 2 salles de bains\n" .
+                        "   • 83 à 123 m²\n\n" .
+                        " **F4 :**\n" .
+                        "   • 3 chambres + salon + 2 salles de bains\n" .
+                        "   • 97 à 130 m²\n\n" .
+                        "Quel type vous intéresse ?";
+        } else {
+            $response = "Salam 😊\n\n" .
+                        "Sijilt budget dialek **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                        "📐 **L'typologies GreenLand :**\n\n" .
+                        " **F3 :**\n" .
+                        "   • 2 chambres + salon + 2 salles de bains\n" .
+                        "   • 83 à 123 m²\n\n" .
+                        " **F4 :**\n" .
+                        "   • 3 chambres + salon + 2 salles de bains\n" .
+                        "   • 97 à 130 m²\n\n" .
+                        "Ach mn type m'7tam bik ?";
+        }
+        $this->conversationState['last_bot_message'] = $response;
+        $this->conversationState['last_question_type'] = 'property_type';
+        $this->conversationState['conversation_stage'] = 'property_type';
+        $this->buildPendingContact();
+        return $this->response($response);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 🎯 CAS 7 : AUCUNE INFO → Nouveau client
+    // ════════════════════════════════════════════════════════
+    if ($lang === 'fr') {
+        $response = "Bonjour 😊 Bienvenue chez Greenland, Comment puis-je vous aider ?";
+    } else {
+        $response = "Salam 😊 Mrahba f Greenland. Kifash n9der n3awnek ?";
+    }
+    $this->conversationState['last_bot_message'] = $response;
+    $this->buildPendingContact();
+    return $this->response($response);
+}
 
         // ════════════════════════════════════════════════════════════════
         // 🔍 VÉRIFIER SI LE MESSAGE EST VIDE OU SANS SENS
@@ -3176,7 +3328,7 @@ private function thankYouResponse(string $message): string
             $lang = $this->detectLanguage($message);
 
             if ($lang === 'fr') {
-                $response = "Je n'ai pas bien compris votre message 😊\n\n" .
+                $response = "Je n'ai pas bien compris votre message \n\n" .
                             "Pourriez-vous reformuler votre demande ?\n" .
                             "Exemples :\n" .
                             "   • F3 ou F4 ?\n" .
@@ -3184,7 +3336,7 @@ private function thankYouResponse(string $message): string
                             "   • Localisation ?\n" .
                             "   .....";
             } else {
-                $response = "Ma fhemtch mzyan had l'message dialek 😊\n\n" .
+                $response = "Ma fhemtch mzyan had l'message dialek \n\n" .
                             "Wach t9der t3tini message wa7ed akhor ?\n" .
                             "Mthal :\n" .
                             "   • F3 wla F4 ?\n" .
@@ -3220,7 +3372,7 @@ private function thankYouResponse(string $message): string
         }
 
         // ════════════════════════════════════════════════════════════════
-        // 📊 VÉRIFIER SI L'UTILISATEUR POSE UNE QUESTION
+        //  VÉRIFIER SI L'UTILISATEUR POSE UNE QUESTION
         // ════════════════════════════════════════════════════════════════
         $questionWords = [
             'localisation', 'adresse', 'fin kayn', 'ou se trouve',
@@ -3270,10 +3422,10 @@ private function thankYouResponse(string $message): string
 
                 $lang = $this->detectLanguage($message);
                 if ($lang === 'fr') {
-                    $answer = "Désolé 😊 Le budget de " . number_format($amount, 0, ',', ' ') . " DH n'est pas valide.\n\n" .
+                    $answer = "Désolé Le budget de " . number_format($amount, 0, ',', ' ') . " DH n'est pas valide.\n\n" .
                             "Veuillez entrer un budget valide (minimum 100 000 DH).";
                 } else {
-                    $answer = " 😊 L'budget dialek " . number_format($amount, 0, ',', ' ') . " DH machi valide.\n\n" .
+                    $answer = "  L'budget dialek " . number_format($amount, 0, ',', ' ') . " DH machi valide.\n\n" .
                             "3tina budget valide (l'aghal 100 000 DH).";
                 }
 
@@ -3295,7 +3447,7 @@ private function thankYouResponse(string $message): string
             $answer = $this->qualificationResponse();
             $this->conversationState['last_bot_message'] = $answer;
             $this->buildPendingContact();
-            // ✅ has_budget + has_type → appendQuestion proposera la visite
+            //  has_budget + has_type → appendQuestion proposera la visite
             return $this->response($this->appendQuestion($answer, 'visit'));
         }
 
@@ -3310,13 +3462,13 @@ private function thankYouResponse(string $message): string
                     $this->conversationState['conversation_stage'] = 'budget';
                     $this->conversationState['last_question_type'] = 'budget';
 
-                    $response = "Parfait 😊 Vous êtes intéressé par un " . $type . ".\n\n" .
-                                "💰 Quel budget avez-vous prévu pour votre appartement ?";
+                    $response = "Parfait Vous êtes intéressé par un " . $type . ".\n\n" .
+                                " Quel budget avez-vous prévu pour votre appartement ?";
 
                     $lang = $this->detectLanguage($message);
                     $this->conversationState['last_bot_message'] = $this->translateResponse($response, $lang);
                     $this->buildPendingContact();
-                    // ✅ has_type mais pas budget → appendQuestion demandera le budget
+                    //  has_type mais pas budget → appendQuestion demandera le budget
                     return $this->response($this->appendQuestion($this->translateResponse($response, $lang), 'budget'));
                 }
             }
@@ -3349,7 +3501,7 @@ private function thankYouResponse(string $message): string
 
                 $this->conversationState['last_bot_message'] = $response;
                 $this->buildPendingContact();
-                // ✅ has_budget mais pas type → appendQuestion demandera le type
+                //  has_budget mais pas type → appendQuestion demandera le type
                 return $this->response($this->appendQuestion($response, 'type'));
             }
         }
@@ -3371,14 +3523,14 @@ private function thankYouResponse(string $message): string
         // ════════════════════════════════════════════════════════════════
         if ($this->conversationState['completed']) {
             $answer = "Merci de nous avoir contactés 😊\n\n" .
-                      "✅ Votre demande de visite a déjà été enregistrée.\n" .
-                      "📞 Notre équipe vous contactera très prochainement.\n\n" .
+                      " Votre demande de visite a déjà été enregistrée.\n" .
+                      " Notre équipe vous contactera très prochainement.\n\n" .
                       "📱 Pour toute urgence : " . $this->data['projet']['contact_agents'] . "\n\n" .
-                      "🙏 À bientôt !";
+                      " À bientôt !";
 
             $this->conversationState['last_bot_message'] = $answer;
             $this->buildPendingContact();
-            // ✅ Tout est complet → appendQuestion n'ajoutera rien
+            //  Tout est complet → appendQuestion n'ajoutera rien
             return $this->response($this->appendQuestion($answer, 'default'));
         }
 
@@ -3404,7 +3556,7 @@ private function thankYouResponse(string $message): string
             $this->conversationState['conversation_stage'] = 'property_type';
             $this->conversationState['last_question_type'] = 'property_type';
 
-            $answer = "Désolé 😊 Les typologies disponibles dans notre projet GreenLand sont uniquement F3 et F4.\n\n" .
+            $answer = "Désolé  Les typologies disponibles dans notre projet GreenLand sont uniquement F3 et F4.\n\n" .
                       " Le F3 : 2 chambres + salon + 2 salles de bains (83 à 123 m²)\n" .
                       " Le F4 : 3 chambres + salon + 2 salles de bains (97 à 130 m²)\n\n" .
                       "Lequel de ces deux types vous intéresse ?";
@@ -3430,10 +3582,10 @@ private function thankYouResponse(string $message): string
                 $this->conversationState['conversation_stage'] = 'visit_name';
                 $this->conversationState['last_question_type'] = 'visit_name';
 
-                $answer = "Parfait 😊 Pour transmettre votre demande de visite à notre équipe commerciale, donnez-moi simplement votre nom.";
+                $answer = "Parfait Pour transmettre votre demande de visite à notre équipe commerciale, donnez-moi simplement votre nom.";
                 $this->conversationState['last_bot_message'] = $answer;
                 $this->buildPendingContact();
-                // ✅ has_visit mais pas name → appendQuestion demandera le nom
+                //  has_visit mais pas name → appendQuestion demandera le nom
                 return $this->response($this->appendQuestion($answer, 'name'));
             }
 
@@ -3453,7 +3605,7 @@ private function thankYouResponse(string $message): string
 
         if (!empty($type) && !empty($budget) && $budgetGiven) {
             if ($type !== 'F3' && $type !== 'F4') {
-                $answer = "Désolé 😊 Les typologies disponibles sont F3 et F4. Souhaitez-vous en savoir plus sur ces deux types ?";
+                $answer = "Désolé  Les typologies disponibles sont F3 et F4. Souhaitez-vous en savoir plus sur ces deux types ?";
                 $this->conversationState['property_type'] = null;
                 $this->conversationState['last_bot_message'] = $answer;
                 $this->buildPendingContact();
@@ -3476,8 +3628,8 @@ private function thankYouResponse(string $message): string
             $this->conversationState['conversation_stage'] = 'budget';
             $this->conversationState['last_question_type'] = 'budget';
 
-            $response = "Parfait 😊 Vous êtes intéressé par un " . $type . ".\n\n" .
-                        "💰 Quel budget avez-vous prévu pour votre appartement ?";
+            $response = "Parfait  Vous êtes intéressé par un " . $type . ".\n\n" .
+                        " Quel budget avez-vous prévu pour votre appartement ?";
 
             $lang = $this->detectLanguage($message);
             $answer = $this->translateResponse($response, $lang);
@@ -3665,12 +3817,12 @@ private function thankYouResponse(string $message): string
 
             $result = $this->reply($message, $history);
 
-            $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
+            $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande.";
 
             $this->addToSessionHistory($sessionId, 'user', $message);
             $this->addToSessionHistory($sessionId, 'assistant', $response);
 
-            Log::info('✅ AgentFinalService::processMessage terminé', [
+            Log::info(' AgentFinalService::processMessage terminé', [
                 'session_id' => $sessionId,
                 'history_count' => count($this->getHistoryForSession($sessionId))
             ]);
@@ -3679,7 +3831,7 @@ private function thankYouResponse(string $message): string
 
         } catch (\Exception $e) {
             Log::error('❌ Erreur processMessage: ' . $e->getMessage());
-            return "Je suis désolé, une erreur s'est produite. Veuillez réessayer plus tard. 😊";
+            return "Je suis désolé, une erreur s'est produite. Veuillez réessayer plus tard. ";
         }
     }
 }

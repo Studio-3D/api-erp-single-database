@@ -50,12 +50,13 @@ class WhatsAppBusinessController extends Controller
    /**
  * 🔥 TRAITER LE MESSAGE AVEC L'AGENT VIRTUEL
  */
-private function processWithAgent($message, $from, $sessionId, $projetId = 1)
+private function processWithAgent($message, $from, $sessionId, $projetId,$prospectId = null)
 {
     try {
         Log::info("🤖 Agent virtuel: Traitement du message de {$from}", [
             'message' => $message,
-            'session_id' => $sessionId
+            'session_id' => $sessionId,
+            'prospect_id' => $prospectId,  // ✅ Ajouté
         ]);
 
         // 🔥 UTILISER LA MÊME MÉTHODE QUE DANS AgentController
@@ -63,7 +64,7 @@ private function processWithAgent($message, $from, $sessionId, $projetId = 1)
       $conversation = Conversation::getOrCreate($sessionId, [
         'phone_number' => $from,          // ✅ AJOUTER
         'projet_id' => $projetId,          // ✅ AJOUTER
-        'prospect_id' => null,             // ✅ AJOUTER
+         'prospect_id' => $prospectId||null,  // ✅ Plus NULL !           // ✅ AJOUTER
         'user_ip' => 'whatsapp',
         'user_agent' => 'WhatsApp Business',
     ]);
@@ -126,27 +127,71 @@ private function processWithAgent($message, $from, $sessionId, $projetId = 1)
      /**
      * 🔥 VÉRIFIER SI LE NUMÉRO EXISTE DÉJÀ DANS WHATSAPP_MESSAGES
      */
-    private function isExistingConversation($projetId, $phoneNumber)
-    {
-        try {
-            $count = DB::connection('temp')
-                ->table('whatsapp_messages')
-                ->where('projet_id', $projetId)
-                ->where(function($query) use ($phoneNumber) {
-                    $query->where('from_number', $phoneNumber)
-                          ->orWhere('to_number', $phoneNumber);
-                })
-                ->count();
+/**
+ * 🔥 VÉRIFIER SI LA CONVERSATION EXISTE ET SI ELLE EST TERMINÉE
+ *
+ * @return array [
+ *   'exists' => bool,           // La conversation existe ?
+ *   'is_completed' => bool,      // La visite est complète (nom + date) ?
+ * ]
+ */
+private function isExistingConversation($projetId, $phoneNumber)
+{
+    try {
+        $sessionId = $this->getSessionId($phoneNumber, $projetId);
 
-            Log::info("📊 Vérification conversation existante: {$phoneNumber} - {$count} messages");
+        // ✅ Récupérer la conversation
+        $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
 
-            return false;
-
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur vérification conversation: " . $e->getMessage());
-            return false;
+        if (!$conversation) {
+            Log::info("📊 Aucune conversation existante: {$phoneNumber}", [
+                'session_id' => $sessionId,
+            ]);
+            return [
+                'exists' => false,
+                'is_completed' => false,
+            ];
         }
+
+        // ✅ Récupérer l'état de la conversation
+        $state = $conversation->state ?? [];
+
+        // ✅ Vérifier si la conversation est TERMINÉE (visite complète)
+        $hasName = !empty($state['name']);
+        $hasDate = !empty($state['appointment_date']);
+        $visitAccepted = !empty($state['visit_accepted']);
+        $isCompleted = !empty($state['completed']);
+
+        // ✅ La conversation est "terminée" si :
+        //    - Nom + Date renseignés  ET
+        //    - Visite acceptée  ET
+        //    - Statut completed = true
+        $isFullyCompleted = $hasName && $hasDate && $visitAccepted && $isCompleted;
+
+        Log::info("📊 Conversation existante analysée: {$phoneNumber}", [
+            'session_id' => $sessionId,
+            'conversation_id' => $conversation->id,
+            'prospect_id' => $conversation->prospect_id,
+            'has_name' => $hasName,
+            'has_date' => $hasDate,
+            'visit_accepted' => $visitAccepted,
+            'is_completed' => $isCompleted,
+            'is_fully_completed' => $isFullyCompleted,
+        ]);
+
+        return [
+            'exists' => true,
+            'is_completed' => $isFullyCompleted,
+        ];
+
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur vérification conversation: " . $e->getMessage());
+        return [
+            'exists' => false,
+            'is_completed' => false,
+        ];
     }
+}
 
     /**
      * 🔥 EXTRAIRE LE SESSION ID DU NUMÉRO
@@ -761,16 +806,52 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                             'session_id' => $sessionId,
                         ]);
                     }
-                // Vérifier si c'est une conversation existante
-                $isExisting = $this->isExistingConversation($foundConfig->projet_id, $from);
+           // ✅ Vérifier si conversation existe ET si elle est complète
+            $conversationCheck = $this->isExistingConversation($foundConfig->projet_id, $from);
 
-                $agentResponse = $this->processWithAgent($body, $from, $sessionId,$foundConfig->projet_id);
-                if ($isNewProspect ||$isExisting==false) {
-                    Log::info("🤖 Agent virtuel déclenché pour {$from} - " . ($isNewProspect ? "Nouveau prospect" : "Prospect existant"));
-                    Log::info("🤖 Déclenchement de l'agent virtuel pour {$from}");
+            $isExisting = $conversationCheck['exists'];
+            $isCompleted = $conversationCheck['is_completed'];
+
+            Log::info("🔍 Vérification conversation", [
+                'phone' => $from,
+                'is_new_prospect' => $isNewProspect,
+                'is_existing_conversation' => $isExisting,
+                'is_conversation_completed' => $isCompleted,
+                'prospect_id' => $prospectId,
+            ]);
+
+            // ════════════════════════════════════════════════════════════
+            // ✅ AGENT RÉPOND UNIQUEMENT SI :
+            //    1. Nouveau prospect  OU
+            //    2. Prospect sans conversation  OU
+            //    3. Conversation NON terminée (visite incomplète)
+            // ════════════════════════════════════════════════════════════
+                    // $agentResponse = $this->processWithAgent($body, $from, $sessionId,$foundConfig->projet_id,$prospectId);
+
+        $shouldAgentRespond = $isNewProspect || !$isExisting || !$isCompleted;
+
+        if ($shouldAgentRespond) {
+                    $reason = 'inconnu';
+                    if ($isNewProspect) {
+                        $reason = 'Nouveau prospect';
+                    } elseif (!$isExisting) {
+                        $reason = 'Prospect sans conversation';
+                    } else {
+                        $reason = 'Conversation non terminée (visite incomplète)';
+                    }
+
+                    Log::info("🤖 Agent virtuel DÉCLENCHÉ pour {$from}", [
+                        'raison' => $reason,
+                    ]);
 
                     // Traiter avec l'agent
-                    $agentResponse = $this->processWithAgent($body, $from, $sessionId);
+                    $agentResponse = $this->processWithAgent(
+                        $body,
+                        $from,
+                        $sessionId,
+                        $foundConfig->projet_id,
+                        $prospectId
+                    );
 
                     // Envoyer la réponse
                     if ($agentResponse) {
@@ -784,7 +865,11 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                         Log::info("✅ Réponse de l'agent envoyée à {$from}");
                     }
                 } else {
-                    Log::info("⏭️ Pas de déclenchement de l'agent pour {$from} (conversation existante sans mots-clés)");
+                    Log::info("⏹️ Agent NON déclenché pour {$from}", [
+                        'raison' => 'Visite complète (nom + date + acceptée)',
+                        'prospect_id' => $prospectId,
+                    ]);
+                    Log::info("   → Le commercial prend le relais pour finaliser le RDV");
                 }
             }
 
