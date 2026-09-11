@@ -60,11 +60,13 @@ private function processWithAgent($message, $from, $sessionId, $projetId = 1)
 
         // 🔥 UTILISER LA MÊME MÉTHODE QUE DANS AgentController
         // Conversation::getOrCreate() est une méthode statique du modèle
-        $conversation = Conversation::getOrCreate($sessionId, [
-            'user_ip' => 'whatsapp',
-            'user_agent' => 'WhatsApp Business',
-        ]);
-
+      $conversation = Conversation::getOrCreate($sessionId, [
+        'phone_number' => $from,          // ✅ AJOUTER
+        'projet_id' => $projetId,          // ✅ AJOUTER
+        'prospect_id' => null,             // ✅ AJOUTER
+        'user_ip' => 'whatsapp',
+        'user_agent' => 'WhatsApp Business',
+    ]);
         if (!$conversation) {
             // Fallback: créer l'agent sans historique
             $agent = new AgentFinalService();
@@ -183,6 +185,16 @@ private function processWithAgent($message, $from, $sessionId, $projetId = 1)
                 'message_type' => 'agent_response',
                 'created_at' => now(),
                 'updated_at' => now()
+            ]);
+
+             // ✅ MARQUER LE MESSAGE BOT (programme le follow-up)
+            $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
+            if ($conversation) {
+                $conversation->markBotMessage(); // ✅ Programme le follow-up
+            }
+
+            Log::info("✅ Réponse de l'agent envoyée + follow-up programmé", [
+                'session_id' => $sessionId,
             ]);
 
             Log::info("✅ Réponse de l'agent envoyée à {$to}");
@@ -741,7 +753,14 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             if (!empty($body)) {
                 // Générer un session ID
                 $sessionId = $this->getSessionId($from, $foundConfig->projet_id);
-
+                // ✅ NOUVEAU : MARQUER LE MESSAGE CLIENT (annule le follow-up)
+                    $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
+                    if ($conversation) {
+                        $conversation->markClientMessage();
+                        Log::info("📩 Message client marqué (follow-up annulé)", [
+                            'session_id' => $sessionId,
+                        ]);
+                    }
                 // Vérifier si c'est une conversation existante
                 $isExisting = $this->isExistingConversation($foundConfig->projet_id, $from);
 

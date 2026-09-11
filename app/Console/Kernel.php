@@ -41,6 +41,11 @@ class Kernel extends ConsoleKernel
         ->everyMinute()
         ->withoutOverlapping()
         ->runInBackground();
+        //cron job for relance whtsap
+     $schedule->command('follow-ups:send')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->runInBackground();
 
        /* // Poll LinkedIn stats every 5 minutes
         $schedule->command('linkedin:poll-stats')
