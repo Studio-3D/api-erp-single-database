@@ -247,7 +247,7 @@ private function hasConfirmedVisit(Conversation $conversation): bool
     }
 
     /**
-     * 🔥 GÉNÉRER LE MESSAGE DE RELANCE (style SAKANI)
+     * 🔥 GÉNÉRER LE MESSAGE DE RELANCE (style )
      */
     private function generateFollowUpMessage(Conversation $conversation): string
     {
