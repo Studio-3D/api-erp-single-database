@@ -2754,48 +2754,50 @@ public function edit_visite($id)
                                                 // Get the avance_id from the response
                                         $avanceData = json_decode($avanceResponse->getContent(), true);
                                         $avance_id = isset($avanceData['avance']) ? $avanceData['avance']['id'] : null;
-                                }
-                                    $new_staut_client = new StatutClient();
-                                    $new_staut_client->setConnection('temp');
-                                    $new_staut_client->visite_id = $visite->id;
-                                    $new_staut_client->client_id = $prospect->client_id ?? null;
-                                    $new_staut_client->statut =$request->statut_suivi;//suivi dossier
-                                    $new_staut_client->avance_id = $avance_id??null;
-                                    $new_staut_client->reservation_id = $request->dossier_id_suivi;
-                                    $new_staut_client->date_traitement = Carbon::now();
-                                    $new_staut_client->user_id_traite = $userAuth->value('id');
-                                   if ($request->statut_suivi == '1') { // Assuming '1' is "nouveau" or "nouvell"
-                                        // Build payment comment
-                                        $comment = 'Paiement Avance montant: ' . number_format($request->montant_suivi, 2) .
-                                                ' DH - Réservation code: ' . $request->code_suivi;
 
-                                        // Add payment reference if available
-                                        if ($request->num_paiement_suivi) {
-                                            $comment .= ' - Ref paiement: ' . $request->num_paiement_suivi;
-                                        }
+                                            $new_staut_client = new StatutClient();
+                                            $new_staut_client->setConnection('temp');
+                                            $new_staut_client->visite_id = $visite->id;
+                                            $new_staut_client->client_id = $prospect->client_id ?? null;
+                                            $new_staut_client->statut =$request->statut_suivi;//suivi dossier
+                                            $new_staut_client->avance_id = $avance_id??null;
+                                            $new_staut_client->reservation_id = $request->dossier_id_suivi;
+                                            $new_staut_client->date_traitement = Carbon::now();
+                                            $new_staut_client->user_id_traite = $userAuth->value('id');
+                                            if ($request->statut_suivi == '1') { // Assuming '1' is "nouveau" or "nouvell"
+                                                // Build payment comment
+                                                $comment = 'Paiement Avance montant: ' . number_format($request->montant_suivi, 2) .
+                                                        ' DH - Réservation code: ' . $request->code_suivi;
 
-                                        // Add check/echeance info for checks
-                                        if ($request->mode_paiement_suivi == '2' || $request->mode_paiement_suivi == '3' || $request->mode_paiement_suivi == '4') {
-                                            if ($request->echeance_suivi) {
-                                                $comment .= ' - Échéance: ' . Carbon::parse($request->echeance_suivi)->format('d/m/Y');
+                                                // Add payment reference if available
+                                                if ($request->num_paiement_suivi) {
+                                                    $comment .= ' - Ref paiement: ' . $request->num_paiement_suivi;
+                                                }
+
+                                                // Add check/echeance info for checks
+                                                if ($request->mode_paiement_suivi == '2' || $request->mode_paiement_suivi == '3' || $request->mode_paiement_suivi == '4') {
+                                                    if ($request->echeance_suivi) {
+                                                        $comment .= ' - Échéance: ' . Carbon::parse($request->echeance_suivi)->format('d/m/Y');
+                                                    }
+                                                }
+                                                // 🔥 Add compte_num if available
+                                                if ($request->compte_num_suivi) {
+                                                    $comment .= ' - N° Compte: ' . $request->compte_num_suivi;
+                                                }
+
+                                                // 🔥 Add intitule_compte if available
+                                                if ($request->intitule_compte_suivi) {
+                                                    $comment .= ' - Intitulé: ' . $request->intitule_compte_suivi;
+                                                }
+                                            } else {
+                                                    // Use the existing comment for other statuts
+                                                    $comment = $request->commentaire;
                                             }
-                                        }
-                                         // 🔥 Add compte_num if available
-                                        if ($request->compte_num_suivi) {
-                                            $comment .= ' - N° Compte: ' . $request->compte_num_suivi;
-                                        }
 
-                                        // 🔥 Add intitule_compte if available
-                                        if ($request->intitule_compte_suivi) {
-                                            $comment .= ' - Intitulé: ' . $request->intitule_compte_suivi;
-                                        }
-                                    } else {
-                                        // Use the existing comment for other statuts
-                                        $comment = $request->commentaire;
-                                    }
+                                            $new_staut_client->commentaire = $comment;
+                                            $new_staut_client->save();
+                                }
 
-                                    $new_staut_client->commentaire = $comment;
-                                    $new_staut_client->save();
                         }
 
                     /*//store code pre reserve to table ==>PreReservation

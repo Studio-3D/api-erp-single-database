@@ -144,9 +144,17 @@ class AgentFinalService
     {
         $this->apiKey = env('OPENROUTER_API_KEY');
         $this->model = env('OPENROUTER_MODEL', 'gpt-4o-mini');
+          // ════════════════════════════════════════════════════════════
+        // 🔥 N8N DÉSACTIVÉ TEMPORAIREMENT
+        // ════════════════════════════════════════════════════════════
+        $this->n8nEnabled = false;
+        $this->n8nWebhookUrl = null;
+
+        /*
+        // Code original
         $this->n8nEnabled = filter_var(env('N8N_ENABLED', false), FILTER_VALIDATE_BOOLEAN);
         $this->n8nWebhookUrl = env('N8N_WEBHOOK_URL');
-
+        */
         if (!empty($savedState)) {
             foreach ($savedState as $key => $value) {
                 if ($value !== null && $value !== '') {
@@ -2740,32 +2748,47 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
     |--------------------------------------------------------------------------
     */
 
-    private function sendContactToN8n(array $payload): bool
-    {
-        if (!$this->n8nEnabled || !$this->n8nWebhookUrl) {
-            Log::warning('N8N désactivé ou webhook manquant.');
-            return false;
-        }
+   private function sendContactToN8n(array $payload): bool
+{
+    // ════════════════════════════════════════════════════════════
+    // 🔥 N8N DÉSACTIVÉ TEMPORAIREMENT
+    // ════════════════════════════════════════════════════════════
+    Log::info('ℹ️ N8N désactivé - Lead enregistré localement', [
+        'payload' => $payload,
+        'created_at' => now()->toIso8601String(),
+    ]);
 
-        try {
-            $response = Http::timeout(20)
-                ->acceptJson()
-                ->post($this->n8nWebhookUrl, $payload);
+    return false;
 
-            if (!$response->successful()) {
-                Log::error('N8N réponse invalide', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                return false;
-            }
-
-            return true;
-        } catch (\Throwable $e) {
-            Log::error('Erreur N8N', ['error' => $e->getMessage()]);
-            return false;
-        }
+    /*
+    // ════════════════════════════════════════════════════════════
+    // CODE N8N ORIGINAL (à réactiver plus tard)
+    // ════════════════════════════════════════════════════════════
+    if (!$this->n8nEnabled || !$this->n8nWebhookUrl) {
+        Log::warning('N8N désactivé ou webhook manquant.');
+        return false;
     }
+
+    try {
+        $response = Http::timeout(20)
+            ->acceptJson()
+            ->post($this->n8nWebhookUrl, $payload);
+
+        if (!$response->successful()) {
+            Log::error('N8N réponse invalide', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return false;
+        }
+
+        return true;
+    } catch (\Throwable $e) {
+        Log::error('Erreur N8N', ['error' => $e->getMessage()]);
+        return false;
+    }
+    */
+}
 
     /*
     |--------------------------------------------------------------------------

@@ -39,17 +39,6 @@ class WhatsAppBusinessController extends Controller
  */
 
 
-    /**
-     * 🔥 METTRE À JOUR LA CONVERSATION EN BASE DE DONNÉES
-     */
-
-
-    /**
-     * 🔥 TRAITER LE MESSAGE AVEC L'AGENT VIRTUEL ET SAUVEGARDER L'HISTORIQUE
-     */
-   /**
- * 🔥 TRAITER LE MESSAGE AVEC L'AGENT VIRTUEL
- */
 private function processWithAgent($message, $from, $sessionId, $projetId,$prospectId = null)
 {
     try {
@@ -106,7 +95,9 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
 
         // 🔥 Sauvegarder en base de données (comme dans AgentController)
         $conversation->updateConversation($newState, $history);
-
+        if ($prospectId) {
+            $this->assignProspectIfInterested($prospectId, $projetId, $newState);
+        }
         Log::info("🤖 Agent virtuel: Réponse générée et sauvegardée", [
             'response' => $response,
             'history_count' => count($history)
@@ -570,6 +561,114 @@ private function autoAssignSingleProspect($prospectId, $projetId)
         return false;
     }
 }
+/**
+ * 🔥 AFFECTER LE PROSPECT DÈS QU'IL MONTRE UN INTÉRÊT CONCRET
+ *
+ * Conditions d'affectation :
+ *   - Type choisi (F3 ou F4)   OU
+ *   - Budget donné              OU
+ *   - Visite demandée           OU
+ *   - Visite acceptée
+ */
+private function assignProspectIfInterested($prospectId, $projetId, array $state)
+{
+    try {
+        // ✅ Vérifier si le prospect existe
+        $prospect = Prospect::on('temp')->find($prospectId);
+        if (!$prospect) {
+            Log::warning("⚠️ Prospect introuvable", ['prospect_id' => $prospectId]);
+            return false;
+        }
+
+        // ✅ Vérifier si déjà affecté
+        if (!empty($prospect->commercial_affecte)) {
+            Log::info("ℹ️ Prospect déjà affecté", [
+                'prospect_id' => $prospectId,
+                'commercial_id' => $prospect->commercial_affecte,
+            ]);
+            return $prospect->commercial_affecte;
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // 🎯 VÉRIFIER SI LE CLIENT MONTRE UN INTÉRÊT CONCRET
+        // ════════════════════════════════════════════════════════════
+
+        // Critère 1 : Type choisi (F3 ou F4)
+        $hasType = !empty($state['property_type'])
+                   && in_array(strtoupper($state['property_type']), ['F3', 'F4']);
+
+        // Critère 2 : Budget donné
+        $hasBudget = !empty($state['budget'])
+                     && !empty($state['budget_given_by_user']);
+
+        // Critère 3 : Visite demandée
+        $wantsVisit = !empty($state['wants_visit'])
+                      || !empty($state['visit_requested']);
+
+        // Critère 4 : Visite acceptée
+        $visitAccepted = !empty($state['visit_accepted']);
+
+        // ✅ Intérêt concret = au moins UN de ces critères
+        $hasConcreteInterest = $hasType || $hasBudget || $wantsVisit || $visitAccepted;
+
+        Log::info("🔍 Vérification intérêt prospect", [
+            'prospect_id' => $prospectId,
+            'has_type' => $hasType,
+            'property_type' => $state['property_type'] ?? null,
+            'has_budget' => $hasBudget,
+            'budget' => $state['budget'] ?? null,
+            'wants_visit' => $wantsVisit,
+            'visit_accepted' => $visitAccepted,
+            'has_concrete_interest' => $hasConcreteInterest,
+        ]);
+
+        // ❌ Pas d'intérêt concret → NE PAS affecter
+        if (!$hasConcreteInterest) {
+            Log::info("⏸️ Affectation NON déclenchée - Pas d'intérêt concret", [
+                'prospect_id' => $prospectId,
+            ]);
+            return false;
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // 🔥 INTÉRÊT CONCRET → AFFECTER
+        // ════════════════════════════════════════════════════════════
+        Log::info("🎯 Intérêt concret détecté - Affectation déclenchée", [
+            'prospect_id' => $prospectId,
+            'projet_id' => $projetId,
+            'property_type' => $state['property_type'] ?? null,
+            'budget' => $state['budget'] ?? null,
+            'wants_visit' => $wantsVisit,
+            'visit_accepted' => $visitAccepted,
+        ]);
+
+        // 🔥 Appeler l'auto-affectation
+        $assignedCommercialId = $this->autoAssignSingleProspect($prospectId, $projetId);
+
+        if ($assignedCommercialId) {
+            Log::info("✅ Prospect affecté avec succès", [
+                'prospect_id' => $prospectId,
+                'commercial_id' => $assignedCommercialId,
+            ]);
+
+            // 🔥 Envoyer la notification d'affectation
+            $this->sendAffectationNotification($assignedCommercialId, $prospectId, $projetId);
+
+            return $assignedCommercialId;
+        } else {
+            Log::warning("⚠️ Aucun commercial disponible", [
+                'prospect_id' => $prospectId,
+            ]);
+            return false;
+        }
+
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur affectation intérêt: " . $e->getMessage(), [
+            'trace' => $e->getTraceAsString(),
+        ]);
+        return false;
+    }
+}
  public function webhook_whatsapp_business(Request $request)
     {
         try {
@@ -734,7 +833,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 'projet_id' => $foundConfig->projet_id
             ]);
 
-            if ($isNewProspect) {
+           /* if ($isNewProspect) {
 
                 $assignedCommercialId = $this->autoAssignSingleProspect($prospectId, $foundConfig->projet_id);
 
@@ -750,7 +849,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                         'prospect_id' => $prospectId
                     ]);
                 }
-            }
+            }*/
 
 
             // ========== TÉLÉCHARGER ET STOCKER LE MÉDIA ==========
