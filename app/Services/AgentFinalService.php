@@ -115,6 +115,7 @@ class AgentFinalService
         'wants_visit' => false,
         'visit_requested' => false,
         'visit_accepted' => false,
+        'client_name' => null,  // ✅ DÉJÀ PRÉSENT
         'name' => null,
         'phone' => null,
         'wants_contact' => false,
@@ -144,17 +145,10 @@ class AgentFinalService
     {
         $this->apiKey = env('OPENROUTER_API_KEY');
         $this->model = env('OPENROUTER_MODEL', 'gpt-4o-mini');
-          // ════════════════════════════════════════════════════════════
-        // 🔥 N8N DÉSACTIVÉ TEMPORAIREMENT
-        // ════════════════════════════════════════════════════════════
+
         $this->n8nEnabled = false;
         $this->n8nWebhookUrl = null;
 
-        /*
-        // Code original
-        $this->n8nEnabled = filter_var(env('N8N_ENABLED', false), FILTER_VALIDATE_BOOLEAN);
-        $this->n8nWebhookUrl = env('N8N_WEBHOOK_URL');
-        */
         if (!empty($savedState)) {
             foreach ($savedState as $key => $value) {
                 if ($value !== null && $value !== '') {
@@ -207,7 +201,6 @@ class AgentFinalService
             "DÉTAILS : {$project['details_bien']}",
             "SUPERFICIES : {$project['superficies']}",
             "HORAIRES : {$project['horaires']}",
-            "CONTACTS : {$project['contact_agents']}",
             "F3 : {$project['typologies']['F3']['composition']} ; {$project['typologies']['F3']['surface']}",
             "F4 : {$project['typologies']['F4']['composition']} ; {$project['typologies']['F4']['surface']}",
             "ÉQUIPEMENTS : " . implode(' - ', $project['equipements']),
@@ -216,34 +209,26 @@ class AgentFinalService
 
     /*
     |--------------------------------------------------------------------------
-    | 🔥 NOUVELLES MÉTHODES : appendQuestion / getSmartQuestion / getQuestion
+    | appendQuestion / getSmartQuestion / getQuestion
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * 🔥 AJOUTER UNE QUESTION POUR ATTIRER L'ATTENTION DU CLIENT
-     * (Version INTELLIGENTE - ne pose pas de question si l'info est déjà donnée)
-     */
     private function appendQuestion(string $response, string $context = 'default'): string
     {
-        //  Vérifier si la réponse se termine déjà par une question
         $trimmed = trim($response);
         if (preg_match('/[?؟]\s*[😊😉🙂]?\s*$/u', $trimmed)) {
             return $response;
         }
 
-        //  Récupérer l'état actuel de la conversation
         $state = $this->conversationState;
         $lang = $this->detectLanguage($this->conversationState['last_user_message'] ?? 'fr');
 
-        //  Vérifier ce qui est DÉJÀ connu
         $hasType = !empty($state['property_type']) && in_array(strtoupper($state['property_type']), ['F3', 'F4']);
         $hasBudget = !empty($state['budget']) && !empty($state['budget_given_by_user']);
         $hasVisit = !empty($state['visit_accepted']) || !empty($state['visit_requested']);
         $hasName = !empty($state['name']);
         $hasDate = !empty($state['appointment_date']);
 
-        //  Générer la bonne question selon le contexte ET l'état
         $question = $this->getSmartQuestion($lang, $context, [
             'has_type' => $hasType,
             'has_budget' => $hasBudget,
@@ -252,7 +237,6 @@ class AgentFinalService
             'has_date' => $hasDate,
         ]);
 
-        //  Si aucune question pertinente, ne rien ajouter
         if (empty($question)) {
             return $response;
         }
@@ -260,48 +244,35 @@ class AgentFinalService
         return $response . $question;
     }
 
-    /**
-     * 🔥 RETOURNER LA QUESTION INTELLIGENTE
-     */
     private function getSmartQuestion(string $lang, string $context, array $state): string
     {
-        //  ÉTAPE 1 : Si le client a TOUT (type + budget + visite + nom + date) → Confirmer
         if ($state['has_visit'] && $state['has_name'] && $state['has_date']) {
-            return ''; //  Plus rien à demander, la visite est confirmée
+            return '';
         }
 
-        //  ÉTAPE 2 : Si le client a visité mais pas de nom → Demander le nom
         if ($state['has_visit'] && !$state['has_name']) {
             return $this->getQuestion($lang, 'name');
         }
 
-        //  ÉTAPE 3 : Si le client a nom mais pas de date → Demander la date
         if ($state['has_name'] && !$state['has_date']) {
             return $this->getQuestion($lang, 'date');
         }
 
-        //  ÉTAPE 4 : Si le client a un type et budget → Proposer la visite
         if ($state['has_type'] && $state['has_budget'] && !$state['has_visit']) {
             return $this->getQuestion($lang, 'visit');
         }
 
-        //  ÉTAPE 5 : Si le client a un type mais pas de budget → Demander le budget
         if ($state['has_type'] && !$state['has_budget']) {
             return $this->getQuestion($lang, 'budget');
         }
 
-        //  ÉTAPE 6 : Si le client n'a pas de type → Demander le type
         if (!$state['has_type']) {
             return $this->getQuestion($lang, 'type');
         }
 
-        //  ÉTAPE 7 : Fallback générique
         return $this->getQuestion($lang, $context);
     }
 
-    /**
-     * 🔥 RETOURNER LA QUESTION SELON LE TYPE
-     */
     private function getQuestion(string $lang, string $type): string
     {
         $questions = [
@@ -332,6 +303,143 @@ class AgentFinalService
         ];
 
         return $questions[$lang][$type] ?? $questions[$lang]['default'];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔥 CONTEXTE INTELLIGENT (généré par IA)
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * 🔥 Répondre à une question en rappelant le contexte (généré par l'IA)
+     */
+    private function handleQuestionWithContext(string $message, string $response): string
+    {
+        // Si pas de clé API → fallback manuel simple
+        if (!$this->apiKey) {
+            return $this->appendQuestion($response, 'default');
+        }
+
+        $state = $this->conversationState;
+        $lang = $this->detectLanguage($message);
+        $context = $this->getDataContext();
+
+        // Construire un résumé lisible de l'état actuel
+        $etatResume = $this->buildStateSummaryForAI($state);
+
+        // Si la conversation n'a AUCUNE info (juste greeting), pas besoin de contexte
+        if (empty($etatResume)) {
+            return $response;
+        }
+
+        $prompt = "Tu es le conseiller virtuel de GreenLand (projet immobilier à Casablanca).
+
+=== DONNÉES DU PROJET ===
+{$context}
+
+=== ÉTAT ACTUEL DE LA CONVERSATION AVEC CE CLIENT ===
+{$etatResume}
+
+=== NOUVELLE QUESTION DU CLIENT ===
+\"{$message}\"
+
+=== RÉPONSE DE BASE QUE TU VIENS DE GÉNÉRER ===
+\"{$response}\"
+
+=== INSTRUCTIONS ===
+1. Le client a déjà discuté avec toi et a donné certaines informations (voir ÉTAT ACTUEL).
+2. Il vient de poser une nouvelle question. Tu dois :
+   a) Répondre à sa nouvelle question (la réponse de base est déjà là, tu peux la garder ou l'améliorer)
+   b) Rappeler brièvement où en était la conversation (ex: \"Vous étiez intéressé par un F3...\")
+   c) Reposer la question suivante logique pour continuer la qualification (budget, visite, nom, date, etc.)
+3. ⚠️ Si la conversation n'a AUCUNE info (juste greeting), ne rappelle RIEN et réponds juste à la question.
+4. ⚠️ Sois naturel, comme un humain qui se souvient de la conversation.
+5. ⚠️ Ne hardcode pas, adapte-toi à l'état réel.
+6. ⚠️ Une seule question à la fois.
+7. Langue : " . ($lang === 'fr' ? 'Français' : 'Darija marocaine (écrite en lettres latines)') . "
+
+=== FORMAT DE RÉPONSE ===
+Réponds UNIQUEMENT avec le texte final à envoyer au client. Pas de JSON, pas d'explication.";
+
+        try {
+            $aiResponse = Http::timeout(20)
+                ->withToken($this->apiKey)
+                ->acceptJson()
+                ->post(
+                    'https://openrouter.ai/api/v1/chat/completions',
+                    [
+                        'model' => $this->model,
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'Tu es un conseiller commercial naturel et chaleureux. Réponds uniquement avec le texte final.'],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.3,
+                        'max_tokens' => 400,
+                    ]
+                );
+
+            if ($aiResponse->successful()) {
+                $json = $aiResponse->json();
+                $content = trim($json['choices'][0]['message']['content'] ?? '');
+
+                if (!empty($content) && mb_strlen($content) > 20) {
+                    Log::info('🤖 IA a généré un contexte personnalisé', [
+                        'original' => $response,
+                        'generated' => $content,
+                    ]);
+                    return $content;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Erreur IA contexte', ['error' => $e->getMessage()]);
+        }
+
+        // Fallback : utiliser appendQuestion
+        return $this->appendQuestion($response, 'default');
+    }
+
+    /**
+     * 🔥 Construire un résumé de l'état pour l'IA
+     */
+    private function buildStateSummaryForAI(array $state): string
+    {
+        $lines = [];
+
+        if (!empty($state['property_type'])) {
+            $lines[] = "- Type d'appartement choisi : " . $state['property_type'];
+        }
+        if (!empty($state['budget'])) {
+            $lines[] = "- Budget donné : " . number_format((int)$state['budget'], 0, ',', ' ') . " DH";
+        }
+        if (!empty($state['purpose'])) {
+            $lines[] = "- Objectif : " . $state['purpose'];
+        }
+        if (!empty($state['payment_method'])) {
+            $lines[] = "- Mode de paiement : " . $state['payment_method'];
+        }
+        if (!empty($state['visit_accepted'])) {
+            $lines[] = "- Visite acceptée : OUI";
+        }
+        if (!empty($state['name'])) {
+            $lines[] = "- Nom du client : " . $state['name'];
+        }
+        if (!empty($state['appointment_date'])) {
+            $lines[] = "- Date de visite : " . $state['appointment_date'];
+        }
+        if (!empty($state['conversation_stage'])) {
+            $lines[] = "- Étape actuelle : " . $state['conversation_stage'];
+        }
+        if (!empty($state['last_question_type'])) {
+            $lines[] = "- Dernière question posée : " . $state['last_question_type'];
+        }
+
+        // Si seulement "greeting" ou rien → retourner vide
+        if (count($lines) <= 1 && (empty($state['property_type']) && empty($state['budget']) && empty($state['visit_accepted']))) {
+            return '';
+        }
+
+        return implode("\n", $lines);
     }
 
     /*
@@ -513,17 +621,10 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                             " Six immeubles en R+4\n" .
                             " Un patio central propice à la convivialité\n" .
                             " Parking souterrain\n" .
-                            "🛗 Ascenseur OTIS\n\n" .
+                            " Ascenseur OTIS\n\n" .
                             " Livraison : Mars 2027\n" .
                             "SIDI MESSOUD, entre Californie et la ville verte";
                 return $this->translateResponse($response, $lang);
-
-            /*case 'contact':
-                $response = " **Contacts GreenLand :**\n\n" .
-                            "• Mr Oussama : 212660446758\n" .
-                            "• Mr Maghraoui : 212660446758\n\n" .
-                            "Contactez-nous pour toute question ou visite.";
-                return $this->translateResponse($response, $lang);*/
 
             case 'horaire':
                 $response = " **Horaires GreenLand :**\n\n" .
@@ -1214,19 +1315,6 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             return $this->translateResponse($response, $lang);
         }
 
-       /* if (mb_stripos($lower, 'contact') !== false ||
-            mb_stripos($lower, 'téléphone') !== false ||
-            mb_stripos($lower, 'numero') !== false ||
-            mb_stripos($lower, 'appel') !== false ||
-            mb_stripos($lower, 'commercial') !== false) {
-
-            $response = " **Contacts GreenLand :**\n\n" .
-                        "• Mr Oussama : 212660446758\n" .
-                        "• Mr Maghraoui : 212660446758\n\n" .
-                        "Contactez-nous pour toute question ou visite.";
-            return $this->translateResponse($response, $lang);
-        }*/
-
         if (mb_stripos($lower, 'horaire') !== false ||
             mb_stripos($lower, 'ouverture') !== false ||
             mb_stripos($lower, 'fermeture') !== false) {
@@ -1331,22 +1419,35 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
     |--------------------------------------------------------------------------
     */
     private function greetingResponse(): string
-    {
-        $this->conversationState['first_message_done'] = true;
-        $this->conversationState['greeting_done'] = true;
-        $this->conversationState['welcome_sent'] = true;
-        $this->conversationState['conversation_stage'] = 'greeting';
-        $this->conversationState['last_question_type'] = 'greeting';
+{
+    $this->conversationState['first_message_done'] = true;
+    $this->conversationState['greeting_done'] = true;
+    $this->conversationState['welcome_sent'] = true;
+    $this->conversationState['conversation_stage'] = 'greeting';
+    $this->conversationState['last_question_type'] = 'greeting';
 
-        $lastMessage = $this->conversationState['last_user_message'] ?? 'salam';
-        $lang = $this->detectLanguage($lastMessage);
+    $lastMessage = $this->conversationState['last_user_message'] ?? 'salam';
+    $lang = $this->detectLanguage($lastMessage);
+
+    // 🔥 RÉCUPÉRER LE NOM DU CLIENT
+    $clientName = $this->conversationState['client_name'] ?? null;
+
+    if (!empty($clientName)) {
+        // Garder seulement le premier mot pour faire plus naturel
+        $firstName = explode(' ', trim($clientName))[0];
 
         if ($lang === 'fr') {
-            return "Bonjour 😊 Bienvenue chez Greenland. Comment puis-je vous aider ?";
+            return "Bonjour {$firstName} 😊 Bienvenue chez Greenland. Comment puis-je vous aider ?";
         }
-
-        return "Salam 😊 Marhba bik m3a Greenland. Comment puis-je vous aider ?";
+        return "Salam {$firstName} 😊 Marhba bik m3a Greenland. Comment puis-je vous aider ?";
     }
+
+    if ($lang === 'fr') {
+        return "Bonjour 😊 Bienvenue chez Greenland. Comment puis-je vous aider ?";
+    }
+
+    return "Salam 😊 Marhba bik m3a Greenland. Comment puis-je vous aider ?";
+}
 
     /*
     |--------------------------------------------------------------------------
@@ -1424,56 +1525,52 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
         return implode(' ', $formatted);
     }
 
-   private function extractNameWithAI(string $message): ?string
-{
-    if (!$this->apiKey) {
-        return null;
-    }
-
-    $trimmed = trim($message);
-    $lower = mb_strtolower($trimmed);
-
-    //  FILTRE : Si le message contient des mots-clés de demande d'info, ce n'est PAS un nom
-    $infoKeywords = [
-        'information', 'informations', 'info', 'infos',
-        'demande', 'demander', 'savoir', 'connaitre', 'connaître',
-        'donne', 'donner', '3tini', '3tina', 'a3tini',
-        'sur', 'about', 'concernant', 'propos',
-        'f3', 'f4', 'appartement', 'prix', 'surface',
-        'localisation', 'adresse', 'equipement', 'équipement',
-        'livraison', 'horaire', 'contact', 'projet'
-    ];
-    foreach ($infoKeywords as $kw) {
-        if (mb_stripos($lower, $kw) !== false) {
-            Log::info('⏭️ extractNameWithAI: message contient mot-clé info', ['message' => $message]);
+    private function extractNameWithAI(string $message): ?string
+    {
+        if (!$this->apiKey) {
             return null;
         }
-    }
 
-    //  FILTRE : Si le message contient plus de 4 mots, ce n'est probablement pas un nom
-    $wordCount = count(preg_split('/\s+/', $trimmed));
-    if ($wordCount > 4) {
-        Log::info('⏭️ extractNameWithAI: message trop long (>4 mots)', ['message' => $message]);
-        return null;
-    }
+        $trimmed = trim($message);
+        $lower = mb_strtolower($trimmed);
 
-    //  FILTRE : Si le message contient un chiffre, ignorer
-    if (preg_match('/\d/', $trimmed)) {
-        return null;
-    }
+        $infoKeywords = [
+            'information', 'informations', 'info', 'infos',
+            'demande', 'demander', 'savoir', 'connaitre', 'connaître',
+            'donne', 'donner', '3tini', '3tina', 'a3tini',
+            'sur', 'about', 'concernant', 'propos',
+            'f3', 'f4', 'appartement', 'prix', 'surface',
+            'localisation', 'adresse', 'equipement', 'équipement',
+            'livraison', 'horaire', 'contact', 'projet'
+        ];
+        foreach ($infoKeywords as $kw) {
+            if (mb_stripos($lower, $kw) !== false) {
+                Log::info('⏭️ extractNameWithAI: message contient mot-clé info', ['message' => $message]);
+                return null;
+            }
+        }
 
-    //  FILTRE : Négations et réponses courtes
-    $shortAnswers = [
-        'oui', 'non', 'ok', 'okay', 'yes', 'no', 'nan', 'la', 'laa', 'laaa',
-        'wakha', 'bghit', 'brit', 'wah', 'saha', 'mzyan', 'daccord', 'dac',
-        'merci', 'svp', 'stp', 'bonjour', 'salam', 'salut', 'hello', 'slm',
-        'ah', 'wa', 'walo', 'hada', 'hadak', 'tayara', 'wakh'
-    ];
-    if (in_array($lower, $shortAnswers, true)) {
-        return null;
-    }
+        $wordCount = count(preg_split('/\s+/', $trimmed));
+        if ($wordCount > 4) {
+            Log::info('⏭️ extractNameWithAI: message trop long (>4 mots)', ['message' => $message]);
+            return null;
+        }
 
-    $prompt = "Tu es un assistant qui extrait les noms des messages.
+        if (preg_match('/\d/', $trimmed)) {
+            return null;
+        }
+
+        $shortAnswers = [
+            'oui', 'non', 'ok', 'okay', 'yes', 'no', 'nan', 'la', 'laa', 'laaa',
+            'wakha', 'bghit', 'brit', 'wah', 'saha', 'mzyan', 'daccord', 'dac',
+            'merci', 'svp', 'stp', 'bonjour', 'salam', 'salut', 'hello', 'slm',
+            'ah', 'wa', 'walo', 'hada', 'hadak', 'tayara', 'wakh'
+        ];
+        if (in_array($lower, $shortAnswers, true)) {
+            return null;
+        }
+
+        $prompt = "Tu es un assistant qui extrait les noms des messages.
 
 Message: \"$message\"
 
@@ -1509,61 +1606,59 @@ Exemples:
 
 Réponds UNIQUEMENT en JSON, sans autre texte.";
 
-    try {
-        $response = Http::timeout(10)
-            ->withToken($this->apiKey)
-            ->acceptJson()
-            ->post(
-                'https://openrouter.ai/api/v1/chat/completions',
-                [
-                    'model' => $this->model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'Tu extrais des noms. Réponds UNIQUEMENT en JSON.'],
-                        ['role' => 'user', 'content' => $prompt]
-                    ],
-                    'temperature' => 0.1,
-                    'max_tokens' => 150,
-                ]
-            );
+        try {
+            $response = Http::timeout(10)
+                ->withToken($this->apiKey)
+                ->acceptJson()
+                ->post(
+                    'https://openrouter.ai/api/v1/chat/completions',
+                    [
+                        'model' => $this->model,
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'Tu extrais des noms. Réponds UNIQUEMENT en JSON.'],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.1,
+                        'max_tokens' => 150,
+                    ]
+                );
 
-        if ($response->successful()) {
-            $json = $response->json();
-            $content = $json['choices'][0]['message']['content'] ?? '';
+            if ($response->successful()) {
+                $json = $response->json();
+                $content = $json['choices'][0]['message']['content'] ?? '';
 
-            if (preg_match('/\{[^{}]*\}/', $content, $matches)) {
-                $result = json_decode($matches[0], true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $name = $result['name'] ?? null;
-                    $confidence = $result['confidence'] ?? 0;
+                if (preg_match('/\{[^{}]*\}/', $content, $matches)) {
+                    $result = json_decode($matches[0], true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $name = $result['name'] ?? null;
+                        $confidence = $result['confidence'] ?? 0;
 
-                    Log::info('IA a extrait un nom', [
-                        'name' => $name,
-                        'confidence' => $confidence,
-                        'explanation' => $result['explanation'] ?? '',
-                        'original' => $message
-                    ]);
+                        Log::info('IA a extrait un nom', [
+                            'name' => $name,
+                            'confidence' => $confidence,
+                            'explanation' => $result['explanation'] ?? '',
+                            'original' => $message
+                        ]);
 
-                    //  Vérifier que c'est un nom valide
-                    if ($name !== null && $confidence > 0.7 && mb_strlen($name) >= 2 && mb_strlen($name) <= 30) {
-                        //  Filtrer les noms suspects
-                        $nameLower = mb_strtolower($name);
-                        $forbidden = ['tini', 'donne', 'information', 'informations', 'info', 'infos'];
-                        foreach ($forbidden as $word) {
-                            if (mb_stripos($nameLower, $word) !== false) {
-                                return null;
+                        if ($name !== null && $confidence > 0.7 && mb_strlen($name) >= 2 && mb_strlen($name) <= 30) {
+                            $nameLower = mb_strtolower($name);
+                            $forbidden = ['tini', 'donne', 'information', 'informations', 'info', 'infos'];
+                            foreach ($forbidden as $word) {
+                                if (mb_stripos($nameLower, $word) !== false) {
+                                    return null;
+                                }
                             }
+                            return $this->formatName($name);
                         }
-                        return $this->formatName($name);
                     }
                 }
             }
+        } catch (\Throwable $e) {
+            Log::warning('Erreur IA pour extraire le nom', ['error' => $e->getMessage()]);
         }
-    } catch (\Throwable $e) {
-        Log::warning('Erreur IA pour extraire le nom', ['error' => $e->getMessage()]);
-    }
 
-    return null;
-}
+        return null;
+    }
 
     private function extractName(string $message): ?string
     {
@@ -1939,60 +2034,56 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
     }
 
     private function extractDateWithAI(string $message): ?string
-{
-    if (!$this->apiKey) {
-        return null;
-    }
-
-    //  FILTRE : Si le message ne contient AUCUN mot-clé de date, ne pas appeler l'IA
-    $lower = $this->normalize($message);
-    $dateKeywords = [
-        'demain', 'demin', 'ghda', 'ghadda', 'apres', 'après',
-        'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche',
-        'semaine', 'week', 'weekend', 'mois', 'janvier', 'fevrier', 'mars',
-        'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre',
-        'novembre', 'decembre', 'aujourd', 'today', 'lyoum',
-        '/', '-', 'le ', 'dans '
-    ];
-
-    $hasDateKeyword = false;
-    foreach ($dateKeywords as $kw) {
-        if (mb_stripos($lower, $kw) !== false) {
-            $hasDateKeyword = true;
-            break;
+    {
+        if (!$this->apiKey) {
+            return null;
         }
-    }
 
-    //  Vérifier aussi si le message contient un chiffre (ex: 15, 12)
-    if (!$hasDateKeyword && !preg_match('/\d/', $message)) {
-        Log::info('⏭️ extractDateWithAI: aucun mot-clé de date détecté', ['message' => $message]);
-        return null;
-    }
+        $lower = $this->normalize($message);
+        $dateKeywords = [
+            'demain', 'demin', 'ghda', 'ghadda', 'apres', 'après',
+            'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche',
+            'semaine', 'week', 'weekend', 'mois', 'janvier', 'fevrier', 'mars',
+            'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre',
+            'novembre', 'decembre', 'aujourd', 'today', 'lyoum',
+            '/', '-', 'le ', 'dans '
+        ];
 
-    //  NOUVEAU : Refuser les messages courts qui ne sont pas des dates
-    $trimmed = trim($message);
-    $negationsAndAnswers = [
-        'oui', 'non', 'ok', 'okay', 'yes', 'no', 'nan', 'la', 'laa',
-        'wakha', 'bghit', 'brit', 'wah', 'saha', 'mzyan', 'daccord',
-        'merci', 'svp', 'stp', 'bonjour', 'salam', 'salut', 'hello',
-        'ah', 'wa', 'walo', 'hada', 'hadak'
-    ];
-    if (in_array(mb_strtolower($trimmed), $negationsAndAnswers, true)) {
-        Log::info('⏭️ extractDateWithAI: message ignoré (négation/réponse)', ['message' => $message]);
-        return null;
-    }
+        $hasDateKeyword = false;
+        foreach ($dateKeywords as $kw) {
+            if (mb_stripos($lower, $kw) !== false) {
+                $hasDateKeyword = true;
+                break;
+            }
+        }
 
-    //  Si le message est trop court (< 3 caractères), ignorer
-    if (mb_strlen($trimmed) < 3) {
-        return null;
-    }
+        if (!$hasDateKeyword && !preg_match('/\d/', $message)) {
+            Log::info('⏭️ extractDateWithAI: aucun mot-clé de date détecté', ['message' => $message]);
+            return null;
+        }
 
-    $today = date('d/m/Y');
-    $tomorrow = date('d/m/Y', strtotime('+1 day'));
-    $afterTomorrow = date('d/m/Y', strtotime('+2 days'));
-    $nextWeek = date('N') === 1 ? date('d/m/Y', strtotime('+7 days')) : date('d/m/Y', strtotime('next monday'));
+        $trimmed = trim($message);
+        $negationsAndAnswers = [
+            'oui', 'non', 'ok', 'okay', 'yes', 'no', 'nan', 'la', 'laa',
+            'wakha', 'bghit', 'brit', 'wah', 'saha', 'mzyan', 'daccord',
+            'merci', 'svp', 'stp', 'bonjour', 'salam', 'salut', 'hello',
+            'ah', 'wa', 'walo', 'hada', 'hadak'
+        ];
+        if (in_array(mb_strtolower($trimmed), $negationsAndAnswers, true)) {
+            Log::info('⏭️ extractDateWithAI: message ignoré (négation/réponse)', ['message' => $message]);
+            return null;
+        }
 
-    $prompt = "Tu es un assistant qui comprend le langage naturel pour extraire des dates.
+        if (mb_strlen($trimmed) < 3) {
+            return null;
+        }
+
+        $today = date('d/m/Y');
+        $tomorrow = date('d/m/Y', strtotime('+1 day'));
+        $afterTomorrow = date('d/m/Y', strtotime('+2 days'));
+        $nextWeek = date('N') === 1 ? date('d/m/Y', strtotime('+7 days')) : date('d/m/Y', strtotime('next monday'));
+
+        $prompt = "Tu es un assistant qui comprend le langage naturel pour extraire des dates.
 
 Message: \"$message\"
 
@@ -2014,55 +2105,54 @@ Réponds UNIQUEMENT au format JSON:
 
 Réponds UNIQUEMENT en JSON, sans autre texte.";
 
-    try {
-        $response = Http::timeout(15)
-            ->withToken($this->apiKey)
-            ->acceptJson()
-            ->post(
-                'https://openrouter.ai/api/v1/chat/completions',
-                [
-                    'model' => $this->model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'Tu extrais des dates. Réponds UNIQUEMENT en JSON. Si pas de date → date: null'],
-                        ['role' => 'user', 'content' => $prompt]
-                    ],
-                    'temperature' => 0.1,
-                    'max_tokens' => 200,
-                ]
-            );
+        try {
+            $response = Http::timeout(15)
+                ->withToken($this->apiKey)
+                ->acceptJson()
+                ->post(
+                    'https://openrouter.ai/api/v1/chat/completions',
+                    [
+                        'model' => $this->model,
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'Tu extrais des dates. Réponds UNIQUEMENT en JSON. Si pas de date → date: null'],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.1,
+                        'max_tokens' => 200,
+                    ]
+                );
 
-        if ($response->successful()) {
-            $json = $response->json();
-            $content = $json['choices'][0]['message']['content'] ?? '';
+            if ($response->successful()) {
+                $json = $response->json();
+                $content = $json['choices'][0]['message']['content'] ?? '';
 
-            Log::info('📥 Réponse IA pour date', ['content' => $content]);
+                Log::info('📥 Réponse IA pour date', ['content' => $content]);
 
-            if (preg_match('/\{[^{}]*\}/', $content, $matches)) {
-                $result = json_decode($matches[0], true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $date = $result['date'] ?? null;
-                    $confidence = $result['confidence'] ?? 0;
+                if (preg_match('/\{[^{}]*\}/', $content, $matches)) {
+                    $result = json_decode($matches[0], true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $date = $result['date'] ?? null;
+                        $confidence = $result['confidence'] ?? 0;
 
-                    //  Si date est null ou vide → retourner null
-                    if ($date === null || $date === '' || $date === 'null') {
-                        return null;
-                    }
+                        if ($date === null || $date === '' || $date === 'null') {
+                            return null;
+                        }
 
-                    if ($confidence > 0.7 && preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $date)) {
-                        $parts = explode('/', $date);
-                        if (count($parts) === 3 && checkdate((int)$parts[1], (int)$parts[0], (int)$parts[2])) {
-                            return $date;
+                        if ($confidence > 0.7 && preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $date)) {
+                            $parts = explode('/', $date);
+                            if (count($parts) === 3 && checkdate((int)$parts[1], (int)$parts[0], (int)$parts[2])) {
+                                return $date;
+                            }
                         }
                     }
                 }
             }
+        } catch (\Throwable $e) {
+            Log::error('❌ Exception IA pour date', ['error' => $e->getMessage()]);
         }
-    } catch (\Throwable $e) {
-        Log::error('❌ Exception IA pour date', ['error' => $e->getMessage()]);
-    }
 
-    return null;
-}
+        return null;
+    }
 
     private function extractDate(string $message): ?string
     {
@@ -2431,7 +2521,6 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                           " Pour toute question : " . $this->data['projet']['contact_agents'] . "\n\n" .
                           " Merci de nous avoir contactés et à bientôt !";
                 $this->conversationState['last_bot_message'] = $answer;
-                //  ICI : has_visit + has_name + has_date = true → appendQuestion ne rajoute rien
                 return $this->response($this->appendQuestion($answer, 'default'));
             }
 
@@ -2748,47 +2837,15 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
     |--------------------------------------------------------------------------
     */
 
-   private function sendContactToN8n(array $payload): bool
-{
-    // ════════════════════════════════════════════════════════════
-    // 🔥 N8N DÉSACTIVÉ TEMPORAIREMENT
-    // ════════════════════════════════════════════════════════════
-    Log::info('ℹ️ N8N désactivé - Lead enregistré localement', [
-        'payload' => $payload,
-        'created_at' => now()->toIso8601String(),
-    ]);
+    private function sendContactToN8n(array $payload): bool
+    {
+        Log::info('ℹ️ N8N désactivé - Lead enregistré localement', [
+            'payload' => $payload,
+            'created_at' => now()->toIso8601String(),
+        ]);
 
-    return false;
-
-    /*
-    // ════════════════════════════════════════════════════════════
-    // CODE N8N ORIGINAL (à réactiver plus tard)
-    // ════════════════════════════════════════════════════════════
-    if (!$this->n8nEnabled || !$this->n8nWebhookUrl) {
-        Log::warning('N8N désactivé ou webhook manquant.');
         return false;
     }
-
-    try {
-        $response = Http::timeout(20)
-            ->acceptJson()
-            ->post($this->n8nWebhookUrl, $payload);
-
-        if (!$response->successful()) {
-            Log::error('N8N réponse invalide', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-            return false;
-        }
-
-        return true;
-    } catch (\Throwable $e) {
-        Log::error('Erreur N8N', ['error' => $e->getMessage()]);
-        return false;
-    }
-    */
-}
 
     /*
     |--------------------------------------------------------------------------
@@ -2977,62 +3034,62 @@ PROMPT;
     }
 
     /**
- * 🔥 Détecter les remerciements
- */
-private function isThankYouMessage(string $message): bool
-{
-    $lower = $this->normalize(trim($message));
+     * 🔥 Détecter les remerciements
+     */
+    private function isThankYouMessage(string $message): bool
+    {
+        $lower = $this->normalize(trim($message));
 
-    $thanks = [
-        'merci', 'merci beaucoup', 'merci bcp', 'mrc', 'mrci',
-        'chokran', 'choukran', 'chokrane', 'saha', 'sahit', 'sahit a',
-        'barak allah', 'barak allaho', 'allah ybarek', 'allah ybarak',
-        'thank you', 'thanks', 'thx', 'top', 'parfait merci',
-        'chokran bzaf', 'choukran bzaf'
-    ];
+        $thanks = [
+            'merci', 'merci beaucoup', 'merci bcp', 'mrc', 'mrci',
+            'chokran', 'choukran', 'chokrane', 'saha', 'sahit', 'sahit a',
+            'barak allah', 'barak allaho', 'allah ybarek', 'allah ybarak',
+            'thank you', 'thanks', 'thx', 'top', 'parfait merci',
+            'chokran bzaf', 'choukran bzaf'
+        ];
 
-    foreach ($thanks as $word) {
-        if ($lower === $word || mb_stripos($lower, $word) !== false) {
-            return true;
+        foreach ($thanks as $word) {
+            if ($lower === $word || mb_stripos($lower, $word) !== false) {
+                return true;
+            }
         }
+
+        return false;
     }
 
-    return false;
-}
+    /**
+     * 🔥 Réponse aux remerciements
+     */
+    private function thankYouResponse(string $message): string
+    {
+        $lang = $this->detectLanguage($message);
 
-/**
- * 🔥 Réponse aux remerciements
- */
-private function thankYouResponse(string $message): string
-{
-    $lang = $this->detectLanguage($message);
+        if ($this->conversationState['completed']) {
+            if ($lang === 'fr') {
+                return "Avec plaisir \n\n" .
+                       " Votre demande de visite a bien été enregistrée.\n" .
+                       " Notre équipe vous contactera très prochainement.\n\n" .
+                       " À bientôt !";
+            }
+            return "Bla jmil \n\n" .
+                   " Demande dialek t'sijilat mzyan.\n" .
+                   " L'équipe taycontacti m3ak qrib.\n\n" .
+                   " Bslama !";
+        }
 
-    //  Si la visite est déjà complétée → remercier + confirmer
-    if ($this->conversationState['completed']) {
         if ($lang === 'fr') {
-            return "Avec plaisir \n\n" .
-                   " Votre demande de visite a bien été enregistrée.\n" .
-                   " Notre équipe vous contactera très prochainement.\n\n" .
+            return "Avec plaisir 😊\n\n" .
+                   "N'hésitez pas à nous contacter si vous avez d'autres questions.\n\n" .
+                   " " . $this->data['projet']['contact_agents'] . "\n\n" .
                    " À bientôt !";
         }
-        return "Bla jmil \n\n" .
-               " Demande dialek t'sijilat mzyan.\n" .
-               " L'équipe taycontacti m3ak qrib.\n\n" .
+
+        return "Bla jmil 😊\n\n" .
+               "Ila 3ndek chi soual akhor, ma t'khafch t'contactina.\n\n" .
+               " " . $this->data['projet']['contact_agents'] . "\n\n" .
                " Bslama !";
     }
 
-    if ($lang === 'fr') {
-        return "Avec plaisir 😊\n\n" .
-               "N'hésitez pas à nous contacter si vous avez d'autres questions.\n\n" .
-               " " . $this->data['projet']['contact_agents'] . "\n\n" .
-               " À bientôt !";
-    }
-
-    return "Bla jmil 😊\n\n" .
-           "Ila 3ndek chi soual akhor, ma t'khafch t'contactina.\n\n" .
-           " " . $this->data['projet']['contact_agents'] . "\n\n" .
-           " Bslama !";
-}
     /*
     |--------------------------------------------------------------------------
     | MEANINGLESS MESSAGE
@@ -3049,7 +3106,7 @@ private function thankYouResponse(string $message): string
                 'merci', 'saha', 'wakha', 'bghit', 'brit', 'wah', 'non', 'oui',
                 'yes', 'top', 'bien', 'parfait', 'mzyan', 'daccord'
             ];
-                $lower = mb_strtolower($message);
+            $lower = mb_strtolower($message);
 
             if (in_array($lower, $exceptions, true)) {
                 return false;
@@ -3124,7 +3181,6 @@ private function thankYouResponse(string $message): string
             ];
         }
 
-        // 🔥 IMPORTANT : enregistrer le message utilisateur AVANT tout
         $this->conversationState['last_user_message'] = $message;
 
         $this->hydrateFromHistory($history);
@@ -3142,7 +3198,6 @@ private function thankYouResponse(string $message): string
             $response = $this->getTypeResponse(strtolower($type), $this->detectLanguage($message));
             $this->conversationState['last_bot_message'] = $response;
             $this->buildPendingContact();
-            //  has_type=true → appendQuestion demandera le budget
             return $this->response($this->appendQuestion($response, 'type'));
         }
 
@@ -3168,48 +3223,188 @@ private function thankYouResponse(string $message): string
             $answer = $this->greetingResponse();
             $this->conversationState['last_bot_message'] = $answer;
             $this->buildPendingContact();
-            //  Pas de type → appendQuestion demandera le type
             return $this->response($answer);
         }
 
         // ════════════════════════════════════════════════════════════════
         // 🔍 VÉRIFIER SI C'EST UNE SALUTATION (après le premier message)
-        // ════════════════════════════════════════════════════════════════
-                    // ════════════════════════════════════════════════════════════════
-// 🔍 VÉRIFIER SI C'EST UNE SALUTATION (après le premier message)
-// ════════════════════════════════════════════════════════════════
-if ($this->isGreetingMessage($message)) {
+        /* ════════════════════════════════════════════════════════════════
+        if ($this->isGreetingMessage($message)) {
+            $lang = $this->detectLanguage($message);
+
+            $hasType   = !empty($this->conversationState['property_type'])
+                         && in_array(strtoupper($this->conversationState['property_type']), ['F3', 'F4']);
+            $hasBudget = !empty($this->conversationState['budget'])
+                         && !empty($this->conversationState['budget_given_by_user']);
+            $hasVisit  = !empty($this->conversationState['visit_accepted'])
+                         || !empty($this->conversationState['visit_requested']);
+            $hasName   = !empty($this->conversationState['name']);
+            $hasDate   = !empty($this->conversationState['appointment_date']);
+            $isCompleted = !empty($this->conversationState['completed']);
+
+            $type   = $this->conversationState['property_type'] ?? null;
+            $budget = $this->conversationState['budget'] ?? null;
+
+            // 🎯 CAS 1 : TOUT EST COMPLET
+            if ($isCompleted && $hasVisit && $hasName && $hasDate) {
+                if ($lang === 'fr') {
+                    $response = "Bonjour 😊\n\n" .
+                                "Votre demande de visite est déjà enregistrée pour le **" . $this->conversationState['appointment_date'] . "**.\n\n" .
+                                "Notre équipe vous contactera prochainement.\n\n" .
+                                "Que puis-je faire pour vous ?";
+                } else {
+                    $response = "Salam 😊\n\n" .
+                                "Demande dialek déjà msijla l'visite **" . $this->conversationState['appointment_date'] . "**.\n\n" .
+                                "L'équipe taycontacti m3ak qrib.\n\n" .
+                                "Kifash n9der n3awnek ?";
+                }
+                $this->conversationState['last_bot_message'] = $response;
+                $this->buildPendingContact();
+                return $this->response($response);
+            }
+
+            // 🎯 CAS 2 : VISITE ACCEPTÉE mais DATE manquante
+            if ($hasVisit && $hasName && !$hasDate) {
+                if ($lang === 'fr') {
+                    $response = "Bonjour " . $this->conversationState['name'] . " 😊\n\n" .
+                                "Nous attendons toujours votre **date de visite**.\n\n" .
+                                "Quelle date vous conviendrait ?\n" .
+                                "Exemples : demain, lundi, 15/12...";
+                } else {
+                    $response = "Salam " . $this->conversationState['name'] . " 😊\n\n" .
+                                "Mazal kantsenaw **nhar l'visite**.\n\n" .
+                                "Ach mn nhar mzyan lik ?\n" .
+                                "Mthal : ghda, tnin, 15/12...";
+                }
+                $this->conversationState['last_bot_message'] = $response;
+                $this->conversationState['last_question_type'] = 'visit_date';
+                $this->conversationState['conversation_stage'] = 'visit_date';
+                $this->buildPendingContact();
+                return $this->response($response);
+            }
+
+            // 🎯 CAS 3 : VISITE ACCEPTÉE mais NOM manquant
+            if ($hasVisit && !$hasName) {
+                if ($lang === 'fr') {
+                    $response = "Bonjour 😊\n\n" .
+                                "Pour finaliser votre demande de visite, donnez-moi simplement votre **nom complet**.";
+                } else {
+                    $response = "Salam 😊\n\n" .
+                                "Bach nkemmlo demande dialek, 3tini **smiytek kamla**.";
+                }
+                $this->conversationState['last_bot_message'] = $response;
+                $this->conversationState['last_question_type'] = 'visit_name';
+                $this->conversationState['conversation_stage'] = 'visit_name';
+                $this->buildPendingContact();
+                return $this->response($response);
+            }
+
+            // 🎯 CAS 4 : TYPE + BUDGET mais PAS de VISITE
+            if ($hasType && $hasBudget && !$hasVisit) {
+                if ($lang === 'fr') {
+                    $response = "Bonjour 😊\n\n" .
+                                "Vous recherchez un **" . $type . "** avec un budget de **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                                "Souhaitez-vous organiser une **visite** ?";
+                } else {
+                    $response = "Salam 😊\n\n" .
+                                "Kant9leb 3la **" . $type . "** b budget **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                                "Wach baghi t'planifier **visite** ?";
+                }
+                $this->conversationState['last_bot_message'] = $response;
+                $this->conversationState['last_question_type'] = 'visit_offer';
+                $this->conversationState['conversation_stage'] = 'visit_offer';
+                $this->buildPendingContact();
+                return $this->response($response);
+            }
+
+            // 🎯 CAS 5 : TYPE mais PAS de BUDGET
+            if ($hasType && !$hasBudget) {
+                if ($lang === 'fr') {
+                    $response = "Bonjour 😊\n\n" .
+                                "Vous êtes intéressé par un **" . $type . "**.\n\n" .
+                                "Quel budget avez-vous prévu pour votre appartement ?";
+                } else {
+                    $response = "Salam 😊\n\n" .
+                                "Nta m'7tam b **" . $type . "**.\n\n" .
+                                "Chhal l'budget dyalk ?";
+                }
+                $this->conversationState['last_bot_message'] = $response;
+                $this->conversationState['last_question_type'] = 'budget';
+                $this->conversationState['conversation_stage'] = 'budget';
+                $this->buildPendingContact();
+                return $this->response($response);
+            }
+
+            // 🎯 CAS 6 : BUDGET mais PAS de TYPE
+            if ($hasBudget && !$hasType) {
+                if ($lang === 'fr') {
+                    $response = "Bonjour 😊\n\n" .
+                                "J'ai bien noté votre budget de **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                                " **Typologies GreenLand :**\n\n" .
+                                " **F3 :**\n" .
+                                "   • 2 chambres + salon + 2 salles de bains\n" .
+                                "   • 83 à 123 m²\n\n" .
+                                " **F4 :**\n" .
+                                "   • 3 chambres + salon + 2 salles de bains\n" .
+                                "   • 97 à 130 m²\n\n" .
+                                "Quel type vous intéresse ?";
+                } else {
+                    $response = "Salam 😊\n\n" .
+                                "Sijilt budget dialek **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
+                                " **L'typologies GreenLand :**\n\n" .
+                                " **F3 :**\n" .
+                                "   • 2 chambres + salon + 2 salles de bains\n" .
+                                "   • 83 à 123 m²\n\n" .
+                                " **F4 :**\n" .
+                                "   • 3 chambres + salon + 2 salles de bains\n" .
+                                "   • 97 à 130 m²\n\n" .
+                                "Ach mn type m'7tam bik ?";
+                }
+                $this->conversationState['last_bot_message'] = $response;
+                $this->conversationState['last_question_type'] = 'property_type';
+                $this->conversationState['conversation_stage'] = 'property_type';
+                $this->buildPendingContact();
+                return $this->response($response);
+            }
+
+            // 🎯 CAS 7 : AUCUNE INFO ou client qui dit juste bonjour
+            if ($lang === 'fr') {
+                $response = "Bonjour 😊 Bienvenue chez Greenland, Comment puis-je vous aider ?";
+            } else {
+                $response = "Salam 😊 Mrahba f Greenland. Kifash n9der n3awnek ?";
+            }
+
+            // 🔥 L'IA ajoute le contexte si conversation en cours
+            $response = $this->handleQuestionWithContext($message, $response);
+
+            // 🔥 Réinitialiser la question en attente
+            $this->conversationState['last_question_type'] = null;
+            $this->conversationState['last_question'] = null;
+
+            $this->conversationState['last_bot_message'] = $response;
+            $this->buildPendingContact();
+            return $this->response($response);
+        }*/
+ if ($this->isGreetingMessage($message)) {
     $lang = $this->detectLanguage($message);
 
-    // ════════════════════════════════════════════════════════
-    // 🔥 RÉCUPÉRER L'ÉTAT COMPLET DE LA CONVERSATION
-    // ════════════════════════════════════════════════════════
-    $hasType   = !empty($this->conversationState['property_type'])
-                 && in_array(strtoupper($this->conversationState['property_type']), ['F3', 'F4']);
-    $hasBudget = !empty($this->conversationState['budget'])
-                 && !empty($this->conversationState['budget_given_by_user']);
-    $hasVisit  = !empty($this->conversationState['visit_accepted'])
-                 || !empty($this->conversationState['visit_requested']);
-    $hasName   = !empty($this->conversationState['name']);
-    $hasDate   = !empty($this->conversationState['appointment_date']);
+    $hasVisit    = !empty($this->conversationState['visit_accepted'])
+                   || !empty($this->conversationState['visit_requested']);
+    $hasName     = !empty($this->conversationState['name']);
+    $hasDate     = !empty($this->conversationState['appointment_date']);
     $isCompleted = !empty($this->conversationState['completed']);
 
-    $type   = $this->conversationState['property_type'] ?? null;
-    $budget = $this->conversationState['budget'] ?? null;
-
-    // ════════════════════════════════════════════════════════
-    // 🎯 CAS 1 : TOUT EST COMPLET (visite enregistrée)
-    // ════════════════════════════════════════════════════════
+    // 🎯 CAS SPÉCIAL : visite déjà complète
     if ($isCompleted && $hasVisit && $hasName && $hasDate) {
         if ($lang === 'fr') {
             $response = "Bonjour 😊\n\n" .
-                        "✅ Votre demande de visite est déjà enregistrée pour le **" . $this->conversationState['appointment_date'] . "**.\n\n" .
-                        "📞 Notre équipe vous contactera prochainement.\n\n" .
+                        "Votre demande de visite est déjà enregistrée pour le **" . $this->conversationState['appointment_date'] . "**.\n\n" .
+                        "Notre équipe vous contactera prochainement.\n\n" .
                         "Que puis-je faire pour vous ?";
         } else {
             $response = "Salam 😊\n\n" .
-                        "✅ Demande dialek déjà msijla l'visite **" . $this->conversationState['appointment_date'] . "**.\n\n" .
-                        "📞 L'équipe taycontacti m3ak qrib.\n\n" .
+                        "Demande dialek déjà msijla l'visite **" . $this->conversationState['appointment_date'] . "**.\n\n" .
+                        "L'équipe taycontacti m3ak qrib.\n\n" .
                         "Kifash n9der n3awnek ?";
         }
         $this->conversationState['last_bot_message'] = $response;
@@ -3217,128 +3412,29 @@ if ($this->isGreetingMessage($message)) {
         return $this->response($response);
     }
 
-    // ════════════════════════════════════════════════════════
-    // 🎯 CAS 2 : VISITE ACCEPTÉE mais DATE manquante
-    // ════════════════════════════════════════════════════════
-    if ($hasVisit && $hasName && !$hasDate) {
-        if ($lang === 'fr') {
-            $response = "Bonjour " . $this->conversationState['name'] . " 😊\n\n" .
-                        "📅 Nous attendons toujours votre **date de visite**.\n\n" .
-                        "Quelle date vous conviendrait ?\n" .
-                        "Exemples : demain, lundi, 15/12...";
-        } else {
-            $response = "Salam " . $this->conversationState['name'] . " 😊\n\n" .
-                        "📅 Mazal kantsenaw **nhar l'visite**.\n\n" .
-                        "Ach mn nhar mzyan lik ?\n" .
-                        "Mthal : ghda, tnin, 15/12...";
-        }
-        $this->conversationState['last_bot_message'] = $response;
-        $this->conversationState['last_question_type'] = 'visit_date';
-        $this->conversationState['conversation_stage'] = 'visit_date';
-        $this->buildPendingContact();
-        return $this->response($response);
-    }
+    // 🔥 SALUTATION UNIVERSELLE (avec ou sans nom)
+    $clientName = $this->conversationState['client_name'] ?? null;
 
-    // ════════════════════════════════════════════════════════
-    // 🎯 CAS 3 : VISITE ACCEPTÉE mais NOM manquant
-    // ════════════════════════════════════════════════════════
-    if ($hasVisit && !$hasName) {
-        if ($lang === 'fr') {
-            $response = "Bonjour 😊\n\n" .
-                        "Pour finaliser votre demande de visite, donnez-moi simplement votre **nom complet**.";
-        } else {
-            $response = "Salam 😊\n\n" .
-                        "Bach nkemmlo demande dialek, 3tini **smiytek kamla**.";
-        }
-        $this->conversationState['last_bot_message'] = $response;
-        $this->conversationState['last_question_type'] = 'visit_name';
-        $this->conversationState['conversation_stage'] = 'visit_name';
-        $this->buildPendingContact();
-        return $this->response($response);
-    }
+    if (!empty($clientName)) {
+        $firstName = explode(' ', trim($clientName))[0];
 
-    // ════════════════════════════════════════════════════════
-    // 🎯 CAS 4 : TYPE + BUDGET mais PAS de VISITE
-    // ════════════════════════════════════════════════════════
-    if ($hasType && $hasBudget && !$hasVisit) {
         if ($lang === 'fr') {
-            $response = "Bonjour 😊\n\n" .
-                        "Vous recherchez un **" . $type . "** avec un budget de **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
-                        "Souhaitez-vous organiser une **visite** ?";
+            $response = "Bonjour {$firstName} 😊 Bienvenue chez Greenland, Comment puis-je vous aider ?";
         } else {
-            $response = "Salam 😊\n\n" .
-                        "Kant9leb 3la **" . $type . "** b budget **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
-                        "Wach baghi t'planifier **visite** ?";
+            $response = "Salam {$firstName} 😊 Mrahba f Greenland. Kifash n9der n3awnek ?";
         }
-        $this->conversationState['last_bot_message'] = $response;
-        $this->conversationState['last_question_type'] = 'visit_offer';
-        $this->conversationState['conversation_stage'] = 'visit_offer';
-        $this->buildPendingContact();
-        return $this->response($response);
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 🎯 CAS 5 : TYPE mais PAS de BUDGET
-    // ════════════════════════════════════════════════════════
-    if ($hasType && !$hasBudget) {
-        if ($lang === 'fr') {
-            $response = "Bonjour 😊\n\n" .
-                        "Vous êtes intéressé par un **" . $type . "**.\n\n" .
-                        "💰 Quel budget avez-vous prévu pour votre appartement ?";
-        } else {
-            $response = "Salam 😊\n\n" .
-                        "Nta m'7tam b **" . $type . "**.\n\n" .
-                        "💰 Chhal l'budget dyalk ?";
-        }
-        $this->conversationState['last_bot_message'] = $response;
-        $this->conversationState['last_question_type'] = 'budget';
-        $this->conversationState['conversation_stage'] = 'budget';
-        $this->buildPendingContact();
-        return $this->response($response);
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 🎯 CAS 6 : BUDGET mais PAS de TYPE
-    // ════════════════════════════════════════════════════════
-    if ($hasBudget && !$hasType) {
-        if ($lang === 'fr') {
-            $response = "Bonjour 😊\n\n" .
-                        "J'ai bien noté votre budget de **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
-                        "📐 **Typologies GreenLand :**\n\n" .
-                        " **F3 :**\n" .
-                        "   • 2 chambres + salon + 2 salles de bains\n" .
-                        "   • 83 à 123 m²\n\n" .
-                        " **F4 :**\n" .
-                        "   • 3 chambres + salon + 2 salles de bains\n" .
-                        "   • 97 à 130 m²\n\n" .
-                        "Quel type vous intéresse ?";
-        } else {
-            $response = "Salam 😊\n\n" .
-                        "Sijilt budget dialek **" . number_format((int)$budget, 0, ',', ' ') . " DH**.\n\n" .
-                        "📐 **L'typologies GreenLand :**\n\n" .
-                        " **F3 :**\n" .
-                        "   • 2 chambres + salon + 2 salles de bains\n" .
-                        "   • 83 à 123 m²\n\n" .
-                        " **F4 :**\n" .
-                        "   • 3 chambres + salon + 2 salles de bains\n" .
-                        "   • 97 à 130 m²\n\n" .
-                        "Ach mn type m'7tam bik ?";
-        }
-        $this->conversationState['last_bot_message'] = $response;
-        $this->conversationState['last_question_type'] = 'property_type';
-        $this->conversationState['conversation_stage'] = 'property_type';
-        $this->buildPendingContact();
-        return $this->response($response);
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 🎯 CAS 7 : AUCUNE INFO → Nouveau client
-    // ════════════════════════════════════════════════════════
-    if ($lang === 'fr') {
-        $response = "Bonjour 😊 Bienvenue chez Greenland, Comment puis-je vous aider ?";
     } else {
-        $response = "Salam 😊 Mrahba f Greenland. Kifash n9der n3awnek ?";
+        if ($lang === 'fr') {
+            $response = "Bonjour 😊 Bienvenue chez Greenland, Comment puis-je vous aider ?";
+        } else {
+            $response = "Salam 😊 Mrahba f Greenland. Kifash n9der n3awnek ?";
+        }
     }
+
+    // 🔥 Réinitialiser la question en attente
+    $this->conversationState['last_question_type'] = null;
+    $this->conversationState['last_question'] = null;
+
     $this->conversationState['last_bot_message'] = $response;
     $this->buildPendingContact();
     return $this->response($response);
@@ -3381,16 +3477,20 @@ if ($this->isGreetingMessage($message)) {
         if (isset($intentResult['intent']) && $intentResult['intent'] !== 'inconnu' && $intentResult['confidence'] > 0.6) {
             if (!empty($intentResult['response'])) {
                 $response = $intentResult['response'];
+                // 🔥 L'IA ajoute le contexte
+                $response = $this->handleQuestionWithContext($message, $response);
                 $this->conversationState['last_bot_message'] = $response;
                 $this->buildPendingContact();
-                return $this->response($this->appendQuestion($response, 'default'));
+                return $this->response($response);
             }
 
             $response = $this->generateResponseFromIntent($intentResult);
             if ($response !== null) {
+                // 🔥 L'IA ajoute le contexte
+                $response = $this->handleQuestionWithContext($message, $response);
                 $this->conversationState['last_bot_message'] = $response;
                 $this->buildPendingContact();
-                return $this->response($this->appendQuestion($response, 'default'));
+                return $this->response($response);
             }
         }
 
@@ -3428,9 +3528,11 @@ if ($this->isGreetingMessage($message)) {
 
         if ($isQuestion) {
             $response = $this->handleQuestion($message);
+            // 🔥 L'IA ajoute le contexte personnalisé
+            $response = $this->handleQuestionWithContext($message, $response);
             $this->conversationState['last_bot_message'] = $response;
             $this->buildPendingContact();
-            return $this->response($this->appendQuestion($response, 'default'));
+            return $this->response($response);
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -3470,7 +3572,6 @@ if ($this->isGreetingMessage($message)) {
             $answer = $this->qualificationResponse();
             $this->conversationState['last_bot_message'] = $answer;
             $this->buildPendingContact();
-            //  has_budget + has_type → appendQuestion proposera la visite
             return $this->response($this->appendQuestion($answer, 'visit'));
         }
 
@@ -3491,7 +3592,6 @@ if ($this->isGreetingMessage($message)) {
                     $lang = $this->detectLanguage($message);
                     $this->conversationState['last_bot_message'] = $this->translateResponse($response, $lang);
                     $this->buildPendingContact();
-                    //  has_type mais pas budget → appendQuestion demandera le budget
                     return $this->response($this->appendQuestion($this->translateResponse($response, $lang), 'budget'));
                 }
             }
@@ -3524,7 +3624,6 @@ if ($this->isGreetingMessage($message)) {
 
                 $this->conversationState['last_bot_message'] = $response;
                 $this->buildPendingContact();
-                //  has_budget mais pas type → appendQuestion demandera le type
                 return $this->response($this->appendQuestion($response, 'type'));
             }
         }
@@ -3538,7 +3637,6 @@ if ($this->isGreetingMessage($message)) {
             return $this->handleVisitRefusal();
         }
 
-        // Update state
         $this->updateConversationState($message);
 
         // ════════════════════════════════════════════════════════════════
@@ -3548,12 +3646,11 @@ if ($this->isGreetingMessage($message)) {
             $answer = "Merci de nous avoir contactés 😊\n\n" .
                       " Votre demande de visite a déjà été enregistrée.\n" .
                       " Notre équipe vous contactera très prochainement.\n\n" .
-                      "📱 Pour toute urgence : " . $this->data['projet']['contact_agents'] . "\n\n" .
+                      " Pour toute urgence : " . $this->data['projet']['contact_agents'] . "\n\n" .
                       " À bientôt !";
 
             $this->conversationState['last_bot_message'] = $answer;
             $this->buildPendingContact();
-            //  Tout est complet → appendQuestion n'ajoutera rien
             return $this->response($this->appendQuestion($answer, 'default'));
         }
 
@@ -3608,7 +3705,6 @@ if ($this->isGreetingMessage($message)) {
                 $answer = "Parfait Pour transmettre votre demande de visite à notre équipe commerciale, donnez-moi simplement votre nom.";
                 $this->conversationState['last_bot_message'] = $answer;
                 $this->buildPendingContact();
-                //  has_visit mais pas name → appendQuestion demandera le nom
                 return $this->response($this->appendQuestion($answer, 'name'));
             }
 
@@ -3691,7 +3787,7 @@ if ($this->isGreetingMessage($message)) {
             return $this->response($this->appendQuestion($response, 'type'));
         }
 
-          // ════════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════════
         // 🚨 PRIORITÉ 0 : VÉRIFIER SI C'EST UN REMERCIEMENT
         // ════════════════════════════════════════════════════════════════
         if ($this->isThankYouMessage($message)) {
@@ -3700,6 +3796,7 @@ if ($this->isGreetingMessage($message)) {
             $this->buildPendingContact();
             return $this->response($answer);
         }
+
         // ════════════════════════════════════════════════════════════════
         // ⚠️ DERNIER RECOURS : MESSAGE NON RECONNU
         // ════════════════════════════════════════════════════════════════

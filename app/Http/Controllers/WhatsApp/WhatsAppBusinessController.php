@@ -57,6 +57,32 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
         'user_ip' => 'whatsapp',
         'user_agent' => 'WhatsApp Business',
     ]);
+            // ════════════════════════════════════════════════════════════
+        // 🔥 RÉCUPÉRER LE NOM DU PROSPECT (depuis DB ou WhatsApp)
+        // ════════════════════════════════════════════════════════════
+        $prospectName = null;
+        if ($prospectId) {
+            $prospect = Prospect::on('temp')->find($prospectId);
+            if ($prospect) {
+                $nom = trim($prospect->nom ?? '');
+                $prenom = trim($prospect->prenom ?? '');
+
+                if (!empty($nom) && !empty($prenom)) {
+                    $prospectName = $nom . ' ' . $prenom;
+                } elseif (!empty($nom)) {
+                    $prospectName = $nom;
+                } elseif (!empty($prenom)) {
+                    $prospectName = $prenom;
+                }
+
+                Log::info("👤 Nom du prospect récupéré", [
+                    'prospect_id' => $prospectId,
+                    'nom' => $nom,
+                    'prenom' => $prenom,
+                    'full_name' => $prospectName,
+                ]);
+            }
+        }
         if (!$conversation) {
             // Fallback: créer l'agent sans historique
             $agent = new AgentFinalService();
@@ -65,9 +91,14 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
         }
 
         // 🔥 Récupérer l'état et l'historique
+         // 🔥 Récupérer l'état et l'historique
         $state = $conversation->state ?? [];
         $history = $conversation->history ?? [];
 
+        // 🔥 Injecter le nom du prospect dans l'état
+        if ($prospectName) {
+            $state['client_name'] = $prospectName;
+        }
         // 🔥 Créer l'agent avec l'état sauvegardé
         $agent = new AgentFinalService($state);
 
@@ -796,11 +827,55 @@ private function assignProspectIfInterested($prospectId, $projetId, array $state
                         ->value('id');
                 }
 
+                // 🔥 DÉCOUPER LE PROFILE NAME EN NOM + PRENOM
+                $nom = '';
+                $prenom = '';
+
+                $profileNameClean = trim($profileName ?? '');
+
+                if (!empty($profileNameClean)) {
+                    $parts = preg_split('/\s+/', $profileNameClean);
+
+                    if (count($parts) >= 2) {
+                        // Ex: "Ahmed Benali" → nom = "Ahmed", prenom = "Benali"
+                        // Ex: "Ahmed Ben Ali" → nom = "Ahmed", prenom = "Ben Ali"
+                        $nom = array_shift($parts);
+                        $prenom = implode(' ', $parts);
+                    } else {
+                        // Ex: "Ahmed" → nom = "Ahmed", prenom = ""
+                        $nom = $profileNameClean;
+                        $prenom = '';
+                    }
+                }
+
+                                // 🔥 FORMATER LE NOM (première lettre majuscule)
+                if (!empty($nom)) {
+                    if (strtoupper($nom) === $nom) {
+                        $nom = ucwords(mb_strtolower($nom, 'UTF-8'));
+                    } else {
+                        $nom = ucfirst(mb_strtolower($nom, 'UTF-8'));
+                    }
+                }
+
+                if (!empty($prenom)) {
+                    if (strtoupper($prenom) === $prenom) {
+                        $prenom = ucwords(mb_strtolower($prenom, 'UTF-8'));
+                    } else {
+                        $prenom = ucfirst(mb_strtolower($prenom, 'UTF-8'));
+                    }
+                }
+
+                Log::info("👤 ProfileName découpé et formaté", [
+                    'original' => $profileNameClean,
+                    'nom' => $nom,
+                    'prenom' => $prenom,
+                ]);
+
                 $prospectData = [
                     'telephone' => $from,
                     'telephone_num2' => null,
-                    'nom' => $profileName,
-                    'prenom' => '',
+                    'nom' => $nom,
+                    'prenom' => $prenom,
                     'email' => null,
                     'projet_id' => $foundConfig->projet_id,
                     'origin' => 'WhatsApp',
