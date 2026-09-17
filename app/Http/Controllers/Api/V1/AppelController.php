@@ -1054,6 +1054,70 @@ class AppelController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+  public function export_relances_rdv_appels(Request $request)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+
+        $projet_id = $request->input('projet_id');
+        $type      = $request->input('type');          // 1 = relance, 2 = rdv
+        $dateStart = $request->input('date_start');
+        $dateEnd   = $request->input('date_end');
+
+        if (empty($projet_id)) {
+            return response()->json(['error' => 'projet_id is required'], 422);
+        }
+
+        $user = Auth::user();
+        $userAuth = User::on('temp')
+            ->where('user_id_origin', $user->getAuthIdentifier())
+            ->get();
+
+        $query = Relance_Rdv_Appel::on('temp')
+            ->with([
+                'traite_appel',
+                'traite_appel.user',
+                'traite_appel.appel',
+                'traite_appel.appel.prospect',
+                'traite_appel.appel.prospect.source',
+            ])
+            ->where('type', $type)
+            ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id);
+            });
+
+        // Same role restriction as the index
+        if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+            $query->whereHas('traite_appel', function ($q) use ($userAuth) {
+                $q->where('user_id', $userAuth->value('id'));
+            });
+        }
+
+        // Same "only due" filter as index for relances
+        if ($type == 1) {
+            $query->whereDate('date_relance', '<=', Carbon::now());
+        }
+
+        // Date range filter — pick the right column depending on type
+        $dateColumn = ($type == 1) ? 'date_relance' : 'rdv';
+
+        if (!empty($dateStart)) {
+            $query->whereDate($dateColumn, '>=', $dateStart);
+        }
+        if (!empty($dateEnd)) {
+            $query->whereDate($dateColumn, '<=', $dateEnd);
+        }
+
+        $relances = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'data'  => $relances,
+            'count' => $relances->count(),
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
         /*******************rendez vous en general ************** */
 public function get_all_rendez_vous(Request $request, $projet_id)
 {
@@ -1296,7 +1360,209 @@ public function get_all_rendez_vous(Request $request, $projet_id)
 
     return response()->json(['error' => 'Unauthorized'], 401);
 }
+private function build_rendez_vous_query(Request $request, $projet_id)
+{
+    DatabaseHelper::Config();
+    $user     = Auth::user();
+    $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+    $now      = Carbon::now();
 
+    $type     = $request->input('type', 'all');   // all | appel | visite | prospect
+    $interet  = $request->input('interet', null);
+    $dateStart = $request->input('date_start');
+    $dateEnd   = $request->input('date_end');
+    $dateRdv   = $request->input('date_rdv');     // single-day filter (existing)
+
+    // 1. Appels RDV
+    $appelsRdv = Relance_Rdv_Appel::on('temp')
+        ->with(['traite_appel.appel.prospect', 'traite_appel.user'])
+        ->where('type', 2)
+        ->where('rdv', '>=', $now)
+        ->whereHas('traite_appel.appel', function ($q) use ($projet_id) {
+            $q->where('projet_id', $projet_id);
+        });
+
+    if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+        $appelsRdv->whereHas('traite_appel', function ($q) use ($userAuth) {
+            $q->where('user_id', $userAuth->value('id'));
+        });
+    }
+
+    // 2. Visites RDV
+    $visitesRdv = Relance_Rdv_Visite::on('temp')
+        ->with(['visite.prospect', 'user'])
+        ->where('type', 2)
+        ->where('rdv', '>=', $now)
+        ->whereHas('visite', function ($q) use ($projet_id) {
+            $q->where('projet_id', $projet_id)->where('etat', 1)->where('interet', 1);
+        })
+        ->whereHas('visite', function ($q) {
+            $q->whereNull('deleted_at');
+        });
+
+    if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+        $visitesRdv->where('user_id', $userAuth->value('id'));
+    }
+
+    // 3. Prospects RDV
+    $prospectsRdv = StatutProspect::on('temp')
+        ->with(['prospect', 'user'])
+        ->where('rdv', '!=', null)
+        ->where('rdv', '>=', $now)
+        ->whereNull('visite_id')
+        ->whereNull('appel_id');
+
+    if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+        $prospectsRdv->where('user_id_traite', $userAuth->value('id'));
+    }
+
+    // ---- Filter by interest ----
+    if ($interet !== null && $interet !== '') {
+        $appelsRdv->whereHas('traite_appel.appel', function ($q) use ($interet) {
+            $q->where('interet', $interet);
+        });
+        $visitesRdv->whereHas('visite', function ($q) use ($interet) {
+            $q->where('interet', $interet);
+        });
+        $prospectsRdv = $prospectsRdv->whereRaw('1 = 0');
+    }
+
+    // ---- Filter by type ----
+    if ($type == 'appel') {
+        $visitesRdv   = $visitesRdv->whereRaw('1 = 0');
+        $prospectsRdv = $prospectsRdv->whereRaw('1 = 0');
+    } elseif ($type == 'visite') {
+        $appelsRdv    = $appelsRdv->whereRaw('1 = 0');
+        $prospectsRdv = $prospectsRdv->whereRaw('1 = 0');
+    } elseif ($type == 'prospect') {
+        $appelsRdv  = $appelsRdv->whereRaw('1 = 0');
+        $visitesRdv = $visitesRdv->whereRaw('1 = 0');
+    }
+
+
+
+    // Single-day date_rdv (existing behaviour)
+    if ($request->filled('date_rdv')) {
+        $d = Carbon::parse($request->input('date_rdv'));
+        $appelsRdv->whereDate('rdv', $d);
+        $visitesRdv->whereDate('rdv', $d);
+        $prospectsRdv->whereDate('rdv', $d);
+    }
+
+    // NEW: date range filter
+    if (!empty($dateStart)) {
+        $appelsRdv->whereDate('rdv', '>=', $dateStart);
+        $visitesRdv->whereDate('rdv', '>=', $dateStart);
+        $prospectsRdv->whereDate('rdv', '>=', $dateStart);
+    }
+    if (!empty($dateEnd)) {
+        $appelsRdv->whereDate('rdv', '<=', $dateEnd);
+        $visitesRdv->whereDate('rdv', '<=', $dateEnd);
+        $prospectsRdv->whereDate('rdv', '<=', $dateEnd);
+    }
+
+    // ---- Fetch & merge ----
+    $appelsData    = $appelsRdv->get();
+    $visitesData   = $visitesRdv->get();
+    $prospectsData = $prospectsRdv->get();
+
+    $allRendezVous = collect();
+
+    foreach ($appelsData as $item) {
+        $prospect = $item->traite_appel->appel->prospect ?? null;
+        $allRendezVous->push([
+            'id'                => 'appel_' . $item->id,
+            'original_id'       => $item->id,
+            'type'              => 'appel',
+            'type_label'        => 'Appel RDV',
+            'cc'                => $item->traite_appel->user->name . ' ' . $item->traite_appel->user->prenom ?? '',
+            'prospect'          => $prospect,
+            'prospect_id'       => $prospect->id ?? null,
+            'interet'           => $item->traite_appel->appel->interet ?? null,
+            'rdv'               => $item->rdv,
+            'appel_id'          => $item->traite_appel->appel->id ?? null,
+            'visite_id'         => null,
+            'origin_id'         => null,
+            'type_traitement'   => $item->type_traitement,
+            'created_at'        => $item->created_at,
+            'updated_at'        => $item->updated_at,
+            'source_id'         => $item->id,
+            'source_type'       => 'Relance_Rdv_Appel',
+        ]);
+    }
+
+    foreach ($visitesData as $item) {
+        if (!$item->visite) continue;
+        $prospect = $item->visite->prospect ?? null;
+        $allRendezVous->push([
+            'id'                => 'visite_' . $item->id,
+            'original_id'       => $item->id,
+            'type'              => 'visite',
+            'type_label'        => 'Visite RDV',
+            'cc'                => $item->user->name . ' ' . $item->user->prenom ?? '',
+            'prospect'          => $prospect,
+            'prospect_id'       => $prospect->id ?? null,
+            'interet'           => $item->visite->interet ?? null,
+            'rdv'               => $item->rdv,
+            'appel_id'          => null,
+            'visite_id'         => $item->visite->id ?? null,
+            'origin_id'         => $item->visite->origin_id ?? null,
+            'type_traitement'   => $item->type_traitement,
+            'created_at'        => $item->created_at,
+            'updated_at'        => $item->updated_at,
+            'source_id'         => $item->id,
+            'source_type'       => 'Relance_Rdv_Visite',
+        ]);
+    }
+
+    foreach ($prospectsData as $item) {
+        $prospect = $item->prospect ?? null;
+        $user     = $item->user ?? null;
+        $allRendezVous->push([
+            'id'                => 'prospect_' . $item->id,
+            'original_id'       => $item->id,
+            'type'              => 'prospect',
+            'type_label'        => 'Prospect RDV',
+            'cc'                => $user ? $user->name . ' ' . $user->prenom : '',
+            'prospect'          => $prospect,
+            'prospect_id'       => $prospect->id ?? null,
+            'interet'           => null,
+            'rdv'               => $item->rdv,
+            'appel_id'          => null,
+            'visite_id'         => null,
+            'origin_id'         => null,
+            'type_traitement'   => $item->type_traitement_rdv_relance ?? 0,
+            'type_traitement_rdv_relance' => $item->type_traitement_rdv_relance ?? 0,
+            'date_traitement_rdv_relance' => $item->date_traitement_rdv_relance,
+            'user_id_traite_rdv_relance'  => $item->user_id_traite_rdv_relance,
+            'created_at'        => $item->created_at,
+            'updated_at'        => $item->updated_at,
+            'source_id'         => $item->id,
+            'source_type'       => 'StatutProspect',
+        ]);
+    }
+
+    return $allRendezVous->sortByDesc('rdv')->values();
+}
+
+public function export_rendez_vous(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    $projet_id = $request->input('projet_id');
+    if (empty($projet_id)) {
+        return response()->json(['error' => 'projet_id is required'], 422);
+    }
+
+    $allRendezVous = $this->build_rendez_vous_query($request, $projet_id);
+
+    return response()->json([
+        'data'  => $allRendezVous,
+        'count' => $allRendezVous->count(),
+    ], 200);
+}
     public function index_traitement_appel(Request $request, $id)
     {
         if (Auth::guard('api')->check()) {

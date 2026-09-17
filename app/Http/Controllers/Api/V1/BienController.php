@@ -242,7 +242,63 @@ class BienController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+public function export_pre_reservations(Request $request)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
 
+        $projet_id = $request->input('projet_id');
+        $dateStart = $request->input('date_start');
+        $dateEnd   = $request->input('date_end');
+
+        if (empty($projet_id)) {
+            return response()->json(['error' => 'projet_id is required'], 422);
+        }
+
+        $query = PreReservation::on('temp')->with([
+            'desistement',
+            'desistement.user',
+            'bien',
+            'bien.tranche',
+            'bien.bloc',
+            'bien.immeuble',
+            'visite',
+            'visite.user',
+            'visite.prospect',
+            'visite.rdv_relation',
+            't_appel',
+            't_appel.user',
+            't_appel.appel',
+            't_appel.appel.prospect',
+            't_appel.rdv',
+        ]);
+
+        $query->whereHas('bien', function ($subQuery) use ($projet_id) {
+            $subQuery->where('projet_id', $projet_id);
+        });
+
+        $query->whereHas('visite', function ($subQuery) {
+            $subQuery->where('statut', 1)
+                      ->whereIn('etat', [0, 1]);
+        });
+
+        if (!empty($dateStart)) {
+            $query->whereDate('date_pre_reserve', '>=', $dateStart);
+        }
+        if (!empty($dateEnd)) {
+            $query->whereDate('date_pre_reserve', '<=', $dateEnd);
+        }
+
+        $preReservations = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'data'  => $preReservations,
+            'count' => $preReservations->count(),
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
     public function indexByProjet(Request $request, $projet_id)
     {
         if (Auth::guard('api')->check()) {

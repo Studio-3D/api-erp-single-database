@@ -528,7 +528,74 @@ class FreinController extends Controller
         ]
     ], 200);
 }
+public function export_clients_freins(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
 
+    $projet_id = $request->input('projet_id');
+    if (empty($projet_id)) {
+        return response()->json(['error' => 'projet_id is required'], 422);
+    }
+
+    $dateStart = $request->input('date_start');
+    $dateEnd   = $request->input('date_end');
+
+    DatabaseHelper::Config();
+
+    $query = Frein::on('temp')->with('visite', 'visite.prospect')
+        ->where('etat', 2)
+        ->whereHas('visite', function ($q) use ($projet_id) {
+            $q->where('projet_id', $projet_id)->where('etat', 1);
+        });
+
+
+
+    // NEW: date range on frein's created_at
+    if (!empty($dateStart)) {
+        $query->whereDate('created_at', '>=', $dateStart);
+    }
+    if (!empty($dateEnd)) {
+        $query->whereDate('created_at', '<=', $dateEnd);
+    }
+
+    $clients = [];
+
+    if ($query->exists()) {
+        $freins = $query->get();
+
+        foreach ($freins as $fr) {
+            $fr_type = [];
+
+            if ($fr->tranche == 1)     $fr_type[] = 'TRANCHE';
+            if ($fr->etage == 1)       $fr_type[] = 'ETAGE';
+            if ($fr->orientation == 1) $fr_type[] = 'ORIENTATION';
+            if ($fr->typologie == 1)   $fr_type[] = 'TYPOLOGIE';
+            if ($fr->vue == 1)         $fr_type[] = 'VUE';
+            if ($fr->avance != null)   $fr_type[] = 'AVANCE';
+            if ($fr->prix_min != null || $fr->prix_max != null) $fr_type[] = 'PRIX';
+            if ($fr->superficie_min != null && $fr->superficie_max != null) $fr_type[] = 'SUPERFICIE';
+
+            $clients[] = [
+                'id'          => $fr->id,
+                'date'        => $fr->created_at,
+                'nom'         => $fr->visite->prospect->nom,
+                'prenom'      => $fr->visite->prospect->prenom,
+                'telephone'   => $fr->visite->prospect->telephone,
+                'telephone_2' => $fr->visite->prospect->telephone_num2,
+                'id_origin'   => $fr->visite->origin_id,
+                'visite_id'   => $fr->visite->id,
+                'frein'       => implode(',', $fr_type),
+            ];
+        }
+    }
+
+    return response()->json([
+        'data'  => $clients,
+        'count' => count($clients),
+    ], 200);
+}
 
     public function biens_by_frein(Request $request, $frein_id)
     {
@@ -607,6 +674,62 @@ class FreinController extends Controller
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+    public function export_biens_by_frein(Request $request, $frein_id)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    DatabaseHelper::Config();
+
+    $query = Frein_Bien::on('temp')
+        ->where('frein_id', $frein_id)
+        ->with([
+            'is_proposed',
+            'bien' => function ($query) {
+                $query->with([
+                    'immeuble' => function ($q) {
+                        $q->select('id', 'nom')->without(['projet', 'tranche', 'bloc']);
+                    },
+                    'bloc' => function ($q) {
+                        $q->select('id', 'nom')->without(['projet', 'tranche']);
+                    },
+                    'tranche' => function ($q) {
+                        $q->select('id', 'nom')->without(['projet']);
+                    },
+                ])->without('projet', 'typologie', 'vue', 'compositionBien');
+            },
+        ]);
+
+    /* Same filters as the index
+    if ($request->filled('bien_filtre')) {
+        $query->whereHas('bien', function ($q) use ($request) {
+            $q->where('propriete_dite_bien', $request->bien_filtre);
+        });
+    }
+    if ($request->filled('numero_filtre')) {
+        $query->whereHas('bien', function ($q) use ($request) {
+            $q->where('numero', $request->numero_filtre);
+        });
+    }
+    if ($request->filled('orientation_filtre')) {
+        $query->whereHas('bien', function ($q) use ($request) {
+            $q->where('orientation', $request->orientation_filtre);
+        });
+    }
+    if ($request->filled('type_filtre')) {
+        $query->whereHas('bien.typeBien', function ($q) use ($request) {
+            $q->where('type', $request->type_filtre);
+        });
+    }*/
+
+    $biens = $query->orderBy('created_at', 'desc')->get();
+
+    return response()->json([
+        'data'  => $biens,
+        'count' => $biens->count(),
+    ], 200);
+}
 
     public function traiter_bien_frein(Traite_Bien_freinRequest $request, $frein_id)
     {

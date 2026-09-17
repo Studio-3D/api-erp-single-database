@@ -277,7 +277,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/pre_reservations', [V1BienController::class, 'pre_reservations_index']);
         Route::get('getEtatBien_ByType/{idprojet}/{type_id}', [V1BienController::class, 'getEtatBien_ByType'])->name('getEtatBien_ByType');
         Route::get('/getTotalsStatistique', [V1BienController::class, 'getTotalsStatistique'])->name('getTotalsStatistique');
-
+        Route::get('/export-pre-reservations', [V1BienController::class, 'export_pre_reservations']);
         //l'API compositionbiens
         Route::resource('compositionBiens', V1CompositionBienController::class);
 
@@ -296,13 +296,15 @@ Route::middleware('auth:api')->group(function () {
         Route::put('traiter_relance_rdv_visite/{id}', [V1VisiteController::class, 'traiter_relance_rdv_visite'])->name('');
         Route::get('relance_rdv_by_visite/{id}', [V1VisiteController::class, 'relance_rdv_by_visite'])->name('');
         Route::get('get_historiques_visite/{origin_id}', [V1VisiteController::class, 'get_historiques'])->name('get_historiques');
-
+        Route::get('export-relances-rdv-visites', [V1VisiteController::class, 'export_relances_rdv_visites']);
         /****************************Frein*****************************/
         Route::resource('frein', V1FreinController::class);
         Route::get('projets/{idprojet}/get_clients_freins', [V1FreinController::class, 'get_clients_freins'])->name('');
         Route::get('biens_by_frein/{id}', [V1FreinController::class, 'biens_by_frein'])->name('');
         Route::put('traiter_bien_frein/{frein_id}', [V1FreinController::class, 'traiter_bien_frein'])->name('');
         Route::put('desactiver_freins/{id}', [V1FreinController::class, 'desactiver_freins'])->name('');
+        Route::get('export-clients-freins', [V1FreinController::class, 'export_clients_freins']);
+        Route::get('export-biens-by-frein/{id}', [V1FreinController::class, 'export_biens_by_frein']);
 
         //l'API prospect
 
@@ -406,9 +408,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('projets/{idprojet}/relances_rdv_appels', [V1AppelController::class, 'get_relances_rdv_appels'])->name('');
         Route::get('get_nb_rdv_appels/{projet_id}', [V1AppelController::class, 'get_nb_rdv_appels'])->name('');
         Route::get('get_nb_relances_appels/{projet_id}', [V1AppelController::class, 'get_nb_relances_appels'])->name('');
-
+        Route::get('export-relances-rdv-appels', [V1AppelController::class, 'export_relances_rdv_appels']);
         /*********************************Menu Rendez vous************************ */
         Route::get('projets/{idprojet}/rendez-vous', [V1AppelController::class, 'get_all_rendez_vous'])->name('');
+        Route::get('export-rendez-vous', [V1AppelController::class, 'export_rendez_vous']);
 
         //Enumeartion
         //Route::get('InteretEnum_appel', [V1EnumController::class, 'InteretEnum__appel_get'])->name('');

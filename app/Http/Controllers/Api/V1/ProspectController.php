@@ -1479,7 +1479,36 @@ public function update(UpdateProspectRequest $request, $id)
         } else {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
+
     }
+    /**
+ * Return all common variants of a phone number.
+ * Example: 212661250121 →
+ *   ['212661250121', '+212661250121', '0661250121']
+ */
+private function getPhoneVariants($phone)
+{
+    $clean = preg_replace('/[^0-9]/', '', trim($phone)); // strip +, spaces, dashes
+
+    $variants = [
+        $phone,          // original (ex: +212661250121)
+        $clean,          // digits only (ex: 212661250121)
+        '+' . $clean,    // with plus (ex: +212661250121)
+    ];
+
+    // Morocco: handle 212 <-> 0
+    if (str_starts_with($clean, '212')) {
+        $local = '0' . substr($clean, 3);
+        $variants[] = $local;                    // 0661250121
+        $variants[] = '+212' . substr($clean, 3);
+    } elseif (str_starts_with($clean, '0')) {
+        $intl = '212' . substr($clean, 1);
+        $variants[] = $intl;                     // 212661250121
+        $variants[] = '+' . $intl;               // +212661250121
+    }
+
+    return array_values(array_unique($variants));
+}
     public function search_prospect_by_param($param_1, $value, $projet_id)
     {
         //cin ou email
@@ -1503,11 +1532,13 @@ public function update(UpdateProspectRequest $request, $id)
                 ->get()->first();
 
             } else {
+                // 👇 telephone — generate all format variants
+                $phoneVariants = $this->getPhoneVariants($value);
                 //telephone
                 $prospect = Prospect::on('temp')->with('visite_pre_reserves','visite_first',  'visites_perdu','visites_perdu.freins', 'visites_perdu.freins.freinTranche', 'visites_perdu.freins.FreinEtage', 'visites_perdu.freins.FreinOrientation', 'visites_perdu.freins.FreinTypologie', 'visites_perdu.freins.FreinVue', 'appels')
-                    ->where(function ($query) use ($value) {
-                        $query->where('telephone', $value)
-                            ->orwhere('telephone_num2', $value);
+                    ->where(function ($query) use ($phoneVariants) {
+                    $query->whereIn('telephone', $phoneVariants)
+                        ->orWhereIn('telephone_num2', $phoneVariants);
                     })
                   //  ->where('projet_id', $projet_id)
                     ->get()->first();
@@ -1520,10 +1551,10 @@ public function update(UpdateProspectRequest $request, $id)
                         ->where('statut', 1)
                         ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
                 }])
-                ->where(function ($query) use ($value) {
-                    $query->where('telephone_num1', $value)
-                        ->orwhere('telephone_num2', $value);
-                })
+               ->where(function ($query) use ($phoneVariants) {
+                $query->whereIn('telephone_num1', $phoneVariants)
+                    ->orWhereIn('telephone_num2', $phoneVariants);
+            })
                 //->where('projet_id', $projet_id)
                 ->get()->first();
             }

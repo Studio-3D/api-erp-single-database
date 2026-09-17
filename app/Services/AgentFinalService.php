@@ -335,32 +335,32 @@ class AgentFinalService
 
         $prompt = "Tu es le conseiller virtuel de GreenLand (projet immobilier à Casablanca).
 
-=== DONNÉES DU PROJET ===
-{$context}
+            === DONNÉES DU PROJET ===
+            {$context}
 
-=== ÉTAT ACTUEL DE LA CONVERSATION AVEC CE CLIENT ===
-{$etatResume}
+            === ÉTAT ACTUEL DE LA CONVERSATION AVEC CE CLIENT ===
+            {$etatResume}
 
-=== NOUVELLE QUESTION DU CLIENT ===
-\"{$message}\"
+            === NOUVELLE QUESTION DU CLIENT ===
+            \"{$message}\"
 
-=== RÉPONSE DE BASE QUE TU VIENS DE GÉNÉRER ===
-\"{$response}\"
+            === RÉPONSE DE BASE QUE TU VIENS DE GÉNÉRER ===
+            \"{$response}\"
 
-=== INSTRUCTIONS ===
-1. Le client a déjà discuté avec toi et a donné certaines informations (voir ÉTAT ACTUEL).
-2. Il vient de poser une nouvelle question. Tu dois :
-   a) Répondre à sa nouvelle question (la réponse de base est déjà là, tu peux la garder ou l'améliorer)
-   b) Rappeler brièvement où en était la conversation (ex: \"Vous étiez intéressé par un F3...\")
-   c) Reposer la question suivante logique pour continuer la qualification (budget, visite, nom, date, etc.)
-3. ⚠️ Si la conversation n'a AUCUNE info (juste greeting), ne rappelle RIEN et réponds juste à la question.
-4. ⚠️ Sois naturel, comme un humain qui se souvient de la conversation.
-5. ⚠️ Ne hardcode pas, adapte-toi à l'état réel.
-6. ⚠️ Une seule question à la fois.
-7. Langue : " . ($lang === 'fr' ? 'Français' : 'Darija marocaine (écrite en lettres latines)') . "
+            === INSTRUCTIONS ===
+            1. Le client a déjà discuté avec toi et a donné certaines informations (voir ÉTAT ACTUEL).
+            2. Il vient de poser une nouvelle question. Tu dois :
+            a) Répondre à sa nouvelle question (la réponse de base est déjà là, tu peux la garder ou l'améliorer)
+            b) Rappeler brièvement où en était la conversation (ex: \"Vous étiez intéressé par un F3...\")
+            c) Reposer la question suivante logique pour continuer la qualification (budget, visite, nom, date, etc.)
+            3. ⚠️ Si la conversation n'a AUCUNE info (juste greeting), ne rappelle RIEN et réponds juste à la question.
+            4. ⚠️ Sois naturel, comme un humain qui se souvient de la conversation.
+            5. ⚠️ Ne hardcode pas, adapte-toi à l'état réel.
+            6. ⚠️ Une seule question à la fois.
+            7. Langue : " . ($lang === 'fr' ? 'Français' : 'Darija marocaine (écrite en lettres latines)') . "
 
-=== FORMAT DE RÉPONSE ===
-Réponds UNIQUEMENT avec le texte final à envoyer au client. Pas de JSON, pas d'explication.";
+            === FORMAT DE RÉPONSE ===
+            Réponds UNIQUEMENT avec le texte final à envoyer au client. Pas de JSON, pas d'explication.";
 
         try {
             $aiResponse = Http::timeout(20)
@@ -456,43 +456,43 @@ Réponds UNIQUEMENT avec le texte final à envoyer au client. Pas de JSON, pas d
 
         $prompt = "Tu es un assistant qui comprend le langage naturel des clients pour un projet immobilier appelé GreenLand.
 
-Message du client: \"$message\"
+        Message du client: \"$message\"
 
-Données du projet GreenLand:
-- Projet: GreenLand, groupe résidentiel à SIDI MESSOUD
-- Typologies: F3 (2 chambres + salon + 2 sdb, 83-123 m²), F4 (3 chambres + salon + 2 sdb, 97-130 m²)
-- Équipements: Padel, Sport, Patio, Parking, Ascenseur
-- Livraison: Mars 2027
-- Horaires: 7j/7, 10h à 18h
+        Données du projet GreenLand:
+        - Projet: GreenLand, groupe résidentiel à SIDI MESSOUD
+        - Typologies: F3 (2 chambres + salon + 2 sdb, 83-123 m²), F4 (3 chambres + salon + 2 sdb, 97-130 m²)
+        - Équipements: Padel, Sport, Patio, Parking, Ascenseur
+        - Livraison: Mars 2027
+        - Horaires: 7j/7, 10h à 18h
 
-Instructions:
-Analyse le message du client et détermine son INTENTION.
+        Instructions:
+        Analyse le message du client et détermine son INTENTION.
 
-Réponds UNIQUEMENT au format JSON avec cette structure:
-{
-    \"intent\": \"localisation|prix|surface|equipement|livraison|description|contact|horaire|typologie|achat|budget|visite|salutation|inconnu\",
-    \"value\": \"la valeur extraite si applicable\",
-    \"confidence\": 0.9,
-    \"response\": \"la réponse à donner au client (si déjà générée)\",
-    \"explanation\": \"pourquoi tu as fait ce choix\"
-}
+        Réponds UNIQUEMENT au format JSON avec cette structure:
+        {
+            \"intent\": \"localisation|prix|surface|equipement|livraison|description|contact|horaire|typologie|achat|budget|visite|salutation|inconnu\",
+            \"value\": \"la valeur extraite si applicable\",
+            \"confidence\": 0.9,
+            \"response\": \"la réponse à donner au client (si déjà générée)\",
+            \"explanation\": \"pourquoi tu as fait ce choix\"
+        }
 
-Exemples:
-- Message: \"livraison\" → {\"intent\":\"livraison\",\"value\":\"livraison\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande la date de livraison\"}
-- Message: \"surfaces\" → {\"intent\":\"surface\",\"value\":\"surface\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande les surfaces\"}
-- Message: \"chn akhor\" → {\"intent\":\"description\",\"value\":\"description\",\"confidence\":0.9,\"response\":\"\",\"explanation\":\"client demande plus d'informations sur le projet\"}
-- Message: \"wch fih des apprtement l bi3\" → {\"intent\":\"typologie\",\"value\":\"typologie\",\"confidence\":0.95,\"response\":\"\",\"explanation\":\"client demande les typologies disponibles\"}
-- Message: \"brit nchri appartement\" → {\"intent\":\"achat\",\"value\":\"achat\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client veut acheter un appartement\"}
-- Message: \"prix\" → {\"intent\":\"prix\",\"value\":\"prix\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande les prix\"}
-- Message: \"adresse\" → {\"intent\":\"localisation\",\"value\":\"adresse\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande l'adresse\"}
+        Exemples:
+        - Message: \"livraison\" → {\"intent\":\"livraison\",\"value\":\"livraison\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande la date de livraison\"}
+        - Message: \"surfaces\" → {\"intent\":\"surface\",\"value\":\"surface\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande les surfaces\"}
+        - Message: \"chn akhor\" → {\"intent\":\"description\",\"value\":\"description\",\"confidence\":0.9,\"response\":\"\",\"explanation\":\"client demande plus d'informations sur le projet\"}
+        - Message: \"wch fih des apprtement l bi3\" → {\"intent\":\"typologie\",\"value\":\"typologie\",\"confidence\":0.95,\"response\":\"\",\"explanation\":\"client demande les typologies disponibles\"}
+        - Message: \"brit nchri appartement\" → {\"intent\":\"achat\",\"value\":\"achat\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client veut acheter un appartement\"}
+        - Message: \"prix\" → {\"intent\":\"prix\",\"value\":\"prix\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande les prix\"}
+        - Message: \"adresse\" → {\"intent\":\"localisation\",\"value\":\"adresse\",\"confidence\":0.99,\"response\":\"\",\"explanation\":\"client demande l'adresse\"}
 
-IMPORTANT:
-- Comprends le SENS, pas seulement les mots
-- Si le client demande des informations sur le projet, retourne l'intention correspondante
-- Si le client veut acheter, retourne \"achat\"
-- Ne réponds JAMAIS avec les typologies par défaut si ce n'est pas approprié
+        IMPORTANT:
+        - Comprends le SENS, pas seulement les mots
+        - Si le client demande des informations sur le projet, retourne l'intention correspondante
+        - Si le client veut acheter, retourne \"achat\"
+        - Ne réponds JAMAIS avec les typologies par défaut si ce n'est pas approprié
 
-Réponds UNIQUEMENT en JSON, sans autre texte.";
+        Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         try {
             $response = Http::timeout(15)
@@ -584,7 +584,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
                 return $this->translateResponse($response, $lang);
 
             case 'prix':
-                $response = " **Prix GreenLand :**\n\n" .
+                $response =
                             " **Typologies :**\n" .
                             "   • F3 (83 à 123 m²) " .
                             "   • F4 (97 à 130 m²) " .
@@ -1364,8 +1364,7 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
             mb_stripos($lower, 'cout') !== false ||
             mb_stripos($lower, 'coût') !== false) {
 
-            $response = " **Prix GreenLand :**\n\n" .
-                        " **Typologies :**\n" .
+            $response ="**Typologies :**\n" .
                         "   • F3 (83 à 123 m²) \n" .
                         "   • F4 (97 à 130 m²) \n\n" .
                         " Prix indicatifs selon étage, vue et orientation.\n\n" .
@@ -1572,39 +1571,38 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         $prompt = "Tu es un assistant qui extrait les noms des messages.
 
-Message: \"$message\"
+                Message: \"$message\"
 
-Instructions IMPORTANTES:
-1. Extrais le nom de la personne UNIQUEMENT si c'est clairement un nom.
-2. Le nom peut être en français, en darija, ou dans n'importe quelle langue.
-3. Le nom peut avoir des fautes d'orthographe (ex: FADAWI au lieu de FADWA).
-4. Le nom peut être un prénom seul ou un nom complet (max 3 mots).
-5. Si le message contient \"je m'appelle\", \"mon nom est\", \"ismi\", \"ism dyali\", le nom est après.
-6. Si le message est juste un mot comme \"Ahmed\", \"Fatima\", \"Mohamed\", c'est un nom.
-7. ⚠️ IGNORE les négations : \"non\", \"la\", \"mabghitch\"
-8. ⚠️ IGNORE les salutations : \"salam\", \"bonjour\", \"salut\"
-9. ⚠️ IGNORE les réponses : \"oui\", \"wakha\", \"bghit\", \"ok\", \"merci\"
-10. ⚠️ IGNORE les numéros de téléphone, dates, heures
-11. ⚠️ IGNORE les demandes d'information : \"3tini des informations sur f4\", \"je veux savoir\", \"info sur f3\"
-12. ⚠️ IGNORE les phrases longues (> 4 mots) qui ne sont pas des noms
+                Instructions IMPORTANTES:
+                1. Extrais le nom de la personne UNIQUEMENT si c'est clairement un nom.
+                2. Le nom peut être en français, en darija, ou dans n'importe quelle langue.
+                3. Le nom peut avoir des fautes d'orthographe (ex: FADAWI au lieu de FADWA).
+                4. Le nom peut être un prénom seul ou un nom complet (max 3 mots).
+                5. Si le message contient \"je m'appelle\", \"mon nom est\", \"ismi\", \"ism dyali\", le nom est après.
+                6. Si le message est juste un mot comme \"Ahmed\", \"Fatima\", \"Mohamed\", c'est un nom.
+                7. ⚠️ IGNORE les négations : \"non\", \"la\", \"mabghitch\"
+                8. ⚠️ IGNORE les salutations : \"salam\", \"bonjour\", \"salut\"
+                9. ⚠️ IGNORE les réponses : \"oui\", \"wakha\", \"bghit\", \"ok\", \"merci\"
+                10. ⚠️ IGNORE les numéros de téléphone, dates, heures
+                11. ⚠️ IGNORE les demandes d'information : \"3tini des informations sur f4\", \"je veux savoir\", \"info sur f3\"
+                12. ⚠️ IGNORE les phrases longues (> 4 mots) qui ne sont pas des noms
 
-Réponds UNIQUEMENT au format JSON:
-{\"name\": \"le nom extrait ou null\", \"confidence\": 0.9, \"explanation\": \"pourquoi\"}
+                Réponds UNIQUEMENT au format JSON:
+                {\"name\": \"le nom extrait ou null\", \"confidence\": 0.9, \"explanation\": \"pourquoi\"}
 
-Exemples:
-- \"FADAWI\" → {\"name\": \"Fadawi\", \"confidence\": 0.95, \"explanation\": \"nom en majuscules\"}
-- \"je m'appelle Ahmed\" → {\"name\": \"Ahmed\", \"confidence\": 0.99, \"explanation\": \"préfixe je m'appelle\"}
-- \"mon nom est Fatima\" → {\"name\": \"Fatima\", \"confidence\": 0.99, \"explanation\": \"préfixe mon nom est\"}
-- \"ismi Youssef\" → {\"name\": \"Youssef\", \"confidence\": 0.95, \"explanation\": \"préfixe ismi\"}
-- \"salam\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"salutation\"}
-- \"non\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"négation\"}
-- \"oui\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"réponse positive\"}
-- \"06 96 63 38 82\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"numéro de téléphone\"}
-- \"3tini des informations sur f4\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"demande d'information\"}
-- \"je veux demander des informations\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"demande d'information\"}
-- \"Tini des informations sur\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"demande d'information\"}
+                Exemples:
+                - \"je m'appelle Ahmed\" → {\"name\": \"Ahmed\", \"confidence\": 0.99, \"explanation\": \"préfixe je m'appelle\"}
+                - \"mon nom est Fatima\" → {\"name\": \"Fatima\", \"confidence\": 0.99, \"explanation\": \"préfixe mon nom est\"}
+                - \"ismi Youssef\" → {\"name\": \"Youssef\", \"confidence\": 0.95, \"explanation\": \"préfixe ismi\"}
+                - \"salam\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"salutation\"}
+                - \"non\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"négation\"}
+                - \"oui\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"réponse positive\"}
+                - \"06 96 63 38 82\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"numéro de téléphone\"}
+                - \"3tini des informations sur f4\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"demande d'information\"}
+                - \"je veux demander des informations\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"demande d'information\"}
+                - \"Tini des informations sur\" → {\"name\": null, \"confidence\": 0.99, \"explanation\": \"demande d'information\"}
 
-Réponds UNIQUEMENT en JSON, sans autre texte.";
+                Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         try {
             $response = Http::timeout(10)
@@ -1872,32 +1870,32 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         $prompt = "Tu es un assistant qui analyse le sentiment des messages pour détecter les négations.
 
-Message: \"$message\"
+            Message: \"$message\"
 
-Instructions:
-1. Analyse le SENS du message, pas seulement les mots.
-2. Détermine si le message exprime un refus, un non, une négation.
-3. Prends en compte le contexte et l'intention.
-4. Exemples:
-   - \"non je ne veux pas\" → négation
-   - \"pas maintenant\" → négation
-   - \"non merci\" → négation
-   - \"je ne suis pas intéressé\" → négation
-   - \"peut-être plus tard\" → négation
-   - \"je veux visiter\" → POSITIF
-   - \"oui je veux bien\" → POSITIF
-   - \"d'accord\" → POSITIF
-   - \"je vais réfléchir\" → négation
-   - \"c'est trop cher pour moi\" → négation
-   - \"j'ai un budget de 1 million\" → POSITIF
-   - \"je cherche un F3\" → POSITIF
+            Instructions:
+            1. Analyse le SENS du message, pas seulement les mots.
+            2. Détermine si le message exprime un refus, un non, une négation.
+            3. Prends en compte le contexte et l'intention.
+            4. Exemples:
+            - \"non je ne veux pas\" → négation
+            - \"pas maintenant\" → négation
+            - \"non merci\" → négation
+            - \"je ne suis pas intéressé\" → négation
+            - \"peut-être plus tard\" → négation
+            - \"je veux visiter\" → POSITIF
+            - \"oui je veux bien\" → POSITIF
+            - \"d'accord\" → POSITIF
+            - \"je vais réfléchir\" → négation
+            - \"c'est trop cher pour moi\" → négation
+            - \"j'ai un budget de 1 million\" → POSITIF
+            - \"je cherche un F3\" → POSITIF
 
-5. IMPORTANT: Un message qui donne une information n'est PAS une négation.
+            5. IMPORTANT: Un message qui donne une information n'est PAS une négation.
 
-Réponds UNIQUEMENT au format JSON:
-{\"is_negative\": true/false, \"confidence\": 0.9, \"explanation\": \"explication courte\"}
+            Réponds UNIQUEMENT au format JSON:
+            {\"is_negative\": true/false, \"confidence\": 0.9, \"explanation\": \"explication courte\"}
 
-Réponds UNIQUEMENT en JSON, sans autre texte.";
+            Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         try {
             $response = Http::timeout(10)
@@ -2085,25 +2083,25 @@ Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         $prompt = "Tu es un assistant qui comprend le langage naturel pour extraire des dates.
 
-Message: \"$message\"
+        Message: \"$message\"
 
-Aujourd'hui: $today
-Demain: $tomorrow
-Après-demain: $afterTomorrow
-Lundi prochain: $nextWeek
+        Aujourd'hui: $today
+        Demain: $tomorrow
+        Après-demain: $afterTomorrow
+        Lundi prochain: $nextWeek
 
-Instructions IMPORTANTES:
-1. Comprends le SENS du message, pas seulement les mots.
-2. Le client peut écrire n'importe comment, avec des fautes d'orthographe.
-3. Extrais la date mentionnée ou la date à laquelle le client fait référence.
-4. ⚠️ SI LE MESSAGE NE CONTIENT AUCUNE DATE → retourne null
-5. ⚠️ SI LE MESSAGE EST \"OUI\", \"NON\", \"OK\", \"MERCI\", \"BONJOUR\" → retourne null
-6. ⚠️ NE PRENDS PAS la date d'aujourd'hui par défaut !
+        Instructions IMPORTANTES:
+        1. Comprends le SENS du message, pas seulement les mots.
+        2. Le client peut écrire n'importe comment, avec des fautes d'orthographe.
+        3. Extrais la date mentionnée ou la date à laquelle le client fait référence.
+        4. ⚠️ SI LE MESSAGE NE CONTIENT AUCUNE DATE → retourne null
+        5. ⚠️ SI LE MESSAGE EST \"OUI\", \"NON\", \"OK\", \"MERCI\", \"BONJOUR\" → retourne null
+        6. ⚠️ NE PRENDS PAS la date d'aujourd'hui par défaut !
 
-Réponds UNIQUEMENT au format JSON:
-{\"date\": \"DD/MM/YYYY\" ou null, \"confidence\": 0.9, \"explanation\": \"explication courte\"}
+        Réponds UNIQUEMENT au format JSON:
+        {\"date\": \"DD/MM/YYYY\" ou null, \"confidence\": 0.9, \"explanation\": \"explication courte\"}
 
-Réponds UNIQUEMENT en JSON, sans autre texte.";
+        Réponds UNIQUEMENT en JSON, sans autre texte.";
 
         try {
             $response = Http::timeout(15)

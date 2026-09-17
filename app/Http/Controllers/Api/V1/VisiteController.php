@@ -4369,5 +4369,75 @@ public function edit_visite($id)
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+    public function export_relances_rdv_visites(Request $request)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+
+        $projet_id = $request->input('projet_id');
+        $type      = $request->input('type');          // 1 = relance, 2 = rdv
+        $dateStart = $request->input('date_start');
+        $dateEnd   = $request->input('date_end');
+
+        if (empty($projet_id)) {
+            return response()->json(['error' => 'projet_id is required'], 422);
+        }
+
+        $user     = Auth::user();
+        $userAuth = User::on('temp')
+            ->where('user_id_origin', $user->getAuthIdentifier())
+            ->get();
+
+        $query = Relance_Rdv_Visite::on('temp')
+            ->with([
+                'visite',
+                'visite.user',
+                'visite.prospect',
+                'visite.prospect.source',
+                'visite.bien',
+                'visite.bien.tranche',
+                'visite.bien.bloc',
+                'visite.bien.immeuble',
+            ])
+            ->where('type_traitement', 0)
+            ->whereHas('visite', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id)->where('etat', 1);
+            });
+
+        // Same role restriction as index
+        if (!RoleHelper::AdminSup() && !RoleHelper::AgentAdmin()) {
+            $query->where('user_id', $userAuth->value('id'));
+        }
+
+        // Filter by type (1 = relance, 2 = rdv) — same as index
+        if ($request->filled('type')) {
+            if ($type == 1) {
+                $query->where('type', 1);
+                $query->whereDate('date_relance', '<=', Carbon::now());
+            } elseif ($type == 2) {
+                $query->where('type', 2);
+            }
+        }
+
+        // Date range filter — pick the right column depending on type
+        $dateColumn = ($type == 1) ? 'date_relance' : 'rdv';
+
+        if (!empty($dateStart)) {
+            $query->whereDate($dateColumn, '>=', $dateStart);
+        }
+        if (!empty($dateEnd)) {
+            $query->whereDate($dateColumn, '<=', $dateEnd);
+        }
+
+        $relances = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'data'  => $relances,
+            'count' => $relances->count(),
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
 
 }

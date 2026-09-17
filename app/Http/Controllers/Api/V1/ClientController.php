@@ -648,45 +648,80 @@ class ClientController extends Controller
             return response()->json(['client' => $client, 'prospect' => $prospect]);
         }
     }
-    public function search_client_by_phone($phone,$projet_id)
+   public function search_client_by_phone($phone, $projet_id)
     {
-        if (RoleHelper::ACSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
+        if (RoleHelper::ACSup_RC() || RoleHelper::AgentAdmin()) {
             DatabaseHelper::Config();
+
+            // 👇 Generate all formats of the phone
+            $phoneVariants = $this->getPhoneVariants($phone);
+
             $client = Client::on('temp')
-                ->where(function ($query) use ($phone) {
-                    $query->where('telephone_num1', $phone)
-                        ->orwhere('telephone_num2', $phone)
-                    ;
+                ->where(function ($query) use ($phoneVariants) {
+                    $query->whereIn('telephone_num1', $phoneVariants)
+                        ->orWhereIn('telephone_num2', $phoneVariants);
                 })
-                ->get()->first();
+                ->first();
 
             if ($client != null) {
-                //si client n'est pas prospect
                 if ($client->prospect_id == null) {
-                    $prospect = Prospect::on('temp')->with('visites_perdu')->where('projet_id',$projet_id)
-                        ->where(function ($query) use ($phone) {
-                            $query->where('telephone', $phone)
-                                ->orwhere('telephone_num2', $phone)
-                            ;
+                    $prospect = Prospect::on('temp')
+                        ->with('visites_perdu')
+                        ->where('projet_id', $projet_id)
+                        ->where(function ($query) use ($phoneVariants) {
+                            $query->whereIn('telephone', $phoneVariants)
+                                ->orWhereIn('telephone_num2', $phoneVariants);
                         })
-                        ->get()->first();
+                        ->first();
                 } else {
-                    //client est un prospect
-                    $prospect = Prospect::on('temp')->where('id', $client->prospect_id)->with('visites_perdu')->where('projet_id',$projet_id)->get()->first();
+                    $prospect = Prospect::on('temp')
+                        ->with('visites_perdu')
+                        ->where('id', $client->prospect_id)
+                        ->where('projet_id', $projet_id)
+                        ->first();
                 }
             } else {
-                $prospect = Prospect::on('temp')->with('visites_perdu')
-                    ->where(function ($query) use ($phone) {
-                        $query->where('telephone', $phone)
-                            ->orwhere('telephone_num2', $phone)
-                        ;
-                    })->where('projet_id',$projet_id)
-                    ->get()->first();
+                $prospect = Prospect::on('temp')
+                    ->with('visites_perdu')
+                    ->where(function ($query) use ($phoneVariants) {
+                        $query->whereIn('telephone', $phoneVariants)
+                            ->orWhereIn('telephone_num2', $phoneVariants);
+                    })
+                    ->where('projet_id', $projet_id)
+                    ->first();
             }
         }
 
         return response()->json(['client' => $client, 'prospect' => $prospect]);
+    }
 
+/**
+ * Return all common variants of a phone number.
+ * Example: 212661250121 →
+ *   ['212661250121', '+212661250121', '0661250121', '+212661250121']
+ */
+    private function getPhoneVariants($phone)
+    {
+        $clean = preg_replace('/[^0-9]/', '', trim($phone)); // strip +, spaces, dashes
+
+        $variants = [
+            $phone,          // original (ex: +212661250121)
+            $clean,          // digits only (ex: 212661250121)
+            '+' . $clean,    // with plus (ex: +212661250121)
+        ];
+
+        // Morocco: handle 212 <-> 0
+        if (str_starts_with($clean, '212')) {
+            $local = '0' . substr($clean, 3);
+            $variants[] = $local;                    // 0661250121
+            $variants[] = '+212' . substr($clean, 3);
+        } elseif (str_starts_with($clean, '0')) {
+            $intl = '212' . substr($clean, 1);
+            $variants[] = $intl;                     // 212661250121
+            $variants[] = '+' . $intl;               // +212661250121
+        }
+
+        return array_values(array_unique($variants));
     }
 
     public function search_client_by_email($email,$projet_id)
