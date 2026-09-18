@@ -374,94 +374,97 @@ private function getTopCommerciaux($projet_id, $dt, $a_dt, $us_role, $us_id)
 {
     DatabaseHelper::Config();
 
-    // Récupérer d'abord tous les commerciaux
-    $commerciaux = User::on('temp')
-       // ->where('role', 3)
-        ->whereNull('deleted_at')
-        ->get();
+    // 🔑 On part de Reservation pour récupérer le CA global par commercial
+    $query = Reservation::on('temp')
+        ->join('users', 'users.id', '=', 'reservations.user_id')
+        ->whereNull('reservations.deleted_at')
+        ->whereNull('users.deleted_at')
+        ->where('reservations.etat', 1)
+        ->where('reservations.statut', StatutReservationEnum::Validé->value);
 
-    $topCommerciaux = [];
-
-    foreach ($commerciaux as $commercial) {
-        // Pour chaque commercial, calculer son CA
-        $query = Encaissement::on('temp')
-            ->join('reservations', 'encaissements.reservation_id', '=', 'reservations.id')
-            ->where('encaissements.deleted_at', null)
-            ->where('reservations.etat', 1)
-            ->where('reservations.statut', StatutReservationEnum::Validé->value)
-            ->where('reservations.user_id', $commercial->id) // Lier au commercial
-            ->where(function($q) {
-                $q->where('encaissements.type_encaissement', 1)
-                  ->orWhere('encaissements.type_encaissement', 6);
-            });
-
-        // Filtre par date sur les encaissements
-        if ($dt == null && $a_dt == null) {
-            $query->whereYear('encaissements.date_reglement', Carbon::now()->year)
-                  ->whereMonth('encaissements.date_reglement', Carbon::now()->month);
+    // Filtre date sur date_reservation (le CA est daté à la réservation)
+    if ($dt == null && $a_dt == null) {
+        $query->whereYear('reservations.date_reservation', Carbon::now()->year)
+              ->whereMonth('reservations.date_reservation', Carbon::now()->month);
+    } else {
+        if ($dt == $a_dt) {
+            $query->whereDate('reservations.date_reservation', $dt);
         } else {
-            if ($dt == $a_dt) {
-                $query->whereDate('encaissements.date_reglement', $dt);
-            } else {
-                $query->whereDate('encaissements.date_reglement', '>=', $dt)
-                      ->whereDate('encaissements.date_reglement', '<=', $a_dt);
-            }
+            $query->whereDate('reservations.date_reservation', '>=', $dt)
+                  ->whereDate('reservations.date_reservation', '<=', $a_dt);
         }
-
-        // Filtre par projet
-        if ($projet_id != null) {
-            $query->where('reservations.projet_id', $projet_id);
-        }
-
-        $total_ca = $query->sum('encaissements.montant');
-
-        // Compter les ventes distinctes
-        $ventesQuery = Reservation::on('temp')
-            ->where('etat', 1)
-            ->where('statut', StatutReservationEnum::Validé->value)
-            ->where('user_id', $commercial->id);
-
-        if ($dt == null && $a_dt == null) {
-            $ventesQuery->whereYear('created_at', Carbon::now()->year)
-                        ->whereMonth('created_at', Carbon::now()->month);
-        } else {
-            if ($dt == $a_dt) {
-                $ventesQuery->whereDate('created_at', $dt);
-            } else {
-                $ventesQuery->whereDate('created_at', '>=', $dt)
-                            ->whereDate('created_at', '<=', $a_dt);
-            }
-        }
-
-        if ($projet_id != null) {
-            $ventesQuery->where('projet_id', $projet_id);
-        }
-
-        $total_ventes = $ventesQuery->count();
-
-        // Pour le commercial connecté (role=3), on garde toutes ses données
-        // Pour les autres, on ne garde que ceux qui ont des ventes ou du CA
-
-            // Pour Admin/SuperAdmin, on ajoute seulement ceux qui ont des ventes
-            if ($total_ventes > 0 || $total_ca > 0) {
-                $topCommerciaux[] = [
-                    'id' => $commercial->id,
-                    'name' => $commercial->prenom . ' ' . $commercial->name,
-                    'ca' => (float) $total_ca,
-                    'ventes' => (int) $total_ventes,
-                    'commission' => (float) $total_ca * 0.03,
-                ];
-            }
-
     }
 
-    // Trier par CA décroissant
-    usort($topCommerciaux, function($a, $b) {
-        return $b['ca'] <=> $a['ca'];
-    });
+    // Filtre projet
+    if ($projet_id != null) {
+        $query->where('reservations.projet_id', $projet_id);
+    }
 
-    // Limiter à 4 résultats
-    return array_slice($topCommerciaux, 0, 4);
+    // 🔑 CA global + nombre de ventes par commercial
+    $query->selectRaw('
+            reservations.user_id as user_id,
+            users.name as user_name,
+            users.prenom as user_prenom,
+            COUNT(reservations.id) as ventes,
+            COALESCE(SUM(reservations.prix), 0) as ca
+        ')
+        ->groupBy('reservations.user_id', 'users.name', 'users.prenom');
+
+    $rows = $query->get();
+
+    // 🔑 Récupérer les encaissements par commercial (1 requête séparée)
+    $encaissementsQuery = Encaissement::on('temp')
+        ->join('reservations', 'encaissements.reservation_id', '=', 'reservations.id')
+        ->whereNull('encaissements.deleted_at')
+        ->where('reservations.etat', 1)
+        ->where('reservations.statut', StatutReservationEnum::Validé->value)
+        ->where(function ($q) {
+            $q->where('encaissements.type_encaissement', 1)
+              ->orWhere('encaissements.type_encaissement', 6);
+        });
+
+    // Mêmes filtres date (sur date_reglement pour les encaissements)
+    if ($dt == null && $a_dt == null) {
+        $encaissementsQuery->whereYear('encaissements.date_reglement', Carbon::now()->year)
+                            ->whereMonth('encaissements.date_reglement', Carbon::now()->month);
+    } else {
+        if ($dt == $a_dt) {
+            $encaissementsQuery->whereDate('encaissements.date_reglement', $dt);
+        } else {
+            $encaissementsQuery->whereDate('encaissements.date_reglement', '>=', $dt)
+                                ->whereDate('encaissements.date_reglement', '<=', $a_dt);
+        }
+    }
+
+    if ($projet_id != null) {
+        $encaissementsQuery->where('reservations.projet_id', $projet_id);
+    }
+
+    $encaissementsParCommercial = $encaissementsQuery
+        ->selectRaw('
+            reservations.user_id as user_id,
+            COALESCE(SUM(encaissements.montant), 0) as encaissement
+        ')
+        ->groupBy('reservations.user_id')
+        ->pluck('encaissement', 'user_id'); // ['user_id' => montant]
+
+    // 🔑 Construire le résultat final
+    $topCommerciaux = $rows->map(function ($row) use ($encaissementsParCommercial) {
+        return [
+            'id'             => $row->user_id,
+            'name'           => trim($row->user_prenom . ' ' . $row->user_name),
+            'ca'             => (float) $row->ca,
+            'encaissement'   => (float) ($encaissementsParCommercial[$row->user_id] ?? 0),
+            'ventes'         => (int) $row->ventes,
+        ];
+    })
+    ->filter(fn($c) => $c['ca'] > 0 || $c['encaissement'] > 0) // garder ceux qui ont de l'activité
+    ->sortByDesc('ca')
+    ->take(4)
+    ->values()
+    ->toArray();
+
+    return $topCommerciaux;
 }
 
 public function dashboard(Request $request,$projet_id,$de_date,$a_date)
@@ -556,6 +559,28 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
             ];
         }
 
+       /*********************Réservations validées : CA + count***************************/
+            $query_rsv = Reservation::on('temp')
+                ->where('etat', 1)
+                ->where('statut', StatutReservationEnum::Validé->value)
+                ->whereNull('deleted_at');
+
+            // Filtre date sur date_reservation
+            $this->applyDateFilter($query_rsv, $dt, $a_dt, 'date_reservation');
+
+            // Filtre projet
+            if ($projet_id != null) {
+                $query_rsv->where('projet_id', $projet_id);
+            }
+
+            // Filtre commercial
+            if ($us_role == 3) {
+                $query_rsv->where('user_id', $us_id);
+            }
+
+            // 🔑 On clone pour exécuter 2 agrégats différents sans rejouer les filtres
+            $sum_prix_reservation = (clone $query_rsv)->sum('prix');
+            $nb_rsv               = (clone $query_rsv)->count();
         /*****************************penalites*************************/
         $query_penalite= PenaliteDesistement::on('temp')->with('desistement');
         $this->applyDateFilter($query_penalite, $dt, $a_dt);
@@ -729,36 +754,65 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
         $reclamations=$rec->take(5);
 
         /***********************echeances******************/
-        $query_echeances = Avance::on('temp')->with('last_statut','reservation')
-            ->where('mode_paiement','!=',7)->where('montant','>',0)
-            ->where('statut', StatutReservationEnum::Validé->value);
+                $query_echeances = Avance::on('temp')
+                // 🔑 Charger uniquement ce qui est utilisé côté front
+                ->with([
+                        // 🔑 Uniquement ce dont on a besoin : le nom du client + l'id de la réservation
+                        'reservation:id,code_reservation',
+                        'reservation.aquereurs:id,reservation_id,client_id',
+                        'reservation.aquereurs.client:id,nom,prenom',
+                    ])
+                ->select([
+                    'id',
+                    'echeance',
+                    'montant',
+                    'reservation_id', // nécessaire pour la relation
+                ])
+                ->where('mode_paiement', '!=', 7)
+                ->where('montant', '>', 0)
+                ->where('statut', StatutReservationEnum::Validé->value);
 
-        // Pour echeance, on utilise le champ 'echeance'
-        if ($dt == null && $a_dt == null) {
-            $query_echeances->whereYear('echeance', Carbon::now()->year)
-                            ->whereMonth('echeance', Carbon::now()->month);
-        } else {
-            if ($dt == $a_dt) {
-                $query_echeances->whereDate('echeance', $dt);
+            // Filtre date
+            if ($dt == null && $a_dt == null) {
+                $query_echeances->whereYear('echeance', Carbon::now()->year)
+                                ->whereMonth('echeance', Carbon::now()->month);
             } else {
-                $query_echeances->whereDate('echeance', '>=', $dt)
-                                ->whereDate('echeance', '<=', $a_dt);
+                if ($dt == $a_dt) {
+                    $query_echeances->whereDate('echeance', $dt);
+                } else {
+                    $query_echeances->whereDate('echeance', '>=', $dt)
+                                    ->whereDate('echeance', '<=', $a_dt);
+                }
             }
-        }
 
-        if($projet_id!=null){
-            $query_echeances->whereHas('reservation', function ($q) use ($projet_id) {
-                $q->where('projet_id', $projet_id)
-                  ->where('etat', 1)
-                  ->where('statut',StatutReservationEnum::Validé->value);
+            if ($projet_id != null) {
+                $query_echeances->whereHas('reservation', function ($q) use ($projet_id) {
+                    $q->where('projet_id', $projet_id)
+                    ->where('etat', 1)
+                    ->where('statut', StatutReservationEnum::Validé->value);
+                });
+            }
+
+            if ($us_role == 3) {
+                $query_echeances->where('user_id', $us_id);
+            }
+
+            // 🔑 Filtre : garder uniquement les échéances NON encaissées
+            $query_echeances->where(function ($q) {
+                $q->whereDoesntHave('last_statut')
+                ->orWhereHas('last_statut', function ($sub) {
+                    $sub->whereNull('date_encaissement');
+                });
             });
-        }
-        //comercial
-        if($us_role==3){
-            $query_echeances->where('user_id', $us_id);
-        }
-        $nb_echeance = count($query_echeances->get());
-        $echeances=$query_echeances->get()->take(5);
+
+            // Tri : passées non encaissées d'abord
+            $query_echeances->orderByRaw("
+                CASE WHEN echeance < CURDATE() THEN 0 ELSE 1 END ASC,
+                echeance ASC
+            ");
+
+            $nb_echeance = (clone $query_echeances)->count();
+            $echeances   = (clone $query_echeances)->take(10)->get();
 
         /****************************Biens by Statut************************* */
         $Array_biens_etat=[];
@@ -813,19 +867,6 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
             'Changement de Bien' => $changementBien->sum('count')
         ];
 
-        /***********************Reservation nb  */
-        $query_rsv = Reservation::on('temp')->where('etat',1)
-            ->where('statut',StatutReservationEnum::Validé->value);
-        $this->applyDateFilter($query_rsv, $dt, $a_dt);
-
-        if($projet_id!=null){
-            $query_rsv->where('projet_id', $projet_id);
-        }
-        //comercial
-        if($us_role==3){
-            $query_rsv->where('user_id', $us_id);
-        }
-        $nb_rsv = $query_rsv->count();  // Utiliser count() directement
 
         /*****************Sav*********************/
         $query_sav = Reclamation::on('temp')->with('piece_jointe','bien','prestataire')
@@ -997,6 +1038,7 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
 
         return response()->json([
             'projet_id'=>$projet_id,
+            'sum_prix_reservation'  => $sum_prix_reservation,
             'sum_encaissements' => $sum_encaissements,
             'sum_penalites' => $sum_penalites,
             'sum_remboursements' => $sum_remboursements,
@@ -1009,6 +1051,8 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
             'count_reclamation'=>0,
             'echeances'=>$echeances,
             'nb_echeances'=>$nb_echeance,
+            'nb_echeances_shown'=> $echeances->count(), // 10 max
+
             'biens'=>$Array_biens_etat,
             'count_biens'=>array_sum($Array_biens_etat),
             'desistements' => $arrayDesistementStats,

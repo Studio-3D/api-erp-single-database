@@ -29,6 +29,7 @@ return new class extends Migration
             $table->boolean('notifie')->default(false)->nullable();
             $table->string('ville')->nullable();
             $table->boolean('etat')->default(true)->nullable();
+            $table->unsignedInteger('nb_injoignable')->default(0);
             $table->unsignedBigInteger('user_id_add')->nullable();
             $table->unsignedBigInteger('commercial_affecte')->nullable();
             $table->foreignId(column: 'projet_id')->constrained('projets')->onDelete('cascade');

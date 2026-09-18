@@ -771,15 +771,24 @@ public function get_notifications(Request $request, $projet_id)
                     ;})->count();
 
                 $nb_echeance = Avance::on('temp')
-                    ->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
-                    ->whereNull('reservations.deleted_at')
-                    ->where('reservations.projet_id', $projet_id)
-                    ->where('avances.statut', StatutReservationEnum::Validé->value)
-                    //->where('avances.sr', 1)
-                    ->whereDate('avances.echeance', '<=', Carbon::now())
-                    ->where('avances.mode_paiement','!=',7)->where('avances.montant','>',0)
-                    ->where('reservations.etat', 1) ->where('reservations.statut', StatutReservationEnum::Validé->value)->count();
+                ->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+                ->whereNull('reservations.deleted_at')
+                ->where('reservations.projet_id', $projet_id)
+                ->where('avances.statut', StatutReservationEnum::Validé->value)
+                ->where('avances.mode_paiement', '!=', 7)
+                ->where('avances.montant', '>', 0)
+                ->where('reservations.etat', 1)
+                ->where('reservations.statut', StatutReservationEnum::Validé->value)
+                // ❌ supprimé : ->whereDate('avances.echeance', '<=', Carbon::now())
 
+                // 🔑 Garder uniquement les échéances NON encaissées
+                ->where(function ($q) {
+                    $q->whereDoesntHave('last_statut')
+                    ->orWhereHas('last_statut', function ($sub) {
+                        $sub->whereNull('date_encaissement');
+                    });
+                })
+                ->count();
                 /*$nb_rdv_notaire = Rendez_vous::on('temp')->join('reservations', 'rendez_vous.reservation_id', '=', 'reservations.id')
                 ->whereNull('reservations.deleted_at')
                 ->where('reservations.etat', 1)
@@ -832,17 +841,28 @@ public function get_notifications(Request $request, $projet_id)
                         ->orwhere('remboursements.mode_rembourse', 'transfert_rem_apres_vente')
                     ;})->count();
 
-                $nb_echeance = Avance::on('temp')
-                    ->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
-                    ->whereNull('reservations.deleted_at')
-                    ->where('reservations.projet_id', $projet_id)
-                   // ->where('avances.sr', 1)
-                   ->where('avances.statut', StatutReservationEnum::Validé->value)
-                    ->whereDate('avances.echeance', '<=', Carbon::now())
-                    ->where('reservations.etat', 1)->where('avances.user_id',  $userAuth->value('id'))
-                    ->where('avances.mode_paiement','!=',7)->where('avances.montant','>',0)
-                    ->where('reservations.statut', StatutReservationEnum::Validé->value)->count();
-                $nb_rdv_notaire = Rendez_vous::on('temp')
+               $nb_echeance = Avance::on('temp')
+            ->join('reservations', 'avances.reservation_id', '=', 'reservations.id')
+            ->whereNull('reservations.deleted_at')
+            ->where('reservations.projet_id', $projet_id)
+            ->where('avances.statut', StatutReservationEnum::Validé->value)
+            ->where('avances.mode_paiement', '!=', 7)
+            ->where('avances.montant', '>', 0)
+            ->where('reservations.etat', 1)
+            ->where('reservations.statut', StatutReservationEnum::Validé->value)
+            ->where('avances.user_id', $userAuth->value('id'))
+            // ❌ supprimé : ->whereDate('avances.echeance', '<=', Carbon::now())
+
+            // 🔑 Garder uniquement les échéances NON encaissées
+            ->where(function ($q) {
+                $q->whereDoesntHave('last_statut')
+                ->orWhereHas('last_statut', function ($sub) {
+                    $sub->whereNull('date_encaissement');
+                });
+            })
+            ->count();
+
+                    $nb_rdv_notaire = Rendez_vous::on('temp')
                     ->join('reservations', 'rendez_vous.reservation_id', '=', 'reservations.id')
                     ->whereNull('reservations.deleted_at')
                     ->where('reservations.projet_id', $projet_id)

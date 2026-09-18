@@ -581,6 +581,26 @@ public function indexByProjet(Request $request, $projet_id)
             // Update prospect with traitement tracking
             $prospect->traite_par_user_id = $userAuth->value('id');
             $prospect->date_traitement = Carbon::now();
+            // 🔑 Incrémenter le compteur d'injoignables
+            // 🔑 Gestion du compteur d'injoignables
+            $statut = (int) $request->statut;
+
+            if ($statut === StatutProspectEnum::Injoignable->value) {
+                // Marqué injoignable → +1
+                $prospect->nb_injoignable = (int) $prospect->nb_injoignable + 1;
+            } elseif (in_array($statut, [
+                 StatutProspectEnum::Receptif->value,
+                StatutProspectEnum::Interesse->value,
+                StatutProspectEnum::Planification_RDV->value,
+                StatutProspectEnum::Converti_en_visite->value,
+                StatutProspectEnum::Converti_en_client->value,
+                StatutProspectEnum::pre_reservation->value,
+                // tu peux ajouter d'autres statuts "joignable" ici
+            ])) {
+                // Le prospect est redevenu joignable → reset
+                $prospect->nb_injoignable = 0;
+            }
+            // Sinon (Rappel, Perdu, WhatsApp, etc.) → on ne touche pas
 
             // Unassign prospect from commercial for certain final statuses
             $finalStatuses = [
@@ -601,6 +621,7 @@ public function indexByProjet(Request $request, $projet_id)
                         ->decrement('nb_prospects');
                 }
             }
+
 
             $prospect->save();
 
@@ -1454,7 +1475,7 @@ public function update(UpdateProspectRequest $request, $id)
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id)
+   public function destroy($id)
     {
         if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
 

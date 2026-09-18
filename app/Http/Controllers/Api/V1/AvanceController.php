@@ -1698,94 +1698,107 @@ class AvanceController extends Controller
 
     }
 
-    public function get_echeances($projet_id, Request $request)
-    {
+   public function get_echeances($projet_id, Request $request)
+{
+    if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::Comptable())) {
 
-        if (Auth::guard('api')->check() && (RoleHelper::ACSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()||RoleHelper::Comptable())) {
-            DatabaseHelper::Config();
-            $size = $request->input('size', config('app.default_item_number_perpage'));
-            $page = $request->input('page', 1);
+        DatabaseHelper::Config();
+        $size = $request->input('size', config('app.default_item_number_perpage'));
+        $page = $request->input('page', 1);
 
-            if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()||RoleHelper::Comptable()) {
-                //ADMIN
-                    $query =Avance::on('temp')->with('last_statut','reservation')
-                    ->where('mode_paiement','!=',7)->where('montant','>',0)
-                    ->where('statut', StatutReservationEnum::Validé->value)
-                    ->whereDate('echeance', '<=', Carbon::now());
-                    $query->whereHas('reservation', function ($q) use ($projet_id) {
-                           $q->where('projet_id', $projet_id)
-                                ->where('etat', 1)
-                                ->where('statut',StatutReservationEnum::Validé->value);
-                    });
-            } else
-            if (RoleHelper::Com()||RoleHelper::RespoCommercial()) {
-                $user = Auth::user();
-                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        // 🔑 Base commune : échéances non encaissées (passées + futures)
+        $query = Avance::on('temp')
+            ->with('last_statut', 'reservation')
+            ->where('mode_paiement', '!=', 7)
+            ->where('montant', '>', 0)
+            ->where('statut', StatutReservationEnum::Validé->value)
+            // ❌ supprimé : ->whereDate('echeance', '<=', Carbon::now());
 
-                    $query =Avance::on('temp')->with('last_statut','reservation')
-                    ->where('mode_paiement','!=',7)->where('montant','>',0)
-                    ->where('statut', StatutReservationEnum::Validé->value)
-                    ->whereDate('echeance', '<=', Carbon::now())  ->where('avances.user_id', $userAuth->value('id'));
-                    $query->whereHas('reservation', function ($q) use ($projet_id) {
-                           $q->where('projet_id', $projet_id)
-                                ->where('etat', 1)
-                                ->where('statut',StatutReservationEnum::Validé->value);
-                    });
+            // 🔑 Filtre : garder uniquement les échéances NON encaissées
+            ->where(function ($q) {
+                $q->whereDoesntHave('last_statut')
+                  ->orWhereHas('last_statut', function ($sub) {
+                      $sub->whereNull('date_encaissement');
+                  });
+            });
 
-            }
+        // 🔑 Filtres selon rôle
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::Comptable()) {
+            // ADMIN → toutes les échéances du projet
+            $query->whereHas('reservation', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id)
+                  ->where('etat', 1)
+                  ->where('statut', StatutReservationEnum::Validé->value);
+            });
+        } else if (RoleHelper::Com() || RoleHelper::RespoCommercial()) {
+            // COM / RESP COM → seulement les siennes
+            $user = Auth::user();
+            $userAuth = User::on('temp')
+                ->where('user_id_origin', $user->getAuthIdentifier())
+                ->get();
 
-            if ($request->filled('mode_paiement')) {
-                $query->where('mode_paiement', 'like', '%' . $request->input('mode_paiement') . '%');
-            }
-             if ($request->filled('numero_paiement')) {
-                $query->where('numero_paiement', 'like', '%' . $request->input('numero_paiement') . '%');
-            }
-            if ($request->filled('montant')) {
-                $query->where('montant', 'like', '%' . $request->input('montant') . '%');
-            }
-
-            if ($request->filled('cc')) {
-                $query->whereHas('user', function ($q) use ($request) {
-                    $q->where(function ($q) use ($request) {
-                        $q->where('name', 'like', '%' . $request->input('cc') . '%')
-                            ->orWhere('prenom', 'like', '%' . $request->input('cc') . '%');
-                    });
-                });
-            }
-            if ($request->filled('date_start')) {
-                $start = Carbon::parse($request->input('date_start'));
-                $query->whereDate('date_reglement','>=', $start);
-            }
-            if ($request->filled('date_end')) {
-                $end = Carbon::parse($request->input('date_end'));
-                $query->whereDate('date_reglement','<=', $end);
-            }
-
-            if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
-                $echeances = $query->orderBy('created_at', 'desc')
-                    ->paginate($size, ['*'], 'page', $page);
-
-                // Extraire les propriétés du paginateur
-                $pagination = [
-                    'currentPage' => $echeances->currentPage(),
-                    'totalItems' => $echeances->total(),
-                    'totalPages' => $echeances->lastPage(),
-                ];
-
-                // Extraire les éléments d'utilisateur du paginateur
-                $echeances = $echeances->items();
-
-                // Retourner la réponse simplifiée
-                return response()->json([
-                    'data' => $echeances,
-                    'pagination' => $pagination,
-                ], 200);
-            }
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            $query->where('avances.user_id', $userAuth->value('id'))
+                  ->whereHas('reservation', function ($q) use ($projet_id) {
+                      $q->where('projet_id', $projet_id)
+                        ->where('etat', 1)
+                        ->where('statut', StatutReservationEnum::Validé->value);
+                  });
         }
 
+        // 🔍 Filtres de recherche (inchangés)
+        if ($request->filled('mode_paiement')) {
+            $query->where('mode_paiement', 'like', '%' . $request->input('mode_paiement') . '%');
+        }
+        if ($request->filled('numero_paiement')) {
+            $query->where('numero_paiement', 'like', '%' . $request->input('numero_paiement') . '%');
+        }
+        if ($request->filled('montant')) {
+            $query->where('montant', 'like', '%' . $request->input('montant') . '%');
+        }
+        if ($request->filled('cc')) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where(function ($q) use ($request) {
+                    $q->where('name', 'like', '%' . $request->input('cc') . '%')
+                      ->orWhere('prenom', 'like', '%' . $request->input('cc') . '%');
+                });
+            });
+        }
+        if ($request->filled('date_start')) {
+            $start = Carbon::parse($request->input('date_start'));
+            $query->whereDate('echeance', '>=', $start);
+        }
+        if ($request->filled('date_end')) {
+            $end = Carbon::parse($request->input('date_end'));
+            $query->whereDate('echeance', '<=', $end);
+        }
+
+        // 🔑 Tri : passées non encaissées d'abord, puis futures
+        $query->orderByRaw("
+            CASE WHEN echeance < CURDATE() THEN 0 ELSE 1 END ASC,
+            echeance ASC
+        ");
+
+        if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
+            $echeances = $query->paginate($size, ['*'], 'page', $page);
+
+            $pagination = [
+                'currentPage' => $echeances->currentPage(),
+                'totalItems'  => $echeances->total(),
+                'totalPages'  => $echeances->lastPage(),
+            ];
+
+            $echeances = $echeances->items();
+
+            return response()->json([
+                'data'       => $echeances,
+                'pagination' => $pagination,
+            ], 200);
+        }
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
 
 
