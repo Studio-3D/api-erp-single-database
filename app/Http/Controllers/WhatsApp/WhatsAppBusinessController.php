@@ -106,11 +106,18 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
         $result = $agent->reply($message, $history);
 
         // 🔥 Récupérer la réponse
+    // 🔥 Récupérer la réponse
         $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
 
-        // 🔥 Récupérer le nouvel état
-        $newState = $result['state'] ?? $agent->getConversationState();
+        // ✅ NOUVEAU : Récupérer les actions
+        $actions = $result['actions'] ?? [];
 
+        // ✅ Exécuter les actions AVANT d'envoyer le message
+        if (!empty($actions)) {
+            foreach ($actions as $action) {
+                $this->executeAgentAction($action, $from, $foundConfig, $projetId);
+            }
+        }
         // 🔥 Mettre à jour l'historique
         $history[] = [
             'role' => 'user',
@@ -134,8 +141,13 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
             'history_count' => count($history)
         ]);
 
-        return $response;
-
+       // ✅ Retourner un TABLEAU avec message + actions + state
+        return [
+            'message' => $response,
+            'actions' => $actions ?? [],
+            'state' => $newState,
+            'pending_contact' => $result['pending_contact'] ?? [],
+        ];
     } catch (\Exception $e) {
         Log::error("❌ Erreur agent virtuel: " . $e->getMessage(), [
             'trace' => $e->getTraceAsString()
@@ -225,12 +237,15 @@ private function isExistingConversation($projetId, $phoneNumber)
      /**
      * 🔥 ENVOYER UNE RÉPONSE WHATSAPP DEPUIS L'AGENT
      */
-    private function sendAgentResponse($to, $message, $config, $projetId, $sessionId)
+    private function sendAgentResponse($to, $message, $config, $projetId, $sessionId, $actions = [])
     {
         try {
             // Récupérer la configuration Twilio
             $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
-
+                // ✅ 1. EXÉCUTER LES ACTIONS D'ABORD (localisation, médias, etc.)
+                foreach ($actions as $action) {
+                    $this->executeAgentAction($action, $to, $config, $projetId);
+                }
             // Envoyer le message
             $sentMessage = $twilio->messages->create(
                 "whatsapp:" . $to,
@@ -276,6 +291,197 @@ private function isExistingConversation($projetId, $phoneNumber)
     /**
  * Marquer les messages comme lus pour une conversation spécifique
  */
+/**
+ * 🔥 EXÉCUTER UNE ACTION DE L'AGENT
+ * (send_location, send_media, notify_commercial)
+ */
+private function executeAgentAction(array $action, $to, $config, $projetId)
+{
+    try {
+        $type = $action['type'] ?? null;
+
+        switch ($type) {
+            // ✅ 1. ENVOYER UNE LOCALISATION
+            case 'send_location':
+                $this->sendWhatsAppLocation(
+                    $to,
+                    $action['latitude'] ?? null,
+                    $action['longitude'] ?? null,
+                    $action['label'] ?? 'GreenLand',
+                    $action['maps_url'] ?? null,
+                    $config,
+                    $projetId
+                );
+                break;
+
+            // ✅ 2. ENVOYER UN MÉDIA (photos, vidéo)
+            case 'send_media':
+                $urls = $action['urls'] ?? [];
+                if (empty($urls) && !empty($action['url'])) {
+                    $urls = [$action['url']];
+                }
+                foreach ($urls as $url) {
+                    $this->sendWhatsAppMedia($to, $url, $config, $projetId);
+                }
+                break;
+
+            // ✅ 3. NOTIFIER LE COMMERCIAL
+            case 'notify_commercial':
+                $this->notifyCommercialFromAgent(
+                    $action['payload'] ?? [],
+                    $projetId
+                );
+                break;
+
+            default:
+                Log::warning("⚠️ Action inconnue: {$type}");
+                break;
+        }
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur exécution action: " . $e->getMessage());
+    }
+}
+
+/**
+ * 🔥 ENVOYER UNE LOCALISATION WHATSAPP
+ */
+private function sendWhatsAppLocation($to, $lat, $lng, $label, $mapsUrl, $config, $projetId)
+{
+    try {
+        $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
+
+        // WhatsApp ne supporte pas les localisations natives via Twilio
+        // → On envoie le lien Google Maps
+        $body = "📍 **{$label}**\n\n🗺️ Carte : {$mapsUrl}";
+
+        $sentMessage = $twilio->messages->create(
+            "whatsapp:" . $to,
+            [
+                'from' => "whatsapp:" . $config->phone_number_id,
+                'body' => $body
+            ]
+        );
+
+        // Stocker le message
+        DB::connection('temp')->table('whatsapp_messages')->insert([
+            'projet_id' => $projetId,
+            'from_number' => $config->phone_number_id,
+            'to_number' => $to,
+            'message' => $body,
+            'message_sid' => $sentMessage->sid,
+            'profile_name' => 'Agent Virtuel Karim',
+            'status' => 'sent',
+            'message_type' => 'location',
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        Log::info("✅ Localisation envoyée à {$to}", [
+            'label' => $label,
+            'maps_url' => $mapsUrl,
+        ]);
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur envoi localisation: " . $e->getMessage());
+    }
+}
+
+/**
+ * 🔥 ENVOYER UN MÉDIA (PHOTO/VIDÉO)
+ */
+private function sendWhatsAppMedia($to, $mediaUrl, $config, $projetId)
+{
+    try {
+        if (empty($mediaUrl)) {
+            return;
+        }
+
+        $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
+
+        $sentMessage = $twilio->messages->create(
+            "whatsapp:" . $to,
+            [
+                'from' => "whatsapp:" . $config->phone_number_id,
+                'mediaUrl' => [$mediaUrl]
+            ]
+        );
+
+        // Stocker le message
+        DB::connection('temp')->table('whatsapp_messages')->insert([
+            'projet_id' => $projetId,
+            'from_number' => $config->phone_number_id,
+            'to_number' => $to,
+            'message' => '📎 Média',
+            'message_sid' => $sentMessage->sid,
+            'profile_name' => 'Agent Virtuel Karim',
+            'status' => 'sent',
+            'message_type' => 'media',
+            'media_url' => $mediaUrl,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        Log::info("✅ Média envoyé à {$to}", [
+            'media_url' => $mediaUrl,
+        ]);
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur envoi média: " . $e->getMessage());
+    }
+}
+
+/**
+ * 🔥 NOTIFIER LE COMMERCIAL (depuis l'agent)
+ */
+private function notifyCommercialFromAgent(array $payload, $projetId)
+{
+    try {
+        Log::info("📤 Notification commercial depuis l'agent", $payload);
+
+        // ✅ Trouver le commercial affecté
+        $prospectId = $payload['prospect_id'] ?? null;
+        $assignedCommercialId = null;
+
+        if ($prospectId) {
+            $prospect = Prospect::on('temp')->find($prospectId);
+            if ($prospect && !empty($prospect->commercial_affecte)) {
+                $assignedCommercialId = $prospect->commercial_affecte;
+            }
+        }
+
+        // ✅ Créer la notification
+        $notification = new Notification();
+        $notification->setConnection('temp');
+        $notification->date = now();
+        $notification->type = 53; // Nouveau type : demande de rappel via agent
+        $notification->description_type = "📞 **DEMANDE DE RAPPEL**\n\n" .
+            "👤 Nom: " . ($payload['name'] ?? 'Non fourni') . "\n" .
+            "📞 Téléphone: " . ($payload['phone'] ?? 'Non fourni') . "\n" .
+            "🏠 Type: " . ($payload['property_type'] ?? 'Non précisé') . "\n" .
+            "💰 Budget: " . ($payload['budget'] ?? 'Non précisé') . "\n" .
+            "📝 Dernier message: " . ($payload['last_message'] ?? '');
+        $notification->lien = "/prospects/edit/" . $prospectId;
+        $notification->role = 3;
+
+        if ($assignedCommercialId) {
+            $notification->user_id = $assignedCommercialId;
+        } else {
+            $notification->user_id = null;
+        }
+
+        $notification->projet_id = $projetId;
+        $notification->prospect_id = $prospectId;
+        $notification->save();
+
+        Config::set('broadcasting.default', 'pusher_notify');
+        broadcast(new NotificationEvent($notification->id));
+
+        Log::info("✅ Notification commercial créée", [
+            'notification_id' => $notification->id,
+            'commercial_id' => $assignedCommercialId,
+        ]);
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur notification commercial: " . $e->getMessage());
+    }
+}
 public function markMessagesAsRead(Request $request, $projetId, $phoneNumber)
 {
     try {
@@ -1019,25 +1225,32 @@ private function assignProspectIfInterested($prospectId, $projetId, array $state
                     ]);
 
                     // Traiter avec l'agent
-                    $agentResponse = $this->processWithAgent(
-                        $body,
-                        $from,
-                        $sessionId,
-                        $foundConfig->projet_id,
-                        $prospectId
-                    );
+                  $agentResult = $this->processWithAgent(
+                    $body,
+                    $from,
+                    $sessionId,
+                    $foundConfig->projet_id,
+                    $prospectId
+                );
 
-                    // Envoyer la réponse
-                    if ($agentResponse) {
-                        $this->sendAgentResponse(
-                            $from,
-                            $agentResponse,
-                            $foundConfig,
-                            $foundConfig->projet_id,
-                            $sessionId
-                        );
-                        Log::info("✅ Réponse de l'agent envoyée à {$from}");
-                    }
+                // ✅ Extraire le message ET les actions
+                $agentResponse = $agentResult['message'] ?? '';
+                $agentActions = $agentResult['actions'] ?? [];
+
+                // Envoyer la réponse + les actions
+                if ($agentResponse) {
+                    $this->sendAgentResponse(
+                        $from,
+                        $agentResponse,
+                        $foundConfig,
+                        $foundConfig->projet_id,
+                        $sessionId,
+                        $agentActions  // ✅ NOUVEAU
+                    );
+                    Log::info("✅ Réponse de l'agent envoyée à {$from}", [
+                        'actions_count' => count($agentActions),
+                    ]);
+                }
                 } else {
                     Log::info("⏹️ Agent NON déclenché pour {$from}", [
                         'raison' => 'Visite complète (nom + date + acceptée)',
