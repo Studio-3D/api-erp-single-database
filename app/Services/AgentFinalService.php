@@ -385,8 +385,8 @@ class AgentFinalService
     private function descriptionAnswer(): string
     {
         return $this->withQuestion(
-            'GreenLand est une résidence fermée et sécurisée, avec six immeubles en R+4, un patio central paysager, un parking souterrain et des équipements pensés pour le quotidien.',
-            'Souhaitez-vous connaître les typologies, la localisation ou les modalités de visite ?'
+            'GreenLand est une résidence fermée et sécurisée, située à Sidi Messoud, entre Californie et la Ville Verte. Dans un environnement calme et proche des commodités essentielles. avec divers equipements tel que Patio central paysager,Parking souterrain et des équipements pensés pour le quotidien.',
+            'Souhaitez-vous connaître les typologies du projet ?'
         );
     }
 
