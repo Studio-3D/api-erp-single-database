@@ -640,6 +640,7 @@ private function processReservationFiles($reservation, $request, $societe)
                     }
 
                     // Set fields individually
+                    $reservation->nombre_parking = $request->nombre_parking ?? 1;
                     $reservation->prix = $request->filled('prix_final') ? $request->prix_final : $request->prix;
                     $reservation->mode_financement =$request->mode_financement;
                     $reservation->nb_acquereurs = $request->nb_acquereurs;
@@ -1741,6 +1742,7 @@ private function getAllHistoriquesWithAncien($reservationId)
         }
 
         $reservation->setConnection('temp');
+        $reservation->nombre_parking = $request->nombre_parking ?? $reservation->nombre_parking;
         $reservation->nb_acquereurs = $request->input('nb_acquereurs');
         $reservation->code_reservation = $request->input('code_reservation');
         $reservation->prix = $request->filled('prix_final') ? $request->prix_final : $request->prix;
