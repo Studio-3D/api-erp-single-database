@@ -39,26 +39,26 @@ class WhatsAppBusinessController extends Controller
  */
 
 
-private function processWithAgent($message, $from, $sessionId, $projetId,$prospectId = null)
+private function processWithAgent($message, $from, $sessionId, $projetId, $prospectId = null)
 {
     try {
         Log::info("🤖 Agent virtuel: Traitement du message de {$from}", [
             'message' => $message,
             'session_id' => $sessionId,
-            'prospect_id' => $prospectId,  // ✅ Ajouté
+            'prospect_id' => $prospectId,
         ]);
 
-        // 🔥 UTILISER LA MÊME MÉTHODE QUE DANS AgentController
-        // Conversation::getOrCreate() est une méthode statique du modèle
-      $conversation = Conversation::getOrCreate($sessionId, [
-        'phone_number' => $from,          // ✅ AJOUTER
-        'projet_id' => $projetId,          // ✅ AJOUTER
-         'prospect_id' => $prospectId||null,  // ✅ Plus NULL !           // ✅ AJOUTER
-        'user_ip' => 'whatsapp',
-        'user_agent' => 'WhatsApp Business',
-    ]);
-            // ════════════════════════════════════════════════════════════
-        // 🔥 RÉCUPÉRER LE NOM DU PROSPECT (depuis DB ou WhatsApp)
+        // 🔥 Récupérer ou créer la conversation
+        $conversation = Conversation::getOrCreate($sessionId, [
+            'phone_number' => $from,
+            'projet_id' => $projetId,
+            'prospect_id' => $prospectId ?: null,
+            'user_ip' => 'whatsapp',
+            'user_agent' => 'WhatsApp Business',
+        ]);
+
+        // ════════════════════════════════════════════════════════════
+        // 🔥 RÉCUPÉRER LE NOM DU PROSPECT
         // ════════════════════════════════════════════════════════════
         $prospectName = null;
         if ($prospectId) {
@@ -83,41 +83,48 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
                 ]);
             }
         }
+
         if (!$conversation) {
             // Fallback: créer l'agent sans historique
             $agent = new AgentFinalService();
             $response = $agent->processMessage($message, $sessionId);
-            return $response;
+            return [
+                'message' => $response,
+                'actions' => [],
+                'state' => [],
+                'pending_contact' => [],
+            ];
         }
 
         // 🔥 Récupérer l'état et l'historique
-         // 🔥 Récupérer l'état et l'historique
         $state = $conversation->state ?? [];
         $history = $conversation->history ?? [];
 
         // 🔥 Injecter le nom du prospect dans l'état
         if ($prospectName) {
             $state['client_name'] = $prospectName;
+            $state['name'] = $prospectName; // ✅ Pour compatibilité
         }
+
+        // ✅ AJOUTER CES 2 LIGNES (LE PROBLÈME VIENT D'ICI)
+        if ($prospectId) {
+            $state['prospect_id'] = $prospectId;
+        }
+
         // 🔥 Créer l'agent avec l'état sauvegardé
         $agent = new AgentFinalService($state);
 
         // 🔥 Appeler reply avec l'historique
         $result = $agent->reply($message, $history);
 
-        // 🔥 Récupérer la réponse
-    // 🔥 Récupérer la réponse
+        // ════════════════════════════════════════════════════════════
+        // ✅ RÉCUPÉRER LES DONNÉES DU RÉSULTAT (CORRECTION ICI)
+        // ════════════════════════════════════════════════════════════
         $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
+        $newState = $result['state'] ?? $agent->getConversationState(); // ✅ DÉFINIR $newState
+        $actions = $result['actions'] ?? []; // ✅ DÉFINIR $actions
+        $pendingContact = $result['pending_contact'] ?? []; // ✅ DÉFINIR $pendingContact
 
-        // ✅ NOUVEAU : Récupérer les actions
-        $actions = $result['actions'] ?? [];
-
-        // ✅ Exécuter les actions AVANT d'envoyer le message
-        if (!empty($actions)) {
-            foreach ($actions as $action) {
-                $this->executeAgentAction($action, $from, $foundConfig, $projetId);
-            }
-        }
         // 🔥 Mettre à jour l'historique
         $history[] = [
             'role' => 'user',
@@ -131,23 +138,27 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
             'timestamp' => now()->toDateTimeString()
         ];
 
-        // 🔥 Sauvegarder en base de données (comme dans AgentController)
+        // 🔥 Sauvegarder en base de données
         $conversation->updateConversation($newState, $history);
+
         if ($prospectId) {
             $this->assignProspectIfInterested($prospectId, $projetId, $newState);
         }
+
         Log::info("🤖 Agent virtuel: Réponse générée et sauvegardée", [
             'response' => $response,
-            'history_count' => count($history)
+            'history_count' => count($history),
+            'actions_count' => count($actions),
         ]);
 
-       // ✅ Retourner un TABLEAU avec message + actions + state
+        // ✅ RETOURNER UN TABLEAU AVEC TOUT
         return [
             'message' => $response,
-            'actions' => $actions ?? [],
+            'actions' => $actions,
             'state' => $newState,
-            'pending_contact' => $result['pending_contact'] ?? [],
+            'pending_contact' => $pendingContact,
         ];
+
     } catch (\Exception $e) {
         Log::error("❌ Erreur agent virtuel: " . $e->getMessage(), [
             'trace' => $e->getTraceAsString()
@@ -155,7 +166,14 @@ private function processWithAgent($message, $from, $sessionId, $projetId,$prospe
 
         // Fallback: répondre sans historique
         $agent = new AgentFinalService();
-        return $agent->processMessage($message, $sessionId);
+        $response = $agent->processMessage($message, $sessionId);
+
+        return [
+            'message' => $response,
+            'actions' => [],
+            'state' => [],
+            'pending_contact' => [],
+        ];
     }
 }
      /**
