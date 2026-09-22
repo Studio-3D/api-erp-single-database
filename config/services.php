@@ -30,5 +30,7 @@ return [
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
+    'openrouter' => ['key' => env('OPENROUTER_API_KEY'), 'model' => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini')],
+    'greenland'  => ['lead_webhook' => env('GREENLAND_LEAD_WEBHOOK_URL')],
 
 ];
