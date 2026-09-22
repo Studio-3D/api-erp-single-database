@@ -22,6 +22,18 @@ use Illuminate\Support\Facades\Log;
  * Configuration recommandée (config/services.php) — indispensable avec `php artisan config:cache` :
  *   'openrouter' => ['key' => env('OPENROUTER_API_KEY'), 'model' => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini')],
  *   'greenland'  => ['lead_webhook' => env('GREENLAND_LEAD_WEBHOOK_URL')],
+ *
+ * NOTE — Proposition de mise en relation avec un conseiller
+ * La proposition n'est jamais faite à chaque réponse. Elle est contrôlée par le code (canProposeAdvisor()) :
+ * - première proposition : dès que le prospect est qualifié (typologie + budget), ou après
+ *   FIRST_OFFER_AFTER_MESSAGES messages d'échange, ou s'il demande les disponibilités ;
+ * - nouvelle proposition : possible après OFFER_COOLDOWN_MESSAGES messages supplémentaires
+ *   (OFFER_COOLDOWN_ON_AVAILABILITY si le prospect demande les disponibilités) ;
+ * - après un refus (« non », « pas maintenant »…) : pas de nouvelle proposition avant
+ *   OFFER_COOLDOWN_AFTER_REFUSAL messages, le temps de poursuivre la qualification ;
+ * - demande explicite du prospect (rappel, conseiller, visite sur place) : toujours acceptée ;
+ * - une fois la demande transmise au commercial : plus aucune proposition.
+ * Ajuster ces seuils via les constantes ci-dessous, sans toucher à la logique.
  */
 class AgentFinalService
 {
@@ -38,13 +50,19 @@ class AgentFinalService
     private const MAX_BUDGET = 50_000_000;
     private const PLACEHOLDER_URL_MARKER = 'votre-domaine';
 
+    /** Rythme des propositions de conseiller (en nombre de messages du prospect). Voir la NOTE en tête de classe. */
+    private const FIRST_OFFER_AFTER_MESSAGES = 5;
+    private const OFFER_COOLDOWN_MESSAGES = 4;
+    private const OFFER_COOLDOWN_ON_AVAILABILITY = 2;
+    private const OFFER_COOLDOWN_AFTER_REFUSAL = 6;
+    private const OFFER_QUESTION_TYPES = ['callback_offer', 'visit_offer'];
+
     /** Clés stables pour interpréter « oui », « non », « wakha »… Le texte affiché ne sert jamais d'état métier. */
     private const QUESTION_TYPES = [
         'generic', 'show_types', 'ask_purpose', 'ask_type', 'ask_budget', 'confirm_budget',
         'callback_offer', 'visit_offer', 'ask_name', 'ask_phone', 'confirm_phone', 'media_offer',
     ];
 
-    private const AI_ACTIONS = ['send_location', 'send_photos', 'send_video', 'send_virtual_tour', 'notify_commercial'];
 
     /** Mots-clés du mode secours (normalisés, sans accents). L'ordre définit la priorité. */
     private const INTENT_KEYWORDS = [
@@ -63,7 +81,7 @@ class AgentFinalService
         'description' => ['description', 'details', 'informations', 'infos', 'parlez moi du projet', 'presentation'],
     ];
 
-    private const DARIJA_MARKERS = ['salam', 'slm', 'marhba', 'bghit', 'bghina', 'baghi', 'chhal', 'ch7al', 'fin kayn', 'finkayn', 'wach', 'dyal', 'dial', 'wakha', 'iwa', 'labas', '3afak', 'afak', 'bzaf', 'mzyan', 'mezyan', 'kayn', 'kayna', 'daba', 'chokran', 'choukran', 'nta', 'nti', 'ana', 'smiti', '3lach', 'kifach'];
+    private const DARIJA_MARKERS = ['salam', 'slm', 'marhba', 'bghit', 'bghina', 'baghi', 'chhal', 'ch7al', 'fin kayn', 'finkayn', 'wach', 'dyal', 'dial', 'wakha', 'iwa', 'labas', '3afak', 'afak', 'bzaf', 'mzyan', 'mezyan', 'kayn', 'kayna', 'daba', 'ba9i', 'chokran', 'choukran', 'nta', 'nti', 'ana', 'smiti', '3lach', 'kifach'];
 
     private const FRENCH_MARKERS = ['bonjour', 'bonsoir', 'merci', 'je', 'vous', 'est', 'les', 'des', 'une', 'pour', 'prix', 'appartement', 'oui', 'svp', 'combien', 'quel', 'quelle', 'voudrais', 'souhaite'];
 
@@ -74,6 +92,45 @@ class AgentFinalService
     private const GREETINGS = ['bonjour', 'bonsoir', 'salut', 'hello', 'hi', 'coucou', 'salam', 'slm', 'marhba', 'salam alaykoum', 'salam alikoum', 'السلام عليكم', 'مرحبا'];
 
     private const OPT_OUT_TERMS = ['stop', 'arretez', 'arreter', 'ne me contactez plus', 'ne plus me contacter', 'desabonner', 'desinscrire', 'ma tb9awch tcontactiwni', 'توقف', 'لا تتصلوا بي'];
+
+    private const RESOURCE_INTENTS = ['location', 'virtual_tour', 'photos', 'video'];
+
+    private const AI_ACTION_INTENTS = [
+        'send_location' => 'location',
+        'send_virtual_tour' => 'virtual_tour',
+        'send_photos' => 'photos',
+        'send_video' => 'video',
+    ];
+
+    private const AVAILABILITY_TERMS = ['dispo', 'dispos', 'disponible', 'disponibles', 'disponibilite', 'disponibilites', 'ba9i', 'baqi', 'mazal'];
+
+    /** Une offre de mise en relation = un sujet (conseiller…) + une action (appeler, organiser…). */
+    private const CALLBACK_OFFER_SUBJECTS = ['conseiller', 'conseillere', 'conseillers', 'commercial', 'commerciale', 'agent', 'mostachar', 'مستشار', 'مستشارينا', 'مستشارنا'];
+
+    private const CALLBACK_OFFER_VERBS = ['appelle', 'appeler', 'rappelle', 'rappeler', 'recontacte', 'recontacter', 'contacte', 'contacter', 'joindre', 'planifier', 'organiser', 'organise', 'aide', 'accompagne', 'y3ayet', 'يتصل'];
+
+    private const VIRTUAL_TOUR_TERMS = ['virtuelle', 'virtuel', '3d', 'matterport', 'الافتراضية'];
+
+    private const PLANNING_TERMS = ['planifier', 'planifie', 'planifiee', 'organiser', 'organise', 'organisee', 'programmer', 'programmee', 'reserver', 'rendez vous'];
+
+    private const PHOTO_TERMS = ['photo', 'photos', 'image', 'images', 'visuel', 'visuels', 'الصور'];
+
+    private const FLOOR_PLAN_TERMS = ['plan', 'plans', 'plan 3d', 'plans 3d', 'tasmim', 'مخطط', 'المخطط', 'التصميم'];
+
+    /** Termes indiquant qu'une phrase décrit réellement une typologie (et pas une simple question « F3 ou F4 ? »). */
+    private const TYPOLOGY_DESCRIPTION_TERMS = ['chambre', 'chambres', 'salon', 'salles de bains', 'salle de bain', 'm2', 'surface', 'superficie', 'bit', 'byout', 'غرف', 'غرفتين', 'صالون', 'مساحة'];
+
+    private const FLOOR_PLAN_CAPTIONS = [
+        'fr' => ['one' => 'Je vous joins le plan 3D du %s.', 'many' => 'Je vous joins les plans 3D du %s.', 'and' => ' et du '],
+        'darija' => ['one' => 'Hak l plan 3D dyal %s.', 'many' => 'Hak les plans 3D dyal %s.', 'and' => ' w '],
+        'ar' => ['one' => 'إليكم المخطط ثلاثي الأبعاد لشقة %s.', 'many' => 'إليكم المخططات ثلاثية الأبعاد لشقق %s.', 'and' => ' و'],
+    ];
+
+    private const RESOURCE_LABELS = [
+        'fr' => ['location' => '📍 Localisation', 'virtual_tour' => '🎥 Visite virtuelle 3D'],
+        'darija' => ['location' => '📍 Lmawqi3', 'virtual_tour' => '🎥 La visite virtuelle 3D'],
+        'ar' => ['location' => '📍 الموقع', 'virtual_tour' => '🎥 الجولة الافتراضية ثلاثية الأبعاد'],
+    ];
 
     private const SENSITIVE_TERMS = ['prompt', 'instructions internes', 'api key', 'cle api', 'openrouter', 'n8n', 'ton code', 'code source', '.env', 'system prompt'];
 
@@ -89,7 +146,7 @@ class AgentFinalService
                 'je reste à votre disposition pour les photos, la visite virtuelle ou toute autre information.',
             ],
             'questions' => [
-                'purpose' => 'Votre projet concerne-t-il une résidence principale ou un investissement ?',
+                'purpose' => 'Vous cherchez un bien pour y vivre ou pour investir ?',
                 'type' => 'Recherchez-vous plutôt un F3 ou un F4 ?',
                 'budget' => 'Quel budget approximatif envisagez-vous pour votre appartement ?',
                 'callback' => 'Souhaitez-vous qu’un conseiller vous appelle pour vous présenter les disponibilités adaptées ?',
@@ -127,6 +184,28 @@ class AgentFinalService
         ],
     ];
 
+    /** Questions d'échange variées (hors conseiller), utilisées en rotation pour éviter les répétitions. */
+    private const OPEN_QUESTIONS = [
+        'fr' => [
+            'Y a-t-il un autre point du projet sur lequel je peux vous éclairer ?',
+            'Avez-vous une préférence d’étage ou d’orientation ?',
+            'Qu’est-ce qui compte le plus pour vous dans votre futur appartement ?',
+            'Souhaitez-vous en savoir plus sur les équipements de la résidence ?',
+        ],
+        'darija' => [
+            'Wach kayna chi haja okhra bghiti t3ref 3la lmachrou3 ?',
+            'Wach 3endek chi préférence f l’étage wla l’orientation ?',
+            'Chnou ahamm haja katqelleb 3liha f l’appartement dyalk ?',
+            'Wach bghiti t3ref ktar 3la les équipements dyal la résidence ?',
+        ],
+        'ar' => [
+            'هل هناك نقطة أخرى تودون معرفتها حول المشروع؟',
+            'هل لديكم تفضيل معين بخصوص الطابق أو الاتجاه؟',
+            'ما أهم ما تبحثون عنه في شقتكم المستقبلية؟',
+            'هل ترغبون في معرفة المزيد عن مرافق الإقامة؟',
+        ],
+    ];
+
     private ?string $apiKey;
 
     private string $model;
@@ -148,6 +227,9 @@ class AgentFinalService
     private array $extraState = [];
 
     private static array $regexCache = [];
+
+    /** Type d'offre (rappel/visite) proposé par l'IA dans le tour courant, validé ensuite par le code. */
+    private ?string $pendingAiOfferType = null;
 
     /**
      * État exporté vers le CRM. Les clés historiques non utilisées sont conservées
@@ -203,6 +285,11 @@ class AgentFinalService
         'commercial_notified' => false,
         'lead_qualified' => false,
         'commercial_offer_made' => false,
+        'commercial_offer_declined' => false,
+        'prospect_message_count' => 0,
+        'last_offer_at_message' => null,
+        'qualification_asked' => [],
+        'floor_plans_sent' => [],
         'qualified_lead_notified' => false,
     ];
 
@@ -252,11 +339,20 @@ class AgentFinalService
             'longitude' => -7.623671181499958,
             'virtual_tour_url' => 'https://my.matterport.com/show/?m=8upgYS8NGex',
             'video_url' => null, // À renseigner lorsque la vidéo sera disponible.
-            // URLs provisoires : elles ne sont jamais envoyées tant qu'elles contiennent « votre-domaine ».
+            // Plans 3D par typologie : envoyés avec la description de la typologie (null = pas encore disponible).
+            'floor_plan_urls' => [
+                'F3' => 'https://vrstudio3d.com/greenland/media/f3.jpeg',
+                'F4' => 'https://vrstudio3d.com/greenland/media/f4.jpeg', 
+            ],
             'photo_urls' => [
-                'https://cdn.votre-domaine.com/greenland/photos/photo-1.jpg',
-                'https://cdn.votre-domaine.com/greenland/photos/photo-2.jpg',
-                'https://cdn.votre-domaine.com/greenland/photos/photo-3.jpg',
+                'https://vrstudio3d.com/greenland/media/1.jpeg',
+                'https://vrstudio3d.com/greenland/media/2.jpeg',
+                'https://vrstudio3d.com/greenland/media/3.jpeg',
+                'https://vrstudio3d.com/greenland/media/4.jpeg',
+                'https://vrstudio3d.com/greenland/media/5.jpeg',
+                'https://vrstudio3d.com/greenland/media/6.jpeg',
+                'https://vrstudio3d.com/greenland/media/7.jpeg',
+                'https://vrstudio3d.com/greenland/media/8.jpeg',
             ],
         ],
     ];
@@ -324,15 +420,28 @@ class AgentFinalService
 
         $facts = $this->extractFacts($message);
         $this->resolvePendingConfirmation($message);
+        $this->registerOfferResponse($message);
+
+        $turn = [
+            'message' => $message,
+            'facts' => $facts,
+            'previous_stage' => $previousStage,
+            'offer_allowed' => $this->canProposeAdvisor($message),
+            // Ressources demandées : jointes par le code, jamais laissées au bon vouloir de l'IA.
+            'resources' => $this->detectResourceIntents($message),
+        ];
         $actions = [];
 
-        // L'IA décide de la réponse ; les règles manuelles ne servent que de secours.
-        $aiDecision = $this->decideWithAi($message, $history, $isFirstMessage);
+        // L'IA rédige la réponse ; les règles manuelles ne servent que de secours.
+        $aiDecision = $this->decideWithAi($message, $history, $isFirstMessage, $turn['resources'], $turn['offer_allowed']);
         $answer = $aiDecision !== null
-            ? $this->applyAiDecision($aiDecision, $actions, $facts, $previousStage, $message)
-            : $this->answerWithRules($message, $isFirstMessage, $facts, $actions);
+            ? $this->applyAiDecision($aiDecision, $actions, $turn)
+            : $this->completeResources($this->answerWithRules($message, $isFirstMessage, $facts, $actions), $turn['resources'], $actions);
 
         // Transmission au commercial garantie par le code, indépendamment de l'IA.
+        // Plan 3D joint dès qu'une typologie est décrite (ou sur demande explicite de plan).
+        $answer = $this->attachFloorPlans($message, $answer, $actions);
+
         $this->finalizeLeadNotifications($actions);
 
         return $this->result($answer, $actions);
@@ -372,7 +481,7 @@ class AgentFinalService
         $count = (int) $this->state['follow_up_count'];
         $copy = self::FOLLOW_UP_COPY[$this->languageKey()];
         $name = $this->firstName();
-        $step = $this->nextQualificationStep();
+        $step = $this->nextQualificationStep(true);
 
         $greeting = $name !== '' ? sprintf($copy['greeting_named'], $name) : $copy['greeting'];
         $opener = $copy['openers'][min($count, count($copy['openers']) - 1)];
@@ -380,9 +489,6 @@ class AgentFinalService
         $message = "{$greeting} {$opener} {$question}";
 
         $this->setQuestion($question, $this->questionTypeForStep($step));
-        if ($step === 'callback') {
-            $this->state['commercial_offer_made'] = true;
-        }
 
         $this->state['follow_up_requires_template'] = !$this->isWithinWhatsAppWindow();
         $this->state['follow_up_count'] = $count + 1;
@@ -443,6 +549,7 @@ class AgentFinalService
     private function registerProspectMessage(string $message): void
     {
         $this->state['first_message_done'] = true;
+        $this->state['prospect_message_count'] = (int) $this->state['prospect_message_count'] + 1;
         $this->state['last_user_message'] = $message;
         $this->state['last_prospect_message_at'] = now()->toIso8601String();
         $this->state['language'] = $this->detectLanguage($message) ?? $this->state['language'];
@@ -468,6 +575,71 @@ class AgentFinalService
             $this->state['budget_invalid'] = false;
             $this->state['budget_error'] = null;
         }
+    }
+
+    /** Mémorise le refus d'une mise en relation pour ne plus la reproposer spontanément. */
+    private function registerOfferResponse(string $message): void
+    {
+        if (in_array($this->state['last_question_type'], self::OFFER_QUESTION_TYPES, true) && $this->startsWithRefusal($message)) {
+            $this->state['commercial_offer_declined'] = true;
+            return;
+        }
+
+        if ($this->isExplicitContactRequest($message)) {
+            $this->state['commercial_offer_declined'] = false;
+        }
+    }
+
+    /** Décide si un conseiller peut être proposé dans la réponse courante. Voir la NOTE en tête de classe. */
+    private function canProposeAdvisor(?string $message = null): bool
+    {
+        $message ??= (string) $this->state['last_user_message'];
+
+        if ($this->state['handoff_requested']) {
+            return false;
+        }
+        if ($this->isExplicitContactRequest($message)) {
+            return true;
+        }
+
+        $count = (int) $this->state['prospect_message_count'];
+        $asksAvailability = $this->userAsksAvailability($message);
+        $lastOffer = $this->state['last_offer_at_message'];
+
+        if ($lastOffer === null) {
+            return $asksAvailability || $this->isQualified() || $count >= self::FIRST_OFFER_AFTER_MESSAGES;
+        }
+
+        $cooldown = match (true) {
+            (bool) $this->state['commercial_offer_declined'] => self::OFFER_COOLDOWN_AFTER_REFUSAL,
+            $asksAvailability => self::OFFER_COOLDOWN_ON_AVAILABILITY,
+            default => self::OFFER_COOLDOWN_MESSAGES,
+        };
+
+        return $count - (int) $lastOffer >= $cooldown;
+    }
+
+    private function recordAdvisorOffer(): void
+    {
+        $this->state['commercial_offer_made'] = true;
+        $this->state['commercial_offer_declined'] = false;
+        $this->state['last_offer_at_message'] = (int) $this->state['prospect_message_count'];
+    }
+
+    /** Ressources demandées explicitement, ou acceptées (« oui ») après une proposition de médias. */
+    private function detectResourceIntents(string $message): array
+    {
+        $text = $this->normalize($message);
+        $intents = array_values(array_filter(
+            self::RESOURCE_INTENTS,
+            fn (string $intent): bool => $this->containsAny($text, self::INTENT_KEYWORDS[$intent])
+        ));
+
+        if ($intents === [] && $this->state['last_question_type'] === 'media_offer' && $this->isAffirmative($text)) {
+            $intents[] = 'virtual_tour';
+        }
+
+        return $intents;
     }
 
     /** Déclenche la pré-alerte (lead qualifié) puis la transmission confirmée (nom + téléphone). */
@@ -549,7 +721,9 @@ class AgentFinalService
             'description' => $this->descriptionAnswer(),
             'amenities' => $this->withNextStep('GreenLand propose notamment deux terrains de padel, une salle de sport, un patio paysager, un parking souterrain et des ascenseurs OTIS.'),
             'delivery' => $this->withNextStep($this->project['etat'] . ' La livraison est prévue en ' . mb_strtolower((string) $this->project['delivery'], 'UTF-8') . '.'),
-            'hours' => $this->withQuestion('Les visites sont possibles ' . $this->project['opening_hours'] . ', sur rendez-vous.', 'Souhaitez-vous qu’un conseiller organise une visite avec vous ?', 'visit_offer'),
+            'hours' => $this->canProposeAdvisor()
+                ? $this->withQuestion('Les visites sont possibles ' . $this->project['opening_hours'] . ', sur rendez-vous.', 'Souhaitez-vous qu’un conseiller organise une visite avec vous ?', 'visit_offer')
+                : $this->withNextStep('Les visites sur place sont possibles ' . $this->project['opening_hours'] . ', sur rendez-vous.'),
             'budget' => $this->budgetAnswer(),
             'callback', 'visit' => $this->startCommercialHandoff($intent, $actions),
             'affirmative' => $this->handleAffirmative($actions),
@@ -570,13 +744,13 @@ class AgentFinalService
 
     private function virtualTourAnswer(): string
     {
-        $url = $this->project['resources']['virtual_tour_url'];
+        $answer = 'Avec plaisir. Voici la visite virtuelle du projet, accessible immédiatement : ' . $this->project['resources']['virtual_tour_url'];
 
-        return $this->withQuestion(
-            "Avec plaisir. Voici la visite virtuelle du projet : {$url}",
-            'Souhaitez-vous qu’un conseiller organise également une visite sur place ?',
-            'visit_offer'
-        );
+        if (!$this->canProposeAdvisor()) {
+            return $this->withNextStep($answer, true);
+        }
+
+        return $this->withQuestion($answer, 'Après votre découverte en 3D, souhaitez-vous visiter le projet sur place avec un conseiller ?', 'visit_offer');
     }
 
     private function photosAnswer(array &$actions): string
@@ -642,8 +816,7 @@ class AgentFinalService
             );
         }
 
-        if ($this->state['budget_invalid'] && !$this->state['commercial_offer_made']) {
-            $this->state['commercial_offer_made'] = true;
+        if ($this->state['budget_invalid'] && $this->canProposeAdvisor()) {
             return $this->withQuestion(
                 'Merci pour cette précision. Un conseiller pourra étudier avec vous les possibilités les plus adaptées à votre projet.',
                 'Souhaitez-vous qu’il vous appelle ?',
@@ -695,10 +868,6 @@ class AgentFinalService
 
     private function handleNegative(): string
     {
-        if (in_array($this->state['last_question_type'], ['callback_offer', 'visit_offer'], true)) {
-            $this->state['commercial_offer_made'] = true;
-        }
-
         return $this->withQuestion(
             'Aucun souci, je reste disponible pour vous renseigner sans engagement.',
             'Souhaitez-vous découvrir la visite virtuelle ou des informations sur les typologies ?',
@@ -838,6 +1007,7 @@ class AgentFinalService
     {
         $price = $this->formatMoney((int) $this->project['price_from_per_m2']);
         $questionTypes = implode(' | ', self::QUESTION_TYPES);
+        $hours = $this->project['opening_hours'];
         $phoneRule = $this->state['phone']
             ? "Le numéro du prospect est déjà connu ({$this->state['phone']}) : ne le redemande jamais, demande uniquement son nom s'il manque."
             : 'Demande son nom, puis son numéro de téléphone, une information à la fois.';
@@ -854,6 +1024,7 @@ OBJECTIFS
 LANGUE ET TON
 - Réponds dans la langue et l'écriture du prospect : français, darija en lettres latines ou arabe.
 - Ton chaleureux, professionnel et concis. Maximum 90 mots. Un emoji au plus, uniquement à l'accueil.
+- Une seule question par message, toujours en dernière phrase.
 - Si first_message est true, souhaite brièvement la bienvenue.
 
 SENS CONVERSATIONNEL
@@ -862,9 +1033,16 @@ SENS CONVERSATIONNEL
 
 INFORMATIONS
 - Utilise exclusivement les données de "project". N'invente jamais une information absente : indique que le conseiller pourra la préciser.
-- N'écris jamais de lien ni d'URL : le système les ajoute lui-même via les actions.
 - Ne mentionne photos, vidéo, visite virtuelle, prix ou disponibilités que si le prospect les demande.
-- Si une ressource est indisponible (ressources_disponibles = false), indique qu'elle sera bientôt disponible.
+
+RESSOURCES (localisation, visite virtuelle, photos, vidéo)
+- N'écris jamais de lien ni d'URL : le système les joint lui-même.
+- context.ressources_jointes liste ce qui est joint automatiquement à ta réponse. Annonce-le simplement : « Voici la localisation du projet », « Voici la visite virtuelle du projet », « Je vous envoie les photos du projet ».
+- VISITE VIRTUELLE ≠ VISITE SUR PLACE. La visite virtuelle est un lien 3D que le prospect ouvre immédiatement, seul, à tout moment : ne propose jamais de l'organiser, de la planifier, ni de passer par un conseiller pour y accéder.
+- La visite sur place se fait uniquement sur rendez-vous avec un conseiller, {$hours}.
+- PLANS 3D : quand tu décris une typologie (composition, surface), son plan 3D est joint automatiquement si ressources_disponibles.plans_3d l'indique. N'annonce pas toi-même le plan et ne dis jamais qu'il est indisponible ; si le prospect demande le plan d'une typologie sans plan disponible, indique que le conseiller pourra le lui transmettre.
+- LOCALISATION : décris l'emplacement (Sidi Messoud, entre Californie et la Ville Verte, près de l'entrée de l'autoroute A3) ; le lien Google Maps est joint automatiquement.
+- Si une ressource est indisponible (ressources_disponibles = false), indique qu'elle sera bientôt disponible et propose une ressource disponible.
 
 PRIX
 - Seule formulation autorisée : les prix démarrent à partir de {$price} DH/m² et varient selon l'appartement, la superficie, l'étage, l'orientation et les disponibilités.
@@ -878,9 +1056,12 @@ QUALIFICATION — une seule question par message
 - Après une information simple (typologie, prix, localisation, équipements, médias), réponds uniquement à cette information puis pose la question de qualification suivante.
 
 MISE EN RELATION
-- Intérêt fort (demande de visite, de rappel, de disponibilités, intention d'achat) : propose la mise en relation immédiatement, même si la qualification est incomplète.
-- Lead qualifié (typologie + budget) et state.commercial_offer_made false : propose une seule fois « Souhaitez-vous qu'un conseiller vous appelle pour vous présenter les disponibilités adaptées ? », avec commercial_offer_made = true et last_question_type = callback_offer.
-- Si commercial_offer_made est true, ne répète pas l'offre, sauf si le prospect demande lui-même un rappel, un conseiller ou une visite.
+- Ne propose JAMAIS un conseiller à chaque message. Le rythme est décidé par context.proposition_conseiller_autorisee.
+- Si false : ne propose ni rappel, ni conseiller, ni visite sur place. Réponds, partage les ressources demandées et poursuis la qualification.
+- Si true : propose la mise en relation seulement si c'est pertinent (qualification avancée, intérêt manifeste, question sur les disponibilités, le prix d'un appartement précis ou la visite sur place). Formulation naturelle et variée, par exemple « Souhaitez-vous qu'un conseiller vous appelle pour vous présenter les disponibilités adaptées ? ». last_question_type = callback_offer (ou visit_offer pour une visite sur place).
+- Si le prospect refuse, n'insiste pas : poursuis l'échange ; une nouvelle proposition viendra plus tard.
+- Demande explicite du prospect (rappel, conseiller, visite sur place) : accepte toujours.
+- Ne repose jamais une question de qualification déjà posée et restée sans réponse (state.qualification_asked) : le conseiller la traitera.
 - Si le prospect accepte : wants_callback (ou wants_visit) = true. {$phoneRule}
 - Quand le nom et le téléphone sont connus et la demande acceptée : confirme que la demande est transmise et qu'un conseiller le recontactera prochainement. Ne promets ni date ni heure.
 
@@ -899,17 +1080,16 @@ FORMAT — réponds UNIQUEMENT par un objet JSON valide, sans texte autour :
     "phone": "texte | null",
     "wants_callback": "true | null",
     "wants_visit": "true | null",
-    "commercial_offer_made": "true | null",
     "follow_up_opt_out": "true | null",
     "last_question_type": "{$questionTypes} | null"
   },
   "actions": ["send_location | send_photos | send_video | send_virtual_tour"]
 }
-Toute valeur non certaine ou non mentionnée = null. actions = [] si aucune ressource n'est demandée.
+Ajoute l'action correspondante lorsque le prospect demande une ressource ou accepte de la recevoir. Toute valeur non certaine ou non mentionnée = null. actions = [] sinon.
 PROMPT;
     }
 
-    private function decideWithAi(string $message, array $history, bool $isFirstMessage): ?array
+    private function decideWithAi(string $message, array $history, bool $isFirstMessage, array $resources = [], bool $offerAllowed = false): ?array
     {
         if (!$this->apiKey) {
             return null;
@@ -919,6 +1099,8 @@ PROMPT;
             $context = [
                 'first_message' => $isFirstMessage,
                 'detected_language' => $this->state['language'],
+                'ressources_jointes' => $this->attachedResourceNames($resources),
+                'proposition_conseiller_autorisee' => $offerAllowed,
                 'project' => $this->aiProjectContext(),
                 'state' => $this->aiStateContext(),
             ];
@@ -969,28 +1151,240 @@ PROMPT;
         }
     }
 
-    private function applyAiDecision(array $decision, array &$actions, array $facts = [], string $previousStage = '', string $message = ''): string
+    private function applyAiDecision(array $decision, array &$actions, array $turn): string
     {
+        $reply = (string) $decision['reply'];
         $updates = is_array($decision['updates'] ?? null) ? $decision['updates'] : [];
-        $this->applyAiUpdates($updates, in_array('budget', $facts, true));
+        $this->applyAiUpdates($updates, in_array('budget', $turn['facts'], true), $reply);
 
         // Filet de sécurité : si l'agent attendait un nom et que l'IA ne l'a pas extrait.
-        if ($previousStage === 'awaiting_name' && empty($this->state['name'])) {
-            $name = $this->extractName($message);
+        if ($turn['previous_stage'] === 'awaiting_name' && empty($this->state['name'])) {
+            $name = $this->extractName($turn['message']);
             if ($name !== null) {
                 $this->state['name'] = $name;
             }
         }
 
-        $reply = (string) $decision['reply'];
-        foreach (array_unique(array_filter((array) ($decision['actions'] ?? []), 'is_string')) as $action) {
-            if (in_array($action, self::AI_ACTIONS, true)) {
-                $reply .= $this->appendAiAction($action, $actions);
-            }
-        }
+        $reply = $this->enforceCommercialOfferPolicy($reply, $turn);
+        $reply = $this->ensureOpenQuestion($reply);
+        $reply = $this->deliverResources($reply, array_merge($turn['resources'], $this->aiActionIntents($decision)), $actions);
 
         $this->state['last_question'] = $this->lastQuestionOf($reply);
         return $reply;
+    }
+
+    /**
+     * Proposition de conseiller rédigée par l'IA : conservée si le rythme le permet (canProposeAdvisor),
+     * sinon remplacée par une question de qualification ou d'échange.
+     */
+    private function enforceCommercialOfferPolicy(string $reply, array $turn): string
+    {
+        $question = $this->lastQuestionOf($reply);
+        $offerType = $this->pendingAiOfferType;
+        $this->pendingAiOfferType = null;
+
+        if ($question === null) {
+            return $reply;
+        }
+        if ($offerType === null && $this->isCallbackOffer($question)) {
+            $offerType = 'callback_offer';
+        }
+        if ($offerType === null) {
+            return $reply;
+        }
+
+        if ($turn['offer_allowed']) {
+            $this->setQuestion($question, $offerType);
+            return $reply;
+        }
+
+        $position = mb_strrpos($reply, $question);
+        if ($position === false) {
+            return $reply;
+        }
+
+        [$next, $type] = $this->nextOpenQuestion();
+        $this->setQuestion($next, $type);
+        $base = rtrim(mb_substr($reply, 0, $position));
+
+        return $base === '' ? $next : $base . "\n\n" . $next;
+    }
+
+    /** L'échange ne se termine jamais sur une réponse fermée. */
+    private function ensureOpenQuestion(string $reply): string
+    {
+        if ($this->lastQuestionOf($reply) !== null) {
+            return $reply;
+        }
+
+        [$next, $type] = $this->nextOpenQuestion();
+        $this->setQuestion($next, $type);
+
+        return rtrim($reply) . "\n\n" . $next;
+    }
+
+    /** Joint les ressources demandées : liens insérés avant la question finale, médias via actions. */
+    private function deliverResources(string $reply, array $intents, array &$actions): string
+    {
+        $resources = $this->project['resources'];
+        $labels = self::RESOURCE_LABELS[$this->languageKey()];
+        $lines = [];
+
+        foreach (array_unique($intents) as $intent) {
+            switch ($intent) {
+                case 'location':
+                    $actions[] = $this->locationAction();
+                    $lines[] = $labels['location'] . ' : ' . $resources['maps_url'];
+                    break;
+                case 'virtual_tour':
+                    if (!empty($resources['virtual_tour_url'])) {
+                        $lines[] = $labels['virtual_tour'] . ' : ' . $resources['virtual_tour_url'];
+                    }
+                    break;
+                case 'photos':
+                    $urls = $this->availablePhotoUrls();
+                    if ($urls !== []) {
+                        $actions[] = ['type' => 'send_media', 'media' => 'photos', 'urls' => $urls];
+                    }
+                    break;
+                case 'video':
+                    if ($this->hasVideo()) {
+                        $actions[] = ['type' => 'send_media', 'media' => 'video', 'url' => $resources['video_url']];
+                    }
+                    break;
+            }
+        }
+
+        return $lines === [] ? $reply : $this->insertBeforeLastQuestion($reply, implode("\n", $lines));
+    }
+
+    /**
+     * Joint le plan 3D de chaque typologie décrite dans la réponse (une seule fois par typologie),
+     * ou de la typologie demandée si le prospect réclame explicitement un plan.
+     */
+    private function attachFloorPlans(string $message, string $answer, array &$actions): string
+    {
+        $plans = $this->availableFloorPlans();
+        if ($plans === []) {
+            return $answer;
+        }
+
+        $text = $this->normalize($message);
+        $explicitRequest = $this->containsAny($text, self::FLOOR_PLAN_TERMS);
+        $sent = (array) ($this->state['floor_plans_sent'] ?? []);
+        $types = [];
+
+        if ($explicitRequest) {
+            $types = $this->typologiesMentioned($text);
+            if ($types === []) {
+                $types = $this->state['property_type'] ? [$this->state['property_type']] : array_keys($plans);
+            }
+        } else {
+            $types = array_diff($this->typologiesDescribedIn($answer), $sent);
+        }
+
+        $types = array_values(array_filter($types, static fn (string $type): bool => isset($plans[$type])));
+        if ($types === []) {
+            return $answer;
+        }
+
+        foreach ($types as $type) {
+            // media = « photos » : même format que les photos, déjà géré par le contrôleur.
+            $actions[] = [
+                'type' => 'send_media',
+                'media' => 'photos',
+                'urls' => [$plans[$type]],
+                'label' => 'floor_plan_' . $type,
+                'caption' => 'Plan 3D ' . $type . ' – GreenLand',
+            ];
+        }
+
+        $this->state['floor_plans_sent'] = array_values(array_unique(array_merge($sent, $types)));
+
+        $copy = self::FLOOR_PLAN_CAPTIONS[$this->languageKey()];
+        $caption = sprintf(count($types) > 1 ? $copy['many'] : $copy['one'], implode($copy['and'], $types));
+
+        return str_contains($answer, $caption) ? $answer : $this->insertBeforeLastQuestion($answer, $caption);
+    }
+
+    /** @return array<string,string> typologie => URL du plan 3D disponible */
+    private function availableFloorPlans(): array
+    {
+        return array_filter(
+            (array) ($this->project['resources']['floor_plan_urls'] ?? []),
+            static fn ($url): bool => is_string($url) && filter_var($url, FILTER_VALIDATE_URL) !== false
+        );
+    }
+
+    private function typologiesMentioned(string $normalizedText): array
+    {
+        return array_values(array_filter(
+            array_keys($this->project['typologies']),
+            fn (string $type): bool => $this->containsAny($normalizedText, [mb_strtolower($type)])
+        ));
+    }
+
+    /** Typologies réellement décrites : une phrase citant F3/F4 ET leur composition ou leur surface. */
+    private function typologiesDescribedIn(string $answer): array
+    {
+        $types = [];
+        foreach (preg_split('/[.!?؟\n]+/u', $this->normalize($answer)) ?: [] as $sentence) {
+            if ($this->containsAny($sentence, self::TYPOLOGY_DESCRIPTION_TERMS)) {
+                $types = array_merge($types, $this->typologiesMentioned($sentence));
+            }
+        }
+
+        return array_values(array_unique($types));
+    }
+
+    /** Mode secours : joint les ressources demandées que la réponse par règles n'a pas couvertes. */
+    private function completeResources(string $answer, array $intents, array &$actions): string
+    {
+        $resources = $this->project['resources'];
+        $sentMedia = array_column(array_filter($actions, static fn (array $a): bool => ($a['type'] ?? null) === 'send_media'), 'media');
+
+        $missing = array_filter($intents, fn (string $intent): bool => match ($intent) {
+            'location' => !str_contains($answer, (string) $resources['maps_url']),
+            'virtual_tour' => !str_contains($answer, (string) $resources['virtual_tour_url']),
+            default => !in_array($intent, $sentMedia, true),
+        });
+
+        if ($missing === []) {
+            return $answer;
+        }
+
+        $answer = $this->deliverResources($answer, $missing, $actions);
+        $sentNow = array_column(array_filter($actions, static fn (array $a): bool => ($a['type'] ?? null) === 'send_media'), 'media');
+        if (in_array('photos', $missing, true) && in_array('photos', $sentNow, true)) {
+            $answer = $this->insertBeforeLastQuestion($answer, 'Je vous envoie également les photos du projet.');
+        }
+
+        return $answer;
+    }
+
+    private function insertBeforeLastQuestion(string $reply, string $block): string
+    {
+        $reply = rtrim($reply);
+        $question = $this->lastQuestionOf($reply);
+
+        if ($question !== null && str_ends_with($reply, $question)) {
+            $base = rtrim(mb_substr($reply, 0, (int) mb_strrpos($reply, $question)));
+            return ($base === '' ? '' : $base . "\n\n") . $block . "\n\n" . $question;
+        }
+
+        return $reply . "\n\n" . $block;
+    }
+
+    private function aiActionIntents(array $decision): array
+    {
+        $intents = [];
+        foreach ((array) ($decision['actions'] ?? []) as $action) {
+            if (is_string($action) && isset(self::AI_ACTION_INTENTS[$action])) {
+                $intents[] = self::AI_ACTION_INTENTS[$action];
+            }
+        }
+
+        return $intents;
     }
 
     /** Garde-fou : aucun lien inventé, aucune fuite technique, aucun montant autre que le prix d'appel ou le budget du prospect. */
@@ -1003,6 +1397,22 @@ PROMPT;
         $normalized = $this->normalize($reply);
         if ($this->containsAny($normalized, ['openrouter', 'prompt', 'json', 'api'])) {
             return false;
+        }
+
+        $photosAvailable = $this->availablePhotoUrls() !== [];
+        foreach (preg_split('/[.!?؟\n]+/u', $normalized) ?: [] as $sentence) {
+            // La visite virtuelle est un lien immédiat : jamais « organisée » ni « planifiée ».
+            if ($this->containsAny($sentence, self::VIRTUAL_TOUR_TERMS)
+                && $this->containsAny($sentence, self::PLANNING_TERMS)
+                && !$this->containsAny($sentence, ['sur place', 'physique'])) {
+                return false;
+            }
+            // Les photos existent : l'IA ne doit pas prétendre le contraire.
+            if ($photosAvailable
+                && $this->containsAny($sentence, self::PHOTO_TERMS)
+                && preg_match('/pas (encore )?disponible|indisponible/u', $sentence)) {
+                return false;
+            }
         }
 
         $allowed = array_filter([(int) $this->project['price_from_per_m2'], (int) ($this->state['budget'] ?? 0)]);
@@ -1020,7 +1430,7 @@ PROMPT;
     }
 
     /** Ne laisse l'IA modifier que des champs attendus et validés. */
-    private function applyAiUpdates(array $updates, bool $budgetExtractedByCode = false): void
+    private function applyAiUpdates(array $updates, bool $budgetExtractedByCode = false, string $reply = ''): void
     {
         if (in_array($updates['property_type'] ?? null, ['F3', 'F4'], true)) {
             $this->state['property_type'] = $updates['property_type'];
@@ -1045,46 +1455,23 @@ PROMPT;
             $this->state['phone'] = $phone;
         }
         // Drapeaux « à sens unique » : l'IA peut les activer, jamais les désactiver par erreur.
-        foreach (['wants_callback', 'wants_visit', 'commercial_offer_made', 'follow_up_opt_out'] as $key) {
+        foreach (['wants_callback', 'wants_visit', 'follow_up_opt_out'] as $key) {
             if (($updates[$key] ?? null) === true) {
                 $this->state[$key] = true;
             }
         }
 
+        // Si l'IA ne qualifie pas sa question, le code la déduit du texte (utile pour interpréter « oui »).
         $questionType = $updates['last_question_type'] ?? null;
-        $this->state['last_question_type'] = is_string($questionType) && in_array($questionType, self::QUESTION_TYPES, true)
-            ? $questionType
-            : 'generic';
+        $isKnownType = is_string($questionType) && in_array($questionType, self::QUESTION_TYPES, true) && $questionType !== 'generic';
+        $type = $isKnownType ? $questionType : $this->inferQuestionType($this->lastQuestionOf($reply));
 
-        $this->syncConversationStage();
-    }
-
-    /** Transforme les actions autorisées de l'IA en payloads fiables. Retourne le texte à ajouter au message. */
-    private function appendAiAction(string $action, array &$actions): string
-    {
-        $resources = $this->project['resources'];
-
-        switch ($action) {
-            case 'send_location':
-                $actions[] = $this->locationAction();
-                return '';
-            case 'send_photos':
-                $urls = $this->availablePhotoUrls();
-                if ($urls !== []) {
-                    $actions[] = ['type' => 'send_media', 'media' => 'photos', 'urls' => $urls];
-                }
-                return '';
-            case 'send_video':
-                if ($this->hasVideo()) {
-                    $actions[] = ['type' => 'send_media', 'media' => 'video', 'url' => $resources['video_url']];
-                }
-                return '';
-            case 'send_virtual_tour':
-                return empty($resources['virtual_tour_url']) ? '' : "\n\n" . $resources['virtual_tour_url'];
-            default:
-                // notify_commercial : géré de façon déterministe par finalizeLeadNotifications().
-                return '';
+        // Une proposition de conseiller n'est enregistrée qu'après validation par enforceCommercialOfferPolicy().
+        if (in_array($type, self::OFFER_QUESTION_TYPES, true)) {
+            $this->pendingAiOfferType = $type;
+            $type = 'generic';
         }
+        $this->markQuestionType($type);
     }
 
     private function aiProjectContext(): array
@@ -1107,8 +1494,31 @@ PROMPT;
                 'photos' => $this->availablePhotoUrls() !== [],
                 'video' => $this->hasVideo(),
                 'visite_virtuelle' => !empty($project['resources']['virtual_tour_url']),
+                'plans_3d' => array_map(
+                    fn (string $type): bool => isset($this->availableFloorPlans()[$type]),
+                    array_combine(array_keys($project['typologies']), array_keys($project['typologies']))
+                ),
             ],
         ];
+    }
+
+    /** Noms des ressources que le code joindra réellement à la réponse de ce tour. */
+    private function attachedResourceNames(array $resources): array
+    {
+        $names = [];
+        foreach (array_unique($resources) as $intent) {
+            $available = match ($intent) {
+                'photos' => $this->availablePhotoUrls() !== [],
+                'video' => $this->hasVideo(),
+                'virtual_tour' => !empty($this->project['resources']['virtual_tour_url']),
+                default => true,
+            };
+            if ($available) {
+                $names[] = ['location' => 'localisation_google_maps', 'virtual_tour' => 'visite_virtuelle_3d', 'photos' => 'photos', 'video' => 'video'][$intent];
+            }
+        }
+
+        return $names;
     }
 
     private function aiStateContext(): array
@@ -1116,7 +1526,7 @@ PROMPT;
         return array_intersect_key($this->state, array_flip([
             'property_type', 'purpose', 'surface_preference', 'budget', 'budget_invalid', 'budget_needs_confirmation',
             'name', 'phone', 'wants_callback', 'wants_visit', 'lead_qualified', 'commercial_offer_made',
-            'handoff_requested', 'last_question_type', 'conversation_stage',
+            'commercial_offer_declined', 'qualification_asked', 'prospect_message_count', 'handoff_requested', 'last_question_type', 'conversation_stage',
         ]));
     }
 
@@ -1346,10 +1756,11 @@ PROMPT;
         $darija = $this->countMatches($text, self::DARIJA_MARKERS);
         $french = $this->countMatches($text, self::FRENCH_MARKERS);
 
+        // Égalité (message mixte) : la langue précédente est conservée.
         return match (true) {
-            $darija === 0 && $french === 0 => null,
-            $darija >= $french => 'darija',
-            default => 'fr',
+            $darija > $french => 'darija',
+            $french > $darija => 'fr',
+            default => null,
         };
     }
 
@@ -1378,12 +1789,43 @@ PROMPT;
         return $this->containsAny($this->normalize($message), self::SENSITIVE_TERMS);
     }
 
+    /** Refus en début de message : « Non. Je veux voir… », « Pas besoin », « Machi daba ». */
+    private function startsWithRefusal(string $message): bool
+    {
+        $text = $this->stripPunctuation($this->normalize($message));
+
+        return $this->isNegative($text)
+            || preg_match('/^(?:non|machi|pas maintenant|pas pour le moment|pas besoin|لا)(?![\p{L}\p{N}])/u', $text) === 1;
+    }
+
+    /** Demande explicite de rappel ou de visite sur place (la visite virtuelle n'en fait pas partie). */
+    private function isExplicitContactRequest(string $message): bool
+    {
+        if ($this->startsWithRefusal($message)) {
+            return false;
+        }
+
+        $text = str_replace(['visite virtuelle', 'visite 3d'], ' ', $this->normalize($message));
+        return $this->containsAny($text, array_merge(self::INTENT_KEYWORDS['callback'], self::INTENT_KEYWORDS['visit']));
+    }
+
+    private function userAsksAvailability(string $message): bool
+    {
+        return $this->containsAny($this->normalize($message), self::AVAILABILITY_TERMS);
+    }
+
+    private function isCallbackOffer(string $text): bool
+    {
+        $text = $this->normalize($text);
+        return $this->containsAny($text, self::CALLBACK_OFFER_SUBJECTS) && $this->containsAny($text, self::CALLBACK_OFFER_VERBS);
+    }
+
     /* =====================================================================
      |  QUESTIONS ET ÉTAPES
      * ===================================================================== */
 
-    /** Réponse + question de qualification suivante la plus naturelle. */
-    private function withNextStep(string $answer): string
+    /** Réponse + question de qualification suivante ; le conseiller n'est proposé que si le rythme le permet. */
+    private function withNextStep(string $answer, bool $mediaAlreadySent = false): string
     {
         $step = $this->nextQualificationStep();
         $question = self::FOLLOW_UP_COPY['fr']['questions'][$step];
@@ -1392,23 +1834,70 @@ PROMPT;
             $question = 'Quel budget approximatif envisagez-vous pour votre ' . $this->state['property_type'] . ' ?';
         }
 
-        if ($step === 'callback') {
-            if ($this->state['commercial_offer_made'] || $this->state['handoff_requested']) {
-                return $this->withQuestion($answer, 'Souhaitez-vous découvrir la visite virtuelle du projet ?', 'media_offer');
-            }
-            $this->state['commercial_offer_made'] = true;
+        if ($step === 'callback' && !$this->canProposeAdvisor()) {
+            return $mediaAlreadySent || $this->state['last_question_type'] === 'media_offer'
+                ? $this->withQuestion($answer, $this->openQuestion('fr'))
+                : $this->withQuestion($answer, 'Souhaitez-vous découvrir la visite virtuelle du projet ?', 'media_offer');
         }
 
         return $this->withQuestion($answer, $question, $this->questionTypeForStep($step));
     }
 
-    private function nextQualificationStep(): string
+    /** Étape suivante ; une question déjà posée sans réponse n'est pas répétée (sauf en relance). */
+    private function nextQualificationStep(bool $includeAlreadyAsked = false): string
     {
+        $asked = $includeAlreadyAsked ? [] : (array) ($this->state['qualification_asked'] ?? []);
+
+        foreach (['purpose' => 'purpose', 'type' => 'property_type', 'budget' => 'budget'] as $step => $field) {
+            if (empty($this->state[$field]) && !in_array($step, $asked, true)) {
+                return $step;
+            }
+        }
+
+        return 'callback';
+    }
+
+    /** Question de relance naturelle, dans la langue du prospect, sans reproposer de conseiller. @return array{0:string,1:string} */
+    private function nextOpenQuestion(): array
+    {
+        $questions = self::FOLLOW_UP_COPY[$this->languageKey()]['questions'];
+        $step = $this->nextQualificationStep();
+
+        return $step === 'callback'
+            ? [$this->openQuestion(), 'generic']
+            : [$questions[$step], $this->questionTypeForStep($step)];
+    }
+
+    /** Question d'échange en rotation, jamais identique à la précédente. */
+    private function openQuestion(?string $language = null): string
+    {
+        $pool = self::OPEN_QUESTIONS[$language ?? $this->languageKey()] ?? self::OPEN_QUESTIONS['fr'];
+        $index = (int) $this->state['prospect_message_count'] % count($pool);
+
+        if ($pool[$index] === $this->state['last_question']) {
+            $index = ($index + 1) % count($pool);
+        }
+
+        return $pool[$index];
+    }
+
+    /** Déduit la nature d'une question rédigée par l'IA. */
+    private function inferQuestionType(?string $question): string
+    {
+        if ($question === null) {
+            return 'generic';
+        }
+
+        $text = $this->normalize($question);
         return match (true) {
-            !$this->state['purpose'] => 'purpose',
-            !$this->state['property_type'] => 'type',
-            !$this->state['budget'] => 'budget',
-            default => 'callback',
+            $this->isCallbackOffer($question) => 'callback_offer',
+            $this->containsAny($text, ['budget', 'mizaniya', 'الميزانية', 'ميزانية']) => 'ask_budget',
+            $this->containsAny($text, ['f3', 'f4', 'typologie', 'typologies', 'chambres']) => 'ask_type',
+            $this->containsAny($text, ['residence principale', 'investissement', 'investir', 'y vivre', 'tstathmer', 'استثمار']) => 'ask_purpose',
+            $this->containsAny($text, ['nom', 'smiytek', 'الاسم', 'اسمكم']) => 'ask_name',
+            $this->containsAny($text, ['numero', 'telephone', 'ra9m', 'رقم']) => 'ask_phone',
+            $this->containsAny($text, array_merge(self::VIRTUAL_TOUR_TERMS, self::PHOTO_TERMS)) => 'media_offer',
+            default => 'generic',
         };
     }
 
@@ -1432,10 +1921,29 @@ PROMPT;
     private function setQuestion(string $question, string $questionType): string
     {
         $this->state['last_question'] = $question;
-        $this->state['last_question_type'] = in_array($questionType, self::QUESTION_TYPES, true) ? $questionType : 'generic';
-        $this->syncConversationStage();
+        $this->markQuestionType($questionType);
 
         return $question;
+    }
+
+    /** Enregistre le type de question, mémorise les étapes de qualification posées et synchronise l'étape. */
+    private function markQuestionType(string $questionType): void
+    {
+        $type = in_array($questionType, self::QUESTION_TYPES, true) ? $questionType : 'generic';
+        $this->state['last_question_type'] = $type;
+
+        if (in_array($type, self::OFFER_QUESTION_TYPES, true)) {
+            $this->recordAdvisorOffer();
+        }
+
+        $step = array_search($type, ['purpose' => 'ask_purpose', 'type' => 'ask_type', 'budget' => 'ask_budget'], true);
+        $asked = (array) ($this->state['qualification_asked'] ?? []);
+        if ($step !== false && !in_array($step, $asked, true)) {
+            $asked[] = $step;
+            $this->state['qualification_asked'] = $asked;
+        }
+
+        $this->syncConversationStage();
     }
 
     private function syncConversationStage(): void
@@ -1553,6 +2061,10 @@ PROMPT;
         }
         if (!empty($savedState['contact_sent'])) {
             $this->state['commercial_notified'] = true;
+        }
+        // Offre déjà faite avec l'ancienne version : le délai entre deux propositions s'applique.
+        if (!empty($this->state['commercial_offer_made']) && $this->state['last_offer_at_message'] === null) {
+            $this->state['last_offer_at_message'] = (int) $this->state['prospect_message_count'];
         }
         // Leads transférés avec l'ancienne version : ne jamais les renvoyer au commercial.
         if (!array_key_exists('handoff_notified', $savedState) && !empty($this->state['handoff_requested'])) {
