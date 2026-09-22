@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
  * Conseiller WhatsApp du projet GreenLand.
  *
  * Le contrôleur WhatsApp doit consommer le tableau `actions` retourné par reply() :
- * - send_location     : envoyer une localisation WhatsApp ou, au minimum, le lien Maps ;
+ * - send_location     : envoyer la localisation WhatsApp (pin + lien Maps). Le lien n'est pas répété dans le texte ;
  * - send_media        : envoyer chaque URL d'image (photos) ou la vidéo ;
  * - notify_commercial : créer/notifier le lead dans le CRM. La clé `webhook_sent` indique
  *                       si le webhook GREENLAND_LEAD_WEBHOOK_URL a déjà été appelé (évite les doublons).
@@ -95,19 +95,12 @@ class AgentFinalService
 
     private const RESOURCE_INTENTS = ['location', 'virtual_tour', 'photos', 'video'];
 
-    private const AI_ACTION_INTENTS = [
-        'send_location' => 'location',
-        'send_virtual_tour' => 'virtual_tour',
-        'send_photos' => 'photos',
-        'send_video' => 'video',
-    ];
-
     private const AVAILABILITY_TERMS = ['dispo', 'dispos', 'disponible', 'disponibles', 'disponibilite', 'disponibilites', 'ba9i', 'baqi', 'mazal'];
 
     /** Une offre de mise en relation = un sujet (conseiller…) + une action (appeler, organiser…). */
     private const CALLBACK_OFFER_SUBJECTS = ['conseiller', 'conseillere', 'conseillers', 'commercial', 'commerciale', 'agent', 'mostachar', 'مستشار', 'مستشارينا', 'مستشارنا'];
 
-    private const CALLBACK_OFFER_VERBS = ['appelle', 'appeler', 'rappelle', 'rappeler', 'recontacte', 'recontacter', 'contacte', 'contacter', 'joindre', 'planifier', 'organiser', 'organise', 'aide', 'accompagne', 'y3ayet', 'يتصل'];
+    private const CALLBACK_OFFER_VERBS = ['appelle', 'appeler', 'rappelle', 'rappeler', 'recontacte', 'recontacter', 'contacte', 'contacter', 'joindre', 'planifier', 'organiser', 'organise', 'visiter', 'aide', 'accompagne', 'y3ayet', 'يتصل'];
 
     private const VIRTUAL_TOUR_TERMS = ['virtuelle', 'virtuel', '3d', 'matterport', 'الافتراضية'];
 
@@ -127,10 +120,20 @@ class AgentFinalService
     ];
 
     private const RESOURCE_LABELS = [
-        'fr' => ['location' => '📍 Localisation', 'virtual_tour' => '🎥 Visite virtuelle 3D'],
-        'darija' => ['location' => '📍 Lmawqi3', 'virtual_tour' => '🎥 La visite virtuelle 3D'],
-        'ar' => ['location' => '📍 الموقع', 'virtual_tour' => '🎥 الجولة الافتراضية ثلاثية الأبعاد'],
+        'fr' => ['virtual_tour' => '🎥 Visite virtuelle 3D'],
+        'darija' => ['virtual_tour' => '🎥 La visite virtuelle 3D'],
+        'ar' => ['virtual_tour' => '🎥 الجولة الافتراضية ثلاثية الأبعاد'],
     ];
+
+    /** Vocabulaire de chaque ressource, pour vérifier que l'IA n'annonce que ce qui est réellement envoyé. */
+    private const RESOURCE_TERMS = [
+        'location' => ['localisation', 'emplacement', 'adresse', 'maps', 'google maps', 'carte', 'lmawqi3', 'الموقع'],
+        'virtual_tour' => ['visite virtuelle', 'virtuelle', 'matterport', '3d', 'الجولة الافتراضية'],
+        'photos' => ['photo', 'photos', 'image', 'images', 'visuel', 'visuels', 'tsawer', 'الصور'],
+        'video' => ['video', 'videos', 'film', 'الفيديو'],
+    ];
+
+    private const ANNOUNCEMENT_TERMS = ['voici', 'voila', 'je vous envoie', 'je vous transmets', 'je vous joins', 'ci joint', 'ci jointe', 'vous trouverez', 'hak', 'hakom', 'إليكم', 'أرسل لكم'];
 
     private const SENSITIVE_TERMS = ['prompt', 'instructions internes', 'api key', 'cle api', 'openrouter', 'n8n', 'ton code', 'code source', '.env', 'system prompt'];
 
@@ -342,7 +345,7 @@ class AgentFinalService
             // Plans 3D par typologie : envoyés avec la description de la typologie (null = pas encore disponible).
             'floor_plan_urls' => [
                 'F3' => 'https://vrstudio3d.com/greenland/media/f3.jpeg',
-                'F4' => 'https://vrstudio3d.com/greenland/media/f4.jpeg', 
+                'F4' => 'https://vrstudio3d.com/greenland/media/f4.jpeg',
             ],
             'photo_urls' => [
                 'https://vrstudio3d.com/greenland/media/1.jpeg',
@@ -635,8 +638,10 @@ class AgentFinalService
             fn (string $intent): bool => $this->containsAny($text, self::INTENT_KEYWORDS[$intent])
         ));
 
+        // « Oui » à une proposition de ressource : on envoie celle qui était proposée.
         if ($intents === [] && $this->state['last_question_type'] === 'media_offer' && $this->isAffirmative($text)) {
-            $intents[] = 'virtual_tour';
+            $offered = $this->resourcesMentionedIn((string) $this->state['last_question']);
+            $intents = $offered !== [] ? $offered : ['virtual_tour'];
         }
 
         return $intents;
@@ -734,11 +739,10 @@ class AgentFinalService
 
     private function locationAnswer(array &$actions): string
     {
-        $resource = $this->project['resources'];
         $actions[] = $this->locationAction();
 
         return $this->withNextStep(
-            "GreenLand se situe à Sidi Messoud, entre Californie et la Ville Verte, près de l’entrée de l’autoroute A3. Voici la localisation : {$resource['maps_url']}"
+            'GreenLand se situe à Sidi Messoud, entre Californie et la Ville Verte, près de l’entrée de l’autoroute A3. Je vous envoie la localisation.'
         );
     }
 
@@ -1037,11 +1041,12 @@ INFORMATIONS
 
 RESSOURCES (localisation, visite virtuelle, photos, vidéo)
 - N'écris jamais de lien ni d'URL : le système les joint lui-même.
-- context.ressources_jointes liste ce qui est joint automatiquement à ta réponse. Annonce-le simplement : « Voici la localisation du projet », « Voici la visite virtuelle du projet », « Je vous envoie les photos du projet ».
+- context.ressources_jointes liste EXACTEMENT ce que le système envoie avec ta réponse. Annonce uniquement ces ressources, simplement (ex. « Je vous envoie les photos du projet »). Si la liste est vide, n'annonce aucune ressource.
+- N'ajoute jamais une ressource que le prospect n'a pas demandée dans son message (ex. demande de photos = photos uniquement, pas de localisation).
 - VISITE VIRTUELLE ≠ VISITE SUR PLACE. La visite virtuelle est un lien 3D que le prospect ouvre immédiatement, seul, à tout moment : ne propose jamais de l'organiser, de la planifier, ni de passer par un conseiller pour y accéder.
 - La visite sur place se fait uniquement sur rendez-vous avec un conseiller, {$hours}.
 - PLANS 3D : quand tu décris une typologie (composition, surface), son plan 3D est joint automatiquement si ressources_disponibles.plans_3d l'indique. N'annonce pas toi-même le plan et ne dis jamais qu'il est indisponible ; si le prospect demande le plan d'une typologie sans plan disponible, indique que le conseiller pourra le lui transmettre.
-- LOCALISATION : décris l'emplacement (Sidi Messoud, entre Californie et la Ville Verte, près de l'entrée de l'autoroute A3) ; le lien Google Maps est joint automatiquement.
+- LOCALISATION : uniquement si le prospect la demande, décris l'emplacement (Sidi Messoud, entre Californie et la Ville Verte, près de l'entrée de l'autoroute A3) ; la localisation Google Maps est envoyée séparément par le système.
 - Si une ressource est indisponible (ressources_disponibles = false), indique qu'elle sera bientôt disponible et propose une ressource disponible.
 
 PRIX
@@ -1082,10 +1087,9 @@ FORMAT — réponds UNIQUEMENT par un objet JSON valide, sans texte autour :
     "wants_visit": "true | null",
     "follow_up_opt_out": "true | null",
     "last_question_type": "{$questionTypes} | null"
-  },
-  "actions": ["send_location | send_photos | send_video | send_virtual_tour"]
+  }
 }
-Ajoute l'action correspondante lorsque le prospect demande une ressource ou accepte de la recevoir. Toute valeur non certaine ou non mentionnée = null. actions = [] sinon.
+Toute valeur non certaine ou non mentionnée = null.
 PROMPT;
     }
 
@@ -1165,9 +1169,11 @@ PROMPT;
             }
         }
 
+        // Les ressources envoyées sont décidées par le code (demande du prospect), jamais par l'IA.
+        $reply = $this->removeUnattachedResourceAnnouncements($reply, $turn['resources']);
         $reply = $this->enforceCommercialOfferPolicy($reply, $turn);
         $reply = $this->ensureOpenQuestion($reply);
-        $reply = $this->deliverResources($reply, array_merge($turn['resources'], $this->aiActionIntents($decision)), $actions);
+        $reply = $this->deliverResources($reply, $turn['resources'], $actions);
 
         $this->state['last_question'] = $this->lastQuestionOf($reply);
         return $reply;
@@ -1233,8 +1239,8 @@ PROMPT;
         foreach (array_unique($intents) as $intent) {
             switch ($intent) {
                 case 'location':
+                    // Le contrôleur envoie déjà un message de localisation (pin + lien) : pas de doublon dans le texte.
                     $actions[] = $this->locationAction();
-                    $lines[] = $labels['location'] . ' : ' . $resources['maps_url'];
                     break;
                 case 'virtual_tour':
                     if (!empty($resources['virtual_tour_url'])) {
@@ -1344,7 +1350,7 @@ PROMPT;
         $sentMedia = array_column(array_filter($actions, static fn (array $a): bool => ($a['type'] ?? null) === 'send_media'), 'media');
 
         $missing = array_filter($intents, fn (string $intent): bool => match ($intent) {
-            'location' => !str_contains($answer, (string) $resources['maps_url']),
+            'location' => !in_array('send_location', array_column($actions, 'type'), true),
             'virtual_tour' => !str_contains($answer, (string) $resources['virtual_tour_url']),
             default => !in_array($intent, $sentMedia, true),
         });
@@ -1375,16 +1381,42 @@ PROMPT;
         return $reply . "\n\n" . $block;
     }
 
-    private function aiActionIntents(array $decision): array
+    /**
+     * Supprime les phrases où l'IA annonce une ressource qui n'est pas envoyée
+     * (ex. « Voici la localisation… » alors que le prospect a demandé les photos).
+     */
+    private function removeUnattachedResourceAnnouncements(string $reply, array $attached): string
     {
-        $intents = [];
-        foreach ((array) ($decision['actions'] ?? []) as $action) {
-            if (is_string($action) && isset(self::AI_ACTION_INTENTS[$action])) {
-                $intents[] = self::AI_ACTION_INTENTS[$action];
+        // Découpage en phrases en conservant ponctuation et sauts de ligne d'origine.
+        preg_match_all('/[^.!?؟\n]+[.!?؟]*[ \t]*\n*|\n+/u', $reply, $matches);
+        $kept = [];
+
+        foreach ($matches[0] as $sentence) {
+            $mentioned = $this->resourcesMentionedIn($sentence);
+            $isAnnouncement = $this->containsAny($this->normalize($sentence), self::ANNOUNCEMENT_TERMS);
+            $announcesOnlyUnattached = $mentioned !== [] && array_intersect($mentioned, $attached) === [];
+
+            if ($isAnnouncement && $announcesOnlyUnattached) {
+                // On retire la phrase mais on garde ses sauts de ligne pour préserver la mise en page.
+                $kept[] = preg_match('/\n+$/u', $sentence, $breaks) ? $breaks[0] : '';
+                continue;
             }
+            $kept[] = $sentence;
         }
 
-        return $intents;
+        $result = trim((string) preg_replace(["/[ \t]+\n/u", "/\n{3,}/u"], ["\n", "\n\n"], implode('', $kept)));
+        return $result === '' ? $reply : $result;
+    }
+
+    /** Ressources citées dans un texte (localisation, visite virtuelle, photos, vidéo). */
+    private function resourcesMentionedIn(string $text): array
+    {
+        $normalized = $this->normalize($text);
+
+        return array_values(array_filter(
+            array_keys(self::RESOURCE_TERMS),
+            fn (string $resource): bool => $this->containsAny($normalized, self::RESOURCE_TERMS[$resource])
+        ));
     }
 
     /** Garde-fou : aucun lien inventé, aucune fuite technique, aucun montant autre que le prix d'appel ou le budget du prospect. */
@@ -1896,7 +1928,7 @@ PROMPT;
             $this->containsAny($text, ['residence principale', 'investissement', 'investir', 'y vivre', 'tstathmer', 'استثمار']) => 'ask_purpose',
             $this->containsAny($text, ['nom', 'smiytek', 'الاسم', 'اسمكم']) => 'ask_name',
             $this->containsAny($text, ['numero', 'telephone', 'ra9m', 'رقم']) => 'ask_phone',
-            $this->containsAny($text, array_merge(self::VIRTUAL_TOUR_TERMS, self::PHOTO_TERMS)) => 'media_offer',
+            $this->resourcesMentionedIn($question) !== [] => 'media_offer',
             default => 'generic',
         };
     }
