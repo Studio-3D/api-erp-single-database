@@ -1477,7 +1477,7 @@ public function update(UpdateProspectRequest $request, $id)
      */
    public function destroy($id)
     {
-        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
+        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
 
             DatabaseHelper::Config();
             $prospect = Prospect::on('temp')->findOrFail($id);

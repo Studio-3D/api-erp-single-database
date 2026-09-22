@@ -23,6 +23,7 @@ return new class extends Migration
             $table->enum('mode_financement',[ModeFinancement::Comptant->value,ModeFinancement::Crédit->value,ModeFinancement::Indécis->value])->comment('1=>comptant 2=>credit 3=>indecis');
             $table->enum('statut',[StatutReservationEnum::Validé->value,StatutReservationEnum::Refusé->value,StatutReservationEnum::En_Attente->value])->comment('1=>valide 2=>refusé 3=>en_attent');
             $table->date('date_reservation');
+             $table->integer('nombre_parking')->default(1);
             $table->string('commentaire')->nullable();
             $table->integer('etat')->default(1)
             ->comment(' active=1;
