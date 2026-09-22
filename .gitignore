@@ -12,7 +12,8 @@ storage/*.key
 !/import_prospects.xlsx
 !/public/docs/logo/
 !/public/docs/logo/*
-
+!/public/docs/images/
+!/public/docs/images/*
 # Mais on ignore tout le reste de /public/docs/
 /public/docs/*
 
