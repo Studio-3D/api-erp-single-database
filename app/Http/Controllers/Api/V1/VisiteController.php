@@ -1456,7 +1456,7 @@ private function generateReservationCode($projetId)
                                                 'nb_acquereurs'        => 1,
                                                 'code_reservation' => $codeReservation, // Use generated or provided
                                                // 'code_reservation'     => $list_biens['code_reservation'],
-                                                'prix'                 => $list_biens['prix'],
+                                                'prix'                 => $list_biens['prix_final'],
                                                 'mode_financement'     => $list_biens['mode_financement'],
                                                 'date_reservation'     => $list_biens['date_reservation'],
                                                 'commentaire'          => $list_biens['commentaire_res'],
@@ -1482,6 +1482,7 @@ private function generateReservationCode($projetId)
                                                 'type_encaissement'    => 1,
                                                 'avances'              => json_encode($avancesData),
                                                 'files_avance'         => $avanceFiles,
+                                                 'nombre_parking'       => $list_biens['nombre_parking'] ?? 1,
                                             ];
 
                                             \Log::info('Reservation data being sent:', ['dataReservation' => $dataReservation]);
@@ -1791,7 +1792,7 @@ private function generateReservationCode($projetId)
                                                         'nb_acquereurs'        => 1,
                                                         'code_reservation' => $codeReservation, // Use generated or provided
                                                        // 'code_reservation'     => $list_biens['code_reservation'],
-                                                        'prix'                 => $list_biens['prix'],
+                                                        'prix'                 => $list_biens['prix_final'],
                                                         'mode_financement'     => $list_biens['mode_financement'],
                                                         'date_reservation'     => $list_biens['date_reservation'],
                                                         'commentaire'          => $list_biens['commentaire_res'],
@@ -1817,6 +1818,7 @@ private function generateReservationCode($projetId)
                                                         'type_encaissement'    => 1,
                                                         'avances'              => json_encode($avancesData),
                                                         'files_avance'         => $avanceFiles,
+                                                         'nombre_parking'       => $list_biens['nombre_parking'] ?? 1,
                                                     ];
 
                                                     \Log::info('Reservation data being sent:', ['dataReservation' => $dataReservation]);
@@ -2935,7 +2937,7 @@ public function edit_visite($id)
                         $dataReservation = [
                             'nb_acquereurs'          => 1,
                             'code_reservation'       => $codeReservation,
-                            'prix'                   => $request->prix,
+                            'prix'                   => $request->prix_final,
                             'mode_financement'       => $request->mode_financement,
                             'date_reservation'       => $request->date_reservation,
                             'commentaire'            => $request->commentaire_res,
@@ -2966,6 +2968,8 @@ public function edit_visite($id)
                             // 🔥 SEND AVANCES AS JSON ARRAY
                             'avances'                => json_encode($avancesData),
                             'files_avance'           => $request->selectedFiles_avc ?? [],
+                            'nombre_parking'         => $request->nombre_parking ?? 0,   // ✅ AJOUT
+                            'prix_parking'           => $request->prix_parking ?? 0,     // ✅ AJOUT
                         ];
 
                         $reservationRequest->merge($dataReservation);
