@@ -81,7 +81,7 @@ class AgentFinalService
         'description' => ['description', 'details', 'informations', 'infos', 'parlez moi du projet', 'presentation'],
     ];
 
-    private const DARIJA_MARKERS = ['salam', 'slm', 'marhba', 'bghit', 'bghina', 'baghi', 'chhal', 'ch7al', 'fin kayn', 'finkayn', 'wach', 'dyal', 'dial', 'wakha', 'iwa', 'labas', '3afak', 'afak', 'bzaf', 'mzyan', 'mezyan', 'kayn', 'kayna', 'daba', 'ba9i', 'chokran', 'choukran', 'nta', 'nti', 'ana', 'smiti', '3lach', 'kifach'];
+    private const DARIJA_MARKERS = ['salam', 'slm', 'marhba', 'bghit', 'bghina', 'baghi', 'chhal', 'ch7al', 'fin kayn', 'finkayn', 'wach', 'dyal', 'dial', 'wakha', 'iwa', 'labas', '3afak', 'afak', 'bzaf', 'mzyan', 'mezyan', 'kayn', 'kayna', 'daba', 'ba9i', 'ghadi', 'mazal', 'mouchkil', 'hak', 'byout', 'bit', 'safi', 'walo', 'chwiya', 'chokran', 'choukran', 'nta', 'nti', 'ana', 'smiti', '3lach', 'kifach'];
 
     private const FRENCH_MARKERS = ['bonjour', 'bonsoir', 'merci', 'je', 'vous', 'est', 'les', 'des', 'une', 'pour', 'prix', 'appartement', 'oui', 'svp', 'combien', 'quel', 'quelle', 'voudrais', 'souhaite'];
 
@@ -254,6 +254,9 @@ class AgentFinalService
     /** Type de question proposé par l'IA, enregistré seulement si la question est conservée. */
     private ?string $pendingAiQuestionType = null;
 
+    /** Langue réellement employée par l'IA dans le tour courant : les phrases ajoutées par le code s'y alignent. */
+    private ?string $replyLanguage = null;
+
     /**
      * État exporté vers le CRM. Les clés historiques non utilisées sont conservées
      * volontairement pour ne pas casser la persistance existante.
@@ -268,6 +271,7 @@ class AgentFinalService
         'visit_asked' => false,
         'last_invalid_time' => null,
         'language' => 'fr',
+        'language_votes' => [],
         'conversation_stage' => 'welcome',
         'last_question' => null,
         'last_question_type' => null,
@@ -368,7 +372,7 @@ class AgentFinalService
             // Plans 3D par typologie : envoyés avec la description de la typologie (null = pas encore disponible).
             'floor_plan_urls' => [
                 'F3' => 'https://vrstudio3d.com/greenland/media/f3.jpeg',
-                'F4' => null, // À renseigner avec l'URL du plan 3D du F4.
+                'F4' => 'https://vrstudio3d.com/greenland/media/f4.jpeg',
             ],
             'photo_urls' => [
                 'https://vrstudio3d.com/greenland/media/1.jpeg',
@@ -597,10 +601,32 @@ class AgentFinalService
         $this->state['prospect_message_count'] = (int) $this->state['prospect_message_count'] + 1;
         $this->state['last_user_message'] = $message;
         $this->state['last_prospect_message_at'] = now()->toIso8601String();
-        $this->state['language'] = $this->detectLanguage($message) ?? $this->state['language'];
+        $this->state['language'] = $this->registerLanguageVote($this->detectLanguage($message));
         // Le prospect a répondu : le cycle de relances repart de zéro.
         $this->state['follow_up_count'] = 0;
         $this->state['follow_up_requires_template'] = false;
+    }
+
+        /**
+     * Langue du prospect : décidée sur l'ensemble de la conversation, pas sur le dernier message.
+     * Un « oui » ou un mot isolé ne fait donc jamais basculer la langue.
+     */
+    private function registerLanguageVote(?string $detected): string
+    {
+        $votes = (array) ($this->state['language_votes'] ?? []);
+
+        if ($detected !== null) {
+            $votes[$detected] = (int) ($votes[$detected] ?? 0) + 1;
+            $this->state['language_votes'] = $votes;
+        }
+
+        if ($votes === []) {
+            return (string) $this->state['language'];
+        }
+
+        arsort($votes);
+
+        return (string) array_key_first($votes);
     }
 
     /** Traite la réponse à une confirmation de budget (« 120 millions » = 1 200 000 DH ?). */
@@ -1117,7 +1143,8 @@ OBJECTIFS
 4. Dès qu'un intérêt réel apparaît, organiser la mise en relation avec un conseiller.
 
 LANGUE ET TON
-- Réponds dans la langue et l'écriture du prospect : français, darija en lettres latines ou arabe.
+- Réponds dans la langue et l'écriture du prospect (context.detected_language) : français, darija en lettres latines ou arabe.
+- UNE SEULE LANGUE PAR MESSAGE : ne mélange jamais français et darija dans la même réponse, y compris dans la question finale.
 - Ton chaleureux, professionnel et concis. Maximum 90 mots. Un emoji au plus, uniquement à l'accueil.
 - Une seule question par message, toujours en dernière phrase.
 - Si first_message est true, souhaite brièvement la bienvenue.
@@ -1288,6 +1315,9 @@ PROMPT;
 
         // Les ressources envoyées sont décidées par le code (demande du prospect), jamais par l'IA.
         $reply = $this->removeUnattachedResourceAnnouncements($reply, $turn['resources']);
+        // Les phrases ajoutées par le code suivent la langue de la conversation, sauf si
+        // la réponse de l'IA emploie clairement une autre langue.
+        $this->replyLanguage = $this->dominantLanguage($reply, 3) ?? $this->state['language'];
         $reply = $this->enforceCommercialOfferPolicy($reply, $turn);
         $reply = $this->enforceQuestionRelevance($reply);
         $reply = $this->ensureOpenQuestion($reply);
@@ -1298,7 +1328,8 @@ PROMPT;
             $this->setQuestion($finalQuestion, $this->pendingAiQuestionType ?? $this->inferQuestionType($finalQuestion));
         }
         $this->pendingAiQuestionType = null;
-
+        $this->replyLanguage = null;
+       
         return $reply;
     }
 
@@ -1923,7 +1954,23 @@ PROMPT;
             default => null,
         };
     }
+        /** Langue dominante d'un texte, à condition d'un signal net (au moins $minVotes indices). */
+    private function dominantLanguage(string $text, int $minVotes = 1): ?string
+    {
+        if (preg_match('/\p{Arabic}/u', $text)) {
+            return 'ar';
+        }
 
+        $normalized = $this->normalize($text);
+        $darija = $this->countMatches($normalized, self::DARIJA_MARKERS);
+        $french = $this->countMatches($normalized, self::FRENCH_MARKERS);
+
+        return match (true) {
+            $darija >= $minVotes && $darija > $french => 'darija',
+            $french >= $minVotes && $french > $darija => 'fr',
+            default => null,
+        };
+    }
     private function isGreeting(string $text): bool
     {
         return in_array($this->stripPunctuation($text), self::GREETINGS, true);
@@ -2476,9 +2523,13 @@ PROMPT;
         return $this->state['name'] ? explode(' ', trim((string) $this->state['name']))[0] : '';
     }
 
-    private function languageKey(): string
+        private function languageKey(): string
     {
-        return in_array($this->state['language'], ['fr', 'darija', 'ar'], true) ? $this->state['language'] : 'fr';
+        // Pendant la post-production d'une réponse IA, on suit la langue de cette réponse
+        // pour ne jamais mélanger français et darija dans un même message.
+        $language = $this->replyLanguage ?? $this->state['language'];
+
+        return in_array($language, ['fr', 'darija', 'ar'], true) ? $language : 'fr';
     }
 
     private function localize(array $variants): string
