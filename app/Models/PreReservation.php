@@ -13,7 +13,7 @@ class PreReservation extends Model
 
     protected $table='pre_reservations';
     protected $dates=['deleted_at'];
-    protected $with = ['bien','visite'];
+    protected $with = ['bien','visite','desistement'];
     public function bien()
     {
         return $this->belongsTo(Bien::class,  'bien_id');
