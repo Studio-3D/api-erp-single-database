@@ -2934,6 +2934,9 @@ public function edit_visite($id)
                             ];
                         }
 
+
+
+
                         $dataReservation = [
                             'nb_acquereurs'          => 1,
                             'code_reservation'       => $codeReservation,
