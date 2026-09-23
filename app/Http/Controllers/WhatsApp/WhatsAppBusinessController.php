@@ -594,14 +594,9 @@ class WhatsAppBusinessController extends Controller
             Log::info("📤 Notification commercial depuis l'agent", $payload);
 
             // ✅ Trouver le commercial affecté
-            $assignedCommercialId = null;
-
-            if ($prospectId) {
-                $prospect = Prospect::on('temp')->find($prospectId);
-                if ($prospect && !empty($prospect->commercial_affecte)) {
-                    $assignedCommercialId = $prospect->commercial_affecte;
-                }
-            }
+            // ✅ Affectation garantie avant la notification (tour de rôle via last_affected) :
+            //    sans commercial affecté, la notification partait avec user_id = null.
+            $assignedCommercialId = $this->ensureProspectAssigned($prospectId, $projetId);
 
             // ✅ Pré-alerte (lead qualifié) et demande confirmée n'ont pas le même titre
             $isCallbackRequest = ($payload['status'] ?? '') === 'callback_or_visit_requested';
@@ -642,6 +637,39 @@ class WhatsAppBusinessController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error("❌ Erreur notification commercial: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * 🎯 GARANTIR QU'UN COMMERCIAL EST AFFECTÉ AVANT D'ENVOYER UNE NOTIFICATION
+     * Sans cela, la notification part avec user_id = null et n'atteint personne.
+     */
+    private function ensureProspectAssigned($prospectId, $projetId)
+    {
+        if (!$prospectId) {
+            return null;
+        }
+
+        try {
+            $prospect = Prospect::on('temp')->find($prospectId);
+            if ($prospect && !empty($prospect->commercial_affecte)) {
+                return $prospect->commercial_affecte;
+            }
+
+            // Le prospect n'est pas encore affecté : affectation à tour de rôle
+            $assignedId = $this->autoAssignSingleProspect($prospectId, $projetId);
+
+            if (!$assignedId) {
+                Log::warning("⚠️ Notification sans commercial : aucune affectation possible", [
+                    'prospect_id' => $prospectId,
+                    'projet_id' => $projetId,
+                ]);
+            }
+
+            return $assignedId ?: null;
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur affectation avant notification: " . $e->getMessage());
+            return null;
         }
     }
 
@@ -771,8 +799,23 @@ class WhatsAppBusinessController extends Controller
                 ->orderBy('id')
                 ->get();
 
+            // ✅ Repli : si aucun commercial n'est rattaché au projet dans la table pivot,
+            //    on prend les commerciaux actifs plutôt que de laisser le lead sans suite.
             if ($commercials->isEmpty()) {
-                Log::warning('⚠️ Aucun commercial actif trouvé', ['projet_id' => $projetId]);
+                Log::warning('⚠️ Aucun commercial rattaché au projet, repli sur les commerciaux actifs', [
+                    'projet_id' => $projetId,
+                ]);
+
+                $commercials = User::on('temp')
+                    ->where('role', 3)
+                    ->where('is_actif', 1)
+                    ->whereNull('deleted_at')
+                    ->orderBy('id')
+                    ->get();
+            }
+
+            if ($commercials->isEmpty()) {
+                Log::error('❌ Aucun commercial actif trouvé', ['projet_id' => $projetId]);
                 return false;
             }
 
@@ -1000,19 +1043,22 @@ class WhatsAppBusinessController extends Controller
             $hasType = !empty($state['property_type'])
                        && in_array(strtoupper($state['property_type']), ['F3', 'F4']);
 
-            // Critère 2 : Budget donné
-            $hasBudget = !empty($state['budget'])
-                         && !empty($state['budget_given_by_user']);
+            // Critère 2 : Budget donné (saisi par le prospect ou déduit par l'agent)
+            $hasBudget = !empty($state['budget']);
 
-            // Critère 3 : Visite demandée
+            // Critère 3 : Visite demandée ou acceptée
             $wantsVisit = !empty($state['wants_visit'])
-                          || !empty($state['visit_requested']);
+                          || !empty($state['visit_requested'])
+                          || !empty($state['visit_accepted']);
 
-            // Critère 4 : Visite acceptée
-            $visitAccepted = !empty($state['visit_accepted']);
+            // Critère 4 : Rappel demandé, demande transmise ou lead qualifié
+            $wantsCallback = !empty($state['wants_callback'])
+                             || !empty($state['commercial_contact_requested'])
+                             || !empty($state['handoff_requested'])
+                             || !empty($state['lead_qualified']);
 
-            // ✅ Intérêt concret = au moins UN de ces critères
-            $hasConcreteInterest = $hasType || $hasBudget || $wantsVisit || $visitAccepted;
+            // ✅ Mêmes critères que la notification côté agent : au moins UN suffit (OU)
+            $hasConcreteInterest = $hasType || $hasBudget || $wantsVisit || $wantsCallback;
 
             Log::info("🔍 Vérification intérêt prospect", [
                 'prospect_id' => $prospectId,
@@ -1021,7 +1067,7 @@ class WhatsAppBusinessController extends Controller
                 'has_budget' => $hasBudget,
                 'budget' => $state['budget'] ?? null,
                 'wants_visit' => $wantsVisit,
-                'visit_accepted' => $visitAccepted,
+                'wants_callback' => $wantsCallback,
                 'has_concrete_interest' => $hasConcreteInterest,
             ]);
 
@@ -1042,7 +1088,7 @@ class WhatsAppBusinessController extends Controller
                 'property_type' => $state['property_type'] ?? null,
                 'budget' => $state['budget'] ?? null,
                 'wants_visit' => $wantsVisit,
-                'visit_accepted' => $visitAccepted,
+                'wants_callback' => $wantsCallback,
             ]);
 
             // 🔥 Appeler l'auto-affectation
