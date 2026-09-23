@@ -76,7 +76,7 @@ class AgentFinalService
         'amenities' => ['equipement', 'equipements', 'padel', 'salle de sport', 'parking', 'ascenseur', 'ascenseurs', 'patio', 'securite'],
         'delivery' => ['livraison', 'date de livraison', 'finition', 'finitions', 'avancement'],
         'hours' => ['horaire', 'horaires', 'ouvert', 'ouverte', 'ferme', 'ouverture'],
-        'callback' => ['rappeler', 'rappelez', 'rappel', 'appelez', 'appeler', 'contactez moi', 'commercial', 'conseiller', 'telephone'],
+        'callback' => ['rappeler', 'rappele', 'rappelee', 'rappelle', 'rappelez', 'rappel', 'recontacter', 'recontacte', 'joindre', 'appelez', 'appeler', 'contactez moi', 'commercial', 'conseiller', 'telephone'],
         'visit' => ['visite', 'visiter', 'rendez vous', 'rdv', 'sur place', 'nzour'],
         'description' => ['description', 'details', 'informations', 'infos', 'parlez moi du projet', 'presentation'],
     ];
@@ -85,7 +85,7 @@ class AgentFinalService
 
     private const FRENCH_MARKERS = ['bonjour', 'bonsoir', 'merci', 'je', 'vous', 'est', 'les', 'des', 'une', 'pour', 'prix', 'appartement', 'oui', 'svp', 'combien', 'quel', 'quelle', 'voudrais', 'souhaite'];
 
-    private const AFFIRMATIVE = ['oui', 'oui svp', 'oui merci', 'ok', 'okay', 'd accord', 'dac', 'yes', 'iwa', 'wakha', 'ah', 'bghit', 'bien sur', 'oui bien sur', 'parfait', 'volontiers', 'avec plaisir', 'pourquoi pas', 'نعم', 'واخا'];
+    private const AFFIRMATIVE = ['oui', 'oui svp', 'oui merci', 'ok', 'okay', 'd accord', 'dac', 'yes', 'iwa', 'wakha', 'ah', 'bghit', 'c est bon', 'c est ca', 'exactement', 'tout a fait', 'safi', 'bien sur', 'oui bien sur', 'parfait', 'volontiers', 'avec plaisir', 'pourquoi pas', 'نعم', 'واخا'];
 
     private const NEGATIVE = ['non', 'non merci', 'pas maintenant', 'pas pour le moment', 'la', 'la chokran', 'la choukran', 'machi daba', 'لا', 'لا شكرا'];
 
@@ -190,24 +190,41 @@ class AgentFinalService
     /** Questions d'échange variées (hors conseiller), utilisées en rotation pour éviter les répétitions. */
     private const OPEN_QUESTIONS = [
         'fr' => [
-            'Y a-t-il un autre point du projet sur lequel je peux vous éclairer ?',
-            'Avez-vous une préférence d’étage ou d’orientation ?',
-            'Qu’est-ce qui compte le plus pour vous dans votre futur appartement ?',
-            'Souhaitez-vous en savoir plus sur les équipements de la résidence ?',
+            'floor' => 'Avez-vous une préférence d’étage ou d’orientation ?',
+            'priority' => 'Qu’est-ce qui compte le plus pour vous dans votre futur appartement ?',
+            'amenities' => 'Souhaitez-vous en savoir plus sur les équipements de la résidence ?',
+            'virtual_tour' => 'Souhaitez-vous découvrir la visite virtuelle du projet ?',
+            'photos' => 'Souhaitez-vous recevoir les photos du projet ?',
+            'delivery' => 'Souhaitez-vous des précisions sur la livraison du projet ?',
+            'generic' => 'Y a-t-il un autre point du projet sur lequel je peux vous éclairer ?',
         ],
         'darija' => [
-            'Wach kayna chi haja okhra bghiti t3ref 3la lmachrou3 ?',
-            'Wach 3endek chi préférence f l’étage wla l’orientation ?',
-            'Chnou ahamm haja katqelleb 3liha f l’appartement dyalk ?',
-            'Wach bghiti t3ref ktar 3la les équipements dyal la résidence ?',
+            'floor' => 'Wach 3endek chi préférence f l’étage wla l’orientation ?',
+            'priority' => 'Chnou ahamm haja katqelleb 3liha f l’appartement dyalk ?',
+            'amenities' => 'Wach bghiti t3ref ktar 3la les équipements dyal la résidence ?',
+            'virtual_tour' => 'Wach bghiti tchouf la visite virtuelle dyal lmachrou3 ?',
+            'photos' => 'Wach bghiti nsiftlek tsawer dyal lmachrou3 ?',
+            'delivery' => 'Wach bghiti t3ref ktar 3la date dyal la livraison ?',
+            'generic' => 'Wach kayna chi haja okhra bghiti t3ref 3la lmachrou3 ?',
         ],
         'ar' => [
-            'هل هناك نقطة أخرى تودون معرفتها حول المشروع؟',
-            'هل لديكم تفضيل معين بخصوص الطابق أو الاتجاه؟',
-            'ما أهم ما تبحثون عنه في شقتكم المستقبلية؟',
-            'هل ترغبون في معرفة المزيد عن مرافق الإقامة؟',
+            'floor' => 'هل لديكم تفضيل معين بخصوص الطابق أو الاتجاه؟',
+            'priority' => 'ما أهم ما تبحثون عنه في شقتكم المستقبلية؟',
+            'amenities' => 'هل ترغبون في معرفة المزيد عن مرافق الإقامة؟',
+            'virtual_tour' => 'هل ترغبون في مشاهدة الجولة الافتراضية للمشروع؟',
+            'photos' => 'هل ترغبون في استلام صور المشروع؟',
+            'delivery' => 'هل ترغبون في تفاصيل حول موعد التسليم؟',
+            'generic' => 'هل هناك نقطة أخرى تودون معرفتها حول المشروع؟',
         ],
     ];
+
+    /** Sujets suivis pour ne jamais reproposer une information déjà donnée. */
+    private const TOPIC_INTENTS = ['location', 'virtual_tour', 'photos', 'video', 'price', 'types', 'surface', 'amenities', 'delivery', 'hours'];
+
+    /** Clés d'état WhatsApp/CRM parfois fournies par le contrôleur : évitent de redemander nom et numéro. */
+    private const PROFILE_PHONE_KEYS = ['whatsapp_phone', 'wa_id', 'wa_phone', 'from', 'msisdn', 'phone_number', 'contact_phone', 'sender_phone', 'lead_phone'];
+
+    private const PROFILE_NAME_KEYS = ['profile_name', 'whatsapp_name', 'wa_name', 'pushname', 'push_name', 'contact_name', 'lead_name', 'full_name'];
 
     private ?string $apiKey;
 
@@ -233,6 +250,9 @@ class AgentFinalService
 
     /** Type d'offre (rappel/visite) proposé par l'IA dans le tour courant, validé ensuite par le code. */
     private ?string $pendingAiOfferType = null;
+
+    /** Type de question proposé par l'IA, enregistré seulement si la question est conservée. */
+    private ?string $pendingAiQuestionType = null;
 
     /**
      * État exporté vers le CRM. Les clés historiques non utilisées sont conservées
@@ -274,6 +294,7 @@ class AgentFinalService
         'client_name' => null,
         'name' => null,
         'phone' => null,
+        'phone_confirmed' => false,
         'wants_visit' => false,
         'visit_requested' => false,
         'visit_accepted' => false,
@@ -293,6 +314,8 @@ class AgentFinalService
         'last_offer_at_message' => null,
         'qualification_asked' => [],
         'floor_plans_sent' => [],
+        'topics_covered' => [],
+        'open_questions_asked' => [],
         'qualified_lead_notified' => false,
     ];
 
@@ -345,7 +368,7 @@ class AgentFinalService
             // Plans 3D par typologie : envoyés avec la description de la typologie (null = pas encore disponible).
             'floor_plan_urls' => [
                 'F3' => 'https://vrstudio3d.com/greenland/media/f3.jpeg',
-                'F4' => 'https://vrstudio3d.com/greenland/media/f4.jpeg',
+                'F4' => null, // À renseigner avec l'URL du plan 3D du F4.
             ],
             'photo_urls' => [
                 'https://vrstudio3d.com/greenland/media/1.jpeg',
@@ -375,6 +398,7 @@ class AgentFinalService
             }
         }
 
+        $this->hydrateProspectProfile($savedState);
         $this->hydrateLegacyAliases($savedState);
         $this->initialState = $this->state;
         $this->initialExtraState = $this->extraState;
@@ -423,6 +447,7 @@ class AgentFinalService
 
         $facts = $this->extractFacts($message);
         $this->resolvePendingConfirmation($message);
+        $this->resolvePhoneConfirmation($message);
         $this->registerOfferResponse($message);
 
         $turn = [
@@ -444,6 +469,7 @@ class AgentFinalService
         // Transmission au commercial garantie par le code, indépendamment de l'IA.
         // Plan 3D joint dès qu'une typologie est décrite (ou sur demande explicite de plan).
         $answer = $this->attachFloorPlans($message, $answer, $actions);
+        $this->recordCoveredTopics($message, $answer);
 
         $this->finalizeLeadNotifications($actions);
 
@@ -530,6 +556,22 @@ class AgentFinalService
         return $this;
     }
 
+    /**
+     * Optionnel : injecter le profil WhatsApp de l'expéditeur (nom affiché et numéro),
+     * pour que l'agent ne les redemande pas lors de la mise en relation.
+     */
+    public function setProspectProfile(?string $name = null, ?string $phone = null): self
+    {
+        if ($phone !== null) {
+            $this->setProspectPhone($phone);
+        }
+        if ($name !== null && empty($this->state['name']) && ($clean = $this->extractName($name)) !== null) {
+            $this->state['name'] = $clean;
+        }
+
+        return $this;
+    }
+
     /** Indique si un message libre peut encore être envoyé (fenêtre WhatsApp de 24 h). */
     public function isWithinWhatsAppWindow(): bool
     {
@@ -590,6 +632,12 @@ class AgentFinalService
 
         if ($this->isExplicitContactRequest($message)) {
             $this->state['commercial_offer_declined'] = false;
+            $text = str_replace(['visite virtuelle', 'visite 3d'], ' ', $this->normalize($message));
+            if ($this->containsAny($text, self::INTENT_KEYWORDS['visit'])) {
+                $this->state['wants_visit'] = true;
+            } else {
+                $this->state['wants_callback'] = true;
+            }
         }
     }
 
@@ -647,6 +695,40 @@ class AgentFinalService
         return $intents;
     }
 
+    /**
+     * Réponse à « Le conseiller peut-il vous joindre sur ce numéro ? ».
+     * Un autre numéro donné par le prospect remplace le numéro WhatsApp (extractFacts s'en charge).
+     */
+    private function resolvePhoneConfirmation(string $message): void
+    {
+        if ($this->state['last_question_type'] !== 'confirm_phone' || $this->state['phone_confirmed']) {
+            return;
+        }
+
+        if ($this->isAffirmative($this->normalize($message))) {
+            $this->state['phone_confirmed'] = true;
+            return;
+        }
+
+        if ($this->startsWithRefusal($message)) {
+            // Le prospect préfère un autre numéro : on le demande.
+            $this->state['phone'] = null;
+            $this->state['phone_confirmed'] = false;
+        }
+    }
+
+    /** Question de confirmation du numéro WhatsApp, dans la langue du prospect. */
+    private function phoneConfirmationQuestion(): string
+    {
+        $phone = (string) $this->state['phone'];
+
+        return $this->localize([
+            'fr' => "Le conseiller peut-il vous joindre sur ce numéro, le {$phone}, ou préférez-vous un autre numéro ?",
+            'darija' => "Wach l conseiller y9der y3ayet lik f had nemra {$phone}, wla 3endek chi nemra okhra ?",
+            'ar' => "هل يمكن للمستشار الاتصال بكم على هذا الرقم {$phone}، أم تفضلون رقما آخر؟",
+        ]);
+    }
+
     /** Déclenche la pré-alerte (lead qualifié) puis la transmission confirmée (nom + téléphone). */
     private function finalizeLeadNotifications(array &$actions): void
     {
@@ -680,6 +762,7 @@ class AgentFinalService
         return !$this->state['handoff_notified']
             && !empty($this->state['name'])
             && !empty($this->state['phone'])
+            && !empty($this->state['phone_confirmed'])
             && ($this->state['wants_callback'] || $this->state['wants_visit']);
     }
 
@@ -854,6 +937,10 @@ class AgentFinalService
             return $this->setQuestion('Merci ' . $this->firstName() . '. À quel numéro souhaitez-vous être rappelé ?', 'ask_phone');
         }
 
+        if (!$this->state['phone_confirmed']) {
+            return $this->setQuestion($this->phoneConfirmationQuestion(), 'confirm_phone');
+        }
+
         return $this->notifyCommercial($actions);
     }
 
@@ -903,12 +990,18 @@ class AgentFinalService
     private function handlePhone(string $message, array &$actions): string
     {
         $phone = $this->extractPhone($message);
-        if ($phone === null && empty($this->state['phone'])) {
+        if ($phone !== null) {
+            $this->state['phone'] = $phone;
+            $this->state['phone_confirmed'] = true;
+            return $this->notifyCommercial($actions);
+        }
+
+        if (empty($this->state['phone'])) {
             return $this->setQuestion('Pour transmettre votre demande au conseiller, pouvez-vous me communiquer un numéro de téléphone valide ?', 'ask_phone');
         }
 
-        if ($phone !== null) {
-            $this->state['phone'] = $phone;
+        if (!$this->state['phone_confirmed']) {
+            return $this->setQuestion($this->phoneConfirmationQuestion(), 'confirm_phone');
         }
 
         return $this->notifyCommercial($actions);
@@ -1012,9 +1105,7 @@ class AgentFinalService
         $price = $this->formatMoney((int) $this->project['price_from_per_m2']);
         $questionTypes = implode(' | ', self::QUESTION_TYPES);
         $hours = $this->project['opening_hours'];
-        $phoneRule = $this->state['phone']
-            ? "Le numéro du prospect est déjà connu ({$this->state['phone']}) : ne le redemande jamais, demande uniquement son nom s'il manque."
-            : 'Demande son nom, puis son numéro de téléphone, une information à la fois.';
+        $phoneRule = $this->contactRule();
 
         return <<<PROMPT
 Tu es la conseillère virtuelle de GreenLand, projet résidentiel à Casablanca. Tu échanges sur WhatsApp avec des prospects issus de campagnes publicitaires, avant l'intervention d'un conseiller commercial.
@@ -1033,7 +1124,8 @@ LANGUE ET TON
 
 SENS CONVERSATIONNEL
 - Une réponse courte (oui, non, d'accord, wakha, pourquoi pas…) répond à la DERNIÈRE question de l'agent (state.last_question_type et historique). Ne l'interprète jamais comme une demande de rappel par défaut.
-- Ne redemande jamais une information déjà présente dans state.
+- Ne redemande jamais une information déjà présente dans state (typologie, projet, budget, nom, numéro) : reformule une nouvelle question utile.
+- Ne reviens pas sur un sujet déjà traité (context.sujets_traites) et ne le propose pas de nouveau.
 
 INFORMATIONS
 - Utilise exclusivement les données de "project". N'invente jamais une information absente : indique que le conseiller pourra la préciser.
@@ -1093,6 +1185,30 @@ Toute valeur non certaine ou non mentionnée = null.
 PROMPT;
     }
 
+    /** Règle de collecte du contact, selon ce que le CRM/WhatsApp fournit déjà. */
+    private function contactRule(): string
+    {
+        $name = $this->state['name'];
+        $phone = $this->state['phone'];
+
+        if ($phone && !$this->state['phone_confirmed']) {
+            $rule = "Son numéro WhatsApp est {$phone} mais il n'est pas encore confirmé : ne demande jamais un nouveau numéro, demande seulement si le conseiller peut le joindre sur ce numéro (last_question_type = confirm_phone). S'il en donne un autre, utilise-le.";
+            return $name ? "Son nom est {$name} : ne le redemande pas. " . $rule : "Demande son nom. " . $rule;
+        }
+
+        if ($phone && $name) {
+            return "Son nom ({$name}) et son numéro ({$phone}) sont connus et confirmés : ne les redemande jamais, confirme simplement que la demande est transmise.";
+        }
+
+        if ($phone) {
+            return "Son numéro ({$phone}) est connu et confirmé : demande uniquement son nom.";
+        }
+
+        return $name
+            ? "Son nom est {$name} : ne le redemande pas. Demande uniquement son numéro de téléphone."
+            : 'Demande son nom, puis son numéro de téléphone, une information à la fois.';
+    }
+
     private function decideWithAi(string $message, array $history, bool $isFirstMessage, array $resources = [], bool $offerAllowed = false): ?array
     {
         if (!$this->apiKey) {
@@ -1104,6 +1220,7 @@ PROMPT;
                 'first_message' => $isFirstMessage,
                 'detected_language' => $this->state['language'],
                 'ressources_jointes' => $this->attachedResourceNames($resources),
+                'sujets_traites' => (array) ($this->state['topics_covered'] ?? []),
                 'proposition_conseiller_autorisee' => $offerAllowed,
                 'project' => $this->aiProjectContext(),
                 'state' => $this->aiStateContext(),
@@ -1172,10 +1289,16 @@ PROMPT;
         // Les ressources envoyées sont décidées par le code (demande du prospect), jamais par l'IA.
         $reply = $this->removeUnattachedResourceAnnouncements($reply, $turn['resources']);
         $reply = $this->enforceCommercialOfferPolicy($reply, $turn);
+        $reply = $this->enforceQuestionRelevance($reply);
         $reply = $this->ensureOpenQuestion($reply);
         $reply = $this->deliverResources($reply, $turn['resources'], $actions);
 
-        $this->state['last_question'] = $this->lastQuestionOf($reply);
+        $finalQuestion = $this->lastQuestionOf($reply);
+        if ($finalQuestion !== null && !str_contains((string) $this->state['last_question'], $finalQuestion)) {
+            $this->setQuestion($finalQuestion, $this->pendingAiQuestionType ?? $this->inferQuestionType($finalQuestion));
+        }
+        $this->pendingAiQuestionType = null;
+
         return $reply;
     }
 
@@ -1190,6 +1313,10 @@ PROMPT;
         $this->pendingAiOfferType = null;
 
         if ($question === null) {
+            return $reply;
+        }
+        // Une confirmation de numéro cite « conseiller » sans être une proposition : on la laisse passer.
+        if ($this->pendingAiQuestionType === 'confirm_phone' || $this->mentionsKnownPhone($question)) {
             return $reply;
         }
         if ($offerType === null && $this->isCallbackOffer($question)) {
@@ -1498,12 +1625,10 @@ PROMPT;
         $isKnownType = is_string($questionType) && in_array($questionType, self::QUESTION_TYPES, true) && $questionType !== 'generic';
         $type = $isKnownType ? $questionType : $this->inferQuestionType($this->lastQuestionOf($reply));
 
-        // Une proposition de conseiller n'est enregistrée qu'après validation par enforceCommercialOfferPolicy().
-        if (in_array($type, self::OFFER_QUESTION_TYPES, true)) {
-            $this->pendingAiOfferType = $type;
-            $type = 'generic';
-        }
-        $this->markQuestionType($type);
+        // Rien n'est enregistré avant validation : la question peut encore être remplacée
+        // (proposition de conseiller hors rythme, ou question déjà posée).
+        $this->pendingAiOfferType = in_array($type, self::OFFER_QUESTION_TYPES, true) ? $type : null;
+        $this->pendingAiQuestionType = $type;
     }
 
     private function aiProjectContext(): array
@@ -1622,14 +1747,17 @@ PROMPT;
 
         $phone = $this->extractPhone($message);
         if ($phone !== null) {
+            // Numéro écrit par le prospect : il est confirmé d'office.
             $this->state['phone'] = $phone;
+            $this->state['phone_confirmed'] = true;
             $found[] = 'phone';
         }
 
         if ($this->containsAny($text, ['investissement', 'investir', 'placement', 'rentabilite', 'rendement', 'louer', 'mise en location', 'nstathmer'])) {
             $this->state['purpose'] = 'investissement';
             $found[] = 'purpose';
-        } elseif ($this->containsAny($text, ['habiter', 'y vivre', 'residence principale', 'pour ma famille', 'nskon', 'nsken'])) {
+        } elseif ($this->containsAny($text, ['habiter', 'y vivre', 'residence principale', 'pour ma famille', 'nskon', 'nsken'])
+            || ($this->state['last_question_type'] === 'ask_purpose' && $this->containsAny($text, ['residence', 'sakan', 'skn', 'pour moi', 'famille']))) {
             $this->state['purpose'] = 'résidence principale';
             $found[] = 'purpose';
         }
@@ -1803,7 +1931,11 @@ PROMPT;
 
     private function isAffirmative(string $text): bool
     {
-        return in_array($this->stripPunctuation($text), self::AFFIRMATIVE, true);
+        $clean = $this->stripPunctuation($text);
+
+        return in_array($clean, self::AFFIRMATIVE, true)
+            // « oui c'est bon », « wakha safi », « exactement »…
+            || preg_match('/^(?:oui|wakha|yes|iwa|exactement|tout a fait|c est ca|c est bon|parfait|نعم)(?![\p{L}\p{N}])/u', $clean) === 1;
     }
 
     private function isNegative(string $text): bool
@@ -1867,9 +1999,8 @@ PROMPT;
         }
 
         if ($step === 'callback' && !$this->canProposeAdvisor()) {
-            return $mediaAlreadySent || $this->state['last_question_type'] === 'media_offer'
-                ? $this->withQuestion($answer, $this->openQuestion('fr'))
-                : $this->withQuestion($answer, 'Souhaitez-vous découvrir la visite virtuelle du projet ?', 'media_offer');
+            [$open, $openType] = $this->nextOpenQuestion($mediaAlreadySent);
+            return $this->withQuestion($answer, $open, $openType);
         }
 
         return $this->withQuestion($answer, $question, $this->questionTypeForStep($step));
@@ -1890,27 +2021,151 @@ PROMPT;
     }
 
     /** Question de relance naturelle, dans la langue du prospect, sans reproposer de conseiller. @return array{0:string,1:string} */
-    private function nextOpenQuestion(): array
+    private function nextOpenQuestion(bool $skipMedia = false): array
     {
         $questions = self::FOLLOW_UP_COPY[$this->languageKey()]['questions'];
         $step = $this->nextQualificationStep();
 
         return $step === 'callback'
-            ? [$this->openQuestion(), 'generic']
+            ? $this->openQuestion($skipMedia)
             : [$questions[$step], $this->questionTypeForStep($step)];
     }
 
     /** Question d'échange en rotation, jamais identique à la précédente. */
-    private function openQuestion(?string $language = null): string
+    /**
+     * Question d'échange : jamais un sujet déjà traité, jamais une question déjà posée.
+     *
+     * @return array{0:string,1:string} question et type de question
+     */
+    private function openQuestion(bool $skipMedia = false): array
     {
-        $pool = self::OPEN_QUESTIONS[$language ?? $this->languageKey()] ?? self::OPEN_QUESTIONS['fr'];
-        $index = (int) $this->state['prospect_message_count'] % count($pool);
+        $pool = self::OPEN_QUESTIONS[$this->languageKey()] ?? self::OPEN_QUESTIONS['fr'];
+        $covered = (array) ($this->state['topics_covered'] ?? []);
+        $asked = (array) ($this->state['open_questions_asked'] ?? []);
+        $excluded = array_merge($covered, $asked, $skipMedia ? ['virtual_tour', 'photos'] : [], ['generic']);
 
-        if ($pool[$index] === $this->state['last_question']) {
-            $index = ($index + 1) % count($pool);
+        $available = array_diff_key($pool, array_flip($excluded));
+        if ($available === []) {
+            // Tout a été abordé : on reste ouvert sans répéter une question déjà posée.
+            return [$pool['generic'], 'generic'];
         }
 
-        return $pool[$index];
+        $topic = array_key_first($available);
+        $this->state['open_questions_asked'] = array_values(array_unique(array_merge($asked, [$topic])));
+
+        return [$available[$topic], in_array($topic, ['virtual_tour', 'photos'], true) ? 'media_offer' : 'generic'];
+    }
+
+    /** Mémorise les sujets déjà traités (équipements, livraison, prix, photos…) pour ne pas y revenir. */
+    private function recordCoveredTopics(string $message, string $answer): void
+    {
+        // Une question posée par l'agent ne traite pas le sujet : seules les phrases affirmatives comptent.
+        preg_match_all('/[^.!?؟\n]+[.!?؟]?/u', $answer, $matches);
+        $statements = array_filter(
+            $matches[0] ?? [],
+            static fn (string $part): bool => !str_ends_with(rtrim($part), '?') && !str_ends_with(rtrim($part), '؟')
+        );
+        $text = $this->normalize($message . ' ' . implode(' ', $statements));
+        $covered = (array) ($this->state['topics_covered'] ?? []);
+
+        foreach (self::TOPIC_INTENTS as $topic) {
+            if (!in_array($topic, $covered, true) && $this->containsAny($text, self::INTENT_KEYWORDS[$topic])) {
+                $covered[] = $topic;
+            }
+        }
+
+        $this->state['topics_covered'] = array_values(array_unique($covered));
+    }
+
+    /** Remplace une question dont la réponse est déjà connue (typologie, budget, nom, numéro…). */
+    private function enforceQuestionRelevance(string $reply): string
+    {
+        $question = $this->lastQuestionOf($reply);
+        if ($question === null) {
+            return $reply;
+        }
+
+        $type = $this->inferQuestionType($question);
+        $asked = (array) ($this->state['qualification_asked'] ?? []);
+        $redundant = match ($type) {
+            'ask_purpose' => !empty($this->state['purpose']) || in_array('purpose', $asked, true),
+            'ask_type' => !empty($this->state['property_type']) || in_array('type', $asked, true),
+            'ask_budget' => !empty($this->state['budget']) || in_array('budget', $asked, true),
+            'ask_name' => !empty($this->state['name']),
+            'ask_phone' => !empty($this->state['phone']),
+            'confirm_phone' => !empty($this->state['phone_confirmed']),
+            default => $this->topicsAlreadyCovered($question),
+        };
+
+        if (!$redundant) {
+            return $reply;
+        }
+
+        $position = mb_strrpos($reply, $question);
+        if ($position === false) {
+            return $reply;
+        }
+
+        $base = rtrim(mb_substr($reply, 0, $position));
+
+        // Numéro connu mais pas encore confirmé : on le fait confirmer au lieu de le redemander.
+        if ($type === 'ask_phone' && !$this->state['phone_confirmed']) {
+            $replacement = $this->setQuestion($this->phoneConfirmationQuestion(), 'confirm_phone');
+            return $base === '' ? $replacement : $base . "\n\n" . $replacement;
+        }
+
+        // Nom ou numéro déjà connus : on passe à l'étape utile plutôt que de les redemander.
+        if ($type === 'ask_name' && empty($this->state['phone'])) {
+            $replacement = $this->setQuestion('À quel numéro souhaitez-vous être rappelé ?', 'ask_phone');
+        } elseif ($type === 'ask_phone' && empty($this->state['name'])) {
+            $replacement = $this->setQuestion('Pourriez-vous me communiquer votre nom complet ?', 'ask_name');
+        } elseif ($type === 'ask_name' && !$this->state['phone_confirmed']) {
+            $replacement = $this->setQuestion($this->phoneConfirmationQuestion(), 'confirm_phone');
+        } elseif (in_array($type, ['ask_name', 'ask_phone', 'confirm_phone'], true)) {
+            [$next, $nextType] = $this->nextOpenQuestion();
+            $this->setQuestion($next, $nextType);
+            $base = rtrim($base . ' ' . $this->handoffConfirmation());
+            $replacement = $next;
+        } else {
+            [$next, $nextType] = $this->nextOpenQuestion();
+            $replacement = $this->setQuestion($next, $nextType);
+        }
+
+        return $base === '' ? $replacement : $base . "\n\n" . $replacement;
+    }
+
+    /** Vrai si le texte contient le numéro connu du prospect (question de confirmation). */
+    private function mentionsKnownPhone(string $text): bool
+    {
+        $phone = preg_replace('/\D+/', '', (string) $this->state['phone']);
+
+        return is_string($phone) && $phone !== '' && str_contains(preg_replace('/\D+/', '', $text) ?? '', $phone);
+    }
+
+    /** Vrai si la question porte uniquement sur des sujets déjà traités dans la conversation. */
+    private function topicsAlreadyCovered(string $question): bool
+    {
+        $text = $this->normalize($question);
+        $covered = (array) ($this->state['topics_covered'] ?? []);
+        $topics = array_values(array_filter(
+            self::TOPIC_INTENTS,
+            fn (string $topic): bool => $this->containsAny($text, self::INTENT_KEYWORDS[$topic])
+        ));
+
+        return $topics !== [] && array_diff($topics, $covered) === [];
+    }
+
+    /** Confirmation de transmission, utilisée quand nom et numéro sont déjà connus. */
+    private function handoffConfirmation(): string
+    {
+        $name = $this->firstName();
+        $phone = $this->state['phone'] ? (string) $this->state['phone'] : '';
+
+        return $this->localize([
+            'fr' => trim("Merci {$name}, votre demande est transmise à notre équipe commerciale. Un conseiller vous recontactera prochainement" . ($phone ? " au {$phone}" : '')) . '.',
+            'darija' => trim("Choukran {$name}, tlbek wsel l l'équipe commerciale dyalna. Chi conseiller ghadi y3ayet lik" . ($phone ? " f {$phone}" : '')) . '.',
+            'ar' => trim("شكرا {$name}، تم تحويل طلبكم إلى فريقنا التجاري. سيتصل بكم أحد المستشارين قريبا" . ($phone ? " على الرقم {$phone}" : '')) . '.',
+        ]);
     }
 
     /** Déduit la nature d'une question rédigée par l'IA. */
@@ -2073,6 +2328,25 @@ PROMPT;
         ];
     }
 
+    /** Récupère nom et numéro WhatsApp transmis par le contrôleur sous l'une des clés usuelles. */
+    private function hydrateProspectProfile(array $savedState): void
+    {
+        foreach (self::PROFILE_PHONE_KEYS as $key) {
+            if (empty($this->state['phone']) && !empty($savedState[$key]) && is_scalar($savedState[$key])) {
+                $this->setProspectPhone((string) $savedState[$key]);
+            }
+        }
+
+        foreach (self::PROFILE_NAME_KEYS as $key) {
+            if (empty($this->state['name']) && !empty($savedState[$key]) && is_scalar($savedState[$key])) {
+                $name = $this->extractName((string) $savedState[$key]);
+                if ($name !== null) {
+                    $this->state['name'] = $name;
+                }
+            }
+        }
+    }
+
     /** Convertit les anciens noms de champs enregistrés en base vers les nouveaux équivalents. */
     private function hydrateLegacyAliases(array $savedState): void
     {
@@ -2093,6 +2367,10 @@ PROMPT;
         }
         if (!empty($savedState['contact_sent'])) {
             $this->state['commercial_notified'] = true;
+        }
+        // Numéro déjà enregistré par l'ancienne version : considéré comme confirmé.
+        if (!array_key_exists('phone_confirmed', $savedState) && !empty($savedState['phone'])) {
+            $this->state['phone_confirmed'] = true;
         }
         // Offre déjà faite avec l'ancienne version : le délai entre deux propositions s'applique.
         if (!empty($this->state['commercial_offer_made']) && $this->state['last_offer_at_message'] === null) {
