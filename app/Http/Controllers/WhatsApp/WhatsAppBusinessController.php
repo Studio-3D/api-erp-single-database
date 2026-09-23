@@ -641,6 +641,85 @@ class WhatsAppBusinessController extends Controller
     }
 
     /**
+     * 👥 COMMERCIAUX ÉLIGIBLES POUR UN PROJET
+     *
+     * Requête directe sur la connexion 'temp' via la table pivot (user_projets).
+     * La relation Eloquent whereHas('projets') cherchait la table sur la connexion
+     * par défaut : elle levait une exception et aucun commercial n'était trouvé.
+     */
+    private function getProjectCommercials($projetId)
+    {
+        $activeCommercials = function () {
+            return User::on('temp')
+                ->where('role', 3)
+                ->where('is_actif', 1)
+                ->whereNull('deleted_at')
+                ->orderBy('id');
+        };
+
+        try {
+            // 1. Rattachement via la table pivot
+            foreach (['user_projets', 'projet_user', 'projets_users', 'user_projet'] as $pivot) {
+                if (!Schema::connection('temp')->hasTable($pivot)) {
+                    continue;
+                }
+
+                $userColumn = Schema::connection('temp')->hasColumn($pivot, 'user_id') ? 'user_id' : 'users_id';
+                $projetColumn = Schema::connection('temp')->hasColumn($pivot, 'projet_id') ? 'projet_id' : 'projets_id';
+
+                $ids = DB::connection('temp')->table($pivot)
+                    ->where($projetColumn, $projetId)
+                    ->pluck($userColumn);
+
+                if ($ids->isEmpty()) {
+                    continue;
+                }
+
+                $commercials = $activeCommercials()->whereIn('id', $ids)->get();
+
+                if ($commercials->isNotEmpty()) {
+                    Log::info("👥 Commerciaux du projet trouvés via {$pivot}", [
+                        'projet_id' => $projetId,
+                        'count' => $commercials->count(),
+                    ]);
+
+                    return $commercials;
+                }
+            }
+
+            // 2. Colonne projet_id directement sur users
+            if (Schema::connection('temp')->hasColumn('users', 'projet_id')) {
+                $commercials = $activeCommercials()->where('projet_id', $projetId)->get();
+                if ($commercials->isNotEmpty()) {
+                    Log::info("👥 Commerciaux du projet trouvés via users.projet_id", [
+                        'count' => $commercials->count(),
+                    ]);
+
+                    return $commercials;
+                }
+            }
+
+            // 3. Repli : tous les commerciaux actifs, pour ne jamais laisser un lead sans suite
+            $commercials = $activeCommercials()->get();
+            Log::warning("⚠️ Aucun rattachement projet trouvé, repli sur tous les commerciaux actifs", [
+                'projet_id' => $projetId,
+                'count' => $commercials->count(),
+            ]);
+
+            return $commercials;
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur recherche commerciaux: " . $e->getMessage());
+
+            try {
+                return $activeCommercials()->get();
+            } catch (\Exception $inner) {
+                return collect();
+            }
+        }
+    }
+
+    /**
      * 🎯 GARANTIR QU'UN COMMERCIAL EST AFFECTÉ AVANT D'ENVOYER UNE NOTIFICATION
      * Sans cela, la notification part avec user_id = null et n'atteint personne.
      */
@@ -659,14 +738,20 @@ class WhatsAppBusinessController extends Controller
             // Le prospect n'est pas encore affecté : affectation à tour de rôle
             $assignedId = $this->autoAssignSingleProspect($prospectId, $projetId);
 
-            if (!$assignedId) {
-                Log::warning("⚠️ Notification sans commercial : aucune affectation possible", [
-                    'prospect_id' => $prospectId,
-                    'projet_id' => $projetId,
-                ]);
+            if ($assignedId) {
+                return $assignedId;
             }
 
-            return $assignedId ?: null;
+            // Dernier recours : le premier commercial actif, pour que la notification ait un destinataire
+            $fallback = $this->getProjectCommercials($projetId)->first();
+
+            Log::warning("⚠️ Affectation impossible, notification envoyée au premier commercial", [
+                'prospect_id' => $prospectId,
+                'projet_id' => $projetId,
+                'commercial_id' => $fallback->id ?? null,
+            ]);
+
+            return $fallback->id ?? null;
         } catch (\Exception $e) {
             Log::error("❌ Erreur affectation avant notification: " . $e->getMessage());
             return null;
@@ -786,33 +871,8 @@ class WhatsAppBusinessController extends Controller
                 return $prospect->commercial_affecte;
             }
 
-            // Get all active commercials (role = 3) for this project
-            $commercials = User::on('temp')
-                ->where(function ($query) use ($projetId) {
-                    $query->whereHas('projets', function ($q) use ($projetId) {
-                        $q->where('projet_id', $projetId);
-                    });
-                })
-                ->where('role', 3) // ROLE_COMMERCIAL
-                ->where('is_actif', 1)
-                ->whereNull('deleted_at')
-                ->orderBy('id')
-                ->get();
-
-            // ✅ Repli : si aucun commercial n'est rattaché au projet dans la table pivot,
-            //    on prend les commerciaux actifs plutôt que de laisser le lead sans suite.
-            if ($commercials->isEmpty()) {
-                Log::warning('⚠️ Aucun commercial rattaché au projet, repli sur les commerciaux actifs', [
-                    'projet_id' => $projetId,
-                ]);
-
-                $commercials = User::on('temp')
-                    ->where('role', 3)
-                    ->where('is_actif', 1)
-                    ->whereNull('deleted_at')
-                    ->orderBy('id')
-                    ->get();
-            }
+            // ✅ Commerciaux du projet (table pivot, sans relation Eloquent inter-connexions)
+            $commercials = $this->getProjectCommercials($projetId);
 
             if ($commercials->isEmpty()) {
                 Log::error('❌ Aucun commercial actif trouvé', ['projet_id' => $projetId]);
@@ -850,17 +910,7 @@ class WhatsAppBusinessController extends Controller
                         ->update(['last_affected' => 0]);
 
                     // Refresh the collection
-                    $commercials = User::on('temp')
-                        ->where(function ($query) use ($projetId) {
-                            $query->whereHas('projets', function ($q) use ($projetId) {
-                                $q->where('projet_id', $projetId);
-                            });
-                        })
-                        ->where('role', 3)
-                        ->where('is_actif', 1)
-                        ->whereNull('deleted_at')
-                        ->orderBy('id')
-                        ->get();
+                    $commercials = $this->getProjectCommercials($projetId);
 
                     Log::info('✅ Tous les commerciaux réinitialisés à last_affected = 0');
                 }
