@@ -83,7 +83,7 @@ class AgentFinalService
 
     private const DARIJA_MARKERS = ['salam', 'slm', 'marhba', 'bghit', 'bghina', 'baghi', 'chhal', 'ch7al', 'fin kayn', 'finkayn', 'wach', 'dyal', 'dial', 'wakha', 'iwa', 'labas', '3afak', 'afak', 'bzaf', 'mzyan', 'mezyan', 'kayn', 'kayna', 'daba', 'ba9i', 'ghadi', 'mazal', 'mouchkil', 'hak', 'byout', 'bit', 'safi', 'walo', 'chwiya', 'chokran', 'choukran', 'nta', 'nti', 'ana', 'smiti', '3lach', 'kifach'];
 
-    private const FRENCH_MARKERS = ['bonjour', 'bonsoir', 'merci', 'je', 'vous', 'est', 'les', 'des', 'une', 'pour', 'prix', 'appartement', 'oui', 'svp', 'combien', 'quel', 'quelle', 'voudrais', 'souhaite'];
+    private const FRENCH_MARKERS = ['bonjour', 'bonsoir', 'merci', 'je', 'vous', 'est', 'les', 'des', 'une', 'un', 'le', 'la', 'du', 'de', 'avec', 'dans', 'sur', 'pour', 'prix', 'appartement', 'appartements', 'investissement', 'residence', 'livraison', 'superficie', 'superficies', 'orientation', 'etage', 'oui', 'svp', 'combien', 'quel', 'quelle', 'quand', 'comment', 'voudrais', 'souhaite'];
 
     private const AFFIRMATIVE = ['oui', 'oui svp', 'oui merci', 'ok', 'okay', 'd accord', 'dac', 'yes', 'iwa', 'wakha', 'ah', 'bghit', 'c est bon', 'c est ca', 'exactement', 'tout a fait', 'safi', 'bien sur', 'oui bien sur', 'parfait', 'volontiers', 'avec plaisir', 'pourquoi pas', 'نعم', 'واخا'];
 
@@ -101,6 +101,12 @@ class AgentFinalService
     private const CALLBACK_OFFER_SUBJECTS = ['conseiller', 'conseillere', 'conseillers', 'commercial', 'commerciale', 'agent', 'mostachar', 'مستشار', 'مستشارينا', 'مستشارنا'];
 
     private const CALLBACK_OFFER_VERBS = ['appelle', 'appeler', 'rappelle', 'rappeler', 'recontacte', 'recontacter', 'contacte', 'contacter', 'joindre', 'planifier', 'organiser', 'organise', 'visiter', 'aide', 'accompagne', 'y3ayet', 'يتصل'];
+
+    /** « un conseiller pourra vous… » : renvoi de remplissage retiré des réponses. */
+    private const ADVISOR_TERMS = ['conseiller', 'conseillere', 'conseillers', 'commercial', 'commerciale', 'مستشار', 'مستشارينا'];
+
+    /** Phrases légitimes citant un conseiller : confirmation de transmission ou de rappel. */
+    private const HANDOFF_CONFIRMATION_TERMS = ['transmis', 'transmise', 'transmettre', 'recontactera', 'rappellera', 'contactera', 'wsel', 'y3ayet', 'تم تحويل', 'سيتصل'];
 
     private const VIRTUAL_TOUR_TERMS = ['virtuelle', 'virtuel', '3d', 'matterport', 'الافتراضية'];
 
@@ -470,10 +476,13 @@ class AgentFinalService
             ? $this->applyAiDecision($aiDecision, $actions, $turn)
             : $this->completeResources($this->answerWithRules($message, $isFirstMessage, $facts, $actions), $turn['resources'], $actions);
 
-        // Transmission au commercial garantie par le code, indépendamment de l'IA.
+        // Les phrases ajoutées ensuite (plan 3D…) suivent la langue réellement employée dans la réponse.
+        $this->replyLanguage = $this->dominantLanguage($answer, 2) ?? $this->state['language'];
+
         // Plan 3D joint dès qu'une typologie est décrite (ou sur demande explicite de plan).
         $answer = $this->attachFloorPlans($message, $answer, $actions);
         $this->recordCoveredTopics($message, $answer);
+        $this->replyLanguage = null;
 
         $this->finalizeLeadNotifications($actions);
 
@@ -607,7 +616,7 @@ class AgentFinalService
         $this->state['follow_up_requires_template'] = false;
     }
 
-        /**
+    /**
      * Langue du prospect : décidée sur l'ensemble de la conversation, pas sur le dernier message.
      * Un « oui » ou un mot isolé ne fait donc jamais basculer la langue.
      */
@@ -755,7 +764,7 @@ class AgentFinalService
         ]);
     }
 
-    /** Déclenche la pré-alerte (lead qualifié) puis la transmission confirmée (nom + téléphone). */
+    /** Déclenche la pré-alerte (intérêt concret) puis la transmission confirmée (nom + téléphone). */
     private function finalizeLeadNotifications(array &$actions): void
     {
         $this->refreshQualification();
@@ -765,11 +774,26 @@ class AgentFinalService
             return;
         }
 
-        if ($this->state['lead_qualified'] && !$this->state['qualified_lead_notified'] && !$this->state['handoff_notified']) {
+        if ($this->hasCommercialInterest() && !$this->state['qualified_lead_notified'] && !$this->state['handoff_notified']) {
             $sent = $this->dispatchLead($actions);
             $this->state['qualified_lead_notified'] = true;
             $this->state['commercial_notified'] = $this->state['commercial_notified'] || $sent;
         }
+    }
+
+    /**
+     * Intérêt concret justifiant d'alerter le commercial. Critères indépendants (OU) :
+     * typologie choisie, budget donné, ou demande de conseiller (rappel ou visite).
+     */
+    private function hasCommercialInterest(): bool
+    {
+        foreach (['property_type', 'budget', 'wants_callback', 'wants_visit', 'handoff_requested', 'lead_qualified'] as $key) {
+            if (!empty($this->state[$key])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function refreshQualification(): void
@@ -1180,6 +1204,7 @@ QUALIFICATION — une seule question par message
 - Après une information simple (typologie, prix, localisation, équipements, médias), réponds uniquement à cette information puis pose la question de qualification suivante.
 
 MISE EN RELATION
+- N'écris jamais « un conseiller pourra vous renseigner / vous guider / vous aider / vous donner plus de détails » en remplissage : cette formule donne l'impression de forcer le contact. Réponds avec les données de "project" ; si l'information dépend de l'appartement (prix exact, étage, disponibilité), dis-le simplement, sans renvoyer vers un conseiller.
 - Ne propose JAMAIS un conseiller à chaque message. Le rythme est décidé par context.proposition_conseiller_autorisee.
 - Si false : ne propose ni rappel, ni conseiller, ni visite sur place. Réponds, partage les ressources demandées et poursuis la qualification.
 - Si true : propose la mise en relation seulement si c'est pertinent (qualification avancée, intérêt manifeste, question sur les disponibilités, le prix d'un appartement précis ou la visite sur place). Formulation naturelle et variée, par exemple « Souhaitez-vous qu'un conseiller vous appelle pour vous présenter les disponibilités adaptées ? ». last_question_type = callback_offer (ou visit_offer pour une visite sur place).
@@ -1315,6 +1340,8 @@ PROMPT;
 
         // Les ressources envoyées sont décidées par le code (demande du prospect), jamais par l'IA.
         $reply = $this->removeUnattachedResourceAnnouncements($reply, $turn['resources']);
+        $reply = $this->removeAdvisorFiller($reply);
+
         // Les phrases ajoutées par le code suivent la langue de la conversation, sauf si
         // la réponse de l'IA emploie clairement une autre langue.
         $this->replyLanguage = $this->dominantLanguage($reply, 3) ?? $this->state['language'];
@@ -1329,7 +1356,7 @@ PROMPT;
         }
         $this->pendingAiQuestionType = null;
         $this->replyLanguage = null;
-       
+
         return $reply;
     }
 
@@ -1372,6 +1399,37 @@ PROMPT;
         $base = rtrim(mb_substr($reply, 0, $position));
 
         return $base === '' ? $next : $base . "\n\n" . $next;
+    }
+
+    /**
+     * Retire les renvois de remplissage vers un conseiller (« un conseiller pourra vous
+     * donner plus de détails »), qui alourdissent chaque réponse sans rien apporter.
+     * Sont conservées : la question de proposition elle-même et les confirmations de transmission.
+     */
+    private function removeAdvisorFiller(string $reply): string
+    {
+        preg_match_all('/[^.!?؟\n]+[.!?؟]?[ \t]*\n*|\n+/u', $reply, $matches);
+        $kept = [];
+
+        foreach ($matches[0] ?? [] as $sentence) {
+            $normalized = $this->normalize($sentence);
+            $isQuestion = str_contains($sentence, '?') || str_contains($sentence, '؟');
+            $isFiller = !$isQuestion
+                && $this->containsAny($normalized, self::ADVISOR_TERMS)
+                && !$this->containsAny($normalized, self::HANDOFF_CONFIRMATION_TERMS);
+
+            if ($isFiller) {
+                // On retire la phrase en conservant ses sauts de ligne (mise en page préservée).
+                $kept[] = preg_match('/\n+$/u', $sentence, $breaks) ? $breaks[0] : '';
+                continue;
+            }
+
+            $kept[] = $sentence;
+        }
+
+        $result = trim((string) preg_replace(["/[ \t]+\n/u", "/\n{3,}/u"], ["\n", "\n\n"], implode('', $kept)));
+
+        return $result === '' ? $reply : $result;
     }
 
     /** L'échange ne se termine jamais sur une réponse fermée. */
@@ -1936,6 +1994,24 @@ PROMPT;
         };
     }
 
+    /** Langue dominante d'un texte, à condition d'un signal net (au moins $minVotes indices). */
+    private function dominantLanguage(string $text, int $minVotes = 1): ?string
+    {
+        if (preg_match('/\p{Arabic}/u', $text)) {
+            return 'ar';
+        }
+
+        $normalized = $this->normalize($text);
+        $darija = $this->countMatches($normalized, self::DARIJA_MARKERS);
+        $french = $this->countMatches($normalized, self::FRENCH_MARKERS);
+
+        return match (true) {
+            $darija >= $minVotes && $darija > $french => 'darija',
+            $french >= $minVotes && $french > $darija => 'fr',
+            default => null,
+        };
+    }
+
     /** Retourne null si le message ne permet pas de conclure (« ok », « 06… ») : la langue précédente est conservée. */
     private function detectLanguage(string $message): ?string
     {
@@ -1954,23 +2030,7 @@ PROMPT;
             default => null,
         };
     }
-        /** Langue dominante d'un texte, à condition d'un signal net (au moins $minVotes indices). */
-    private function dominantLanguage(string $text, int $minVotes = 1): ?string
-    {
-        if (preg_match('/\p{Arabic}/u', $text)) {
-            return 'ar';
-        }
 
-        $normalized = $this->normalize($text);
-        $darija = $this->countMatches($normalized, self::DARIJA_MARKERS);
-        $french = $this->countMatches($normalized, self::FRENCH_MARKERS);
-
-        return match (true) {
-            $darija >= $minVotes && $darija > $french => 'darija',
-            $french >= $minVotes && $french > $darija => 'fr',
-            default => null,
-        };
-    }
     private function isGreeting(string $text): bool
     {
         return in_array($this->stripPunctuation($text), self::GREETINGS, true);
@@ -2523,7 +2583,7 @@ PROMPT;
         return $this->state['name'] ? explode(' ', trim((string) $this->state['name']))[0] : '';
     }
 
-        private function languageKey(): string
+    private function languageKey(): string
     {
         // Pendant la post-production d'une réponse IA, on suit la langue de cette réponse
         // pour ne jamais mélanger français et darija dans un même message.
