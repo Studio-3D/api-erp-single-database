@@ -618,16 +618,55 @@ public function export_pre_reservations(Request $request)
     /**
      * Display the specified resource.
      */
-    public function show($id)
-    {
-        if (Auth::guard('api')->check()) {
-            DatabaseHelper::Config();
-            $bien = bien::on('temp')->with('reservation', 'Bien_Tva', 'tva_collectes', 'tva_collectes_ancien_reservation')->withSum('tva_collectes', 'tva_a_payer')->findOrfail($id);
-            return response()->json(['bien' => $bien], 200);
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
+public function show($id)
+{
+    if (Auth::guard('api')->check()) {
+        DatabaseHelper::Config();
+
+        $bien = bien::on('temp')
+            ->with([
+                'reservation',
+                'Bien_Tva',
+                'tva_collectes',
+                'tva_collectes_ancien_reservation',
+
+                'last_pre_reservation' => function ($q) {
+                    $q->select(
+                        'id',
+                        'code_pre_reserve',
+                        'date_pre_reserve',
+                        'bien_id',
+                        'visite_id',
+                        'appel_id',
+                        'desistement_id',
+                        'commentaire',
+                        'created_at',
+                        'updated_at'
+                    );
+                },
+                'last_pre_reservation.visite:id,origin_id,user_id,prospect_id,created_at',
+                'last_pre_reservation.visite.user:id,name,prenom',
+
+                // ✅ Only ONE prospect entry, full row
+                'last_pre_reservation.visite.prospect',
+                'last_pre_reservation.visite.prospect.source:id,source',
+
+                'last_pre_reservation.desistement:id,user_id,commentaire,created_at',
+                'last_pre_reservation.desistement.user:id,name,prenom',
+
+                'last_pre_reservation.bien:id,propriete_dite_bien,niveau,orientation,prix,superficie_architecte,tranche_id,bloc_id,immeuble_id',
+                'last_pre_reservation.bien.tranche:id,nom',
+                'last_pre_reservation.bien.bloc:id,nom',
+                'last_pre_reservation.bien.immeuble:id,nom',
+            ])
+            ->withSum('tva_collectes', 'tva_a_payer')
+            ->findOrFail($id);
+
+        return response()->json(['bien' => $bien], 200);
     }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
     public function libererBien_function($id)
     {
         if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ) {
