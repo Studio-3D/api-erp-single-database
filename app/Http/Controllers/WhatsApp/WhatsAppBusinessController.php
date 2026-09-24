@@ -612,7 +612,7 @@ class WhatsAppBusinessController extends Controller
             $notification = new Notification();
             $notification->setConnection('temp');
             $notification->date = now();
-            $notification->type = 53; // Demande de rappel / lead via agent
+            $notification->type = 50; // Demande de rappel / lead via agent
             $notification->description_type = $title . "\n\n" .
                 "👤 Nom: " . ($payload['name'] ?? 'Non fourni') . "\n" .
                 "📞 Téléphone: " . ($payload['phone'] ?? 'Non fourni') . "\n" .
