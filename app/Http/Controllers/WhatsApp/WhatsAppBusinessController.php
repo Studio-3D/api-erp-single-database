@@ -1170,10 +1170,108 @@ class WhatsAppBusinessController extends Controller
             return false;
         }
     }
+private function transcribeWhatsAppAudio(string $mediaUrl, $config): ?string
+{
+    try {
+        // 1. Télécharger l'audio depuis Twilio
+        $client = new \GuzzleHttp\Client();
+        $response = $client->get($mediaUrl, [
+            'auth' => [$config->account_sid, $config->access_token],
+            'timeout' => 30,
+        ]);
 
+        $audioContent = $response->getBody()->getContents();
+        $contentType = $response->getHeader('Content-Type')[0] ?? 'audio/ogg';
+
+        Log::info("📥 Audio téléchargé", [
+            'size' => strlen($audioContent),
+            'content_type' => $contentType,
+        ]);
+
+        // 2. Encoder en base64
+        $base64Audio = base64_encode($audioContent);
+
+        // 3. Appeler OpenRouter avec Voxtral (accepte ogg nativement)
+        $apiKey = config('services.openrouter.key') ?? env('OPENROUTER_API_KEY');
+        if (!$apiKey) {
+            Log::error("❌ OPENROUTER_API_KEY manquante");
+            return null;
+        }
+
+        $transcriptionResponse = \Illuminate\Support\Facades\Http::timeout(60)
+            ->withToken($apiKey)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+                'X-Title' => 'GreenLand WhatsApp Agent',
+            ])
+            ->post('https://openrouter.ai/api/v1/audio/transcriptions', [
+                'model' => 'mistralai/voxtral-small-24b-2507-stt',  // ← Voxtral
+                'input_audio' => [
+                    'data' => $base64Audio,
+                    'format' => 'ogg',  // ← Accepté nativement
+                ],
+                'language' => 'fr',
+                'response_format' => 'json',
+            ]);
+
+        if (!$transcriptionResponse->successful()) {
+            Log::error("❌ Erreur Voxtral OpenRouter", [
+                'status' => $transcriptionResponse->status(),
+                'body' => mb_substr($transcriptionResponse->body(), 0, 500),
+            ]);
+            return null;
+        }
+
+        $responseData = $transcriptionResponse->json();
+        $text = trim($responseData['text'] ?? '');
+
+        Log::info("✅ Transcription Voxtral réussie", [
+            'text' => $text,
+            'cost_usd' => $responseData['usage']['cost'] ?? null,
+        ]);
+
+        return $text !== '' ? $text : null;
+
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur transcription: " . $e->getMessage());
+        return null;
+    }
+}
+/**
+ * 📤 ENVOYER UN MESSAGE TEXTE SIMPLE
+ */
+private function sendWhatsAppText($to, string $message, $config, $projetId): void
+{
+    try {
+        $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
+        $sent = $twilio->messages->create(
+            "whatsapp:" . $to,
+            [
+                'from' => "whatsapp:" . $config->phone_number_id,
+                'body' => $message,
+            ]
+        );
+
+        DB::connection('temp')->table('whatsapp_messages')->insert([
+            'projet_id' => $projetId,
+            'from_number' => $config->phone_number_id,
+            'to_number' => $to,
+            'message' => $message,
+            'message_sid' => $sent->sid,
+            'profile_name' => 'Agent Virtuel Karim',
+            'status' => 'sent',
+            'message_type' => 'error_audio',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur envoi message texte: " . $e->getMessage());
+    }
+}
     /* =====================================================================
      |  WEBHOOK
      * ===================================================================== */
+
 
     /**
      * 🔥 WEBHOOK TWILIO AVEC AGENT VIRTUEL
@@ -1287,11 +1385,11 @@ class WhatsAppBusinessController extends Controller
             //    pouvait être récupéré)
             $prospect = DB::connection('temp')
                 ->table('prospects')
-                ->where('projet_id', $foundConfig->projet_id)
+              //  ->where('projet_id', $foundConfig->projet_id)
                 ->where(function ($query) use ($from) {
                     $query->where('telephone', $from)
                           ->orWhere('telephone_num2', $from);
-                })
+                })->whereNull('deleted_at')
                 ->first();
 
             $prospectId = null;
@@ -1396,31 +1494,6 @@ class WhatsAppBusinessController extends Controller
                 Log::info("✅ Nouveau prospect créé: {$from} (ID: {$prospectId})");
             }
 
-            Log::info('🔄 Début de l\'auto-affectation pour le nouveau prospect', [
-                'prospect_id' => $prospectId,
-                'projet_id' => $foundConfig->projet_id,
-            ]);
-
-            /* Affectation immédiate à la création (désactivée : l'affectation se fait
-               désormais dès que le prospect montre un intérêt concret, via
-               assignProspectIfInterested()).
-
-            if ($isNewProspect) {
-                $assignedCommercialId = $this->autoAssignSingleProspect($prospectId, $foundConfig->projet_id);
-
-                if ($assignedCommercialId) {
-                    Log::info('✅ Prospect affecté automatiquement', [
-                        'prospect_id' => $prospectId,
-                        'commercial_id' => $assignedCommercialId
-                    ]);
-                    $this->sendAffectationNotification($assignedCommercialId, $prospectId, $foundConfig->projet_id);
-                } else {
-                    Log::warning('⚠️ Aucun commercial disponible pour l\'affectation', [
-                        'prospect_id' => $prospectId
-                    ]);
-                }
-            }*/
-
             // ========== TÉLÉCHARGER ET STOCKER LE MÉDIA ==========
             $localMediaUrl = null;
             if ($mediaUrl && $foundSociete) {
@@ -1440,11 +1513,60 @@ class WhatsAppBusinessController extends Controller
             }
 
             // ========== STOCKER LE NOUVEAU MESSAGE ==========
+           // ════════════════════════════════════════════════════════════════
+            // 🎤 GESTION AUDIO : SI PAS DE TEXTE MAIS AUDIO → TRANSCRIRE
+            // ════════════════════════════════════════════════════════════════
+            $isAudio = ($numMedia > 0) && ($mediaType === 'audio');
+
+            if (empty($body) && $isAudio && !empty($mediaUrl)) {
+                // ✅ Pas de texte MAIS audio → transcrire
+                Log::info("🎤 Message audio détecté (pas de texte) → transcription en cours", [
+                    'from' => $from,
+                    'media_url' => $mediaUrl,
+                    'content_type' => $mediaContentType,
+                ]);
+
+                $transcribedText = $this->transcribeWhatsAppAudio($mediaUrl, $foundConfig);
+
+                if (!empty($transcribedText)) {
+                    // ✅ Transcription réussie → on remplace $body
+                    $body = $transcribedText;
+                    Log::info("✅ Audio transcrit → traitement normal", [
+                        'from' => $from,
+                        'transcription' => $body,
+                    ]);
+                } else {
+                    // ❌ Transcription échouée → message d'excuse au client
+                    Log::warning("⚠️ Transcription audio échouée", ['from' => $from]);
+
+                    $this->sendWhatsAppText(
+                        $from,
+                        "Désolé, je n'ai pas pu comprendre votre message vocal. Pouvez-vous réécrire votre demande en texte ? 🙏",
+                        $foundConfig,
+                        $foundConfig->projet_id
+                    );
+
+                    return response()->json(['status' => 'audio_transcription_failed']);
+                }
+            } elseif (!empty($body)) {
+                // ✅ Texte présent → déjà makhdom, rien à faire
+                Log::info("💬 Message texte reçu", [
+                    'from' => $from,
+                    'body_length' => strlen($body),
+                ]);
+            } elseif ($numMedia > 0 && !$isAudio) {
+                // ✅ Média non-audio (image, PDF, vidéo) → ignorer pour l'agent
+                Log::info("📎 Média non-audio reçu (pas de traitement agent)", [
+                    'from' => $from,
+                    'media_type' => $mediaType,
+                ]);
+            }
+            // ════════════════════════════════════════════════════════════════
             $messageData = [
                 'projet_id' => $foundConfig->projet_id,
                 'from_number' => $from,
                 'to_number' => $to,
-                'message' => $body ?: ($mediaUrl ? '📎 Fichier joint' : ''),
+                'message' => $body ?: ($mediaUrl ? '📎 Fichier joint' : ''),  // ← daba $body fih transcription ila kan audio
                 'message_sid' => $messageSid,
                 'profile_name' => $profileName,
                 'status' => 'received',
