@@ -14,31 +14,69 @@ class SendFollowUps extends Command
     protected $signature = 'follow-ups:send';
     protected $description = 'Envoyer les relances aux clients qui n\'ont pas répondu depuis 1h';
 
-    /**
- * 🔥 VÉRIFIER SI LE CLIENT A DÉJÀ CONFIRMÉ UNE VISITE
- * (nom + date + visit_accepted)
+/**
+ * 🔥 VÉRIFIER SI LE CLIENT A UN RDV CONFIRMÉ AVEC UN COMMERCIAL
+ *
+ * Un RDV est considéré comme CONFIRMÉ uniquement si :
+ *   - handoff_notified = true  → lead transmis au commercial (nom + tél + acceptation)
+ *   - visit_accepted = true    → visite acceptée
+ *
+ * IMPORTANT : wants_callback / wants_visit ne sont que des INTENTIONS.
+ * Tant que le client n'a pas donné nom + tél, le RDV n'est PAS confirmé
+ * → le cron DOIT relancer.
  */
 private function hasConfirmedVisit(Conversation $conversation): bool
 {
     $state = $conversation->state ?? [];
 
-    // ✅ Récupérer les infos
-    $visitAccepted = $state['visit_accepted'] ?? false;
-    $name = $state['name'] ?? null;
-    $appointmentDate = $state['appointment_date'] ?? null;
+    // ════════════════════════════════════════════════════════════
+    // ✅ RDV CONFIRMÉ — 1 seule condition suffit
+    // ════════════════════════════════════════════════════════════
 
-    // ✅ Si les 3 conditions sont remplies → client a déjà RDV
-    if ($visitAccepted === true && !empty($name) && !empty($appointmentDate)) {
-        Log::info("✅ Client a confirmé visite", [
+    // 1️⃣ Lead déjà transmis au commercial
+    //    (AgentFinalService::dispatchHandoff() → handoff_notified=true)
+    if (!empty($state['handoff_notified'])) {
+        Log::info("⏭️ Lead transmis au commercial → PAS de relance", [
             'session_id' => $conversation->session_id,
-            'name' => $name,
-            'appointment_date' => $appointmentDate,
+            'name' => $state['name'] ?? null,
+            'phone' => $state['phone'] ?? null,
+            'requested_visit' => $state['wants_visit'] ?? false,
+            'requested_callback' => $state['wants_callback'] ?? false,
         ]);
         return true;
     }
 
+    // 2️⃣ Visite acceptée (RDV complet)
+    if (!empty($state['visit_accepted'])) {
+        Log::info("⏭️ Visite acceptée → PAS de relance", [
+            'session_id' => $conversation->session_id,
+            'name' => $state['name'] ?? null,
+        ]);
+        return true;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // ❌ Aucun RDV confirmé → ON RELANCE
+    //
+    // Cas couverts (mazal khass relance) :
+    //   - Client a gal "bghit rappel" walakin ma-3tach nom/tél
+    //   - Client a gal "bghit visite" walakin ma-3tach nom/tél
+    //   - Client mazal ma-jawebch
+    //   - Client gal "non"
+    // ════════════════════════════════════════════════════════════
+    Log::info("📤 RDV pas confirmé → relance autorisée", [
+        'session_id' => $conversation->session_id,
+        'wants_visit' => $state['wants_visit'] ?? false,
+        'wants_callback' => $state['wants_callback'] ?? false,
+        'handoff_notified' => $state['handoff_notified'] ?? false,
+        'commercial_offer_declined' => $state['commercial_offer_declined'] ?? false,
+        'has_name' => !empty($state['name']),
+        'has_phone' => !empty($state['phone']),
+    ]);
+
     return false;
 }
+
     public function handle()
     {
         Log::info('🔄 CRON: Vérification des follow-ups à envoyer...');

@@ -2971,8 +2971,8 @@ public function edit_visite($id)
                             // 🔥 SEND AVANCES AS JSON ARRAY
                             'avances'                => json_encode($avancesData),
                             'files_avance'           => $request->selectedFiles_avc ?? [],
-                            'nombre_parking'         => $request->nombre_parking ?? 0,   // ✅ AJOUT
-                            'prix_parking'           => $request->prix_parking ?? 0,     // ✅ AJOUT
+                            'nombre_parking'         => $request->nombre_parking ?? 1,   // ✅ AJOUT
+                            'prix_parking'           => $request->prix_parking ?? 1,     // ✅ AJOUT
                         ];
 
                         $reservationRequest->merge($dataReservation);

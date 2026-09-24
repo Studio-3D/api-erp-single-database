@@ -617,9 +617,11 @@ class WhatsAppBusinessController extends Controller
                 "👤 Nom: " . ($payload['name'] ?? 'Non fourni') . "\n" .
                 "📞 Téléphone: " . ($payload['phone'] ?? 'Non fourni') . "\n" .
                 "🏠 Type: " . ($payload['property_type'] ?? 'Non précisé') . "\n" .
-                "🎯 Projet: " . ($payload['purpose'] ?? 'Non précisé') . "\n" .
+                //"🎯 Projet: " . ($payload['purpose'] ?? 'Non précisé') . "\n" .
                 "💰 Budget: " . $budget . "\n" .
                 "📝 Dernier message: " . ($payload['last_message'] ?? '');
+           // $link = "/whatsapp-messenger?phone={$phoneNumber}&projet_id={$projetId}&prospect_id={$prospectId}";
+           // $notification->lien = $link
             $notification->lien = $prospectId ? "/prospects/edit/" . $prospectId : "/prospects";
             $notification->role = 3;
             $notification->user_id = $assignedCommercialId ?: null;
@@ -1014,7 +1016,7 @@ class WhatsAppBusinessController extends Controller
                 Log::info('✅ Transaction validée avec succès');
 
                 // ✅ 7. Send notification (OUTSIDE transaction)
-                $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
+              //  $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
 
                 // ✅ 8. Verify data was saved
                 $verifyProspect = Prospect::on('temp')->find($prospectId);
@@ -1589,7 +1591,7 @@ class WhatsAppBusinessController extends Controller
             //    ou message non traité par l'agent (le commercial a la main).
             $notifyCommercial = $isNewProspect || $shouldNotifyCommercial || !$agentHandledMessage;
 
-            if ($notifyCommercial) {
+           /* if ($notifyCommercial) {
                 broadcast(new NotificationEvent(0));
                 $this->createWhatsAppNotification(
                     $prospectId,
@@ -1604,7 +1606,7 @@ class WhatsAppBusinessController extends Controller
                 Log::info("🔕 Notification commerciale ignorée (conversation en cours avec l'agent)", [
                     'prospect_id' => $prospectId,
                 ]);
-            }
+            }*/
 
             Log::info("✅ Message WhatsApp traité avec succès: {$messageSid}");
 
@@ -1711,9 +1713,7 @@ class WhatsAppBusinessController extends Controller
      |  NOTIFICATIONS
      * ===================================================================== */
 
-    /**
-     * Envoyer une notification d'affectation au commercial
-     */
+    /*Envoyer une notification d'affectation au commercial
     private function sendAffectationNotification($commercialId, $prospectId, $projetId)
     {
         try {
@@ -1732,8 +1732,8 @@ class WhatsAppBusinessController extends Controller
             $description .= "👤 Prospect: " . ($prospect->nom ?? $prospect->telephone ?? 'Inconnu') . "\n";
             $description .= "📞 Téléphone: " . ($prospect->telephone ?? 'Non renseigné') . "\n";
             $description .= "📱 Source: WhatsApp\n";
-            $description .= "🏢 Projet ID: {$projetId}\n\n";
-            $description .= "✅ Affecté automatiquement à: " . $commercial->name . ' ' . $commercial->prenom;
+           // $description .= "🏢 Projet ID: {$projetId}\n\n";
+            //$description .= "✅ Affecté automatiquement à: " . $commercial->name . ' ' . $commercial->prenom;
 
             $link = "/prospects/edit/" . $prospectId;
 
@@ -1764,11 +1764,10 @@ class WhatsAppBusinessController extends Controller
             Log::error('❌ Erreur envoi notification affectation: ' . $e->getMessage());
             return false;
         }
-    }
+    }*/
 
-    /**
-     * Créer une notification pour les commerciaux
-     */
+    /* Créer une notification pour les commerciaux
+
     private function createWhatsAppNotification($prospectId, $phoneNumber, $profileName, $message, $projetId, $isNewProspect = false, $assignedCommercialId = null)
     {
         try {
@@ -1823,7 +1822,7 @@ class WhatsAppBusinessController extends Controller
         } catch (\Exception $e) {
             Log::error("❌ Erreur création notification: " . $e->getMessage());
         }
-    }
+    }*/
 
     /* =====================================================================
      |  CONVERSATIONS (interface CRM)
