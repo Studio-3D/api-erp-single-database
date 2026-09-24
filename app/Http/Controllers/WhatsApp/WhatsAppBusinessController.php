@@ -622,7 +622,7 @@ class WhatsAppBusinessController extends Controller
                 "📝 Dernier message: " . ($payload['last_message'] ?? '');
            // $link = "/whatsapp-messenger?phone={$phoneNumber}&projet_id={$projetId}&prospect_id={$prospectId}";
            // $notification->lien = $link
-            $notification->lien = $prospectId ? "/prospects/edit/" . $prospectId : "/prospects";
+            $notification->lien = $prospectId ? "/crm/prospects/" . $prospectId : "/prospects";
             $notification->role = 3;
             $notification->user_id = $assignedCommercialId ?: null;
             $notification->projet_id = $projetId;
