@@ -99,7 +99,7 @@ class WhatsAppBusinessController extends Controller
             $result = $agent->reply($message, $history);
 
             $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
-            // ✅ Question isolée : elle part APRÈS les médias
+            // ✅ Question isolée : elle part APRÈS les médias pour que le prospect la voie en dernier
             $messageBeforeMedia = $result['message_before_media'] ?? $response;
             $messageAfterMedia = $result['message_after_media'] ?? null;
             $newState = $result['state'] ?? $agent->getConversationState();
@@ -140,8 +140,8 @@ class WhatsAppBusinessController extends Controller
 
             return [
                 'message' => $response,
-                'message_before_media' => $messageBeforeMedia ?? '',
-                'message_after_media' => $messageAfterMedia ?? null,
+                'message_before_media' => $messageBeforeMedia,
+                'message_after_media' => $messageAfterMedia,
                 'actions' => $actions,
                 'state' => $newState,
                 'pending_contact' => $pendingContact,
@@ -159,8 +159,8 @@ class WhatsAppBusinessController extends Controller
             //    et produit des réponses incohérentes (questions déjà posées, etc.).
             return [
                 'message' => '',
-                'message_before_media' => $messageBeforeMedia ?? '',
-                'message_after_media' => $messageAfterMedia ?? null,
+                'message_before_media' => '',
+                'message_after_media' => null,
                 'actions' => [],
                 'state' => [],
                 'pending_contact' => [],
@@ -386,7 +386,7 @@ class WhatsAppBusinessController extends Controller
      * ✅ Le TEXTE part en premier, les médias ensuite : le prospect lit
      *    « Je vous envoie les photos » avant de recevoir les photos.
      */
-        private function sendAgentResponse($to, $message, $config, $projetId, $sessionId, $actions = [], $prospectId = null, $messageAfterMedia = null)
+    private function sendAgentResponse($to, $message, $config, $projetId, $sessionId, $actions = [], $prospectId = null, $messageAfterMedia = null)
     {
         try {
             $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
@@ -394,16 +394,53 @@ class WhatsAppBusinessController extends Controller
             // ✅ 1. TEXTE DE PRÉSENTATION (sans la question quand des médias suivent)
             $this->sendAgentText($twilio, $to, $message, $config, $projetId, $prospectId);
 
-            // ✅ 2. EXÉCUTER LES ACTIONS (localisation, photos, plans 3D, notification CRM)
+            // ✅ 2. ACTIONS NON MÉDIA (localisation, notification CRM)
             foreach ($actions as $action) {
-                $this->executeAgentAction($action, $to, $config, $projetId, $prospectId);
+                if (($action['type'] ?? null) !== 'send_media') {
+                    $this->executeAgentAction($action, $to, $config, $projetId, $prospectId);
+                }
             }
 
-            // ✅ 3. QUESTION APRÈS LES MÉDIAS : le prospect la voit en dernier
+            // ✅ 3. MÉDIAS : la question devient la légende du DERNIER média.
+            //    Un message texte part instantanément alors qu'une image doit d'abord
+            //    être téléchargée par Twilio : envoyée à part, la question doublait
+            //    les photos et s'affichait au milieu de la série.
+            $mediaQueue = [];
+            foreach ($actions as $action) {
+                if (($action['type'] ?? null) !== 'send_media') {
+                    continue;
+                }
+
+                $urls = $action['urls'] ?? [];
+                if (empty($urls) && !empty($action['url'])) {
+                    $urls = [$action['url']];
+                }
+
+                foreach ($urls as $url) {
+                    $mediaQueue[] = ['url' => $url, 'caption' => $action['caption'] ?? null];
+                }
+            }
+
+            $lastIndex = count($mediaQueue) - 1;
+            foreach ($mediaQueue as $index => $media) {
+                $caption = $media['caption'];
+
+                if ($index === $lastIndex && trim((string) $messageAfterMedia) !== '') {
+                    $caption = trim((string) $caption) !== ''
+                        ? $caption . "\n\n" . $messageAfterMedia
+                        : $messageAfterMedia;
+                    $messageAfterMedia = null; // déjà joint au dernier média
+                }
+
+                $this->sendWhatsAppMedia($to, $media['url'], $config, $projetId, $caption);
+            }
+
+            // ✅ 4. Sans média, la question part en message séparé
             if (trim((string) $messageAfterMedia) !== '') {
                 $this->sendAgentText($twilio, $to, $messageAfterMedia, $config, $projetId, $prospectId);
             }
 
+            // ✅ MARQUER LE MESSAGE BOT (programme le follow-up)
             $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
             if ($conversation) {
                 $conversation->markBotMessage();
@@ -642,8 +679,6 @@ class WhatsAppBusinessController extends Controller
                 "💰 Budget: " . $budget . "\n" .
                 "🕒 Créneau souhaité: " . ($payload['callback_slot_label'] ?? 'Non précisé') . "\n" .
                 "📝 Dernier message: " . ($payload['last_message'] ?? '');
-           // $link = "/whatsapp-messenger?phone={$phoneNumber}&projet_id={$projetId}&prospect_id={$prospectId}";
-           // $notification->lien = $link
             $notification->lien = $prospectId ? "/crm/prospects/" . $prospectId : "/prospects";
             $notification->role = 3;
             $notification->user_id = $assignedCommercialId ?: null;
@@ -1037,8 +1072,8 @@ class WhatsAppBusinessController extends Controller
 
                 Log::info('✅ Transaction validée avec succès');
 
-                // ✅ 7. Send notification (OUTSIDE transaction)
-              //  $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
+                // ✅ 7. Send notification (OUTSIDE transaction) — désactivée
+                // $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
 
                 // ✅ 8. Verify data was saved
                 $verifyProspect = Prospect::on('temp')->find($prospectId);
@@ -1192,108 +1227,113 @@ class WhatsAppBusinessController extends Controller
             return false;
         }
     }
-private function transcribeWhatsAppAudio(string $mediaUrl, $config): ?string
-{
-    try {
-        // 1. Télécharger l'audio depuis Twilio
-        $client = new \GuzzleHttp\Client();
-        $response = $client->get($mediaUrl, [
-            'auth' => [$config->account_sid, $config->access_token],
-            'timeout' => 30,
-        ]);
 
-        $audioContent = $response->getBody()->getContents();
-        $contentType = $response->getHeader('Content-Type')[0] ?? 'audio/ogg';
-
-        Log::info("📥 Audio téléchargé", [
-            'size' => strlen($audioContent),
-            'content_type' => $contentType,
-        ]);
-
-        // 2. Encoder en base64
-        $base64Audio = base64_encode($audioContent);
-
-        // 3. Appeler OpenRouter avec Voxtral (accepte ogg nativement)
-        $apiKey = config('services.openrouter.key') ?? env('OPENROUTER_API_KEY');
-        if (!$apiKey) {
-            Log::error("❌ OPENROUTER_API_KEY manquante");
-            return null;
-        }
-
-        $transcriptionResponse = \Illuminate\Support\Facades\Http::timeout(60)
-            ->withToken($apiKey)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'X-Title' => 'GreenLand WhatsApp Agent',
-            ])
-            ->post('https://openrouter.ai/api/v1/audio/transcriptions', [
-                'model' => 'mistralai/voxtral-small-24b-2507-stt',  // ← Voxtral
-                'input_audio' => [
-                    'data' => $base64Audio,
-                    'format' => 'ogg',  // ← Accepté nativement
-                ],
-                'language' => 'fr',
-                'response_format' => 'json',
+    /**
+     * 🎤 TRANSCRIRE UN MESSAGE VOCAL WHATSAPP (OpenRouter / Voxtral)
+     */
+    private function transcribeWhatsAppAudio(string $mediaUrl, $config): ?string
+    {
+        try {
+            // 1. Télécharger l'audio depuis Twilio
+            $client = new \GuzzleHttp\Client();
+            $response = $client->get($mediaUrl, [
+                'auth' => [$config->account_sid, $config->access_token],
+                'timeout' => 30,
             ]);
 
-        if (!$transcriptionResponse->successful()) {
-            Log::error("❌ Erreur Voxtral OpenRouter", [
-                'status' => $transcriptionResponse->status(),
-                'body' => mb_substr($transcriptionResponse->body(), 0, 500),
+            $audioContent = $response->getBody()->getContents();
+            $contentType = $response->getHeader('Content-Type')[0] ?? 'audio/ogg';
+
+            Log::info("📥 Audio téléchargé", [
+                'size' => strlen($audioContent),
+                'content_type' => $contentType,
             ]);
+
+            // 2. Encoder en base64
+            $base64Audio = base64_encode($audioContent);
+
+            // 3. Appeler OpenRouter avec Voxtral (accepte ogg nativement)
+            $apiKey = config('services.openrouter.key') ?? env('OPENROUTER_API_KEY');
+            if (!$apiKey) {
+                Log::error("❌ OPENROUTER_API_KEY manquante");
+                return null;
+            }
+
+            $transcriptionResponse = \Illuminate\Support\Facades\Http::timeout(60)
+                ->withToken($apiKey)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'X-Title' => 'GreenLand WhatsApp Agent',
+                ])
+                ->post('https://openrouter.ai/api/v1/audio/transcriptions', [
+                    'model' => 'mistralai/voxtral-small-24b-2507-stt',
+                    'input_audio' => [
+                        'data' => $base64Audio,
+                        'format' => 'ogg',
+                    ],
+                    'language' => 'fr',
+                    'response_format' => 'json',
+                ]);
+
+            if (!$transcriptionResponse->successful()) {
+                Log::error("❌ Erreur Voxtral OpenRouter", [
+                    'status' => $transcriptionResponse->status(),
+                    'body' => mb_substr($transcriptionResponse->body(), 0, 500),
+                ]);
+                return null;
+            }
+
+            $responseData = $transcriptionResponse->json();
+            $text = trim($responseData['text'] ?? '');
+
+            Log::info("✅ Transcription Voxtral réussie", [
+                'text' => $text,
+                'cost_usd' => $responseData['usage']['cost'] ?? null,
+            ]);
+
+            return $text !== '' ? $text : null;
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur transcription: " . $e->getMessage());
             return null;
         }
-
-        $responseData = $transcriptionResponse->json();
-        $text = trim($responseData['text'] ?? '');
-
-        Log::info("✅ Transcription Voxtral réussie", [
-            'text' => $text,
-            'cost_usd' => $responseData['usage']['cost'] ?? null,
-        ]);
-
-        return $text !== '' ? $text : null;
-
-    } catch (\Exception $e) {
-        Log::error("❌ Erreur transcription: " . $e->getMessage());
-        return null;
     }
-}
-/**
- * 📤 ENVOYER UN MESSAGE TEXTE SIMPLE
- */
-private function sendWhatsAppText($to, string $message, $config, $projetId): void
-{
-    try {
-        $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
-        $sent = $twilio->messages->create(
-            "whatsapp:" . $to,
-            [
-                'from' => "whatsapp:" . $config->phone_number_id,
-                'body' => $message,
-            ]
-        );
 
-        DB::connection('temp')->table('whatsapp_messages')->insert([
-            'projet_id' => $projetId,
-            'from_number' => $config->phone_number_id,
-            'to_number' => $to,
-            'message' => $message,
-            'message_sid' => $sent->sid,
-            'profile_name' => 'Agent Virtuel Karim',
-            'status' => 'sent',
-            'message_type' => 'error_audio',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-    } catch (\Exception $e) {
-        Log::error("❌ Erreur envoi message texte: " . $e->getMessage());
+    /**
+     * 📤 ENVOYER UN MESSAGE TEXTE SIMPLE
+     */
+    private function sendWhatsAppText($to, string $message, $config, $projetId): void
+    {
+        try {
+            $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
+            $sent = $twilio->messages->create(
+                "whatsapp:" . $to,
+                [
+                    'from' => "whatsapp:" . $config->phone_number_id,
+                    'body' => $message,
+                ]
+            );
+
+            DB::connection('temp')->table('whatsapp_messages')->insert([
+                'projet_id' => $projetId,
+                'from_number' => $config->phone_number_id,
+                'to_number' => $to,
+                'message' => $message,
+                'message_sid' => $sent->sid,
+                'profile_name' => 'Agent Virtuel Karim',
+                'status' => 'sent',
+                'message_type' => 'error_audio',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur envoi message texte: " . $e->getMessage());
+        }
     }
-}
+
     /* =====================================================================
      |  WEBHOOK
      * ===================================================================== */
-
 
     /**
      * 🔥 WEBHOOK TWILIO AVEC AGENT VIRTUEL
@@ -1534,8 +1574,7 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                 }
             }
 
-            // ========== STOCKER LE NOUVEAU MESSAGE ==========
-           // ════════════════════════════════════════════════════════════════
+            // ════════════════════════════════════════════════════════════════
             // 🎤 GESTION AUDIO : SI PAS DE TEXTE MAIS AUDIO → TRANSCRIRE
             // ════════════════════════════════════════════════════════════════
             $isAudio = ($numMedia > 0) && ($mediaType === 'audio');
@@ -1571,24 +1610,25 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                     return response()->json(['status' => 'audio_transcription_failed']);
                 }
             } elseif (!empty($body)) {
-                // ✅ Texte présent → déjà makhdom, rien à faire
                 Log::info("💬 Message texte reçu", [
                     'from' => $from,
                     'body_length' => strlen($body),
                 ]);
             } elseif ($numMedia > 0 && !$isAudio) {
-                // ✅ Média non-audio (image, PDF, vidéo) → ignorer pour l'agent
+                // ✅ Média non-audio (image, PDF, vidéo) → ignoré par l'agent
                 Log::info("📎 Média non-audio reçu (pas de traitement agent)", [
                     'from' => $from,
                     'media_type' => $mediaType,
                 ]);
             }
-            // ════════════════════════════════════════════════════════════════
+
+            // ========== STOCKER LE NOUVEAU MESSAGE ==========
             $messageData = [
                 'projet_id' => $foundConfig->projet_id,
                 'from_number' => $from,
                 'to_number' => $to,
-                'message' => $body ?: ($mediaUrl ? '📎 Fichier joint' : ''),  // ← daba $body fih transcription ila kan audio
+                // $body contient la transcription lorsque le message était un vocal
+                'message' => $body ?: ($mediaUrl ? '📎 Fichier joint' : ''),
                 'message_sid' => $messageSid,
                 'profile_name' => $profileName,
                 'status' => 'received',
@@ -1671,9 +1711,9 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                     );
 
                     $agentResponse = $agentResult['message'] ?? '';
-                    $agentActions = $agentResult['actions'] ?? [];
                     $agentTextBeforeMedia = $agentResult['message_before_media'] ?? $agentResponse;
                     $agentQuestionAfterMedia = $agentResult['message_after_media'] ?? null;
+                    $agentActions = $agentResult['actions'] ?? [];
 
                     // ✅ Le commercial n'est notifié que sur une transition utile.
                     //    Si l'agent a déjà émis notify_commercial (notification détaillée
@@ -1738,7 +1778,10 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             //    ou message non traité par l'agent (le commercial a la main).
             $notifyCommercial = $isNewProspect || $shouldNotifyCommercial || !$agentHandledMessage;
 
-           /* if ($notifyCommercial) {
+            /* Notification générique désactivée : seule la notification détaillée de l'agent
+               (notifyCommercialFromAgent) est envoyée au commercial.
+
+            if ($notifyCommercial) {
                 broadcast(new NotificationEvent(0));
                 $this->createWhatsAppNotification(
                     $prospectId,
@@ -1860,7 +1903,12 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
      |  NOTIFICATIONS
      * ===================================================================== */
 
-    /*Envoyer une notification d'affectation au commercial
+    /* Notifications génériques désactivées : seule la notification détaillée
+       de l'agent (notifyCommercialFromAgent) est envoyée au commercial.
+
+    /**
+     * Envoyer une notification d'affectation au commercial
+     * /
     private function sendAffectationNotification($commercialId, $prospectId, $projetId)
     {
         try {
@@ -1879,8 +1927,8 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             $description .= "👤 Prospect: " . ($prospect->nom ?? $prospect->telephone ?? 'Inconnu') . "\n";
             $description .= "📞 Téléphone: " . ($prospect->telephone ?? 'Non renseigné') . "\n";
             $description .= "📱 Source: WhatsApp\n";
-           // $description .= "🏢 Projet ID: {$projetId}\n\n";
-            //$description .= "✅ Affecté automatiquement à: " . $commercial->name . ' ' . $commercial->prenom;
+            $description .= "🏢 Projet ID: {$projetId}\n\n";
+            $description .= "✅ Affecté automatiquement à: " . $commercial->name . ' ' . $commercial->prenom;
 
             $link = "/prospects/edit/" . $prospectId;
 
@@ -1911,10 +1959,11 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             Log::error('❌ Erreur envoi notification affectation: ' . $e->getMessage());
             return false;
         }
-    }*/
+    }
 
-    /* Créer une notification pour les commerciaux
-
+    /**
+     * Créer une notification pour les commerciaux
+     * /
     private function createWhatsAppNotification($prospectId, $phoneNumber, $profileName, $message, $projetId, $isNewProspect = false, $assignedCommercialId = null)
     {
         try {
@@ -1969,7 +2018,10 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
         } catch (\Exception $e) {
             Log::error("❌ Erreur création notification: " . $e->getMessage());
         }
-    }*/
+    }
+
+
+    */
 
     /* =====================================================================
      |  CONVERSATIONS (interface CRM)
