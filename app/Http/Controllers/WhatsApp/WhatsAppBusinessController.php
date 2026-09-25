@@ -99,6 +99,9 @@ class WhatsAppBusinessController extends Controller
             $result = $agent->reply($message, $history);
 
             $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
+            // ✅ Question isolée : elle part APRÈS les médias
+            $messageBeforeMedia = $result['message_before_media'] ?? $response;
+            $messageAfterMedia = $result['message_after_media'] ?? null;
             $newState = $result['state'] ?? $agent->getConversationState();
             $actions = $result['actions'] ?? [];
             $pendingContact = $result['pending_contact'] ?? [];
@@ -137,6 +140,8 @@ class WhatsAppBusinessController extends Controller
 
             return [
                 'message' => $response,
+                'message_before_media' => $messageBeforeMedia ?? '',
+                'message_after_media' => $messageAfterMedia ?? null,
                 'actions' => $actions,
                 'state' => $newState,
                 'pending_contact' => $pendingContact,
@@ -154,6 +159,8 @@ class WhatsAppBusinessController extends Controller
             //    et produit des réponses incohérentes (questions déjà posées, etc.).
             return [
                 'message' => '',
+                'message_before_media' => $messageBeforeMedia ?? '',
+                'message_after_media' => $messageAfterMedia ?? null,
                 'actions' => [],
                 'state' => [],
                 'pending_contact' => [],
@@ -379,42 +386,24 @@ class WhatsAppBusinessController extends Controller
      * ✅ Le TEXTE part en premier, les médias ensuite : le prospect lit
      *    « Je vous envoie les photos » avant de recevoir les photos.
      */
-    private function sendAgentResponse($to, $message, $config, $projetId, $sessionId, $actions = [], $prospectId = null)
+        private function sendAgentResponse($to, $message, $config, $projetId, $sessionId, $actions = [], $prospectId = null, $messageAfterMedia = null)
     {
         try {
             $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
 
-            // ✅ 1. ENVOYER LE MESSAGE TEXTE
-            if (trim((string) $message) !== '') {
-                $sentMessage = $twilio->messages->create(
-                    "whatsapp:" . $to,
-                    [
-                        'from' => "whatsapp:" . $config->phone_number_id,
-                        'body' => $message,
-                    ]
-                );
-
-                DB::connection('temp')->table('whatsapp_messages')->insert([
-                    'projet_id' => $projetId,
-                    'from_number' => $config->phone_number_id,
-                    'to_number' => $to,
-                    'message' => $message,
-                    'message_sid' => $sentMessage->sid,
-                    'profile_name' => 'Agent Virtuel Karim',
-                    'status' => 'sent',
-                    'message_type' => 'agent_response',
-                    'prospect_id' => $prospectId,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
+            // ✅ 1. TEXTE DE PRÉSENTATION (sans la question quand des médias suivent)
+            $this->sendAgentText($twilio, $to, $message, $config, $projetId, $prospectId);
 
             // ✅ 2. EXÉCUTER LES ACTIONS (localisation, photos, plans 3D, notification CRM)
             foreach ($actions as $action) {
                 $this->executeAgentAction($action, $to, $config, $projetId, $prospectId);
             }
 
-            // ✅ MARQUER LE MESSAGE BOT (programme le follow-up)
+            // ✅ 3. QUESTION APRÈS LES MÉDIAS : le prospect la voit en dernier
+            if (trim((string) $messageAfterMedia) !== '') {
+                $this->sendAgentText($twilio, $to, $messageAfterMedia, $config, $projetId, $prospectId);
+            }
+
             $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
             if ($conversation) {
                 $conversation->markBotMessage();
@@ -432,6 +421,38 @@ class WhatsAppBusinessController extends Controller
             Log::error("❌ Erreur envoi réponse agent: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * ✉️ ENVOYER UN MESSAGE TEXTE DE L'AGENT ET L'ARCHIVER
+     */
+    private function sendAgentText($twilio, $to, $message, $config, $projetId, $prospectId = null)
+    {
+        if (trim((string) $message) === '') {
+            return;
+        }
+
+        $sentMessage = $twilio->messages->create(
+            "whatsapp:" . $to,
+            [
+                'from' => "whatsapp:" . $config->phone_number_id,
+                'body' => $message,
+            ]
+        );
+
+        DB::connection('temp')->table('whatsapp_messages')->insert([
+            'projet_id' => $projetId,
+            'from_number' => $config->phone_number_id,
+            'to_number' => $to,
+            'message' => $message,
+            'message_sid' => $sentMessage->sid,
+            'profile_name' => 'Agent Virtuel Karim',
+            'status' => 'sent',
+            'message_type' => 'agent_response',
+            'prospect_id' => $prospectId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /**
@@ -619,6 +640,7 @@ class WhatsAppBusinessController extends Controller
                 "🏠 Type: " . ($payload['property_type'] ?? 'Non précisé') . "\n" .
                 //"🎯 Projet: " . ($payload['purpose'] ?? 'Non précisé') . "\n" .
                 "💰 Budget: " . $budget . "\n" .
+                "🕒 Créneau souhaité: " . ($payload['callback_slot_label'] ?? 'Non précisé') . "\n" .
                 "📝 Dernier message: " . ($payload['last_message'] ?? '');
            // $link = "/whatsapp-messenger?phone={$phoneNumber}&projet_id={$projetId}&prospect_id={$prospectId}";
            // $notification->lien = $link
@@ -1650,6 +1672,8 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
 
                     $agentResponse = $agentResult['message'] ?? '';
                     $agentActions = $agentResult['actions'] ?? [];
+                    $agentTextBeforeMedia = $agentResult['message_before_media'] ?? $agentResponse;
+                    $agentQuestionAfterMedia = $agentResult['message_after_media'] ?? null;
 
                     // ✅ Le commercial n'est notifié que sur une transition utile.
                     //    Si l'agent a déjà émis notify_commercial (notification détaillée
@@ -1669,12 +1693,13 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                     if (trim((string) $agentResponse) !== '' || !empty($agentActions)) {
                         $this->sendAgentResponse(
                             $from,
-                            $agentResponse,
+                            $agentTextBeforeMedia,
                             $foundConfig,
                             $foundConfig->projet_id,
                             $sessionId,
                             $agentActions,
-                            $prospectId
+                            $prospectId,
+                            $agentQuestionAfterMedia
                         );
 
                         Log::info("✅ Réponse de l'agent envoyée à {$from}", [
