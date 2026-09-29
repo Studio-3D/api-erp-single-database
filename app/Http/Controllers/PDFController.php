@@ -1071,63 +1071,61 @@ public function generateContratVentePDF_reservation(Request $request)
 
         $societe = $data['societe'] ?? [];
 
-        // Process logo (IMOZINE logo - left side)
-        $logoBase64 = null;
-        if (isset($societe['logo']) &&
-            isset($societe['raison_sociale_concatene']) &&
-            isset($societe['id'])) {
+        // ============================================
+        // 👇 LOGOS — qelleb LOCAL awwal, men be3d S3
+        // ============================================
 
-            $logoFilename = $societe['logo'];
-            $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $logoFilename;
-
-            $fileContent = null;
-
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($logoPath)) {
-                    $fileContent = Storage::disk('s3')->get($logoPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $logoPath);
+        $fetchAsset = function (string $relativePath) {
+            try {
+                // 1. LOCAL awwal
+                $localPath = public_path('docs/' . $relativePath);
                 if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
+                    return file_get_contents($localPath);
                 }
-            }
 
+                // 2. S3 fallback
+                if (Storage::disk('s3')->exists($relativePath)) {
+                    return Storage::disk('s3')->get($relativePath);
+                }
+
+                return null;
+            } catch (\Throwable $e) {
+                Log::warning("PDF asset missing [{$relativePath}]: " . $e->getMessage());
+                return null;
+            }
+        };
+
+        // 👇 Force l-format "Imozine_1" (I kbira, baqi sghar)
+        $folder = null;
+        if (!empty($societe['raison_sociale_concatene']) && !empty($societe['id'])) {
+            $folder = ucfirst(strtolower($societe['raison_sociale_concatene'])) . '_' . $societe['id'];
+        }
+
+        // Logo (IMOZINE logo - left side)
+        $logoBase64 = null;
+        if ($folder && !empty($societe['logo'])) {
+            $fileContent = $fetchAsset($folder . '/logos/' . $societe['logo']);
             if ($fileContent !== null) {
-                $extension = pathinfo($logoFilename, PATHINFO_EXTENSION);
-                $mimeType = match($extension) {
-                    'png' => 'image/png',
+                $extension = strtolower(pathinfo($societe['logo'], PATHINFO_EXTENSION));
+                $mimeType = match ($extension) {
+                    'png'        => 'image/png',
                     'jpg', 'jpeg' => 'image/jpeg',
-                    'gif' => 'image/gif',
-                    'svg' => 'image/svg+xml',
-                    default => 'image/png'
+                    'gif'        => 'image/gif',
+                    'svg'        => 'image/svg+xml',
+                    default      => 'image/png',
                 };
                 $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
             }
         }
 
-        // Try to load green_land.png from logos folder
+        // GreenLand (green_land.png)
         $greenLandBase64 = null;
-        if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-            $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
-            $fileContent = null;
-
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($greenLandPath)) {
-                    $fileContent = Storage::disk('s3')->get($greenLandPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $greenLandPath);
-                if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
-                }
-            }
-
+        if ($folder) {
+            $fileContent = $fetchAsset($folder . '/logos/green_land.png');
             if ($fileContent !== null) {
                 $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
             }
         }
-
         $reservation = $data['reservation'] ?? [];
          // Get date_signature from frontend
         $dateSignature = $reservation['date_signature'] ?? now()->format('d/m/Y');

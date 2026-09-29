@@ -590,39 +590,37 @@ private function processReservationFiles($reservation, $request, $societe)
  * Format: XXXMM where XXX is sequential number and MM is current month
  * Example: 04008 for the 40th reservation in August
  */
-    private function generateReservationCode($projetId)
+ private function generateReservationCode($projetId, $dateReservation = null)
 {
-    // Récupérer le mois actuel
-    $currentMonth = date('m');
+    // ✅ Mois sur 3 chiffres depuis date_reservation (009, 010, 011, 001...)
+    $month=date('m');
 
-    // Récupérer la DERNIÈRE réservation (GLOBALE)
+    $monthPadded = str_pad($month, 3, '0', STR_PAD_LEFT); // 009, 010, 001...
+
+    // ✅ Chercher la DERNIÈRE réservation GLOBALE (tous mois confondus)
+    //    pour continuer la séquence sans repartir à 1
     $lastReservation = Reservation::on('temp')
         ->where('projet_id', $projetId)
         ->whereNotNull('code_reservation')
         ->where('code_reservation', '!=', '')
+        //->whereRaw('LENGTH(code_reservation) = 6') // format 003009
         ->orderBy('id', 'desc')
         ->first();
 
     if ($lastReservation && $lastReservation->code_reservation) {
-        $code = $lastReservation->code_reservation;
+        // ✅ Enlever les 3 derniers caractères (le mois sur 3 chiffres)
+        //    → garde la séquence
+        $sequentialPart = substr($lastReservation->code_reservation, 0, -3);
 
-        // Extraire la partie sans les 2 derniers caractères (le mois)
-        $sequentialPart = substr($code, 0, -2);
-
-        // Sécurité : si ce n'est pas numérique, utiliser tout le code
-        if (!is_numeric($sequentialPart) || $sequentialPart == '') {
-            $sequentialPart = $code;
-        }
-
-        $lastNumber = intval($sequentialPart);
-        $newNumber = $lastNumber + 1;
+        $lastNumber = is_numeric($sequentialPart) ? intval($sequentialPart) : 0;
+        $newNumber  = $lastNumber + 1;
     } else {
-        $newNumber = 1;
+        // Aucune réservation → commence à 3 ? ou 1 ?
+        $newNumber = 3; // ⚠️ selon ton besoin (tu as commencé à 003)
     }
 
-    // Formater avec 3 chiffres + mois
-    $sequentialCode = str_pad($newNumber, 3, '0', STR_PAD_LEFT);
-    return $sequentialCode . $currentMonth;
+    // ✅ Séquence sur 3 chiffres + mois sur 3 chiffres
+    return str_pad($newNumber, 3, '0', STR_PAD_LEFT) . $monthPadded;
 }
 
             /**
