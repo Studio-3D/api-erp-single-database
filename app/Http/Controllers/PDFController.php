@@ -1300,62 +1300,70 @@ public function generateQuittancePDF(Request $request)
         $totalMontant = $data['totalMontant'] ?? 0;
         $currentDate = $data['currentDate'] ?? now()->format('d/m/Y');
         $projet_nom = $data['projet_nom'] ?? 'GreenLand';
-        $type = $data['type'] ?? 'avance'; // 'avance' or 'reservation'
+        $type = $data['type'] ?? 'avance';
         $codeReservation = $reservation['code_reservation'] ?? 'temp';
 
-        // Process logo
-        $logoBase64 = null;
-        if (isset($societe['logo']) && isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-            $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $societe['logo'];
-            $fileContent = null;
+        // ============================================
+        // 👇 HNA L-BEDDEL — Logos
+        // ============================================
 
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($logoPath)) {
-                    $fileContent = Storage::disk('s3')->get($logoPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $logoPath);
+        // Fonction bach tjib l-fichier: LOCAL awwal, men be3d S3
+        $fetchAsset = function (string $relativePath) {
+            try {
+                // 1. LOCAL awwal
+                $localPath = public_path('docs/' . $relativePath);
                 if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
+                    return file_get_contents($localPath);
                 }
-            }
 
+                // 2. S3 fallback
+                if (Storage::disk('s3')->exists($relativePath)) {
+                    return Storage::disk('s3')->get($relativePath);
+                }
+
+                return null;
+            } catch (\Throwable $e) {
+                Log::warning("PDF asset missing [{$relativePath}]: " . $e->getMessage());
+                return null;
+            }
+        };
+
+        // 👇 Force l-format "Imozine_1" (I kbira, baqi sghar)
+        $folder = null;
+        if (!empty($societe['raison_sociale_concatene']) && !empty($societe['id'])) {
+            $folder = ucfirst(strtolower($societe['raison_sociale_concatene'])) . '_' . $societe['id'];
+        }
+
+        // Logo
+        $logoBase64 = null;
+        if ($folder && !empty($societe['logo'])) {
+            $fileContent = $fetchAsset($folder . '/logos/' . $societe['logo']);
             if ($fileContent !== null) {
-                $extension = pathinfo($societe['logo'], PATHINFO_EXTENSION);
-                $mimeType = match($extension) {
-                    'png' => 'image/png',
-                    'jpg', 'jpeg' => 'image/jpeg',
-                    'gif' => 'image/gif',
-                    'svg' => 'image/svg+xml',
-                    default => 'image/png'
+                $extension = strtolower(pathinfo($societe['logo'], PATHINFO_EXTENSION));
+                $mimeType = match ($extension) {
+                    'png'        => 'image/png',
+                    'jpg','jpeg' => 'image/jpeg',
+                    'gif'        => 'image/gif',
+                    'svg'        => 'image/svg+xml',
+                    default      => 'image/png',
                 };
                 $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
             }
         }
 
-        // Process GreenLand image
+        // GreenLand
         $greenLandBase64 = null;
-        if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-            $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
-            $fileContent = null;
-
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($greenLandPath)) {
-                    $fileContent = Storage::disk('s3')->get($greenLandPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $greenLandPath);
-                if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
-                }
-            }
-
+        if ($folder) {
+            $fileContent = $fetchAsset($folder . '/logos/green_land.png');
             if ($fileContent !== null) {
                 $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
             }
         }
 
-        // Prepare data for PDF
+        // ============================================
+        // 👆 SALINA — daba $pdfData
+        // ============================================
+
         $pdfData = [
             'societe' => $societe,
             'num_recu' => $num_recu,
@@ -1368,15 +1376,15 @@ public function generateQuittancePDF(Request $request)
             'logoBase64' => $logoBase64,
             'greenLandBase64' => $greenLandBase64,
             'type' => $type,
-            'getCivilite' => function($civilite) {
+            'getCivilite' => function ($civilite) {
                 switch ($civilite) {
                     case "1": return "M.";
                     case "2": return "Mme";
                     case "3": return "Mlle";
-                    default: return "M./Mme";
+                    default:  return "M./Mme";
                 }
             },
-            'formatCurrency' => function($amount) {
+            'formatCurrency' => function ($amount) {
                 if ($amount <= 0) return '0 Dhs';
                 return number_format($amount, 0, ',', ' ') . ' Dhs';
             }
@@ -1389,7 +1397,6 @@ public function generateQuittancePDF(Request $request)
             $filename = "quittance_{$num_recu}.pdf";
         }
 
-        // Use the SAME blade template for both
         $pdf = Pdf::loadView('pdfs.quittance_n_avance', $pdfData);
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOptions([
