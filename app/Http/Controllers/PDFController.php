@@ -1349,6 +1349,7 @@ public function generateQuittancePDF(Request $request)
                 };
                 $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
             }
+
         }
 
         // GreenLand
