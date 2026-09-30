@@ -336,7 +336,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('search_client_by_phone/{phone}/{projet_id}', [V1ClientController::class, 'search_client_by_phone']);
         Route::get('search_client_by_email/{email}/{projet_id}', [V1ClientController::class, 'search_client_by_email']);
         Route::get('projets/{idprojet}/clients', [V1ClientController::class, 'indexByProjet']);
-
+        Route::get('/export-clients', [V1ClientController::class, 'exportClients']);
         //l'API Aquerreur
         Route::resource('aquereurs', V1AquereurController::class);
       //  Route::get('getAquereurByReservation/{reservation_id}', [V1AquereurController::class, 'getAquereurByReservation'])->name('getAquereurByReservation');
@@ -357,6 +357,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('avances_by_etat/{projet_id}/{etat}', [V1AvanceController::class, 'get_avances_by_etat'])->name('');
         Route::get('get_echeances/{projet_id}', [V1AvanceController::class, 'get_echeances'])->name('');
         Route::get('get_echeances_menu/{projet_id}', [V1AvanceController::class, 'get_echeances_menu'])->name('');
+        Route::get('/export-avances', [V1AvanceController::class, 'exportAvances']);
 
         //Route::get('historiques_avance/{date}/{id}', [AvanceController::class, 'historiques_avance'])->name('');
 
@@ -394,6 +395,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_notif_dst_att_validation_menu/{projet_id}', [V1DesistementController::class, 'get_notif_dst_att_validation_menu'])->name('');
         Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [V1DesistementController::class, 'get_historiques_desistement_by_reservation'])->name('');
         Route::get('get_dossiers_by_bien/{bien_id}', [V1DesistementController::class, 'get_dossiers_by_bien'])->name('');
+        Route::get('/export-desistements', [V1DesistementController::class, 'exportDesistements']);
+        Route::get('/export-penalites', [V1DesistementController::class, 'exportPenalites']);
         //l'Api relationClients
         Route::resource('appels', V1AppelController::class);
         Route::get('projets/{idprojet}/appels', [V1AppelController::class, 'indexByProjet']);
@@ -509,7 +512,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_notif_demande_pre_remboursement/{projet_id}', [V1RemboursementController::class, 'get_notif_demande_pre_remboursement'])->name('');
         Route::post('traiter_decaissement/{id}', [V1RemboursementController::class, 'traiter_decaissement'])->name('');
         Route::get('get_remboursements_dos_transfert/{projet_id}', [V1RemboursementController::class, 'get_remboursements_dos_transfert'])->name('');
-
+        Route::get('/export-remboursements', [V1RemboursementController::class, 'exportRemboursements']);
+        Route::get('/export-remboursements-dos-transfert', [V1RemboursementController::class, 'exportRemboursementsDosTransfert']);
         //IMPORT Bien by Excel
         Route::resource('/histo_importation', V1UploadBienController::class);
         Route::post('upload_excel_bien', [V1UploadBienController::class, 'upload'])->name('');

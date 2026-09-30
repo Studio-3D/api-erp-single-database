@@ -30,6 +30,97 @@ class RemboursementController extends Controller
     /**
      * Display a listing of the resource.
      */
+    public function exportRemboursements(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    DatabaseHelper::Config();
+
+    $projetId = $request->input('projet_id');
+    $etat = $request->input('etat');
+    $dateStart = $request->input('date_start');
+    $dateEnd = $request->input('date_end');
+
+    // Même requête de base que indexByProjet
+    $query = Remboursement::on('temp')
+        ->with('desistement_not_trashed', 'aquereur', 'banque')
+        ->where('archive', 0)
+        ->where('etat', 1)
+        ->where('mode_rembourse', '!=', 'transfert')
+        ->where(function ($q) {
+            $q->whereNotIn('mode_rembourse', ['transfert_rem_direct', 'transfert_rem_apres_vente'])
+              ->orWhere('montant_a_rembourser', '>', 0);
+        });
+
+    $query->whereHas('desistement_not_trashed', function ($q) use ($projetId) {
+        $q->where('projet_id', $projetId);
+    });
+
+    // Filtrage par rôle + action (etat)
+    if (RoleHelper::AdminSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::Comptable()) {
+        switch ($etat) {
+            case 0:
+                $query->where('remboursements.statut', 0)
+                    ->whereNull('cheque_client_signe')
+                    ->whereNull('user_id_remis');
+                break;
+            case 1:
+                $query->whereNotNull('user_id_remis')->where('statut', 2);
+                break;
+            case 2:
+                $query->where('statut', 3)
+                    ->whereNotNull('date_decaissement')
+                    ->whereNotNull('banque_id');
+                break;
+            case 3:
+                $query->where('remboursements.statut', 1)
+                    ->whereNull('cheque_client_signe')
+                    ->whereNull('user_id_remis');
+                break;
+        }
+    } elseif (RoleHelper::Com()) {
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
+        $query->whereHas('desistement_not_trashed', fn($q) => $q->where('user_id', $userAuth->id));
+
+        switch ($etat) {
+            case 0:
+                $query->where('statut', 0)
+                    ->whereNull('cheque_client_signe')
+                    ->whereNull('user_id_remis');
+                break;
+            case 3:
+                $query->where('statut', 1)
+                    ->whereNull('cheque_client_signe')
+                    ->whereNull('user_id_remis');
+                break;
+            case 4:
+                $query->where('statut', 2)->where('user_id_remis', $userAuth->id);
+                break;
+        }
+    }
+
+    // Filtrage par date (sur created_at)
+    $query->when($dateStart, function ($q) use ($dateStart) {
+        $start = Carbon::parse($dateStart)->format('Y-m-d');
+        return $q->whereDate('created_at', '>=', $start);
+    });
+
+    $query->when($dateEnd, function ($q) use ($dateEnd) {
+        $end = Carbon::parse($dateEnd)->format('Y-m-d');
+        return $q->whereDate('created_at', '<=', $end);
+    });
+
+    $remboursements = $query->orderBy('created_at', 'desc')->get();
+
+    return response()->json([
+        'data' => $remboursements,
+        'total' => $remboursements->count(),
+    ], 200);
+}
 
     public function indexByProjet(Request $request,$projet_id,$action)
     {
@@ -606,7 +697,62 @@ class RemboursementController extends Controller
         } else  return response()->json(['error'=>'Unauthorized'], 401);
     }
 
+public function exportRemboursementsDosTransfert(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
 
+    DatabaseHelper::Config();
+
+    $projetId = $request->input('projet_id');
+    $dateStart = $request->input('date_start');
+    $dateEnd = $request->input('date_end');
+
+    // Même requête de base que get_remboursements_dos_transfert
+    $query = Remboursement::on('temp')
+        ->with('desistement_not_trashed', 'dossier_transfert', 'desistement_not_trashed.user')
+        ->where('etat', 1)
+        ->where('archive', 0);
+
+    $query->whereHas('desistement_not_trashed', function ($q) use ($projetId) {
+        $q->where('projet_id', $projetId);
+    });
+
+    $query->where(function ($s) {
+        $s->where('mode_rembourse', 'transfert')
+          ->orWhere('mode_rembourse', 'transfert_rem_apres_vente')
+          ->orWhere('mode_rembourse', 'transfert_rem_direct');
+    });
+
+    // Filtrage par rôle (Commercial)
+    if (RoleHelper::Com()) {
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+        $query->whereHas('desistement_not_trashed', function ($q) use ($userAuth) {
+            $q->where('user_id', $userAuth->value('id'));
+        });
+    }
+
+    // Filtrage par date (sur created_at)
+    $query->when($dateStart, function ($q) use ($dateStart) {
+        $start = Carbon::parse($dateStart)->format('Y-m-d');
+        return $q->whereDate('created_at', '>=', $start);
+    });
+
+    $query->when($dateEnd, function ($q) use ($dateEnd) {
+        $end = Carbon::parse($dateEnd)->format('Y-m-d');
+        return $q->whereDate('created_at', '<=', $end);
+    });
+
+    $remboursements = $query->orderBy('created_at', 'desc')->get();
+
+    return response()->json([
+        'data' => $remboursements,
+        'total' => $remboursements->count(),
+    ], 200);
+}
 
     public function get_remboursements_dos_transfert(Request $request,$projet_id)
     {

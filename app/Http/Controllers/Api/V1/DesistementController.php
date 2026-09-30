@@ -3285,6 +3285,100 @@ public function validation_desitement($id,Request $request){
         return response()->json(['nb_dd'=>$nb_dd,'nb_dp_proche'=>$nb_dp_proche,'nb_dp_partiel'=>$nb_dp_partiel,'nb_dp_co'=>$nb_dp_co,'nb_change'=>$nb_change]);
     }
 
+    public function exportDesistements(Request $request)
+    {
+        if (!Auth::guard('api')->check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        DatabaseHelper::Config();
+
+        $projetId = $request->input('projet_id');
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
+        $statut = $request->input('statut');
+        $type = $request->input('type');
+
+        // Map statut: 5 (En attente) => 0 (encours) as in indexByProjet
+        if ($statut == 5) {
+            $statut = 0;
+        }
+
+        // Map type to enum values (same logic as indexByProjet)
+        $type_e = null;
+        $type_e_dp = null;
+
+        if ($type == 'dst_definitif') {
+            $type_e = TypeDesistement::Désistement_Définitif->value;
+        } elseif ($type == 'change_bien') {
+            $type_e = TypeDesistement::Changement_De_Bien->value;
+        } else {
+            if ($type == 'dp_co') {
+                $type_e_dp = TypeDesistementProfit::Désistement_AU_PROFIT_UN_CO_RESERVATAIRE->value;
+                $type_e = TypeDesistement::Désistement_Au_Profit->value;
+            } elseif ($type == 'dp_proche') {
+                $type_e_dp = TypeDesistementProfit::Désistement_AU_PROFIT_UN_PROCHE->value;
+                $type_e = TypeDesistement::Désistement_Au_Profit->value;
+            } elseif ($type == 'dp_partiel') {
+                $type_e_dp = TypeDesistementProfit::Désistement_Partiel->value;
+                $type_e = TypeDesistement::Désistement_Au_Profit->value;
+            }
+        }
+
+        // Build query with same relations as indexByProjet
+        $query = Desistement::on('temp')
+            ->with(
+                'user',
+                'penalite_desistement',
+                'remboursement',
+                'nouvel_aquereurs_desistements',
+                'aquereurs_desisteurs',
+                'aquereurs_profits',
+                'aquereurs_partiel',
+                'Bien_nouveau',
+                'Bien_ancien',
+                'responsable_validation',
+                'reservation_ancien',
+                'reservation_ancien.aquereurs.client',
+                'reservation_ancien.aquereurs_ancien.client',
+                'aquereurs_desisteurs.aquereur.client',
+                'aquereurs_profits.aquereur.client'
+            )
+            ->where('statut', $statut)
+            ->where('type', $type_e)
+            ->where('projet_id', $projetId)
+            ->where('archive', 0);
+
+        // Only apply type_dp if it's not null (for profit types)
+        if ($type_e_dp !== null) {
+            $query->where('type_dp', $type_e_dp);
+        }
+
+        // Filter by date range (on created_at, same as indexByProjet)
+        $query->when($dateStart, function ($q) use ($dateStart) {
+            $start = Carbon::parse($dateStart)->format('Y-m-d');
+            return $q->whereDate('created_at', '>=', $start);
+        });
+
+        $query->when($dateEnd, function ($q) use ($dateEnd) {
+            $end = Carbon::parse($dateEnd)->format('Y-m-d');
+            return $q->whereDate('created_at', '<=', $end);
+        });
+
+        // Apply role-based filtering (same as indexByProjet)
+        if (RoleHelper::Com()) {
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $query->where('user_id', $userAuth->value('id'));
+        }
+
+        $desistements = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'data' => $desistements,
+            'total' => $desistements->count()
+        ], 200);
+    }
     public function indexByProjet(Request $request, $projet_id)
     {
 
@@ -3435,17 +3529,17 @@ public function validation_desitement($id,Request $request){
         }
 
 
-    // Gérer les rôles et la pagination
-    if (RoleHelper::AdminSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
-        $desistements = $query->orderBy('created_at', 'desc')
-            ->paginate($size, ['*'], 'page', $page);
-    } elseif (RoleHelper::Com()) {
-        $user = Auth::user();
-        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-        $query->where('user_id',$userAuth->value('id'));
-        $desistements =  $query->orderBy('created_at', 'desc')
-            ->paginate($size, ['*'], 'page', $page);
-    }
+        // Gérer les rôles et la pagination
+        if (RoleHelper::AdminSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()) {
+            $desistements = $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+        } elseif (RoleHelper::Com()) {
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+            $query->where('user_id',$userAuth->value('id'));
+            $desistements =  $query->orderBy('created_at', 'desc')
+                ->paginate($size, ['*'], 'page', $page);
+        }
 
         // Construire la pagination et retourner la réponse
         $pagination = [
@@ -3773,7 +3867,7 @@ public function validation_desitement($id,Request $request){
     public function get_all_penalites(Request $request, $projet_id,$statut)
     {
 
-        if (RoleHelper::ACSup_RC() || RoleHelper::AgentAdmin() || RoleHelper::AgentAdmin()||RoleHelper::Comptable()) {
+        if (RoleHelper::ACSup_RC() || RoleHelper::AgentAdmin() ||RoleHelper::Comptable()) {
             DatabaseHelper::Config();
             $size = $request->input('size', config('app.default_item_number_perpage'));
             $page = $request->input('page', 1);
@@ -3895,7 +3989,65 @@ public function validation_desitement($id,Request $request){
         }
     }
 
+public function exportPenalites(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
 
+    if (!RoleHelper::ACSup_RC() && !RoleHelper::AgentAdmin() && !RoleHelper::Comptable() && !RoleHelper::Com()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    DatabaseHelper::Config();
+
+    $projetId = $request->input('projet_id');
+    $statut = $request->input('statut');
+    $dateStart = $request->input('date_start');
+    $dateEnd = $request->input('date_end');
+
+    // Statut 5 (En attente) => 0 (encours commercial)
+    if ($statut == 5) {
+        $statut = 0;
+    }
+
+    $query = PenaliteDesistement::on('temp')
+        ->with('last_statut', 'responsable_validation', 'desistement')
+        ->where('statut', $statut)
+        ->where('archive', 0);
+
+    $query->whereHas('desistement', function ($q) use ($projetId) {
+        $q->where('projet_id', $projetId)->where('archive', 0)->where('statut', 1);
+    });
+
+    // Date range filter (on created_at)
+    $query->when($dateStart, function ($q) use ($dateStart) {
+        $start = Carbon::parse($dateStart)->format('Y-m-d');
+        return $q->whereDate('created_at', '>=', $start);
+    });
+
+    $query->when($dateEnd, function ($q) use ($dateEnd) {
+        $end = Carbon::parse($dateEnd)->format('Y-m-d');
+        return $q->whereDate('created_at', '<=', $end);
+    });
+
+    // Role-based filtering (same as get_all_penalites)
+    if (RoleHelper::Com()) {
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+        $query->whereHas('desistement', function ($q) use ($userAuth) {
+            $q->where('user_id', $userAuth->value('id'));
+        });
+    }
+
+    $penalites = $query->orderBy('created_at', 'desc')->get();
+
+    return response()->json([
+        'data' => $penalites,
+        'total' => $penalites->count()
+    ], 200);
+}
     public function show_penalite($id)
     {
         if (Auth::guard('api')->check()) {

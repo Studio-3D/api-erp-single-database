@@ -445,6 +445,171 @@ class AvanceController extends Controller
         }
     }
 
+    public function exportAvances(Request $request)
+{
+    if (!Auth::guard('api')->check()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    if (!RoleHelper::ACSup_RC() && !RoleHelper::AgentAdmin() && !RoleHelper::Comptable()
+        && !RoleHelper::Com() && !RoleHelper::RespoCommercial()) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    DatabaseHelper::Config();
+
+    $projetId = $request->input('projet_id');
+    $statut = $request->input('statut'); // 1, 2, 3 ou 99 (échéances)
+    $dateStart = $request->input('date_start');
+    $dateEnd = $request->input('date_end');
+
+    // ============================================================
+    // CAS 1 : ÉCHÉANCES (statut = 99)
+    // ============================================================
+    if ($statut == 99) {
+        $query = Avance::on('temp')
+            ->with('last_statut', 'reservation', 'reservation.aquereurs.client', 'reservation.bien', 'user', 'banque')
+            ->where('mode_paiement', '!=', 7)
+            ->where('montant', '>', 0)
+            ->where('statut', StatutReservationEnum::Validé->value)
+            ->where(function ($q) {
+                $q->whereDoesntHave('last_statut')
+                  ->orWhereHas('last_statut', function ($sub) {
+                      $sub->whereNull('date_encaissement');
+                  });
+            });
+
+        // Filtres rôle
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::Comptable()) {
+            $query->whereHas('reservation', function ($q) use ($projetId) {
+                $q->where('projet_id', $projetId)
+                  ->where('etat', 1)
+                  ->where('statut', StatutReservationEnum::Validé->value);
+            });
+        } else if (RoleHelper::Com() || RoleHelper::RespoCommercial()) {
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+            $query->where('avances.user_id', $userAuth->value('id'))
+                  ->whereHas('reservation', function ($q) use ($projetId) {
+                      $q->where('projet_id', $projetId)
+                        ->where('etat', 1)
+                        ->where('statut', StatutReservationEnum::Validé->value);
+                  });
+        }
+
+        // Filtre date (sur echeance)
+        $query->when($dateStart, function ($q) use ($dateStart) {
+            return $q->whereDate('echeance', '>=', Carbon::parse($dateStart));
+        });
+        $query->when($dateEnd, function ($q) use ($dateEnd) {
+            return $q->whereDate('echeance', '<=', Carbon::parse($dateEnd));
+        });
+
+        $avances = $query->orderByRaw("
+            CASE WHEN echeance < CURDATE() THEN 0 ELSE 1 END ASC,
+            echeance ASC
+        ")->get();
+
+        return response()->json([
+            'data' => $avances,
+            'total' => $avances->count(),
+        ], 200);
+    }
+
+    // ============================================================
+    // CAS 2 : AVANCES PAR ÉTAT (statut = 1, 2, 3)
+    // ============================================================
+    $query = Avance::on('temp')
+        ->with('last_statut', 'reservation', 'reservation.aquereurs.client', 'reservation.bien', 'user', 'banque')
+        ->where('mode_paiement', '!=', 7)
+        ->where('montant', '>', 0)
+        ->orderBy('created_at', 'desc');
+
+    // Statut 3 : Inclut statut 1 sans encaissement + statut 3
+    if ($statut == 3) {
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::Comptable()) {
+            $query->where(function ($q) {
+                $q->where('statut', 1)->orWhere('statut', 3);
+            });
+            $query->whereHas('reservation', function ($q) use ($projetId) {
+                $q->where('projet_id', $projetId)
+                  ->where('etat', 1)
+                  ->where('statut', StatutReservationEnum::Validé->value);
+            });
+            // 🔥 FIX : Appliquer le filtre de date AVANT le get()
+            $query->when($dateStart, function ($q) use ($dateStart) {
+                return $q->whereDate('date_reglement', '>=', Carbon::parse($dateStart));
+            });
+            $query->when($dateEnd, function ($q) use ($dateEnd) {
+                return $q->whereDate('date_reglement', '<=', Carbon::parse($dateEnd));
+            });
+            // Post-filtrage en PHP (comme dans get_avances_by_etat)
+            $array = $query->get();
+            $avances = $array->filter(function ($ar) {
+                if ($ar->statut == 3) return true;
+                if ($ar->last_statut != null && $ar->last_statut->date_encaissement == null) return true;
+                return false;
+            })->values();
+        } elseif (RoleHelper::Com() || RoleHelper::RespoCommercial()) {
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+            $query->where('statut', $statut)
+                  ->where('avances.user_id', $userAuth->value('id'))
+                  ->whereHas('reservation', function ($q) use ($projetId) {
+                      $q->where('projet_id', $projetId)
+                        ->where('etat', 1)
+                        ->where('statut', StatutReservationEnum::Validé->value);
+                  });
+            // 🔥 FIX : Appliquer aussi le filtre de date ici
+            $query->when($dateStart, function ($q) use ($dateStart) {
+                return $q->whereDate('date_reglement', '>=', Carbon::parse($dateStart));
+            });
+            $query->when($dateEnd, function ($q) use ($dateEnd) {
+                return $q->whereDate('date_reglement', '<=', Carbon::parse($dateEnd));
+            });
+            $avances = $query->get();
+        }
+    } else {
+        // Statut 1 ou 2 : simple filtre
+        $query->where('statut', $statut);
+
+        if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() || RoleHelper::Comptable()) {
+            $query->whereHas('reservation', function ($q) use ($projetId) {
+                $q->where('projet_id', $projetId)
+                  ->where('etat', 1)
+                  ->where('statut', StatutReservationEnum::Validé->value);
+            });
+        } elseif (RoleHelper::Com() || RoleHelper::RespoCommercial()) {
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
+            $query->where('avances.user_id', $userAuth->value('id'))
+                  ->whereHas('reservation', function ($q) use ($projetId) {
+                      $q->where('projet_id', $projetId)
+                        ->where('etat', 1)
+                        ->where('statut', StatutReservationEnum::Validé->value);
+                  });
+        }
+
+        // Filtre date (sur date_reglement pour les avances)
+        $query->when($dateStart, function ($q) use ($dateStart) {
+            return $q->whereDate('date_reglement', '>=', Carbon::parse($dateStart));
+        });
+        $query->when($dateEnd, function ($q) use ($dateEnd) {
+            return $q->whereDate('date_reglement', '<=', Carbon::parse($dateEnd));
+        });
+
+        $avances = $query->get();
+    }
+
+    return response()->json([
+        'data' => $avances,
+        'total' => $avances->count(),
+    ], 200);
+}
+
     public function traiter_avance($id, Request $request)
     {
         if (RoleHelper::AdminSup() || RoleHelper::AgentAdmin() ||RoleHelper::Comptable()) {
