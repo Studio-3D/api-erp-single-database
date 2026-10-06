@@ -564,142 +564,212 @@ public function indexByProjet(Request $request, $projet_id)
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function traiter_prospect($id, Request $request)
-    {
-        // ✅ Validate that 'statut' is required and must not be null
-        $request->validate([
-            'statut' => 'required',
-        ], [
-            'statut.required' => 'Le Statut est Obligatoire.',
-        ]);
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
-            DatabaseHelper::Config();
-            $user      = Auth::user();
-            $userAuth  = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $prospect  = Prospect::on('temp')->findOrFail($id);
+   public function traiter_prospect($id, Request $request)
+{
+    // ✅ Validate that 'statut' is required and must not be null
+    $request->validate([
+        'statut' => 'required',
+    ], [
+        'statut.required' => 'Le Statut est Obligatoire.',
+    ]);
 
-            // Update prospect with traitement tracking
-            $prospect->traite_par_user_id = $userAuth->value('id');
-            $prospect->date_traitement = Carbon::now();
-            // 🔑 Incrémenter le compteur d'injoignables
-            // 🔑 Gestion du compteur d'injoignables
-            $statut = (int) $request->statut;
+    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
+        DatabaseHelper::Config();
+        $user     = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        $prospect = Prospect::on('temp')->findOrFail($id);
 
-            if ($statut === StatutProspectEnum::Injoignable->value) {
-                // Marqué injoignable → +1
-                $prospect->nb_injoignable = (int) $prospect->nb_injoignable + 1;
-            } elseif (in_array($statut, [
-                 StatutProspectEnum::Receptif->value,
-                StatutProspectEnum::Interesse->value,
-                StatutProspectEnum::Planification_RDV->value,
-                StatutProspectEnum::Converti_en_visite->value,
-                StatutProspectEnum::Converti_en_client->value,
-                StatutProspectEnum::pre_reservation->value,
-                // tu peux ajouter d'autres statuts "joignable" ici
-            ])) {
-                // Le prospect est redevenu joignable → reset
-                $prospect->nb_injoignable = 0;
-            }
-            // Sinon (Rappel, Perdu, WhatsApp, etc.) → on ne touche pas
+        $nouveauCommercialId = $userAuth->value('id');
 
-            // Unassign prospect from commercial for certain final statuses
-            $finalStatuses = [
-                StatutProspectEnum::Perdu->value,              // Lost prospects should be unassigned
-                StatutProspectEnum::Converti_en_visite->value, // Converted prospects move to next stage
-            ];
+        // ============================================================
+        // 🔑 DÉTECTION DU CHANGEMENT DE COMMERCIAL (RÉAFFECTATION)
+        // ============================================================
+        $ancienCommercialId = $prospect->commercial_affecte;
 
-            if (in_array($request->statut, $finalStatuses)) {
-                $oldCommercialId = $prospect->commercial_affecte;
-                $prospect->commercial_affecte = null;
-                $prospect->affecte_par_admin_id = null;
-                $prospect->date_affectation = null;
+        $estReaffectation = $ancienCommercialId
+            && $nouveauCommercialId
+            && (int) $ancienCommercialId !== (int) $nouveauCommercialId;
 
-                // Update commercial's prospect counter
-                if ($oldCommercialId) {
-                    \App\Models\User::on('temp')
-                        ->where('id', $oldCommercialId)
-                        ->decrement('nb_prospects');
-                }
-            }
+        // ============================================================
+        // MISE À JOUR DU PROSPECT
+        // ============================================================
+        $prospect->traite_par_user_id = $nouveauCommercialId;
+        $prospect->date_traitement    = Carbon::now();
 
+        // 🔑 Gestion du compteur d'injoignables
+        $statut = (int) $request->statut;
 
-            $prospect->save();
+        if ($statut === StatutProspectEnum::Injoignable->value) {
+            // Marqué injoignable → +1
+            $prospect->nb_injoignable = (int) $prospect->nb_injoignable + 1;
+        } elseif (in_array($statut, [
+            StatutProspectEnum::Receptif->value,
+            StatutProspectEnum::Interesse->value,
+            StatutProspectEnum::Planification_RDV->value,
+            StatutProspectEnum::Converti_en_visite->value,
+            StatutProspectEnum::Converti_en_client->value,
+            StatutProspectEnum::pre_reservation->value,
+        ])) {
+            // Le prospect est redevenu joignable → reset
+            $prospect->nb_injoignable = 0;
+        }
+        // Sinon (Rappel, Perdu, WhatsApp, etc.) → on ne touche pas
 
-            $ps_statut = new statutProspect();
-            $ps_statut->setConnection('temp');
-            $ps_statut->prospect_id     = $id;
-            // Coerce to numeric string to enforce storage policy
-            $ps_statut->statut          = is_numeric($request->statut)
-                ? (string) $request->statut
-                : (string) (\App\Enum\StatutProspectEnum::tryFrom($request->statut)?->value ?? '0');
+        // ============================================================
+        // 🔑 RÉAFFECTATION : le commercial qui traite devient le nouveau commercial affecté
+        // ============================================================
+        if ($estReaffectation) {
+            // Décrémenter l'ancien commercial
+            \App\Models\User::on('temp')
+                ->where('id', $ancienCommercialId)
+                ->decrement('nb_prospects');
 
-            // Add unassignment note to comment for final statuses
-            $commentaire = $request->commentaire;
-            if (in_array($request->statut, $finalStatuses)) {
-                $commentaire = $commentaire ? $commentaire . ' (Prospect désaffecté du commercial)' : 'Prospect désaffecté du commercial';
-            }
-            $ps_statut->commentaire     = $commentaire;
+            // Incrémenter le nouveau commercial
+            \App\Models\User::on('temp')
+                ->where('id', $nouveauCommercialId)
+                ->increment('nb_prospects');
 
-            $ps_statut->user_id_traite  = $userAuth->value('id');
-            $ps_statut->date_traitement = Carbon::now();
-            if ($request->statut == 1) {
-                $ps_statut->rdv = $request->rdv;
-                $ps_statut->type_traitement_rdv_relance = 0;
-            } elseif ($request->statut == 3) {
-                $ps_statut->date_rappel = $request->date_rappel;
-                $ps_statut->type_traitement_rdv_relance = 0;
-
-            }
-
-            if ($ps_statut->save()) {
-                if ($request->statut == 2) {
-                    //rappel
-                    Config::set('broadcasting.default', 'pusher_notify');
-                    $data_notif = [
-                        'lien'        => '/crm/prospects/' . $id,
-                        'date'        => $request->date_rappel,
-                        'type'        => 30,
-                        'user_id'     => Auth::guard('api')->user()->id,
-                        'description' => 'le prospect doit etre rappelé',
-                        'projet_id'   => $prospect->projet_id,
-                        'prospect_id' => $id,
-
-                    ];
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
-                    broadcast(new NotificationEvent($id));
-                    broadcast(new NotifMenuEvent('H'));
-
-
-                }
-                if ($request->statut == 1) {
-                    //rdv
-                    Config::set('broadcasting.default', 'pusher_notify');
-                    $data_notif = [
-                       // 'lien'        => '/crm/prospects/' . $id,
-                         'lien'        => '/crm?tab=rendez-vous',
-                        'date'        => $request->rdv,
-                        'type'        => 31,
-                        'user_id'     => Auth::guard('api')->user()->id,
-                        'description' => 'le prospect a un rdv',
-                        'projet_id'   => $prospect->projet_id,
-                        'prospect_id' => $id,
-
-                    ];
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
-                    broadcast(new NotificationEvent($id));
-                    broadcast(new NotifMenuEvent('G'));
-
-                }
-            }
-            return response()->json(['message' => 'done'], 200);
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            // Mettre à jour l'affectation
+            $prospect->commercial_affecte   = $nouveauCommercialId;
+            $prospect->affecte_par_admin_id = $nouveauCommercialId;
+            $prospect->date_affectation     = Carbon::now();
         }
 
+        // ============================================================
+        // UNASSIGN pour certains statuts finaux
+        // ============================================================
+        $finalStatuses = [
+            StatutProspectEnum::Perdu->value,              // 8
+            StatutProspectEnum::Converti_en_visite->value, // 4
+        ];
+
+        if (in_array($request->statut, $finalStatuses)) {
+            $oldCommercialId = $prospect->commercial_affecte;
+            $prospect->commercial_affecte   = null;
+            $prospect->affecte_par_admin_id = null;
+            $prospect->date_affectation     = null;
+
+            // Update commercial's prospect counter
+            if ($oldCommercialId) {
+                \App\Models\User::on('temp')
+                    ->where('id', $oldCommercialId)
+                    ->decrement('nb_prospects');
+            }
+        }
+
+        $prospect->save();
+
+        // ============================================================
+        // PRÉPARATION DES DONNÉES COMMUNES
+        // ============================================================
+        $statutDemande = is_numeric($request->statut)
+            ? (int) $request->statut
+            : (\App\Enum\StatutProspectEnum::tryFrom($request->statut)?->value ?? 0);
+
+        // Récupérer les noms des commerciaux pour les commentaires
+        $ancienCommercial  = $ancienCommercialId
+            ? \App\Models\User::on('temp')->find($ancienCommercialId)
+            : null;
+        $nouveauCommercial = \App\Models\User::on('temp')->find($nouveauCommercialId);
+
+        $ancienNom  = $ancienCommercial ? $ancienCommercial->name : "ID#$ancienCommercialId";
+        $nouveauNom = $nouveauCommercial ? $nouveauCommercial->name : "ID#$nouveauCommercialId";
+
+        // ============================================================
+        // 1️⃣ STATUT RÉAFFECTATION (uniquement si réaffectation)
+        // ============================================================
+        if ($estReaffectation) {
+            $ps_reaffect = new statutProspect();
+            $ps_reaffect->setConnection('temp');
+            $ps_reaffect->prospect_id     = $id;
+            $ps_reaffect->statut          = (string) StatutProspectEnum::Reaffecte->value;
+            $ps_reaffect->commentaire     = sprintf(
+                'Prospect réaffecté de %s vers %s',
+                $ancienNom,
+                $nouveauNom
+            );
+            $ps_reaffect->user_id_traite  = $nouveauCommercialId;
+            $ps_reaffect->date_traitement = Carbon::now();
+            $ps_reaffect->save();
+        }
+
+        // ============================================================
+        // 2️⃣ STATUT MÉTIER (le statut demandé par le commercial)
+        // ============================================================
+        $ps_statut = new statutProspect();
+        $ps_statut->setConnection('temp');
+        $ps_statut->prospect_id = $id;
+        $ps_statut->statut      = (string) $statutDemande;
+
+        // Construction du commentaire métier
+        $commentaire = $request->commentaire;
+        if (in_array($request->statut, $finalStatuses)) {
+            $commentaire = $commentaire
+                ? $commentaire . ' (Prospect désaffecté du commercial)'
+                : 'Prospect désaffecté du commercial';
+        }
+
+        $ps_statut->commentaire     = $commentaire;
+        $ps_statut->user_id_traite  = $nouveauCommercialId;
+        $ps_statut->date_traitement = Carbon::now();
+
+        // Gestion RDV / Rappel selon le statut métier
+        if ($statutDemande === StatutProspectEnum::Planification_RDV->value) { // 1
+            $ps_statut->rdv = $request->rdv;
+            $ps_statut->type_traitement_rdv_relance = 0;
+        } elseif ($statutDemande === StatutProspectEnum::Rappel->value) { // 3
+            $ps_statut->date_rappel = $request->date_rappel;
+            $ps_statut->type_traitement_rdv_relance = 0;
+        }
+
+        // ============================================================
+        // NOTIFICATIONS (uniquement sur le statut métier)
+        // ============================================================
+        if ($ps_statut->save()) {
+
+            // --- RAPPEL (statut = 2 côté legacy, mais dans l'enum Rappel = 3) ---
+            if ($request->statut == 2) {
+                Config::set('broadcasting.default', 'pusher_notify');
+                $data_notif = [
+                    'lien'        => '/crm/prospects/' . $id,
+                    'date'        => $request->date_rappel,
+                    'type'        => 30,
+                    'user_id'     => Auth::guard('api')->user()->id,
+                    'description' => 'le prospect doit etre rappelé',
+                    'projet_id'   => $prospect->projet_id,
+                    'prospect_id' => $id,
+                ];
+                $notif_helper = new NotificationHelper();
+                $notif_helper->storeNotification($request->merge($data_notif));
+                broadcast(new NotificationEvent($id));
+                broadcast(new NotifMenuEvent('H'));
+            }
+
+            // --- RDV (statut = 1) ---
+            if ($request->statut == 1) {
+                Config::set('broadcasting.default', 'pusher_notify');
+                $data_notif = [
+                    'lien'        => '/crm?tab=rendez-vous',
+                    'date'        => $request->rdv,
+                    'type'        => 31,
+                    'user_id'     => Auth::guard('api')->user()->id,
+                    'description' => 'le prospect a un rdv',
+                    'projet_id'   => $prospect->projet_id,
+                    'prospect_id' => $id,
+                ];
+                $notif_helper = new NotificationHelper();
+                $notif_helper->storeNotification($request->merge($data_notif));
+                broadcast(new NotificationEvent($id));
+                broadcast(new NotifMenuEvent('G'));
+            }
+        }
+
+        return response()->json(['message' => 'done'], 200);
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
     public function get_Historiques_by_prospect($id, Request $request)
 {

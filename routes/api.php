@@ -69,6 +69,7 @@ use App\Http\Controllers\TikTok\TikTokApiController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\LinkedIn\LinkedInController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Facebook_Instagram\MakeLeadController;
 
 /*
 |--------------------------------------------------------------------------
@@ -108,8 +109,9 @@ Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class, 'handleWe
 Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify']);
 /************************ads faceboook********************/
 
-Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
-Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
+//Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
+//Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
+Route::post('/make/leads', [MakeLeadController::class, 'store']);
 
 
 Route::post('/chat', [V1AgentController::class, 'chat']);
