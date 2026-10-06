@@ -319,10 +319,11 @@ Route::middleware('auth:api')->group(function () {
         Route::post('upload_excel_prospect', [V1ProspectController::class, 'upload'])->name('');
         Route::put('traiter_prospect/{id}', [V1ProspectController::class, 'traiter_prospect'])->name('');
         Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
+        Route::get('export-historiques/{id}', [V1ProspectController::class, 'export_historiques']);
         Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
         Route::post('prospects/auto-assign', [V1ProspectController::class, 'autoAssignProspects'])->name('auto_assign_prospects');
         Route::put('traiter_relance_rdv_prospect/{id}', [V1ProspectController::class, 'traiterRelanceRdvProspect']);
-
+        Route::get('export-historiques/{id}', [V1ProspectController::class, 'export_historiques']);
         Route::get('get_nb_prospect_rdv/{projet_id}', [V1ProspectController::class, 'getNbProspectRdv'])->name('');
         Route::get('get_nb_prospect_relance/{projet_id}', [V1ProspectController::class, 'getNbProspectRelance'])->name('');
 

@@ -1008,6 +1008,200 @@ public function indexByProjet(Request $request, $projet_id)
 
     return response()->json(['error' => 'Unauthorized'], 401);
 }
+public function export_historiques(Request $request, $id)
+{
+    if (Auth::guard('api')->check()) {
+        $dateStart = $request->input('date_start');
+        $dateEnd   = $request->input('date_end');
+
+        DatabaseHelper::Config();
+
+        // Récupérer le prospect pour vérifier s'il est devenu client
+        $prospect = Prospect::on('temp')->find($id);
+
+        if (!$prospect) {
+            return response()->json(['error' => 'Prospect non trouvé'], 404);
+        }
+
+        // 1. Récupérer les statuts de prospect
+        $statutsProspect = StatutProspect::on('temp')
+            ->select(
+                'id',
+                'prospect_id',
+                'statut',
+                'user_id_traite',
+                'date_traitement',
+                'rdv',
+                'date_rappel',
+                'commentaire',
+                'visite_id',
+                'appel_id',
+                'created_at',
+                'updated_at'
+            )
+            ->with([
+                'user' => function($query) {
+                    $query->select('id', 'name', 'prenom')
+                        ->without('societe');
+                }
+            ])
+            ->where('prospect_id', $id)
+            ->without('prospect')
+            ->get();
+
+        // 2. Récupérer les statuts de client si le prospect est devenu client
+        $statutsClient = collect();
+        if ($prospect->client_id) {
+            $statutsClient = StatutClient::on('temp')
+                ->select(
+                    'id',
+                    'statut',
+                    'user_id_traite',
+                    'date_traitement',
+                    'commentaire',
+                    'visite_id',
+                    'created_at',
+                    'updated_at',
+                    'reservation_id',
+                    'avance_id',
+                    'desistement_id',
+                    'penalite_id',
+                    'remboursement_id',
+                    'client_id',
+                    'rdv_id'
+                )
+                ->where('client_id', $prospect->client_id)
+                ->with([
+                    'user' => function($query) {
+                        $query->select('id', 'name', 'prenom')
+                            ->without('societe');
+                    },
+                    'reservation' => function($query) {
+                        $query->select('id', 'code_reservation');
+                    },
+                    'avance' => function($query) {
+                        $query->select('id', 'montant');
+                    },
+                    'rdv' => function($query) {
+                        $query->select('id', 'rdv');
+                    }
+                ])
+                ->without('client')
+                ->get();
+        }
+
+        // 3. Combiner et formater les résultats
+        $allHistoriques = collect();
+
+        // Ajouter les statuts de prospect
+        foreach ($statutsProspect as $statut) {
+            $allHistoriques->push([
+                'id' => 'prospect_'.$statut->id,
+                'prospect_id' => $statut->prospect_id,
+                'statut' => $statut->statut,
+                'user_id_traite' => $statut->user_id_traite,
+                'date_traitement' => $statut->date_traitement,
+                'rdv' => $statut->rdv,
+                'date_rappel' => $statut->date_rappel,
+                'commentaire' => $statut->commentaire,
+                'visite_id' => $statut->visite_id,
+                'appel_id' => $statut->appel_id,
+                'created_at' => $statut->created_at,
+                'updated_at' => $statut->updated_at,
+                'type_source' => 'prospect',
+                'reservation_id' => null,
+                'avance_id' => null,
+                'desistement_id' => null,
+                'penalite_id' => null,
+                'remboursement_id' => null,
+                'client_id' => null,
+                'user' => $statut->user ? [
+                    'id' => $statut->user->id,
+                    'name' => $statut->user->name,
+                    'prenom' => $statut->user->prenom
+                ] : null
+            ]);
+        }
+
+        // Ajouter les statuts de client
+        foreach ($statutsClient as $statut) {
+            $rdvDate = null;
+            if ($statut->rdv_id && $statut->rdv) {
+                $rdvDate = $statut->rdv->rdv;
+            }
+            $allHistoriques->push([
+                'id' => 'client'.$statut->id,
+                'prospect_id' => null,
+                'statut' => $statut->statut,
+                'user_id_traite' => $statut->user_id_traite,
+                'date_traitement' => $statut->date_traitement,
+                'rdv' => $rdvDate,
+                'date_rappel' => null,
+                'commentaire' => $statut->commentaire,
+                'visite_id' => $statut->visite_id,
+                'appel_id' => null,
+                'created_at' => $statut->created_at,
+                'updated_at' => $statut->updated_at,
+                'type_source' => 'client',
+                'reservation_id' => $statut->reservation_id,
+                'avance_id' => $statut->avance_id,
+                'desistement_id' => $statut->desistement_id,
+                'penalite_id' => $statut->penalite_id,
+                'remboursement_id' => $statut->remboursement_id,
+                'client_id' => $statut->client_id,
+                'rdv_id' => $statut->rdv_id,
+                'user' => $statut->user ? [
+                    'id' => $statut->user->id,
+                    'name' => $statut->user->name,
+                    'prenom' => $statut->user->prenom
+                ] : null,
+                'reservation' => $statut->reservation ? [
+                    'id' => $statut->reservation->id,
+                    'code_reservation' => $statut->reservation->code_reservation
+                ] : null,
+                'avance' => $statut->avance ? [
+                    'id' => $statut->avance->id,
+                    'montant' => $statut->avance->montant
+                ] : null,
+                'rendez_vous' => $statut->rdv ? [
+                    'id' => $statut->rdv->id,
+                    'rdv' => $statut->rdv->rdv,
+                ] : null
+            ]);
+        }
+
+        // 4. Appliquer les filtres (incluant les nouvelles dates)
+        $filteredHistoriques = $allHistoriques;
+
+        // ✅ Filtre date_start / date_end (pour l'export)
+        if ($dateStart) {
+            $start = Carbon::parse($dateStart)->startOfDay();
+            $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($start) {
+                return $item['date_traitement'] &&
+                    Carbon::parse($item['date_traitement'])->gte($start);
+            });
+        }
+
+        if ($dateEnd) {
+            $end = Carbon::parse($dateEnd)->endOfDay();
+            $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($end) {
+                return $item['date_traitement'] &&
+                    Carbon::parse($item['date_traitement'])->lte($end);
+            });
+        }
+
+        // 5. Trier (SANS pagination)
+        $sortedHistoriques = $filteredHistoriques->sortByDesc('created_at')->values();
+
+        // ✅ Retourner TOUTES les données
+        return response()->json([
+            'data'  => $sortedHistoriques,
+            'total' => $sortedHistoriques->count(),
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
     /*public function get_Historiques_by_prospect($id, Request $request)
     {
         if (Auth::guard('api')->check()) {
