@@ -710,7 +710,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
         }
 
         // Get all active commercials (role = 3) for this project
-        $commercials = User::on('temp')
+       /* $commercials = User::on('temp')
             ->where(function($query) use ($projetId) {
                 $query->whereHas('projets', function($q) use ($projetId) {
                     $q->where('projet_id', $projetId);
@@ -795,7 +795,24 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                     'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom
                 ]);
             }
+        }*/
+    //added by me pour tous les prospect soit affecte a 22
+
+        $targetCommercial = User::on('temp')
+        ->where('id', 22)
+        ->where('role', 3)
+        ->where('is_actif', 1)
+        ->whereNull('deleted_at')
+        ->first();
+
+        if (!$targetCommercial) {
+            Log::error('❌ Commercial 22 not found', [
+                'commercial_id' => 22
+            ]);
+            return false;
         }
+
+
 
         // Get system user (Admin)
         $systemUser = User::on('temp')
@@ -807,10 +824,12 @@ private function autoAssignSingleProspect($prospectId, $projetId)
         DB::connection('temp')->beginTransaction();
 
         try {
-            $newCommercialId = $targetCommercial->id;
+
+             $newCommercialId = $targetCommercial->id;
 
             // ✅ 1. Update prospect assignment
-            $prospect->commercial_affecte = $newCommercialId;
+             $prospect->commercial_affecte = $newCommercialId;
+
             if ($systemUser) {
                 $prospect->affecte_par_admin_id = $systemUser->id;
             }
@@ -886,7 +905,7 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 ->first();
 
             Log::info('🔍 Verification after commit', [
-                'prospect_commercial_id' => $verifyProspect ? $verifyProspect->commercial_affecte : null,
+               // 'prospect_commercial_id' => $verifyProspect ? $verifyProspect->commercial_affecte : null,
                 'status_id' => $verifyStatus ? $verifyStatus->id : null,
                 'status_statut' => $verifyStatus ? $verifyStatus->statut : null,
                 'user_nb_prospects' => $verifyUser ? $verifyUser->nb_prospects : null,
