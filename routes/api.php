@@ -109,8 +109,8 @@ Route::post('/webhookFcb_Insta', [Facebook_InstagramController::class, 'handleWe
 Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify']);
 /************************ads faceboook********************/
 
-//Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
-//Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
+Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
+Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
 Route::post('/make/leads', [MakeLeadController::class, 'store']);
 
 
