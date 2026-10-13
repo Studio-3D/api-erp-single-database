@@ -418,6 +418,14 @@
                     <span class="font-semibold">Identifiant :</span>
                     {{ $reservation['identifiant_bien'] }}
                 </p>
+                 @if(($nombreParking ?? 0) > 0)
+                <p class="text-sm text-gray-800">
+                    <span class="font-semibold">Nombre de parking :</span> {{ $nombreParking }}
+                    @if(($prixParkingUnitaire ?? 0) > 0)
+                        (Prix Parking unitaire : {{ $formatCurrency($prixParkingUnitaire) }})
+                    @endif
+                </p>
+                @endif
                 <p class="text-sm text-gray-800"><span class="font-semibold">Superficie approximative :</span> {{ $surfaceApproximative ?? $surfaceVendable ?? ' ' }} m²</p>
                 <p class="text-xs text-gray-600 mt-1 italic">
                     La superficie est susceptible de connaître une variation une fois les titres fonciers des fractions divises établis, conformément à l'article 49 de la loi 18-00 relative au statut de la copropriété des immeubles bâtis.
@@ -459,6 +467,13 @@
                         <td class="text-right">{{ $surfaceBox > 0 ? $surfaceBox . ' m²' : '—' }}</td>
                         <td class="text-right">{{ $boxTotal > 0 ? $formatCurrency($boxTotal) : 'DH' }}</td>
                     </tr>
+                    @if(($superficieJardin ?? 0) > 0)
+                    <tr>
+                        <td>Superficie du jardin</td>
+                        <td class="text-right">{{ $superficieJardin }} m²</td>
+                        <td class="text-right">—</td>
+                    </tr>
+                    @endif
                     <tr class="row-total">
                         <td><strong>PRIX TOTAL DE RÉSERVATION</strong></td>
                         <td class="text-right">—</td>

@@ -1199,6 +1199,9 @@ public function generateContratVentePDF_reservation(Request $request)
 
         // Prix Total (from input in Tab 2 - Détails des prix)
         $prixTotal = $reservation['prix_total'] ?? $totalPrice;
+        $nombreParking = $reservation['nombre_parking'] ?? 0;
+        $prixParkingUnitaire = $reservation['prix_parking_unitaire'] ?? 0;
+        $superficieJardin = $reservation['superficie_jardin'] ?? 0;
 
         // Use these values for the PDF
         $surfaceVendable = $surfaceAppartement > 0 ? $surfaceAppartement : $surfaceApproximative;
@@ -1221,6 +1224,9 @@ public function generateContratVentePDF_reservation(Request $request)
             'parkingTotal' => $prixGarage,
             'boxTotal' => $prixBox,
             'totalPrice' => $prixTotal,
+            'nombreParking' => $nombreParking,           // ✅ Zid hada
+            'prixParkingUnitaire' => $prixParkingUnitaire, // ✅ Zid hada
+            'superficieJardin' => $superficieJardin,     // ✅ Zid hada
             // Surface values from frontend
             'surfaceVendable' => $surfaceVendable,
             'surfaceParking' => $surfaceGarage,
