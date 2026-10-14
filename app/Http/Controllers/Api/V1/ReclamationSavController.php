@@ -215,10 +215,10 @@ class ReclamationSavController extends Controller
                 ];
 
                 try {
-                    Mail::send('SAV.mail', $data, function($message) use($to_email) {
+                    Mail::mailer('tracimo')->send('SAV.mail', $data, function($message) use($to_email) {
                         $message->to($to_email)
                             ->subject('Nouvelle Réclamation');
-                        $message->from(env('MAIL_USERNAME'), 'Greenland');
+                        $message->from(env('MAIL_USERNAME_TRACIMO'), 'Greenland');
                     });
                 } catch (\Exception $e) {
                     // Log email error but don't fail the whole operation
@@ -340,10 +340,10 @@ class ReclamationSavController extends Controller
             ];
 
             try {
-                Mail::send('SAV.nouvelle-reclamation-prestataire', $data, function($message) use($to_email, $prestataire, $rec) {
+               Mail::mailer('tracimo')->send('SAV.nouvelle-reclamation-prestataire', $data, function($message) use($to_email, $prestataire, $rec) {
                     $message->to($to_email)
                         ->subject('Nouvelle Réclamation #' . $rec->id . ' - Intervention Requise');
-                    $message->from(env('MAIL_USERNAME'), 'Tracimo  - SAV');
+                    $message->from(env('MAIL_USERNAME_TRACIMO'), 'Tracimo  - SAV');
                 });
 
                 // Log email sent

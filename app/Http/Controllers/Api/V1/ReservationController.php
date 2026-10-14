@@ -538,10 +538,10 @@ private function processReservationFiles($reservation, $request, $societe)
                                 'createdBy' => $userAuth_name.' '.$userAuth_prenom ?? 'Un commercial'
                             ];
 
-                            Mail::send('emails.demande_validation_reservation', $data, function ($message) use ($to_email, $reservation) {
+                            Mail::mailer('tracimo')->send('emails.demande_validation_reservation', $data, function ($message) use ($to_email, $reservation) {
                                 $message->to($to_email)
                                     ->subject('Demande Validation Réservation : '.$reservation->code_reservation);
-                                $message->from(env('MAIL_USERNAME'), 'Tracimo ');
+                                $message->from(env('MAIL_USERNAME_TRACIMO'), 'Tracimo ');
                             });
 
                             Log::info("Email de demande de validation envoyé à l'admin: {$admin->email}");

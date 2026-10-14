@@ -939,10 +939,10 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                                                 'projetName' => $reservation->projet->nom ?? 'Non spécifié'
                                             ];
 
-                                            Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
+                                           Mail::mailer('tracimo')->send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
                                                 $message->to($to_email)
                                                     ->subject('Demande Validation Pénalité - Désistement de dossier: '.($reservation->code_reservation  ?? ''));
-                                                $message->from(env('MAIL_USERNAME'), 'Tracimo ');
+                                                $message->from(env('MAIL_USERNAME_TRACIMO'), 'Tracimo ');
                                             });
 
                                             Log::info("Email de demande de validation pénalité envoyé à l'admin: {$admin->email}");
@@ -1764,10 +1764,10 @@ private function handleTransferReimbursementForAdmin($request, $desistement, $re
                                     'projetName' => $reservation->projet->nom ?? 'Non spécifié',
                                 ];
 
-                                Mail::send('emails.demande_validation_desistement', $data, function ($message) use ($to_email, $code_res) {
+                                Mail::mailer('tracimo')->send('emails.demande_validation_desistement', $data, function ($message) use ($to_email, $code_res) {
                                     $message->to($to_email)
                                         ->subject('Demande Validation Désistement - Réservation : '.($code_res ?? ''));
-                                    $message->from(env('MAIL_USERNAME'), 'Tracimo ');
+                                    $message->from(env('MAIL_USERNAME_TRACIMO'), 'Tracimo ');
                                 });
 
                                 Log::info("Email de demande de validation désistement envoyé à l'admin: {$admin->email}");
@@ -3091,10 +3091,10 @@ public function validation_desitement($id,Request $request){
                                                     'projetName' => $reservation->projet->nom ?? 'Non spécifié'
                                                 ];
 
-                                                Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
+                                                Mail::mailer('tracimo')->send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
                                                     $message->to($to_email)
                                                         ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res  ?? ''));
-                                                    $message->from(env('MAIL_USERNAME'), 'Tracimo ');
+                                                    $message->from(env('MAIL_USERNAME_TRACIMO'), 'Tracimo ');
                                                 });
 
                                                 Log::info("Email de demande de validation pénalité envoyé à l'admin/comptable: {$admin->email}");
@@ -3800,10 +3800,10 @@ public function validation_desitement($id,Request $request){
                                         'projetName' => $pen->desistement->projet->nom ?? 'Non spécifié'
                                     ];
 
-                                    Mail::send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
+                                    Mail::mailer('tracimo')->send('emails.demande_validation_penalite', $data, function ($message) use ($to_email, $pen, $code_res) {
                                         $message->to($to_email)
                                             ->subject('Demande Validation Pénalité - Désistement de dossier: '.($code_res ?? ''));
-                                        $message->from(env('MAIL_USERNAME'), 'Tracimo ');
+                                        $message->from(env('MAIL_USERNAME_TRACIMO'), 'Tracimo ');
                                     });
 
                                     Log::info("Email de demande de validation pénalité envoyé à l'admin/comptable: {$admin->email}");

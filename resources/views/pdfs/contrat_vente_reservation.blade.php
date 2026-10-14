@@ -458,7 +458,7 @@
                         <td class="text-right font-semibold">{{ $apartmentPrice > 0 ? $formatCurrency($apartmentPrice) : 'DH' }}</td>
                     </tr>
                     <tr>
-                        <td>Prix du garage</td>
+                        <td> Prix du garage </td>
                         <td class="text-right">{{ $surfaceParking > 0 ? $surfaceParking . ' m²' : '—' }}</td>
                         <td class="text-right">{{ $parkingTotal > 0 ? $formatCurrency($parkingTotal) : 'DH' }}</td>
                     </tr>

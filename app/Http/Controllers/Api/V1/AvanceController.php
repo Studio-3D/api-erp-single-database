@@ -1038,10 +1038,10 @@ class AvanceController extends Controller
                                             'projetName' => $avance->reservation->projet->nom ?? 'Non spécifié'
                                         ];
 
-                                        Mail::send('emails.demande_validation_avance', $data, function ($message) use ($to_email, $avance) {
+                                        Mail::mailer('tracimo')->send('emails.demande_validation_avance', $data, function ($message) use ($to_email, $avance) {
                                             $message->to($to_email)
                                                 ->subject('Demande Validation Avance : '.$avance->num_recu.' - Réservation : '.$avance->reservation->code_reservation);
-                                            $message->from(env('MAIL_USERNAME'), 'Tracimo ');
+                                            $message->from(env('MAIL_USERNAME_TRACIMO'), 'Tracimo ');
                                         });
 
                                         Log::info("Email de demande de validation avance envoyé à l'admin: {$admin->email}");

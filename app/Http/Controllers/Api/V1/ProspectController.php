@@ -1484,53 +1484,201 @@ public function export_historiques(Request $request, $id)
         }
     }
 
-    public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null,$projet_id)
-    {
-        DatabaseHelper::Config($societe_id);
+public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null, $projet_id)
+{
+    DatabaseHelper::Config($societe_id);
+
+    Log::info('🔄 Store_LandingPage: Starting', [
+        'name' => $name,
+        'phone' => $phone,
+        'projet_id' => $projet_id,
+    ]);
+
+    DB::connection('temp')->beginTransaction();
+
+    try {
+        // ============================================================
+        // 1️⃣ CRÉATION DU PROSPECT
+        // ============================================================
+        // ✅ Recherche dynamique de la source "Landing Page"
+            $source = \App\Models\Source::on('temp')
+                ->where('source', 'LIKE', '%landing%page%')
+                ->orWhere('source', 'LIKE', '%landingpage%')
+                ->orWhere('source', 'LIKE', '%landing page%')
+                ->whereNull('deleted_at')  // si tu as du soft delete
+                ->first();
+
         $prospect = new Prospect();
         $prospect->setConnection("temp");
         $prospect->cin       = null;
-        $prospect->message   = $comment; // store optional comment
+        $prospect->message   = $comment;
         $prospect->nom       = $name;
         $prospect->prenom    = $prenom;
         $prospect->telephone = $phone;
         $prospect->email     = $email;
-         $prospect->projet_id     = $projet_id;
+        $prospect->projet_id = $projet_id;
         $prospect->origin    = 'landingPage';
-        $prospect->source    = 3;
-        $prospect->etat    = 1;
+        $prospect->source = $source ? $source->id : 3; // ou 17 en fallback si tu veux
+        $prospect->etat      = 1;
         $prospect->save();
 
-        // Create default "en_attente" status (numeric)
+        Log::info('✅ Prospect created via LandingPage', ['prospect_id' => $prospect->id]);
+
+        // ============================================================
+        // 2️⃣ AFFECTATION AUTOMATIQUE (même logique que autoAssignSingleProspect)
+        // ============================================================
+        $assignedCommercialId = null;
+        $systemUser = User::on('temp')
+            ->where('role', 1)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $commercials = User::on('temp')
+            ->whereHas('projets', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id);
+            })
+            ->where('role', 3)
+            ->where('is_actif', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($commercials->isNotEmpty()) {
+            $targetCommercial = null;
+
+            if ($commercials->count() === 1) {
+                $targetCommercial = $commercials->first();
+                Log::info('✅ Only one commercial found', ['commercial_id' => $targetCommercial->id]);
+            } else {
+                // Reset si tous ont last_affected = 1
+                $allHaveLastAffected = $commercials->every(fn($c) => (int) $c->last_affected === 1);
+
+                if ($allHaveLastAffected) {
+                    Log::info('🔄 All commercials have last_affected = 1, resetting all to 0');
+                    User::on('temp')
+                        ->where('role', 3)
+                        ->where('is_actif', 1)
+                        ->whereNull('deleted_at')
+                        ->update(['last_affected' => 0]);
+
+                    $commercials = User::on('temp')
+                        ->whereHas('projets', function ($q) use ($projet_id) {
+                            $q->where('projet_id', $projet_id);
+                        })
+                        ->where('role', 3)
+                        ->where('is_actif', 1)
+                        ->whereNull('deleted_at')
+                        ->orderBy('id')
+                        ->get();
+                }
+
+                // Prendre le premier avec last_affected = 0
+                $targetCommercial = $commercials->firstWhere('last_affected', 0)
+                    ?? $commercials->first();
+
+                Log::info('✅ Selected commercial', [
+                    'commercial_id' => $targetCommercial->id,
+                    'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom,
+                    'last_affected_before' => $targetCommercial->last_affected,
+                ]);
+            }
+
+            if ($targetCommercial) {
+                $assignedCommercialId = $targetCommercial->id;
+
+                // Mettre à jour le prospect
+                $prospect->commercial_affecte   = $assignedCommercialId;
+                $prospect->affecte_par_admin_id = $systemUser ? $systemUser->id : $assignedCommercialId;
+                $prospect->date_affectation     = Carbon::now();
+                $prospect->save();
+
+                // Incrémenter nb_prospects + last_affected = 1
+                $targetCommercial->nb_prospects = ((int) $targetCommercial->nb_prospects) + 1;
+                $targetCommercial->last_affected = 1;
+                $targetCommercial->save();
+
+                // Reset last_affected = 0 pour les autres
+                User::on('temp')
+                    ->where('id', '!=', $assignedCommercialId)
+                    ->where('role', 3)
+                    ->where('is_actif', 1)
+                    ->whereNull('deleted_at')
+                    ->update(['last_affected' => 0]);
+
+                Log::info('✅ Prospect assigned automatically', [
+                    'prospect_id' => $prospect->id,
+                    'commercial_id' => $assignedCommercialId,
+                ]);
+            }
+        } else {
+            Log::warning('⚠️ No active commercials found for project', ['projet_id' => $projet_id]);
+        }
+
+        // ============================================================
+        // 3️⃣ STATUT INITIAL
+        // ============================================================
         $statutProspect = new StatutProspect();
         $statutProspect->setConnection('temp');
         $statutProspect->prospect_id = $prospect->id;
-        $statutProspect->statut = '0';
         $statutProspect->date_traitement = Carbon::now();
-        $statutProspect->user_id_traite = null; // No specific user for landing page
-        $statutProspect->commentaire = 'Prospect créé via Landing Page';
+
+        if ($assignedCommercialId) {
+            $statutProspect->statut = (string) StatutProspectEnum::Affecte->value; // '6'
+            $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
+            $statutProspect->commentaire = 'Prospect créé via Landing Page et affecté automatiquement';
+        } else {
+            $statutProspect->statut = '0';
+            $statutProspect->user_id_traite = null;
+            $statutProspect->commentaire = 'Prospect créé via Landing Page ';
+        }
+        $statutProspect->type_traitement_rdv_relance = 0;
         $statutProspect->save();
 
-        // Create a notification for the new landing page prospect
+        // ============================================================
+        // 4️⃣ COMMIT
+        // ============================================================
+        DB::connection('temp')->commit();
+        Log::info('✅ Transaction committed for LandingPage prospect', ['prospect_id' => $prospect->id]);
+
+        // ============================================================
+        // 5️⃣ NOTIFICATIONS (hors transaction)
+        // ============================================================
         try {
-            $data_notif = [
-                'lien'        => '/crm/prospects/' . $prospect->id,
-                'date'        => Carbon::now(),
-                'type'        => 50, // custom type for Landing Page prospect
-                'description' => 'Nouveau prospect via Landing Page',
-                'user_id'     => null,
-                'role'        => 4,
-                'visite_id'   => null,
-                'prospect_id' => $prospect->id,
-                'projet_id'   => null,
-            ];
             $notif_helper = new NotificationHelper();
             $req = new \Illuminate\Http\Request();
-            $notif_helper->storeNotification($req->merge($data_notif));
+            // Notification au commercial affecté
+            if ($assignedCommercialId) {
+                Config::set('broadcasting.default', 'pusher_notify');
+                $commercial = User::on('temp')->find($assignedCommercialId);
+
+                if ($commercial && $commercial->user_id_origin) {
+                    $notif_helper->storeNotification($req->merge([
+                        'lien'        => '/crm/prospects/' . $prospect->id,
+                        'date'        => Carbon::now(),
+                        'type'        => 53,
+                        'description' => 'Un nouveau prospect (Landing Page) vous a été affecté',
+                        'user_id'     => $commercial->user_id_origin,
+                        'role'        => null,
+                        'visite_id'   => null,
+                        'prospect_id' => $prospect->id,
+                        'projet_id'   => $projet_id,
+                    ]));
+                    broadcast(new \App\Events\NotificationEvent($assignedCommercialId));
+                }
+            }
         } catch (\Exception $e) {
             Log::warning('Failed to create landing page notification: ' . $e->getMessage());
         }
+
+        return $prospect;
+
+    } catch (\Exception $e) {
+        DB::connection('temp')->rollBack();
+        Log::error('❌ Store_LandingPage failed: ' . $e->getMessage());
+        Log::error('Trace: ' . $e->getTraceAsString());
+        return null;
     }
+}
 
     /**
      * Display the specified resource.
