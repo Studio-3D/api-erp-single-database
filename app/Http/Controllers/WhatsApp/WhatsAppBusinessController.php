@@ -32,7 +32,7 @@ use App\Http\Helpers\FichierHelper;
 use App\Models\Societe;
 
 /**
- * Contrôleur WhatsApp Business (Twilio) + agent virtuel GreenLand.
+ * Contrôleur WhatsApp Business (Twilio) + agent virtuel .
  *
  * Corrections apportées par rapport à la version précédente :
  *  - anti-doublon sur le MessageSid (les réessais Twilio créaient deux réponses) ;
@@ -471,7 +471,7 @@ class WhatsAppBusinessController extends Controller
                         $to,
                         $action['latitude'] ?? null,
                         $action['longitude'] ?? null,
-                        $action['label'] ?? 'GreenLand',
+                        $action['label'] ?? env('CLIENT_NOM'),
                         $action['maps_url'] ?? null,
                         $config,
                         $projetId
@@ -485,7 +485,7 @@ class WhatsAppBusinessController extends Controller
                         $urls = [$action['url']];
                     }
                     foreach ($urls as $url) {
-                        // ✅ Légende transmise par l'agent (ex. « Plan 3D F3 – GreenLand »)
+                        // ✅ Légende transmise par l'agent (ex. « Plan 3D F3 –  »)
                         $this->sendWhatsAppMedia($to, $url, $config, $projetId, $action['caption'] ?? null);
                     }
                     break;
@@ -1224,7 +1224,7 @@ private function transcribeWhatsAppAudio(string $mediaUrl, $config): ?string
             ->withToken($apiKey)
             ->withHeaders([
                 'Content-Type' => 'application/json',
-                'X-Title' => 'GreenLand WhatsApp Agent',
+                'X-Title' => env('CLIENT_NOM').'WhatsApp Agent',
             ])
             ->post('https://openrouter.ai/api/v1/audio/transcriptions', [
                 'model' => 'mistralai/voxtral-small-24b-2507-stt',  // ← Voxtral

@@ -289,19 +289,19 @@
         {{-- Left: Company Logo --}}
         <div class="header-left">
             @if($logoBase64)
-                <img src="{{ $logoBase64 }}" alt="Logo IMOZINE" class="header-logo">
+                <img src="{{ $logoBase64 }}" alt="Logo" class="header-logo">
             @endif
         </div>
 
         {{-- Center: Project Name --}}
         <div class="header-center">
-            <div class="greenland-badge">Projet {{ $reservation['projet_nom'] ?? 'Green Land' }}</div>
+            <div class="greenland-badge">Projet {{ $reservation['projet_nom'] ?? env('CLIENT_NOM') }}</div>
         </div>
 
         {{-- Right: Green Land Image --}}
         <div class="header-right">
             @if($greenLandBase64)
-                <img src="{{ $greenLandBase64 }}" alt="Green Land" class="header-greenland">
+                <img src="{{ $greenLandBase64 }}" alt="{{ env('CLIENT_NOM') }}" class="header-greenland">
             @endif
         </div>
     </div>
@@ -323,7 +323,7 @@
         {{-- VENDEUR --}}
         <div class="pl-4 mb-2">
             <p class="text-sm text-gray-800">
-                La société « <strong class="text-primary">{{ $societe['raison_social'] ?? 'IMOZINE' }}</strong> », Société à responsabilité limitée,
+                La société « <strong class="text-primary">{{ $societe['raison_social'] ?? '' }}</strong> », Société à responsabilité limitée,
                 au capital social de {{ $societe['capital'] ?? '141.050.000' }} dirhams,
                 dont le siège social est au {{ $societe['adresse'] ?? '13 Angle Rue de Rome et Rue de Varsovie, Résidence Amina, 1er Etage Appt N° 01, Casablanca' }},
                 représentée par Mr Driss MOUSS et Mr Othmane MOUSS, dûment habilités aux fins des présentes,
@@ -399,7 +399,7 @@
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 Sur le terrain objet du titre foncier n° {{ $reservation['titre_foncier'] ?? 'T26886/D' }}, le Vendeur développe l'ensemble immobilier
-                dénommé  <strong class="text-primary">« {{ $reservation['projet_nom'] ?? 'Projet Green Land' }} »</strong>, situé à {{ $reservation['localisation'] ?? 'Ain Chock, Casablanca' }}. Le titre foncier fera l'objet d'un
+                dénommé  <strong class="text-primary">« {{ $reservation['projet_nom'] ?? ' ' }} »</strong>, situé à {{ $reservation['localisation'] ?? 'Ain Chock, Casablanca' }}. Le titre foncier fera l'objet d'un
                 éclatement comportant une série de fractions divises. Le règlement de copropriété en cours
                 d'élaboration sera déposé à la conservation foncière et communiqué au BÉNÉFICIAIRE avant la
                 signature de l'acte d'acquisition, auquel il s'imposera dès cette signature.
@@ -411,7 +411,7 @@
     <div class="mb-3">
         <h2 class="article-title">ARTICLE 1 – OBJET</h2>
         <div class="pl-4">
-            <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet {{ $reservation['projet_nom'] ?? 'Green Land' }}, le bien immobilier ci-après désigné :</p>
+            <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet {{ $reservation['projet_nom'] ?? ' ' }}, le bien immobilier ci-après désigné :</p>
             <div class="mt-1">
                 <p class="text-sm text-gray-800"><span class="font-semibold">Localisation :</span> {{ $reservation['localisation'] ?? 'Ain Chock — Projet Green Land, Casablanca' }}</p>
                 <p class="text-sm text-gray-800">
@@ -475,16 +475,20 @@
                         <td class="text-right">{{ $surfaceParking > 0 ? $surfaceParking . ' m²' : '—' }}</td>
                         <td class="text-right">{{ $parkingTotal > 0 ? $formatCurrency($parkingTotal) : 'DH' }}</td>
                     </tr>
+                    @if(($surfaceBox ?? 0) > 0)
                     <tr>
                         <td>Box</td>
                         <td class="text-right">{{ $surfaceBox > 0 ? $surfaceBox . ' m²' : '—' }}</td>
                         <td class="text-right">{{ $boxTotal > 0 ? $formatCurrency($boxTotal) : 'DH' }}</td>
                     </tr>
+                    @endif
+                    @if(($superficieJardin ?? 0) > 0)
                    <tr>
                         <td>Jardin</td>
                         <td class="text-right">{{ $superficieJardin }} m²</td>
                         <td class="text-right">{{ ($prixJardin ?? 0) > 0 ? $formatCurrency($prixJardin) : '—' }}</td>
                     </tr>
+                    @endif
 
                     <tr class="row-total">
                         <td><strong>PRIX TOTAL DE RÉSERVATION</strong></td>
@@ -691,7 +695,7 @@
                 <div class="pl-4">
                     <p class="text-sm font-semibold text-gray-800">Au Vendeur :</p>
                     <p class="text-sm text-gray-700" style="border-bottom: 2px solid #b8973a; padding-bottom: 4px;">
-                        À Mr. Le Directeur Général de la Ste. {{ $societe['raison_social'] ?? 'IMOZINE' }} SARL,
+                        À Mr. Le Directeur Général de la Ste. {{ $societe['raison_social'] ?? ' ' }} SARL,
                         {{ $societe['adresse'] ?? '13 Angle Rue de Rome et Rue Varsovie, Résidence Amina, 1er Etage, Appart N°1, Casablanca' }}
                     </p>
                 </div>
@@ -748,7 +752,7 @@
         <div class="pl-4">
             <p class="text-sm text-gray-800">
                 En application de la loi n° 09-08 relative à la protection des personnes physiques à l'égard du
-                traitement des données à caractère personnel, le BÉNÉFICIAIRE consent à ce que la société {{ $societe['raison_social'] ?? 'IMOZINE' }}
+                traitement des données à caractère personnel, le BÉNÉFICIAIRE consent à ce que la société {{ $societe['raison_social'] ?? '' }}
                 collecte et traite ses données personnelles aux fins exclusives de la gestion de son dossier
                 d'acquisition. Ces données pourront être communiquées aux sous-traitants, héritiers, ayants droit
                 et mandataires habilités. Le BÉNÉFICIAIRE dispose d'un droit d'accès, de rectification et
@@ -800,7 +804,7 @@
             <div class="col">
                 <div class="signature-box"></div>
                 <p class="signature-label">LE VENDEUR</p>
-                <p class="text-sm font-semibold text-gray-800">Société {{ $societe['raison_social'] ?? 'IMOZINE' }} SARL</p>
+                <p class="text-sm font-semibold text-gray-800">Société {{ $societe['raison_social'] ?? '' }} SARL</p>
                 <p class="text-xs text-gray-500 mt-1">(Cachet et signature)</p>
             </div>
 
@@ -824,7 +828,7 @@
 
         {{-- Footer --}}
         <div class="footer">
-            {{ $societe['raison_social'] ?? 'IMOZINE' }} SARL — Contrat de Réservation — Projet {{ $reservation['projet_nom'] ?? 'Green Land' }} — {{ $reservation['localisation'] ?? 'Ain Chock, Casablanca' }}
+            {{ $societe['raison_social'] ?? '' }} SARL — Contrat de Réservation — Projet {{ $reservation['projet_nom'] ?? ' ' }} — {{ $reservation['localisation'] ?? 'Ain Chock, Casablanca' }}
         </div>
 
     </div>

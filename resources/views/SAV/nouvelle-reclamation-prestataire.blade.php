@@ -246,11 +246,11 @@
 
     {/*pour toute question, contactez notre service SAV au 01 23 45 67 89 ou par email à sav@immobilier.com*/}
 
-            <p><strong>L'équipe Greenland  - Service Après-Vente</strong></p>
+            <p><strong>L'équipe {{ env('CLIENT_NOM') }}  - Service Après-Vente</strong></p>
         </div>
 
         <div class="footer">
-            &copy; {{ date('Y') }} Greenland  - Tous droits réservés<br>
+            &copy; {{ date('Y') }} {{ env('CLIENT_NOM') }}   - Tous droits réservés<br>
             <small>Cet email a été généré automatiquement. Merci de ne pas y répondre directement.<br>
             Pour répondre au client, utilisez ses coordonnées ci-dessus.</small>
         </div>

@@ -218,7 +218,7 @@ class ReclamationSavController extends Controller
                     Mail::mailer('tracimo')->send('SAV.mail', $data, function($message) use($to_email) {
                         $message->to($to_email)
                             ->subject('Nouvelle Réclamation');
-                        $message->from(env('MAIL_USERNAME_TRACIMO'), 'Greenland');
+                        $message->from(env('MAIL_USERNAME_TRACIMO'), env('CLIENT_NOM));
                     });
                 } catch (\Exception $e) {
                     // Log email error but don't fail the whole operation
@@ -465,7 +465,7 @@ class ReclamationSavController extends Controller
                         Mail::send('SAV.mail', $data, function($message) use($to_email){
                           $message->to($to_email)
                               ->subject ('Nouvlle Réclamation');
-                          $message->from('greenland.admin2026@gmail.com','Greenland');
+                          $message->from(env('MAIL_USERNAME') ,env('CLIENT_NOM));
 
                       });
                   } */

@@ -1095,13 +1095,11 @@ public function generateContratVentePDF_reservation(Request $request)
             }
         };
 
-        // 👇 Force l-format "Imozine_1" (I kbira, baqi sghar)
         $folder = null;
         if (!empty($societe['raison_sociale_concatene']) && !empty($societe['id'])) {
             $folder = ucfirst(strtolower($societe['raison_sociale_concatene'])) . '_' . $societe['id'];
         }
 
-        // Logo (IMOZINE logo - left side)
         $logoBase64 = null;
         if ($folder && !empty($societe['logo'])) {
             $fileContent = $fetchAsset($folder . '/logos/' . $societe['logo']);
@@ -1118,10 +1116,9 @@ public function generateContratVentePDF_reservation(Request $request)
             }
         }
 
-        // GreenLand (green_land.png)
         $greenLandBase64 = null;
         if ($folder) {
-            $fileContent = $fetchAsset($folder . '/logos/green_land.png');
+            $fileContent = $fetchAsset($folder . '/logos/logo.png');
             if ($fileContent !== null) {
                 $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
             }
@@ -1333,7 +1330,6 @@ public function generateQuittancePDF(Request $request)
             }
         };
 
-        // 👇 Force l-format "Imozine_1" (I kbira, baqi sghar)
         $folder = null;
         if (!empty($societe['raison_sociale_concatene']) && !empty($societe['id'])) {
             $folder = ucfirst(strtolower($societe['raison_sociale_concatene'])) . '_' . $societe['id'];
@@ -1360,7 +1356,7 @@ public function generateQuittancePDF(Request $request)
         // GreenLand
         $greenLandBase64 = null;
         if ($folder) {
-            $fileContent = $fetchAsset($folder . '/logos/green_land.png');
+            $fileContent = $fetchAsset($folder . '/logos/logo.png');
             if ($fileContent !== null) {
                 $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
             }

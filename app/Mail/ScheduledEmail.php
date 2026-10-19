@@ -68,7 +68,7 @@ class ScheduledEmail extends Mailable
                         'echeance' => $this->avance->echeance ?? null,
                         'source' => $this->source,
                     ])
-                    ->from(env('MAIL_USERNAME'), 'Greenland ');
+                    ->from(env('MAIL_USERNAME'), env('CLIENT_NOM'));
     }
 
     /**
@@ -153,7 +153,7 @@ class ScheduledEmail extends Mailable
             case 4:
                 return 'Rappel d\'échéance  de paiement - ' . $this->projet;
             default:
-                return 'Notification Greenland ';
+                return 'Notification ' . env('CLIENT_NOM');
         }
     }
 

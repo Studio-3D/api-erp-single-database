@@ -196,7 +196,7 @@ class ReclamationController extends Controller
             Mail::send('Client.mail', $data, function ($message) use ($to_email) {
                 $message->to($to_email)
                     ->subject('Avis Réclamation');
-                $message->from(env('MAIL_FROM_NAME_TRACIMO'), 'Greenland ');
+                $message->from(env('MAIL_FROM_NAME_TRACIMO'), env('CLIENT_NOM'));
 
             });
             }

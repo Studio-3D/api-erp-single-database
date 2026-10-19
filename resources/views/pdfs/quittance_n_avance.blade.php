@@ -200,15 +200,15 @@
     <div class="header-container">
         <div class="header-left">
             @if($logoBase64)
-                <img src="{{ $logoBase64 }}" alt="Logo IMOZINE" class="header-logo">
+                <img src="{{ $logoBase64 }}" alt="Logo " class="header-logo">
             @endif
         </div>
         <div class="header-right">
             @if($greenLandBase64)
-                <img src="{{ $greenLandBase64 }}" alt="Green Land" class="header-greenland">
+                <img src="{{ $greenLandBase64 }}" alt="{{ env('CLIENT_NOM') }}" class="header-greenland">
             @else
                 <div style="font-size: 10px; font-weight: bold; color: #0d4a35; border: 1px solid #b8973a; border-radius: 4px; padding: 4px 12px; display: inline-block; background: #e8f5e9;">
-                    {{ $projet_nom ?? 'GreenLand' }}
+                    {{ $projet_nom ?? '' }}
                 </div>
             @endif
         </div>
@@ -224,7 +224,7 @@
 
         {{-- Recognition Text --}}
         <div class="recognition-text">
-            La société <strong>« {{ $societe['raison_social'] ?? 'IMOZINE' }} »</strong>, Société à responsabilité limitée, au capital social de {{ $societe['capital'] ?? '141.050.000' }} dirhams, dont le siège social est au {{ $societe['adresse'] ?? '13 Angle Rue de Rome et Rue de Varsovie, Résidence Amina, 1er Etage Appt N° 01, Casablanca' }},
+            La société <strong>« {{ $societe['raison_social'] ?? ' ' }} »</strong>, Société à responsabilité limitée, au capital social de {{ $societe['capital'] ?? '141.050.000' }} dirhams, dont le siège social est au {{ $societe['adresse'] ?? '13 Angle Rue de Rome et Rue de Varsovie, Résidence Amina, 1er Etage Appt N° 01, Casablanca' }},
             <br><br>
             <strong>Reconnait avoir reçu de :</strong>
         </div>
@@ -316,7 +316,7 @@
         <div style="margin: 10px 0 6px 0;">
             <p style="font-size: 10px;">
                 En compte et à valoir sur le prix de vente du bien situé sur le projet
-                <strong style="color: #0d4a35;">{{ $projet_nom ?? 'GreenLand' }}</strong>
+                <strong style="color: #0d4a35;">{{ $projet_nom ?? ' ' }}</strong>
                 et dont la désignation est détaillée sur le contrat de réservation
                 <strong>n°{{ $reservation['code_reservation'] ?? 'xxxxxxxx' }}</strong> :
             </p>

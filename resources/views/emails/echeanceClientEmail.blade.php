@@ -108,12 +108,13 @@
 
             <p>Nous vous remercions pour votre confiance et restons à votre disposition pour toute question concernant cette échéance.</p>
 
-            <p><strong>Cordialement,</strong><br>L'équipe Greenland</p>
+            <p><strong>Cordialement,</strong><br>L'équipe {{ env('CLIENT_NOM') }} </p>
         </div>
 
+
         <div class="footer">
-            &copy; {{ date('Y') }} Greenland - Votre partenaire de confiance<br>
-            <small>Contact : <a href="greenland.admin2026@gmail.com" style="color: #3498db; text-decoration: underline;">greenland.admin2026@gmail.com</a></small>
+            &copy; {{ date('Y') }} {{ env('CLIENT_NOM') }} - Votre partenaire de confiance<br>
+            <small>Contact : <a href="mailto:{{ env('MAIL_USERNAME') }}" style="color: #3498db; text-decoration: underline;">{{ env('MAIL_USERNAME') }}</a></small>
         </div>
     </div>
 </body>
