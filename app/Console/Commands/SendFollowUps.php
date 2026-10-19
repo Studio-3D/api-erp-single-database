@@ -359,7 +359,7 @@ private function getGreetingEnglish(): string
     if ($propertyType) {
         return "{$greeting}{$prenomText} 😊\n\n" .
                "Nous restons à votre disposition pour finaliser votre projet immobilier.\n\n" .
-               "Vous êtes intéressé par un **{$propertyType}** au projet GreenLand.\n\n" .
+               "Vous êtes intéressé par un **{$propertyType}** au Notre Projet".
                "Souhaitez-vous poursuivre votre recherche ou planifier une visite avec l'un de nos conseillers ?\n\n";
     }
 
@@ -370,7 +370,7 @@ private function getGreetingEnglish(): string
    private function getEnglishFollowUp($prenomText, $propertyType)
 {
     $greeting = $this->getGreetingEnglish(); // ✅ Good morning ou Good evening
-
+ $greeting = $this->getGreetingEnglish();
     if ($propertyType) {
         return "{$greeting}{$prenomText} 😊\n\n" .
                "We remain at your disposal to finalize your real estate project.\n\n" .

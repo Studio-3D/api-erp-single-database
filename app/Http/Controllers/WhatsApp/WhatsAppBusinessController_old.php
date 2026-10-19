@@ -115,7 +115,7 @@ private function processWithAgent($message, $from, $sessionId, $projetId, $prosp
         // 🔥 Appeler reply avec l'historique
         $result = $agent->reply($message, $history);
 
-       
+
         $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
         $newState = $result['state'] ?? $agent->getConversationState(); // ✅ DÉFINIR $newState
         $actions = $result['actions'] ?? []; // ✅ DÉFINIR $actions
@@ -321,7 +321,7 @@ private function executeAgentAction(array $action, $to, $config, $projetId)
                     $to,
                     $action['latitude'] ?? null,
                     $action['longitude'] ?? null,
-                    $action['label'] ?? 'GreenLand',
+                    $action['label'] ?? '  ',
                     $action['maps_url'] ?? null,
                     $config,
                     $projetId

@@ -1202,7 +1202,7 @@ public function generateContratVentePDF_reservation(Request $request)
         $nombreParking = $reservation['nombre_parking'] ?? 0;
         $prixParkingUnitaire = $reservation['prix_parking_unitaire'] ?? 0;
         $superficieJardin = $reservation['superficie_jardin'] ?? 0;
-
+        $prixJardin = $reservation['prix_jardin'] ?? 0;
         // Use these values for the PDF
         $surfaceVendable = $surfaceAppartement > 0 ? $surfaceAppartement : $surfaceApproximative;
 
@@ -1226,7 +1226,8 @@ public function generateContratVentePDF_reservation(Request $request)
             'totalPrice' => $prixTotal,
             'nombreParking' => $nombreParking,           // ✅ Zid hada
             'prixParkingUnitaire' => $prixParkingUnitaire, // ✅ Zid hada
-            'superficieJardin' => $superficieJardin,     // ✅ Zid hada
+            'superficieJardin' => $superficieJardin,
+            'prixJardin' => $prixJardin,
             // Surface values from frontend
             'surfaceVendable' => $surfaceVendable,
             'surfaceParking' => $surfaceGarage,
@@ -1303,7 +1304,7 @@ public function generateQuittancePDF(Request $request)
         $allAvances = $data['allAvances'] ?? [];
         $totalMontant = $data['totalMontant'] ?? 0;
         $currentDate = $data['currentDate'] ?? now()->format('d/m/Y');
-        $projet_nom = $data['projet_nom'] ?? 'GreenLand';
+        $projet_nom = $data['projet_nom'] ?? 'Projet';
         $type = $data['type'] ?? 'avance';
         $codeReservation = $reservation['code_reservation'] ?? 'temp';
 

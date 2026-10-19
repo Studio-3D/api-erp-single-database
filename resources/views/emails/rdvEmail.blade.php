@@ -104,7 +104,7 @@
         </div>
 
         <div class="footer">
-            &copy; {{ date('Y') }}  @if($prospectName) Tracimo @else Greenland @endif  - Votre partenaire de confiance<br>
+            &copy; {{ date('Y') }}  @if($prospectName) Tracimo @else env @endif  - Votre partenaire de confiance<br>
         </div>
     </div>
 </body>

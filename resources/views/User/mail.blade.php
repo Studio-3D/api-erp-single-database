@@ -108,7 +108,7 @@
                             <tbody>
                                 <tr>
                                     <td>
-                                        <a href="{{ config('app.frontend_url', 'https://tracimo.com') }}/login" target="_blank" style="display: inline-block; background-color: #231651; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Se connecter</a>
+                                        <a href="{{ env('FRONTEND_URL') }}/login" target="_blank" style="display: inline-block; background-color: #231651; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Se connecter</a>
                                     </td>
                                 </tr>
                             </tbody>

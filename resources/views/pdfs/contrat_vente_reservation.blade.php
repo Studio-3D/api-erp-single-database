@@ -453,27 +453,39 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Prix de l'appartement</td>
+                        <td>Appartement</td>
                         <td class="text-right">{{ $surfaceVendable ?? '' }} m²</td>
                         <td class="text-right font-semibold">{{ $apartmentPrice > 0 ? $formatCurrency($apartmentPrice) : 'DH' }}</td>
                     </tr>
-                    <tr>
-                        <td> Prix du garage </td>
+                   <tr>
+                        <td>
+                            @if(($nombreParking ?? 0) > 1)
+                                {{ $nombreParking }} Garages
+                            @elseif(($nombreParking ?? 0) == 1)
+                                Garage
+                            @else
+                                —
+                            @endif
+                            @if(($nombreParking ?? 0) > 0 && ($prixParkingUnitaire ?? 0) > 0)
+                                <span style="font-size:7px; color:#6b7280; display:block;">
+                                    ({{ $formatCurrency($prixParkingUnitaire) }} / unité)
+                                </span>
+                            @endif
+                        </td>
                         <td class="text-right">{{ $surfaceParking > 0 ? $surfaceParking . ' m²' : '—' }}</td>
                         <td class="text-right">{{ $parkingTotal > 0 ? $formatCurrency($parkingTotal) : 'DH' }}</td>
                     </tr>
                     <tr>
-                        <td>Prix du box</td>
+                        <td>Box</td>
                         <td class="text-right">{{ $surfaceBox > 0 ? $surfaceBox . ' m²' : '—' }}</td>
                         <td class="text-right">{{ $boxTotal > 0 ? $formatCurrency($boxTotal) : 'DH' }}</td>
                     </tr>
-                    @if(($superficieJardin ?? 0) > 0)
-                    <tr>
-                        <td>Superficie du jardin</td>
+                   <tr>
+                        <td>Jardin</td>
                         <td class="text-right">{{ $superficieJardin }} m²</td>
-                        <td class="text-right">—</td>
+                        <td class="text-right">{{ ($prixJardin ?? 0) > 0 ? $formatCurrency($prixJardin) : '—' }}</td>
                     </tr>
-                    @endif
+
                     <tr class="row-total">
                         <td><strong>PRIX TOTAL DE RÉSERVATION</strong></td>
                         <td class="text-right">—</td>

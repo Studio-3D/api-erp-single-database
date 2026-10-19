@@ -705,7 +705,18 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
             $query_prospect->where('projet_id',  $projet_id );
         }
         $nb_prospects=$query_prospect->count();
+        // ============================================
+        // 🎯 PROSPECTS CONVERTIS (client_id NOT NULL)
+        // ============================================
+        $query_prospect_convert_client = Prospect::on('temp');
+        $this->applyDateFilter($query_prospect_convert_client, $dt, $a_dt);
 
+        if ($projet_id != 0) {
+            $query_prospect_convert_client->where('projet_id', $projet_id);
+        }
+
+        $query_prospect_convert_client->whereNotNull('client_id');   // 👈 FIX
+        $nb_prospects_convert_client = $query_prospect_convert_client->count();
         /***************************Clients*****************/
         $query_client=Client::on('temp');
         $this->applyDateFilter($query_client, $dt, $a_dt);
@@ -1046,6 +1057,7 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
             'nb_appels'=>$nb_appels,
             'Appels'=>$array_appels_par_date,
             'nb_prospects'=>$nb_prospects,
+            'nb_prospects_convert_client'=>$nb_prospects_convert_client,
             'nb_clients'=>$nb_clients,
             'reclamations_clients'=>[],
             'count_reclamation'=>0,

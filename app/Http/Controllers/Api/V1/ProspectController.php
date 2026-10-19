@@ -15,6 +15,8 @@ use App\Http\Requests\UpdateProspectRequest;
 use App\Models\Client;
 use App\Models\Notification;
 use App\Models\Prospect;
+use App\Models\ProspectFusion;
+
 use App\Models\Source;
 use App\Models\StatutProspect;
 use App\Models\TraitementFrein;
@@ -1311,6 +1313,25 @@ public function export_historiques(Request $request, $id)
 
 
                 if ($prospect->save()) {
+
+                   /* if ($request->has('prospect_fusion_ids')) {
+                        $fusionIds = is_array($request->prospect_fusion_ids)
+                            ? $request->prospect_fusion_ids
+                            : json_decode($request->prospect_fusion_ids, true);
+
+                        if (is_array($fusionIds)) {
+                            $userId = $userAuth ? $userAuth->id : null;
+
+                            foreach ($fusionIds as $fusionId) {
+                                $fusion = new ProspectFusion();
+                                $fusion->setConnection('temp');
+                                $fusion->prospect_principal_id = $prospect->id;
+                                $fusion->prospect_fusion_id = $fusionId;
+                                $fusion->user_id = $userId;
+                                $fusion->save();
+                            }
+                        }
+                    }*/
                     // Create default "en_attente" status unless created from a visite
                     if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
 

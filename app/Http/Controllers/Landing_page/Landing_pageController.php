@@ -17,7 +17,7 @@ class Landing_pageController extends Controller
 
        Log::info($request->all());
        ProspectController::Store_LandingPage($request->nom,$request->prenom,$request->telephone,$request->email,$request->societe_id,$request->comment,$request->projet_id);
-       return response()->json(['message' => 'Data fff received successfully']);
+       return response()->json(['message' => 'Data received successfully']);
 
     }
 }

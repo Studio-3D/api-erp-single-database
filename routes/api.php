@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\PiecesJointeController as V1PiecesJointeControll
 use App\Http\Controllers\Api\V1\PrestatairesController as V1PrestatairesController;
 use App\Http\Controllers\Api\V1\ProjetController as V1ProjetController;
 use App\Http\Controllers\Api\V1\ProspectController as V1ProspectController;
+use App\Http\Controllers\Api\V1\ProspectFusionController as ProspectFusionController;
 
 use App\Http\Controllers\Api\V1\HistoriqueRelanceWhatsappController as V1HistoriqueRelanceWhatsappController;
 
@@ -70,6 +71,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\LinkedIn\LinkedInController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Facebook_Instagram\MakeLeadController;
+use App\Http\Controllers\Api\Coline\CommissionColineController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -124,10 +127,35 @@ Route::post('/conversations/clean', [V1AgentController::class, 'cleanExpired']);
 
 Route::middleware('auth:api')->group(function () {
 
+    Route::prefix('coline')->group(function () {
+          // ========================================
+        // COMMISSIONS COLINE
+        // ========================================
+        Route::prefix('commissions_coline')->group(function () {
+            // 🆕 Nouvelles routes paginées
+            Route::get('/paginated', [CommissionColineController::class, 'index_paginated']);
+            Route::get('/export',    [CommissionColineController::class, 'export_paginated']);
+            // 📋 Listes par état
+            Route::get('/non-traite',      [CommissionColineController::class, 'index_non_traite']);
+            Route::get('/traite-attente',  [CommissionColineController::class, 'index_traite_attente']);
+            Route::get('/traite-moitie',   [CommissionColineController::class, 'index_traite_moitie']);
+            Route::get('/traite',          [CommissionColineController::class, 'index_traite']);
 
+            // 📄 Détails
+            Route::get('/show/{id}',       [CommissionColineController::class, 'show']);
 
+            // ✏️ Actions
+            Route::put('/traiter/{id}',    [CommissionColineController::class, 'traiter_commission']);
+            Route::put('/update/{id}',     [CommissionColineController::class, 'update']);
+            Route::delete('/destroy/{id}', [CommissionColineController::class, 'destroy']);
+
+            // 📅 Historique
+            Route::get('/historique',      [CommissionColineController::class, 'getHistorique']);
+        });
+    });
 
     Route::prefix('v1')->group(function () {
+
         /************************************facebook statistiques*********************** */
         Route::get('/facebook-leads-full-stats/{projet_id}', [FacebookLeadStatsController::class, 'getFullStats']);
 
@@ -309,6 +337,20 @@ Route::middleware('auth:api')->group(function () {
         Route::get('export-biens-by-frein/{id}', [V1FreinController::class, 'export_biens_by_frein']);
 
         //l'API prospect
+     /*****************Prospect fusion***************** */
+        // ⭐ Recherche prospects pour fusion
+        Route::get('/prospects/rechercher-pour-fusion', [ProspectFusionController::class, 'rechercherPourFusion']);
+        // ⭐ Fusionner multiple
+        Route::post('/prospects/fusionner-multiple',[ProspectFusionController::class, 'fusionnerMultiple']);
+        // ⭐ Défusionner
+        Route::delete('/prospects/defusionner/{fusionId}',[ProspectFusionController::class, 'defusionner']);
+        // ⭐ Jib les fusions dyal prospect
+        Route::get('/prospects/{id}/fusions', [ProspectFusionController::class, 'getFusions']);
+        // ⭐ Jib l-famille (principal + fusionnés)
+        Route::get('/prospects/{id}/famille',[ProspectFusionController::class, 'getFamille']);
+            /*****************************Bullk whtsapp******************************** */
+        Route::post('/upload_file_bulk_whatsapp', [V1ProspectController::class, 'uploadMedia_bulk_whatsap'])->name('');
+        Route::post('prospects/bulk-whatsapp', [V1ProspectController::class, 'bulkWhatsApp']);
 
         Route::resource('prospects', V1ProspectController::class);
         Route::get('/prospects/export/{projet_id}', [V1ProspectController::class, 'exportByProjet']);
@@ -327,9 +369,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_nb_prospect_rdv/{projet_id}', [V1ProspectController::class, 'getNbProspectRdv'])->name('');
         Route::get('get_nb_prospect_relance/{projet_id}', [V1ProspectController::class, 'getNbProspectRelance'])->name('');
 
-        /*****************************Bullk whtsapp******************************** */
-        Route::post('/upload_file_bulk_whatsapp', [V1ProspectController::class, 'uploadMedia_bulk_whatsap'])->name('');
-        Route::post('prospects/bulk-whatsapp', [V1ProspectController::class, 'bulkWhatsApp']);
+        /**********************************Clients*****************************/
 
         //l'API client
         Route::get('historiques_clients/{id}', [V1ClientController::class, 'get_Historiques_by_client'])->name('');
