@@ -30,9 +30,14 @@ use Twilio\Rest\Client as ClientTwilio;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Helpers\FichierHelper;
 use App\Models\Societe;
+use App\Services\GreenLand\LeadSummarizer;
+use App\Services\GreenLand\Settings as GreenLandSettings;
+use App\Services\GreenLand\Transcriber;
+use App\Services\GreenLand\TwilioWhatsApp;
+use App\Services\GreenLand\VoiceSynthesizer;
 
 /**
- * Contrôleur WhatsApp Business (Twilio) + agent virtuel .
+ * Contrôleur WhatsApp Business (Twilio) + agent virtuel GreenLand.
  *
  * Corrections apportées par rapport à la version précédente :
  *  - anti-doublon sur le MessageSid (les réessais Twilio créaient deux réponses) ;
@@ -44,7 +49,18 @@ use App\Models\Societe;
  *  - recherche du prospect limitée au projet, avec orWhere groupé ;
  *  - gras WhatsApp (*texte*) et légendes des médias.
  *
- * Aucune méthode publique n'a changé de signature.
+ * Agent virtuel v3 :
+ *  - vocaux transcrits (darija comprise) : l'agent répond dans la langue du prospect,
+ *    le CRM affiche la transcription ;
+ *  - photos lues par l'agent (capture de pub, plan…), position partagée (distance + itinéraire) ;
+ *  - boutons et listes WhatsApp (modèles de contenu Twilio créés automatiquement),
+ *    vraie épingle de localisation, « en train d'écrire… » ;
+ *  - notifications CRM détaillées (lead chaud, visite réservée, urgence, mise à jour)
+ *    avec score, résumé IA de la conversation et questions restées sans réponse ;
+ *  - un commercial répond depuis le CRM : l'agent se met en retrait (greenland.human_takeover_hours).
+ *
+ * Signatures publiques inchangées ; deux méthodes publiques ajoutées (facultatives) :
+ * getAgentStatus() et toggleAgent().
  */
 class WhatsAppBusinessController extends Controller
 {
@@ -54,12 +70,28 @@ class WhatsAppBusinessController extends Controller
 
     /**
      * 🤖 TRAITER LE MESSAGE AVEC L'AGENT VIRTUEL
+     *
+     * $input : le texte reçu (string), ou la description du message reçu (voir buildAgentInput()) :
+     *   ['type' => 'text', 'text' => '…', 'interactive_id' => 'gl:…']           texte, bouton ou ligne de liste
+     *   ['type' => 'audio', 'transcript' => '…', 'language' => 'darija']       vocal transcrit (ou non : transcript null)
+     *   ['type' => 'image', 'bytes' => …, 'mime' => 'image/jpeg', 'caption' => '…']
+     *   ['type' => 'location', 'latitude' => …, 'longitude' => …, 'label' => …, 'address' => …]
+     *   ['type' => 'video'|'document', 'caption' => '…']
+     *   + 'referral' => [...] : publicité « Click to WhatsApp » d'origine
+     *
+     * Renvoie le résultat complet de l'agent (parts, actions, state, silent…) + 'notify_commercial' et 'history'.
      */
-    private function processWithAgent($message, $from, $sessionId, $projetId, $prospectId = null, $profileName = null)
+    private function processWithAgent($input, $from, $sessionId, $projetId, $prospectId = null, $profileName = null)
     {
+        $input = is_array($input) ? $input : ['type' => 'text', 'text' => (string) $input];
+        $type = (string) ($input['type'] ?? 'text');
+        $message = $this->agentHistoryText($input);
+
         try {
             Log::info("🤖 Agent virtuel: Traitement du message de {$from}", [
+                'type' => $type,
                 'message' => $message,
+                'interactive_id' => $input['interactive_id'] ?? null,
                 'session_id' => $sessionId,
                 'prospect_id' => $prospectId,
             ]);
@@ -87,24 +119,61 @@ class WhatsAppBusinessController extends Controller
 
             if ($prospectId) {
                 $state['prospect_id'] = $prospectId;
+
+                // ✅ Commercial affecté dans le CRM : l'agent l'annonce par son prénom
+                //    (« Ahmed, votre conseiller, vous appellera… »), sinon « un conseiller »
+                $commercial = $this->assignedCommercialFor($prospectId);
+                if ($commercial) {
+                    $state['assigned_commercial'] = $commercial;
+                }
             }
 
             // 🔥 Créer l'agent avec l'état sauvegardé
             $agent = new AgentFinalService($state);
 
-            // 🔥 Appeler reply avec l'historique
+            // ✅ Prospect venu d'une publicité « Click to WhatsApp » : la pub est jointe au lead
+            if (!empty($input['referral']) && is_array($input['referral'])) {
+                $agent->setReferral($input['referral']);
+            }
+
             // ✅ État AVANT la réponse : sert à détecter les transitions (qualification, demande de conseiller)
             $previousState = $state;
 
-            $result = $agent->reply($message, $history);
+            // 🔥 Réponse adaptée au type de message reçu
+            switch ($type) {
+                case 'audio':
+                    // Vocal transcrit : traité comme un texte, dans la langue détectée (darija, arabe…).
+                    // Sans transcription : l'agent invite poliment le prospect à écrire, dans sa langue.
+                    $result = trim((string) ($input['transcript'] ?? '')) !== ''
+                        ? $agent->replyToMedia('audio', $history, null, (string) $input['transcript'], $input['language'] ?? null)
+                        : $agent->replyToMedia('audio', $history);
+                    break;
 
-            $response = $result['message'] ?? "Je n'ai pas pu traiter votre demande. 😊";
-            // ✅ Question isolée : elle part APRÈS les médias
-            $messageBeforeMedia = $result['message_before_media'] ?? $response;
-            $messageAfterMedia = $result['message_after_media'] ?? null;
+                case 'image':
+                    // Photo lue par l'IA (capture de la pub, plan, question écrite…) ; pièces d'identité jamais lues.
+                    $result = !empty($input['bytes'])
+                        ? $agent->replyToImage((string) $input['bytes'], (string) ($input['mime'] ?? 'image/jpeg'), $input['caption'] ?? null, $history)
+                        : $agent->replyToMedia('image', $history, $input['caption'] ?? null);
+                    break;
+
+                case 'location':
+                    // Position partagée : distance jusqu'au projet et lien d'itinéraire.
+                    $result = $agent->replyToLocation((float) $input['latitude'], (float) $input['longitude'], $input['label'] ?? null, $input['address'] ?? null, $history);
+                    break;
+
+                case 'video':
+                case 'document':
+                    $result = $agent->replyToMedia($type, $history, $input['caption'] ?? null);
+                    break;
+
+                default:
+                    // Texte, ou bouton / ligne de liste touché (identifiant « gl:… »)
+                    $result = $agent->reply((string) ($input['text'] ?? ''), $history, $input['interactive_id'] ?? null);
+            }
+
+            $response = (string) ($result['message'] ?? '');
             $newState = $result['state'] ?? $agent->getConversationState();
             $actions = $result['actions'] ?? [];
-            $pendingContact = $result['pending_contact'] ?? [];
 
             // 🔥 Mettre à jour l'historique et sauvegarder
             if ($conversation) {
@@ -114,11 +183,14 @@ class WhatsAppBusinessController extends Controller
                     'timestamp' => now()->toDateTimeString(),
                 ];
 
-                $history[] = [
-                    'role' => 'assistant',
-                    'content' => $response,
-                    'timestamp' => now()->toDateTimeString(),
-                ];
+                // ✅ Agent en pause (un commercial a la main) : aucune réponse à enregistrer
+                if ($response !== '') {
+                    $history[] = [
+                        'role' => 'assistant',
+                        'content' => $response,
+                        'timestamp' => now()->toDateTimeString(),
+                    ];
+                }
 
                 // ✅ Borne la taille stockée en base (l'agent n'exploite que les derniers échanges)
                 $history = array_slice($history, -40);
@@ -133,24 +205,26 @@ class WhatsAppBusinessController extends Controller
 
             Log::info("🤖 Agent virtuel: Réponse générée et sauvegardée", [
                 'response' => $response,
+                'silent' => !empty($result['silent']),
                 'history_count' => count($history),
-                'actions_count' => count($actions),
+                'actions' => array_column($actions, 'type'),
                 'stage' => $newState['conversation_stage'] ?? null,
+                'lead_score' => $newState['lead_score'] ?? null,
             ]);
 
-            return [
+            return array_merge($result, [
                 'message' => $response,
-                'message_before_media' => $messageBeforeMedia ?? '',
-                'message_after_media' => $messageAfterMedia ?? null,
                 'actions' => $actions,
                 'state' => $newState,
-                'pending_contact' => $pendingContact,
+                'pending_contact' => $result['pending_contact'] ?? [],
                 // ✅ true uniquement au moment où le lead devient qualifié
                 //    ou demande un conseiller (jamais à chaque phrase)
                 'notify_commercial' => $this->shouldNotifyCommercial($previousState, $newState),
-            ];
+                // Historique à jour : résumé IA de la conversation dans la notification commerciale
+                'history' => $history,
+            ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("❌ Erreur agent virtuel: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -159,13 +233,213 @@ class WhatsAppBusinessController extends Controller
             //    et produit des réponses incohérentes (questions déjà posées, etc.).
             return [
                 'message' => '',
-                'message_before_media' => $messageBeforeMedia ?? '',
-                'message_after_media' => $messageAfterMedia ?? null,
+                'parts' => [],
+                'silent' => true,
                 'actions' => [],
                 'state' => [],
                 'pending_contact' => [],
                 'notify_commercial' => false,
+                'history' => [],
             ];
+        }
+    }
+
+    /**
+     * 📝 TEXTE DU MESSAGE REÇU, pour l'historique de l'agent et les journaux
+     */
+    private function agentHistoryText(array $input)
+    {
+        $caption = trim((string) ($input['caption'] ?? ''));
+
+        switch ($input['type'] ?? 'text') {
+            case 'audio':
+                $transcript = trim((string) ($input['transcript'] ?? ''));
+                return $transcript !== '' ? '🎤 ' . $transcript : '[message vocal]';
+            case 'image':
+                return '[photo]' . ($caption !== '' ? ' ' . $caption : '');
+            case 'location':
+                return '[position partagée]';
+            case 'video':
+                return '[vidéo]' . ($caption !== '' ? ' ' . $caption : '');
+            case 'document':
+                return '[document]' . ($caption !== '' ? ' ' . $caption : '');
+            default:
+                return (string) ($input['text'] ?? '');
+        }
+    }
+
+    /**
+     * 🧩 DESCRIPTION DU MESSAGE REÇU, pour l'agent
+     */
+    private function buildAgentInput(Request $request, $body, $interactiveId, $mediaType, $mediaContentType, $downloadedMedia, $transcription, array $referral)
+    {
+        $input = ['referral' => $referral];
+        $body = trim((string) $body);
+        $latitude = $request->input('Latitude');
+        $longitude = $request->input('Longitude');
+
+        if (is_numeric($latitude) && is_numeric($longitude)) {
+            return $input + [
+                'type' => 'location',
+                'latitude' => (float) $latitude,
+                'longitude' => (float) $longitude,
+                'label' => $request->input('Label'),
+                'address' => $request->input('Address'),
+            ];
+        }
+
+        if ($mediaType === 'audio' && $body === '') {
+            return $input + [
+                'type' => 'audio',
+                'transcript' => $transcription['text'] ?? null,
+                'language' => $transcription['language'] ?? null,
+            ];
+        }
+
+        if ($mediaType === 'image') {
+            return $input + [
+                'type' => 'image',
+                'bytes' => $downloadedMedia['bytes'] ?? null,
+                'mime' => $downloadedMedia['mime'] ?? $mediaContentType,
+                'caption' => $body !== '' ? $body : null,
+            ];
+        }
+
+        if (in_array($mediaType, ['video', 'pdf', 'document'], true)) {
+            return $input + [
+                'type' => $mediaType === 'video' ? 'video' : 'document',
+                'caption' => $body !== '' ? $body : null,
+            ];
+        }
+
+        return $input + [
+            'type' => 'text',
+            'text' => $body,
+            'interactive_id' => $interactiveId,
+        ];
+    }
+
+    /**
+     * 🔘 IDENTIFIANT DU BOUTON OU DE LA LIGNE DE LISTE TOUCHÉ
+     * Seuls les identifiants de l'agent (« gl:… ») sont retenus. Sans identifiant,
+     * l'agent reconnaît le bouton à son titre (Body).
+     */
+    private function interactiveIdFromRequest(Request $request)
+    {
+        foreach (['ButtonPayload', 'ListId'] as $field) {
+            $value = trim((string) $request->input($field, ''));
+            if (str_starts_with($value, 'gl:')) {
+                return $value;
+            }
+        }
+
+        $data = $request->input('InteractiveData');
+        if (is_array($data)) {
+            $data = json_encode($data);
+        }
+        if (is_string($data) && preg_match('/"(gl:[^"\\\\]{1,190})"/', $data, $match) === 1) {
+            return $match[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * 📣 PUBLICITÉ « CLICK TO WHATSAPP » D'ORIGINE (paramètres Referral* de Twilio)
+     */
+    private function referralFromRequest(Request $request)
+    {
+        $fields = [
+            'source_url' => 'ReferralSourceUrl',
+            'source_id' => 'ReferralSourceId',
+            'source_type' => 'ReferralSourceType',
+            'headline' => 'ReferralHeadline',
+            'body' => 'ReferralBody',
+            'media_type' => 'ReferralMediaContentType',
+            'ctwa_clid' => 'ReferralCtwaClid',
+        ];
+
+        $referral = [];
+        foreach ($fields as $key => $field) {
+            $value = trim((string) $request->input($field, ''));
+            if ($value !== '') {
+                $referral[$key] = $value;
+            }
+        }
+
+        return $referral;
+    }
+
+    /**
+     * 👔 COMMERCIAL AFFECTÉ DANS LE CRM (prénom annoncé au prospect par l'agent)
+     */
+    private function assignedCommercialFor($prospectId)
+    {
+        try {
+            $prospect = Prospect::on('temp')->find($prospectId);
+            if (!$prospect || empty($prospect->commercial_affecte)) {
+                return null;
+            }
+
+            $user = User::on('temp')->find($prospect->commercial_affecte);
+            if (!$user) {
+                return null;
+            }
+
+            $name = trim(trim((string) ($user->prenom ?? '')) . ' ' . trim((string) ($user->name ?? '')));
+
+            return $name === '' ? null : [
+                'name' => $name,
+                'phone' => null,
+                'email' => $user->email ?? null,
+                'crm_user_id' => $user->id,
+            ];
+        } catch (\Throwable $e) {
+            Log::warning("⚠️ Commercial affecté introuvable: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * ⏸️ L'AGENT EST-IL EN PAUSE POUR CETTE CONVERSATION ? (un commercial a repris la main)
+     */
+    private function isAgentPaused($sessionId)
+    {
+        try {
+            $conversation = Conversation::where('session_id', $sessionId)->first();
+
+            return $conversation ? (new AgentFinalService($conversation->state ?? []))->isBotPaused() : false;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * 🎤 TRANSCRIRE UN MESSAGE VOCAL (darija, arabe, français, anglais)
+     * Modèle et fournisseur : config/greenland.php ('transcription').
+     *
+     * @return array|null ['text' => '…', 'language' => 'fr'|'darija'|'ar'|'en'|null, …]
+     */
+    private function transcribeVoiceMessage($audioBytes, $mimeType)
+    {
+        try {
+            $transcription = (new Transcriber())->transcribe((string) $audioBytes, (string) ($mimeType ?: 'audio/ogg'));
+            $text = is_array($transcription) ? trim((string) ($transcription['text'] ?? '')) : '';
+
+            if ($text === '') {
+                return null;
+            }
+
+            Log::info("✅ Vocal transcrit", [
+                'text' => $text,
+                'language' => $transcription['language'] ?? null,
+                'model' => $transcription['model'] ?? null,
+            ]);
+
+            return $transcription;
+        } catch (\Throwable $e) {
+            Log::error("❌ Erreur transcription: " . $e->getMessage());
+            return null;
         }
     }
 
@@ -381,269 +655,221 @@ class WhatsAppBusinessController extends Controller
     }
 
     /**
-     * 🔥 ENVOYER UNE RÉPONSE WHATSAPP DEPUIS L'AGENT
+     * 🔥 ENVOYER LA RÉPONSE DE L'AGENT (texte, photos, plans, vidéo, brochure, localisation, boutons)
      *
-     * ✅ Le TEXTE part en premier, les médias ensuite : le prospect lit
-     *    « Je vous envoie les photos » avant de recevoir les photos.
+     * ✅ L'ordre est fixé par l'agent : le TEXTE part en premier, les médias ensuite, puis la
+     *    question avec ses boutons. Après des photos, une question sans bouton devient la légende
+     *    de la dernière photo : elle s'affiche forcément après elle.
+     * ✅ Chaque message envoyé est archivé dans whatsapp_messages (messagerie du CRM).
      */
-        private function sendAgentResponse($to, $message, $config, $projetId, $sessionId, $actions = [], $prospectId = null, $messageAfterMedia = null)
+    private function sendAgentResponse($to, array $agentResult, $config, $projetId, $sessionId, $prospectId = null, $societe = null)
     {
         try {
-            $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
-
-            // ✅ 1. TEXTE DE PRÉSENTATION (sans la question quand des médias suivent)
-            $this->sendAgentText($twilio, $to, $message, $config, $projetId, $prospectId);
-
-            // ✅ 2. EXÉCUTER LES ACTIONS (localisation, photos, plans 3D, notification CRM)
-            foreach ($actions as $action) {
-                $this->executeAgentAction($action, $to, $config, $projetId, $prospectId);
+            // ✅ Agent en pause : un commercial a repris la conversation, rien n'est envoyé
+            if (!empty($agentResult['silent'])) {
+                Log::info("🤫 Agent en pause : aucune réponse automatique", ['session_id' => $sessionId]);
+                return false;
             }
 
-            // ✅ 3. QUESTION APRÈS LES MÉDIAS : le prospect la voit en dernier
-            if (trim((string) $messageAfterMedia) !== '') {
-                $this->sendAgentText($twilio, $to, $messageAfterMedia, $config, $projetId, $prospectId);
-            }
+            $sent = $this->twilioSender($config, $projetId, $to, $prospectId, $societe)->sendResult($to, $agentResult);
 
-            $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
-            if ($conversation) {
-                $conversation->markBotMessage();
+            // ✅ MARQUER LE MESSAGE BOT (programme le follow-up)
+            if ($sent > 0) {
+                $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
+                if ($conversation) {
+                    $conversation->markBotMessage();
+                }
             }
 
             Log::info("✅ Réponse de l'agent envoyée + follow-up programmé", [
                 'session_id' => $sessionId,
                 'to' => $to,
-                'actions_count' => count($actions),
+                'messages_envoyes' => $sent,
             ]);
 
-            return true;
+            return $sent > 0;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("❌ Erreur envoi réponse agent: " . $e->getMessage());
             return false;
         }
     }
 
     /**
-     * ✉️ ENVOYER UN MESSAGE TEXTE DE L'AGENT ET L'ARCHIVER
+     * 📤 EXPÉDITEUR TWILIO DE L'AGENT
+     * Envoie les messages (texte, médias, épingle de localisation, boutons, listes, vocal)
+     * et archive chacun dans whatsapp_messages.
      */
-    private function sendAgentText($twilio, $to, $message, $config, $projetId, $prospectId = null)
+    private function twilioSender($config, $projetId, $to, $prospectId = null, $societe = null)
     {
-        if (trim((string) $message) === '') {
-            return;
+        $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
+
+        $archive = function (array $message) use ($config, $projetId, $to, $prospectId) {
+            DB::connection('temp')->table('whatsapp_messages')->insert([
+                'projet_id' => $projetId,
+                'from_number' => $config->phone_number_id,
+                'to_number' => $to,
+                'message' => $message['message'] ?? '',
+                'message_sid' => $message['message_sid'] ?? null,
+                'profile_name' => 'Agent Virtuel Karim',
+                'status' => 'sent',
+                'message_type' => $message['message_type'] ?? 'agent_response',
+                'media_url' => $message['media_url'] ?? null,
+                'prospect_id' => $prospectId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        };
+
+        // ✅ Réponses vocales (config greenland.voice_replies) : fichier audio publié comme les autres médias
+        $publicFile = null;
+        $voice = null;
+        if ($societe && config('greenland.voice_replies.enabled', false)) {
+            $voice = new VoiceSynthesizer();
+            $publicFile = function (string $bytes, string $mime, string $filename) use ($societe) {
+                return $this->storePublicFile($bytes, $mime, $filename, $societe);
+            };
         }
 
-        $sentMessage = $twilio->messages->create(
-            "whatsapp:" . $to,
-            [
-                'from' => "whatsapp:" . $config->phone_number_id,
-                'body' => $message,
-            ]
+        return new TwilioWhatsApp(
+            $twilio,
+            (string) $config->account_sid,
+            (string) $config->access_token,
+            (string) $config->phone_number_id,
+            $archive,
+            $publicFile,
+            $voice
         );
-
-        DB::connection('temp')->table('whatsapp_messages')->insert([
-            'projet_id' => $projetId,
-            'from_number' => $config->phone_number_id,
-            'to_number' => $to,
-            'message' => $message,
-            'message_sid' => $sentMessage->sid,
-            'profile_name' => 'Agent Virtuel Karim',
-            'status' => 'sent',
-            'message_type' => 'agent_response',
-            'prospect_id' => $prospectId,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
     }
 
     /**
-     * 🔥 EXÉCUTER UNE ACTION DE L'AGENT
-     * (send_location, send_media, notify_commercial)
+     * 💾 DÉPOSER UN FICHIER PRODUIT PAR L'AGENT (réponse vocale) ET RENVOYER SON URL PUBLIQUE
      */
-    private function executeAgentAction(array $action, $to, $config, $projetId, $prospectId = null)
+    private function storePublicFile($bytes, $mime, $filename, $societe, $doss = 'whatsapp_media')
+    {
+        $tempPath = null;
+
+        try {
+            $fileName = time() . '_' . Str::random(6) . '_' . $filename;
+            $tempPath = tempnam(sys_get_temp_dir(), 'greenland_');
+            file_put_contents($tempPath, $bytes);
+
+            $file = new \Illuminate\Http\UploadedFile($tempPath, $fileName, $mime, null, true);
+            FichierHelper::ajouter_fichier($file, $societe->raison_sociale_concatene, $societe->id, $doss, $fileName);
+
+            return FichierHelper::get_file_url($societe->raison_sociale_concatene, $societe->id, $doss, $fileName);
+        } catch (\Throwable $e) {
+            Log::warning("⚠️ Fichier de l'agent non publié: " . $e->getMessage());
+            return null;
+        } finally {
+            if ($tempPath && file_exists($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
+    }
+
+    /**
+     * 🔥 EXÉCUTER UNE ACTION DE L'AGENT DESTINÉE À L'ÉQUIPE
+     * (photos, plans, localisation et boutons sont déjà partis avec sendAgentResponse)
+     */
+    private function executeAgentAction(array $action, $to, $config, $projetId, $prospectId = null, array $history = [])
     {
         try {
             $type = $action['type'] ?? null;
 
             switch ($type) {
-                // ✅ 1. ENVOYER UNE LOCALISATION
-                case 'send_location':
-                    $this->sendWhatsAppLocation(
-                        $to,
-                        $action['latitude'] ?? null,
-                        $action['longitude'] ?? null,
-                        $action['label'] ?? env('CLIENT_NOM'),
-                        $action['maps_url'] ?? null,
-                        $config,
-                        $projetId
-                    );
-                    break;
-
-                // ✅ 2. ENVOYER UN MÉDIA (photos, plans 3D, vidéo)
-                case 'send_media':
-                    $urls = $action['urls'] ?? [];
-                    if (empty($urls) && !empty($action['url'])) {
-                        $urls = [$action['url']];
-                    }
-                    foreach ($urls as $url) {
-                        // ✅ Légende transmise par l'agent (ex. « Plan 3D F3 –  »)
-                        $this->sendWhatsAppMedia($to, $url, $config, $projetId, $action['caption'] ?? null);
-                    }
-                    break;
-
-                // ✅ 3. NOTIFIER LE COMMERCIAL
+                // ✅ 1. NOTIFIER LE COMMERCIAL (lead qualifié, lead chaud, rappel, visite, urgence, mise à jour)
                 case 'notify_commercial':
                     // ✅ prospect_id transmis par le contrôleur : absent du payload de l'agent
                     $this->notifyCommercialFromAgent(
                         $action['payload'] ?? [],
                         $projetId,
-                        $prospectId
+                        $prospectId,
+                        $history
                     );
+                    break;
+
+                // ✅ 2. DEMANDE DE SUPPRESSION DES DONNÉES (loi 09-08)
+                case 'data_deletion_request':
+                    $this->notifyDataDeletionRequest($action, $to, $projetId, $prospectId);
+                    break;
+
+                // ✅ 3. QUESTION RESTÉE SANS RÉPONSE : à ajouter à la FAQ (config/greenland.php → 'faq')
+                case 'unanswered_question':
+                    Log::info("❓ Question sans réponse de l'agent", [
+                        'question' => $action['question'] ?? null,
+                        'from' => $to,
+                        'prospect_id' => $prospectId,
+                    ]);
+                    break;
+
+                // ✅ 4. MESSAGE À TRANSMETTRE : déjà visible dans la messagerie WhatsApp du CRM
+                case 'forward_to_commercial':
+                    break;
+
+                // ✅ Envois au prospect : déjà faits par sendAgentResponse
+                case 'send_media':
+                case 'send_document':
+                case 'send_location':
+                case 'send_cta':
+                case 'send_call_button':
                     break;
 
                 default:
                     Log::warning("⚠️ Action inconnue: {$type}");
                     break;
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("❌ Erreur exécution action: " . $e->getMessage());
         }
     }
 
     /**
-     * 🔥 ENVOYER UNE LOCALISATION WHATSAPP
-     */
-    private function sendWhatsAppLocation($to, $lat, $lng, $label, $mapsUrl, $config, $projetId)
-    {
-        try {
-            if (empty($mapsUrl)) {
-                return;
-            }
-
-            $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
-
-            // WhatsApp ne supporte pas les localisations natives via Twilio
-            // → On envoie le lien Google Maps
-            // ✅ Gras WhatsApp = *texte* (et non **texte**, affiché littéralement)
-            $body = "📍 *{$label}*\n{$mapsUrl}";
-
-            $sentMessage = $twilio->messages->create(
-                "whatsapp:" . $to,
-                [
-                    'from' => "whatsapp:" . $config->phone_number_id,
-                    'body' => $body,
-                ]
-            );
-
-            DB::connection('temp')->table('whatsapp_messages')->insert([
-                'projet_id' => $projetId,
-                'from_number' => $config->phone_number_id,
-                'to_number' => $to,
-                'message' => $body,
-                'message_sid' => $sentMessage->sid,
-                'profile_name' => 'Agent Virtuel Karim',
-                'status' => 'sent',
-                'message_type' => 'location',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            Log::info("✅ Localisation envoyée à {$to}", [
-                'label' => $label,
-                'maps_url' => $mapsUrl,
-            ]);
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur envoi localisation: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * 🔥 ENVOYER UN MÉDIA (PHOTO / PLAN 3D / VIDÉO)
-     */
-    private function sendWhatsAppMedia($to, $mediaUrl, $config, $projetId, $caption = null)
-    {
-        try {
-            if (empty($mediaUrl)) {
-                return;
-            }
-
-            $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
-
-            $params = [
-                'from' => "whatsapp:" . $config->phone_number_id,
-                'mediaUrl' => [$mediaUrl],
-            ];
-
-            if (!empty($caption)) {
-                $params['body'] = $caption;
-            }
-
-            $sentMessage = $twilio->messages->create("whatsapp:" . $to, $params);
-
-            DB::connection('temp')->table('whatsapp_messages')->insert([
-                'projet_id' => $projetId,
-                'from_number' => $config->phone_number_id,
-                'to_number' => $to,
-                'message' => $caption ?: '📎 Média',
-                'message_sid' => $sentMessage->sid,
-                'profile_name' => 'Agent Virtuel Karim',
-                'status' => 'sent',
-                'message_type' => 'media',
-                'media_url' => $mediaUrl,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            Log::info("✅ Média envoyé à {$to}", [
-                'media_url' => $mediaUrl,
-            ]);
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur envoi média: " . $e->getMessage(), [
-                'media_url' => $mediaUrl,
-            ]);
-        }
-    }
-
-    /**
      * 🔥 NOTIFIER LE COMMERCIAL (depuis l'agent)
+     *
+     * Un titre par événement de l'agent : lead qualifié, lead chaud, demande de rappel ou de visite,
+     * visite réservée, urgence (prospect mécontent ou qui demande un humain), mise à jour
+     * (nouveau créneau, annulation…). La fiche contient le score, la qualification complète,
+     * un résumé de la conversation rédigé par l'IA et les questions restées sans réponse.
      */
-    private function notifyCommercialFromAgent(array $payload, $projetId, $prospectId = null)
+    private function notifyCommercialFromAgent(array $payload, $projetId, $prospectId = null, array $history = [])
     {
         try {
             // ✅ prospect_id : paramètre du contrôleur, sinon champ conservé dans l'état
             $prospectId = $prospectId ?: ($payload['prospect_id'] ?? null);
+            $event = (string) ($payload['event'] ?? 'lead');
 
-            Log::info("📤 Notification commercial depuis l'agent", $payload);
+            // ✅ La demande de suppression des données a sa propre notification (data_deletion_request)
+            if (($payload['update'] ?? null) === 'data_deletion') {
+                return;
+            }
+
+            Log::info("📤 Notification commercial depuis l'agent", [
+                'event' => $event,
+                'update' => $payload['update'] ?? null,
+                'score' => $payload['lead_score'] ?? null,
+                'prospect_id' => $prospectId,
+            ]);
 
             // ✅ Trouver le commercial affecté
             // ✅ Affectation garantie avant la notification (tour de rôle via last_affected) :
             //    sans commercial affecté, la notification partait avec user_id = null.
             $assignedCommercialId = $this->ensureProspectAssigned($prospectId, $projetId);
 
-            // ✅ Pré-alerte (lead qualifié) et demande confirmée n'ont pas le même titre
-            $isCallbackRequest = ($payload['status'] ?? '') === 'callback_or_visit_requested';
-            $title = $isCallbackRequest
-                ? (!empty($payload['requested_visit']) ? "📅 *DEMANDE DE VISITE*" : "📞 *DEMANDE DE RAPPEL*")
-                : "🎯 *LEAD QUALIFIÉ (agent)*";
-
-            $budget = !empty($payload['budget'])
-                ? number_format((int) $payload['budget'], 0, ',', ' ') . ' DH'
-                : 'Non précisé';
+            // ✅ Résumé de la conversation rédigé par l'IA, pour les événements qui précèdent un appel
+            $aiSummary = null;
+            if (in_array($event, ['hot_lead', 'handoff', 'visit_booked', 'escalation'], true)
+                && config('greenland.crm_notifications.ai_summary', true)
+                && !empty($history)) {
+                $aiSummary = (new LeadSummarizer())->summarize($history, $payload);
+            }
 
             // ✅ Créer la notification
             $notification = new Notification();
             $notification->setConnection('temp');
             $notification->date = now();
             $notification->type = 50; // Demande de rappel / lead via agent
-            $notification->description_type = $title . "\n\n" .
-                "👤 Nom: " . ($payload['name'] ?? 'Non fourni') . "\n" .
-                "📞 Téléphone: " . ($payload['phone'] ?? 'Non fourni') . "\n" .
-                "🏠 Type: " . ($payload['property_type'] ?? 'Non précisé') . "\n" .
-                //"🎯 Projet: " . ($payload['purpose'] ?? 'Non précisé') . "\n" .
-                "💰 Budget: " . $budget . "\n" .
-                "🕒 Créneau souhaité: " . ($payload['callback_slot_label'] ?? 'Non précisé') . "\n" .
-                "📝 Dernier message: " . ($payload['last_message'] ?? '');
-           // $link = "/whatsapp-messenger?phone={$phoneNumber}&projet_id={$projetId}&prospect_id={$prospectId}";
-           // $notification->lien = $link
+            $notification->description_type = $this->agentNotificationText($payload, $aiSummary);
             $notification->lien = $prospectId ? "/crm/prospects/" . $prospectId : "/prospects";
             $notification->role = 3;
             $notification->user_id = $assignedCommercialId ?: null;
@@ -656,11 +882,172 @@ class WhatsAppBusinessController extends Controller
 
             Log::info("✅ Notification commercial créée", [
                 'notification_id' => $notification->id,
+                'event' => $event,
                 'commercial_id' => $assignedCommercialId,
                 'prospect_id' => $prospectId,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("❌ Erreur notification commercial: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * 🏷️ TITRE DE LA NOTIFICATION selon l'événement de l'agent
+     */
+    private function agentNotificationTitle(array $payload)
+    {
+        $updates = [
+            'schedule' => 'nouveau créneau de rappel',
+            'phone' => 'nouveau numéro de rappel',
+            'schedule+phone' => 'nouveau créneau et nouveau numéro',
+            'cancelled' => 'demande de rappel annulée',
+            'visit_cancelled' => 'visite annulée',
+            'visit_rescheduled' => 'visite déplacée',
+            'visit_confirmed_by_prospect' => 'visite confirmée par le prospect',
+            'visit_requested' => 'le prospect demande aussi une visite',
+            'visit_booked' => 'visite réservée',
+            'escalation' => 'le prospect demande à être rappelé rapidement',
+            'opt_out' => 'le prospect ne souhaite plus être contacté',
+            'opt_out_visit_cancelled' => 'le prospect ne souhaite plus être contacté (visite annulée)',
+        ];
+
+        switch ((string) ($payload['event'] ?? 'lead')) {
+            case 'escalation':
+                return ($payload['escalation_reason'] ?? null) === 'demande_humain'
+                    ? "🚨 *URGENT – LE PROSPECT VEUT PARLER À UN CONSEILLER*"
+                    : "🚨 *URGENT – PROSPECT MÉCONTENT*";
+            case 'hot_lead':
+                return "🔥 *LEAD CHAUD (" . (int) ($payload['lead_score'] ?? 0) . "/100)*";
+            case 'visit_booked':
+                return "📅 *VISITE RÉSERVÉE*";
+            case 'handoff':
+                return !empty($payload['requested_visit']) && empty($payload['requested_callback'])
+                    ? "📅 *DEMANDE DE VISITE*"
+                    : "📞 *DEMANDE DE RAPPEL*";
+            case 'update':
+                $update = (string) ($payload['update'] ?? '');
+                $label = $updates[$update] ?? ($update !== '' ? $update : 'changement');
+                return (str_contains($update, 'cancel') || str_starts_with($update, 'opt_out') ? "❌" : "🔄") . " *MISE À JOUR : " . mb_strtoupper($label, 'UTF-8') . "*";
+            default:
+                return "🎯 *LEAD QUALIFIÉ (agent)*";
+        }
+    }
+
+    /**
+     * 📋 FICHE DU PROSPECT dans la notification
+     */
+    private function agentNotificationText(array $payload, $aiSummary = null)
+    {
+        $value = function ($key) use ($payload) {
+            $v = $payload[$key] ?? null;
+            return is_scalar($v) && trim((string) $v) !== '' ? trim((string) $v) : null;
+        };
+
+        $timelines = ['immediat' => 'Dès que possible', 'trois_six_mois' => 'Dans 3 à 6 mois', 'plus_tard' => 'Plus de 6 mois', 'renseignement' => 'Se renseigne'];
+        $financings = ['comptant' => 'Comptant', 'credit' => 'Crédit', 'mixte' => 'Apport + crédit', 'indecis' => 'À définir'];
+        $temperatures = ['chaud' => 'chaud 🔥', 'tiede' => 'tiède', 'froid' => 'froid'];
+
+        $budget = $value('budget')
+            ? number_format((int) $payload['budget'], 0, ',', ' ') . ' DH'
+            : ($value('budget_range') ?: 'Non précisé');
+
+        $visit = is_array($payload['visit'] ?? null) && !empty($payload['visit']['start'])
+            && in_array($payload['visit']['status'] ?? 'confirmed', ['confirmed', 'rescheduling'], true)
+            ? $this->frenchDateTime((string) $payload['visit']['start'])
+            : null;
+
+        $lines = [
+            $this->agentNotificationTitle($payload),
+            '',
+            "👤 Nom: " . ($value('name') ?: ($value('whatsapp_name') ?: 'Non fourni')),
+            "📞 Téléphone: " . ($value('phone') ?: 'Non fourni'),
+            "📊 Score: " . (int) ($payload['lead_score'] ?? 0) . "/100 (" . ($temperatures[$payload['lead_temperature'] ?? ''] ?? 'froid') . ")",
+            "🏠 Type: " . ($value('property_type') ?: 'Non précisé'),
+            "🎯 Projet: " . ($value('purpose') ? ucfirst($value('purpose')) : 'Non précisé'),
+            "💰 Budget: " . $budget,
+            "⏳ Délai d'achat: " . ($timelines[$payload['timeline'] ?? ''] ?? 'Non précisé'),
+            "🏦 Financement: " . ($financings[$payload['financing'] ?? ''] ?? 'Non précisé'),
+        ];
+
+        if (!empty($payload['is_mre'])) {
+            $lines[] = "🌍 Vit à l'étranger" . ($value('prospect_country') && $payload['prospect_country'] !== 'Maroc' ? ' (' . $payload['prospect_country'] . ')' : '');
+        }
+        if ($visit) {
+            $lines[] = "📅 Visite: " . $visit;
+        } elseif (!empty($payload['requested_callback']) || ($payload['status'] ?? '') === 'callback_or_visit_requested') {
+            $lines[] = "🕒 Créneau souhaité: " . ($value('callback_slot_label') ?: 'Dès que possible')
+                . ($value('callback_time_prospect_local') ? ' — heure du prospect : ' . $payload['callback_time_prospect_local'] : '');
+        }
+        if (!empty($payload['ad']['headline']) || !empty($payload['ad']['source_id'])) {
+            $lines[] = "📣 Publicité: " . ($payload['ad']['headline'] ?? $payload['ad']['source_id']);
+        }
+
+        $summary = $aiSummary ?: $value('summary');
+        if ($summary) {
+            $lines[] = '';
+            $lines[] = "🧠 Résumé: " . $summary;
+        }
+        if (!empty($payload['unanswered_questions'])) {
+            $lines[] = "❓ Questions sans réponse: " . implode(' | ', array_slice((array) $payload['unanswered_questions'], -3));
+        }
+        if ($value('last_voice_transcript')) {
+            $lines[] = "🎤 Dernier vocal: « " . mb_substr($payload['last_voice_transcript'], 0, 200, 'UTF-8') . " »";
+        }
+        $lines[] = "📝 Dernier message: " . ($value('last_message') ?: '');
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * 🗓️ « jeudi 22/10 à 15h » (heure du Maroc)
+     */
+    private function frenchDateTime($iso)
+    {
+        try {
+            $date = Carbon::parse($iso)->setTimezone(GreenLandSettings::timezone());
+            $days = [1 => 'lundi', 2 => 'mardi', 3 => 'mercredi', 4 => 'jeudi', 5 => 'vendredi', 6 => 'samedi', 7 => 'dimanche'];
+
+            return $days[(int) $date->format('N')] . ' ' . $date->format('d/m') . ' à ' . $date->format('G') . 'h' . ($date->format('i') !== '00' ? $date->format('i') : '');
+        } catch (\Throwable $e) {
+            return (string) $iso;
+        }
+    }
+
+    /**
+     * 🗑️ DEMANDE DE SUPPRESSION DES DONNÉES (loi 09-08) : notification à traiter dans le CRM
+     * L'agent a déjà arrêté les relances et annulé le rendez-vous éventuel.
+     */
+    private function notifyDataDeletionRequest(array $action, $from, $projetId, $prospectId = null)
+    {
+        try {
+            $commercialId = null;
+            if ($prospectId) {
+                $prospect = Prospect::on('temp')->find($prospectId);
+                $commercialId = $prospect->commercial_affecte ?? null;
+            }
+
+            $notification = new Notification();
+            $notification->setConnection('temp');
+            $notification->date = now();
+            $notification->type = 50;
+            $notification->description_type = "🗑️ *DEMANDE DE SUPPRESSION DES DONNÉES (loi 09-08)*\n\n"
+                . "👤 Nom: " . ($action['name'] ?? 'Non fourni') . "\n"
+                . "📞 Téléphone: " . $from . "\n"
+                . "L'agent a arrêté les relances et annulé le rendez-vous éventuel. "
+                . "Supprimez ou anonymisez la fiche du prospect et ses messages dans le CRM.";
+            $notification->lien = $prospectId ? "/crm/prospects/" . $prospectId : "/prospects";
+            $notification->role = 3;
+            $notification->user_id = $commercialId ?: null;
+            $notification->projet_id = $projetId;
+            $notification->prospect_id = $prospectId;
+            $notification->save();
+
+            Config::set('broadcasting.default', 'pusher_notify');
+            broadcast(new NotificationEvent($notification->id));
+
+            Log::warning("🗑️ Demande de suppression des données", ['from' => $from, 'prospect_id' => $prospectId]);
+        } catch (\Throwable $e) {
+            Log::error("❌ Erreur notification suppression des données: " . $e->getMessage());
         }
     }
 
@@ -1037,8 +1424,8 @@ class WhatsAppBusinessController extends Controller
 
                 Log::info('✅ Transaction validée avec succès');
 
-                // ✅ 7. Send notification (OUTSIDE transaction)
-              //  $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
+                // ✅ 7. Send notification (OUTSIDE transaction) — désactivée
+                // $this->sendAffectationNotification($newCommercialId, $prospectId, $projetId);
 
                 // ✅ 8. Verify data was saved
                 $verifyProspect = Prospect::on('temp')->find($prospectId);
@@ -1120,10 +1507,11 @@ class WhatsAppBusinessController extends Controller
             // Critère 2 : Budget donné (saisi par le prospect ou déduit par l'agent)
             $hasBudget = !empty($state['budget']);
 
-            // Critère 3 : Visite demandée ou acceptée
+            // Critère 3 : Visite demandée, acceptée ou réservée
             $wantsVisit = !empty($state['wants_visit'])
                           || !empty($state['visit_requested'])
-                          || !empty($state['visit_accepted']);
+                          || !empty($state['visit_accepted'])
+                          || !empty($state['visit_booking']);
 
             // Critère 4 : Rappel demandé, demande transmise ou lead qualifié
             $wantsCallback = !empty($state['wants_callback'])
@@ -1192,108 +1580,10 @@ class WhatsAppBusinessController extends Controller
             return false;
         }
     }
-private function transcribeWhatsAppAudio(string $mediaUrl, $config): ?string
-{
-    try {
-        // 1. Télécharger l'audio depuis Twilio
-        $client = new \GuzzleHttp\Client();
-        $response = $client->get($mediaUrl, [
-            'auth' => [$config->account_sid, $config->access_token],
-            'timeout' => 30,
-        ]);
 
-        $audioContent = $response->getBody()->getContents();
-        $contentType = $response->getHeader('Content-Type')[0] ?? 'audio/ogg';
-
-        Log::info("📥 Audio téléchargé", [
-            'size' => strlen($audioContent),
-            'content_type' => $contentType,
-        ]);
-
-        // 2. Encoder en base64
-        $base64Audio = base64_encode($audioContent);
-
-        // 3. Appeler OpenRouter avec Voxtral (accepte ogg nativement)
-        $apiKey = config('services.openrouter.key') ?? env('OPENROUTER_API_KEY');
-        if (!$apiKey) {
-            Log::error("❌ OPENROUTER_API_KEY manquante");
-            return null;
-        }
-
-        $transcriptionResponse = \Illuminate\Support\Facades\Http::timeout(60)
-            ->withToken($apiKey)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'X-Title' => env('CLIENT_NOM').'WhatsApp Agent',
-            ])
-            ->post('https://openrouter.ai/api/v1/audio/transcriptions', [
-                'model' => 'mistralai/voxtral-small-24b-2507-stt',  // ← Voxtral
-                'input_audio' => [
-                    'data' => $base64Audio,
-                    'format' => 'ogg',  // ← Accepté nativement
-                ],
-                'language' => 'fr',
-                'response_format' => 'json',
-            ]);
-
-        if (!$transcriptionResponse->successful()) {
-            Log::error("❌ Erreur Voxtral OpenRouter", [
-                'status' => $transcriptionResponse->status(),
-                'body' => mb_substr($transcriptionResponse->body(), 0, 500),
-            ]);
-            return null;
-        }
-
-        $responseData = $transcriptionResponse->json();
-        $text = trim($responseData['text'] ?? '');
-
-        Log::info("✅ Transcription Voxtral réussie", [
-            'text' => $text,
-            'cost_usd' => $responseData['usage']['cost'] ?? null,
-        ]);
-
-        return $text !== '' ? $text : null;
-
-    } catch (\Exception $e) {
-        Log::error("❌ Erreur transcription: " . $e->getMessage());
-        return null;
-    }
-}
-/**
- * 📤 ENVOYER UN MESSAGE TEXTE SIMPLE
- */
-private function sendWhatsAppText($to, string $message, $config, $projetId): void
-{
-    try {
-        $twilio = new \Twilio\Rest\Client($config->account_sid, $config->access_token);
-        $sent = $twilio->messages->create(
-            "whatsapp:" . $to,
-            [
-                'from' => "whatsapp:" . $config->phone_number_id,
-                'body' => $message,
-            ]
-        );
-
-        DB::connection('temp')->table('whatsapp_messages')->insert([
-            'projet_id' => $projetId,
-            'from_number' => $config->phone_number_id,
-            'to_number' => $to,
-            'message' => $message,
-            'message_sid' => $sent->sid,
-            'profile_name' => 'Agent Virtuel Karim',
-            'status' => 'sent',
-            'message_type' => 'error_audio',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-    } catch (\Exception $e) {
-        Log::error("❌ Erreur envoi message texte: " . $e->getMessage());
-    }
-}
     /* =====================================================================
      |  WEBHOOK
      * ===================================================================== */
-
 
     /**
      * 🔥 WEBHOOK TWILIO AVEC AGENT VIRTUEL
@@ -1303,6 +1593,15 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
         try {
             Log::info('📩 Message reçu de Twilio', $request->all());
 
+            // ✅ Vocal + IA + photos peuvent dépasser 30 s : la réponse part jusqu'au bout,
+            //    même si Twilio ferme la connexion avant la fin du traitement.
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(120);
+            }
+            if (function_exists('ignore_user_abort')) {
+                @ignore_user_abort(true);
+            }
+
             // Nettoyer les numéros
             $to = ltrim(str_replace('whatsapp:', '', $request->input('To')), '+');
             $number = str_replace('whatsapp:', '', $request->input('From'));
@@ -1310,6 +1609,15 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             $body = $request->input('Body');
             $messageSid = $request->input('MessageSid');
             $profileName = $request->input('ProfileName', 'Utilisateur WhatsApp');
+
+            // ✅ Bouton ou ligne de liste touché (identifiant « gl:… » des boutons de l'agent)
+            $interactiveId = $this->interactiveIdFromRequest($request);
+
+            // ✅ Position partagée par le prospect
+            $isLocation = is_numeric($request->input('Latitude')) && is_numeric($request->input('Longitude'));
+
+            // ✅ Prospect venu d'une publicité « Click to WhatsApp »
+            $referral = $this->referralFromRequest($request);
 
             // ✅ Récupérer les informations sur le média
             $numMedia = $request->input('NumMedia', 0);
@@ -1400,6 +1708,17 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             if ($this->isDuplicateWebhook($messageSid)) {
                 Log::info("↩️ Message déjà traité, ignoré: {$messageSid}");
                 return response()->json(['status' => 'duplicate']);
+            }
+
+            // ════════════════════════════════════════════════════════════
+            // ✍️ « EN TRAIN D'ÉCRIRE… » + COCHES BLEUES pendant que l'agent prépare
+            //    sa réponse (sauf si un commercial a repris la conversation)
+            // ════════════════════════════════════════════════════════════
+            $sessionId = $this->getSessionId($from, $foundConfig->projet_id);
+            $conversationCheck = $this->isExistingConversation($foundConfig->projet_id, $from);
+
+            if (!$conversationCheck['is_completed'] && !$this->isAgentPaused($sessionId)) {
+                $this->twilioSender($foundConfig, $foundConfig->projet_id, $from)->typing($messageSid);
             }
 
             // ========== TROUVER OU CRÉER LE PROSPECT ==========
@@ -1518,13 +1837,16 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
 
             // ========== TÉLÉCHARGER ET STOCKER LE MÉDIA ==========
             $localMediaUrl = null;
+            $downloadedMedia = null; // ✅ contenu du média, gardé pour l'agent (vocal, photo)
             if ($mediaUrl && $foundSociete) {
                 $localMediaUrl = $this->downloadAndStoreMedia(
                     $mediaUrl,
                     $foundConfig,
                     $from,
                     $messageSid,
-                    $foundSociete
+                    $foundSociete,
+                    'whatsapp_media',
+                    $downloadedMedia
                 );
 
                 if ($localMediaUrl) {
@@ -1534,61 +1856,66 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                 }
             }
 
-            // ========== STOCKER LE NOUVEAU MESSAGE ==========
-           // ════════════════════════════════════════════════════════════════
-            // 🎤 GESTION AUDIO : SI PAS DE TEXTE MAIS AUDIO → TRANSCRIRE
+            // ════════════════════════════════════════════════════════════════
+            // 🎤 VOCAL : TRANSCRIPTION (darija comprise)
+            //    Réussie : l'agent répond comme à un texte, dans la langue du prospect,
+            //    et le CRM affiche la transcription.
+            //    Échouée : l'agent invite poliment le prospect à écrire, dans sa langue.
             // ════════════════════════════════════════════════════════════════
             $isAudio = ($numMedia > 0) && ($mediaType === 'audio');
+            $transcription = null;
 
-            if (empty($body) && $isAudio && !empty($mediaUrl)) {
-                // ✅ Pas de texte MAIS audio → transcrire
+            if (empty($body) && $isAudio) {
                 Log::info("🎤 Message audio détecté (pas de texte) → transcription en cours", [
                     'from' => $from,
                     'media_url' => $mediaUrl,
                     'content_type' => $mediaContentType,
                 ]);
 
-                $transcribedText = $this->transcribeWhatsAppAudio($mediaUrl, $foundConfig);
+                $transcription = !empty($downloadedMedia['bytes'])
+                    ? $this->transcribeVoiceMessage($downloadedMedia['bytes'], $downloadedMedia['mime'] ?: $mediaContentType)
+                    : null;
 
-                if (!empty($transcribedText)) {
-                    // ✅ Transcription réussie → on remplace $body
-                    $body = $transcribedText;
-                    Log::info("✅ Audio transcrit → traitement normal", [
-                        'from' => $from,
-                        'transcription' => $body,
-                    ]);
-                } else {
-                    // ❌ Transcription échouée → message d'excuse au client
-                    Log::warning("⚠️ Transcription audio échouée", ['from' => $from]);
-
-                    $this->sendWhatsAppText(
-                        $from,
-                        "Désolé, je n'ai pas pu comprendre votre message vocal. Pouvez-vous réécrire votre demande en texte ? 🙏",
-                        $foundConfig,
-                        $foundConfig->projet_id
-                    );
-
-                    return response()->json(['status' => 'audio_transcription_failed']);
+                if (!$transcription) {
+                    Log::warning("⚠️ Transcription audio échouée : l'agent demandera au prospect d'écrire", ['from' => $from]);
                 }
             } elseif (!empty($body)) {
-                // ✅ Texte présent → déjà makhdom, rien à faire
                 Log::info("💬 Message texte reçu", [
                     'from' => $from,
                     'body_length' => strlen($body),
+                    'interactive_id' => $interactiveId,
                 ]);
-            } elseif ($numMedia > 0 && !$isAudio) {
-                // ✅ Média non-audio (image, PDF, vidéo) → ignorer pour l'agent
-                Log::info("📎 Média non-audio reçu (pas de traitement agent)", [
+            } elseif ($numMedia > 0) {
+                Log::info("📎 Média reçu (photo, vidéo ou document)", [
                     'from' => $from,
                     'media_type' => $mediaType,
                 ]);
+            } elseif ($isLocation) {
+                Log::info("📍 Position reçue", [
+                    'from' => $from,
+                    'latitude' => $request->input('Latitude'),
+                    'longitude' => $request->input('Longitude'),
+                ]);
             }
-            // ════════════════════════════════════════════════════════════════
+
+            // ✅ Texte affiché dans la messagerie du CRM
+            $crmText = $body;
+            if ($transcription) {
+                $crmText = '🎤 ' . $transcription['text'];
+            } elseif ($isAudio && empty($body)) {
+                $crmText = '🎤 Message vocal';
+            } elseif ($isLocation && empty($body)) {
+                $crmText = '📍 Position partagée : https://www.google.com/maps?q='
+                    . $request->input('Latitude') . ',' . $request->input('Longitude');
+            }
+
+            // ========== STOCKER LE NOUVEAU MESSAGE ==========
             $messageData = [
                 'projet_id' => $foundConfig->projet_id,
                 'from_number' => $from,
                 'to_number' => $to,
-                'message' => $body ?: ($mediaUrl ? '📎 Fichier joint' : ''),  // ← daba $body fih transcription ila kan audio
+                // ✅ Transcription pour un vocal, lien Google Maps pour une position
+                'message' => $crmText ?: ($mediaUrl ? '📎 Fichier joint' : ''),
                 'message_sid' => $messageSid,
                 'profile_name' => $profileName,
                 'status' => 'received',
@@ -1610,11 +1937,11 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             $shouldNotifyCommercial = false;
             $agentHandledMessage = false;
 
-            // Vérifier si le message n'est pas vide
-            if (!empty($body)) {
-                // Générer un session ID
-                $sessionId = $this->getSessionId($from, $foundConfig->projet_id);
+            // ✅ L'agent traite aussi les vocaux (même non transcrits), photos, documents,
+            //    positions et boutons, pas seulement le texte
+            $hasContent = trim((string) $body) !== '' || $numMedia > 0 || $isLocation || $interactiveId !== null;
 
+            if ($hasContent) {
                 // ✅ MARQUER LE MESSAGE CLIENT (annule le follow-up)
                 $conversation = \App\Models\Conversation::where('session_id', $sessionId)->first();
                 if ($conversation) {
@@ -1624,9 +1951,7 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                     ]);
                 }
 
-                // ✅ Vérifier si conversation existe ET si elle est complète
-                $conversationCheck = $this->isExistingConversation($foundConfig->projet_id, $from);
-
+                // ✅ Conversation existante / terminée : vérifiée avant l'indicateur de saisie
                 $isExisting = $conversationCheck['exists'];
                 $isCompleted = $conversationCheck['is_completed'];
 
@@ -1660,9 +1985,21 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                         'raison' => $reason,
                     ]);
 
+                    // ✅ Message reçu décrit pour l'agent : texte, bouton, vocal transcrit, photo, position…
+                    $agentInput = $this->buildAgentInput(
+                        $request,
+                        $body,
+                        $interactiveId,
+                        $mediaType,
+                        $mediaContentType,
+                        $downloadedMedia,
+                        $transcription,
+                        $referral
+                    );
+
                     // ✅ Le nom du profil WhatsApp est transmis à l'agent
                     $agentResult = $this->processWithAgent(
-                        $body,
+                        $agentInput,
                         $from,
                         $sessionId,
                         $foundConfig->projet_id,
@@ -1670,10 +2007,7 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                         $profileName
                     );
 
-                    $agentResponse = $agentResult['message'] ?? '';
                     $agentActions = $agentResult['actions'] ?? [];
-                    $agentTextBeforeMedia = $agentResult['message_before_media'] ?? $agentResponse;
-                    $agentQuestionAfterMedia = $agentResult['message_after_media'] ?? null;
 
                     // ✅ Le commercial n'est notifié que sur une transition utile.
                     //    Si l'agent a déjà émis notify_commercial (notification détaillée
@@ -1689,23 +2023,35 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                     $shouldNotifyCommercial = !$agentAlreadyNotified && !empty($agentResult['notify_commercial']);
                     $agentHandledMessage = true;
 
-                    // ✅ Envoyer même si le texte est vide mais qu'il reste des actions
-                    if (trim((string) $agentResponse) !== '' || !empty($agentActions)) {
-                        $this->sendAgentResponse(
+                    // ✅ 1. Réponse au prospect : texte, photos, plans, localisation, boutons…
+                    //    (rien si l'agent est en pause : un commercial a la main)
+                    $this->sendAgentResponse(
+                        $from,
+                        $agentResult,
+                        $foundConfig,
+                        $foundConfig->projet_id,
+                        $sessionId,
+                        $prospectId,
+                        $foundSociete
+                    );
+
+                    // ✅ 2. Actions pour l'équipe, APRÈS la réponse : le prospect n'attend pas
+                    //    (notification CRM avec résumé IA, demande de suppression des données…)
+                    foreach ($agentActions as $agentAction) {
+                        $this->executeAgentAction(
+                            $agentAction,
                             $from,
-                            $agentTextBeforeMedia,
                             $foundConfig,
                             $foundConfig->projet_id,
-                            $sessionId,
-                            $agentActions,
                             $prospectId,
-                            $agentQuestionAfterMedia
+                            $agentResult['history'] ?? []
                         );
-
-                        Log::info("✅ Réponse de l'agent envoyée à {$from}", [
-                            'actions_count' => count($agentActions),
-                        ]);
                     }
+
+                    Log::info("✅ Message traité par l'agent pour {$from}", [
+                        'silent' => !empty($agentResult['silent']),
+                        'actions' => array_column($agentActions, 'type'),
+                    ]);
                 } else {
                     Log::info("⏹️ Agent NON déclenché pour {$from}", [
                         'raison' => 'Conversation terminée',
@@ -1738,7 +2084,10 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             //    ou message non traité par l'agent (le commercial a la main).
             $notifyCommercial = $isNewProspect || $shouldNotifyCommercial || !$agentHandledMessage;
 
-           /* if ($notifyCommercial) {
+            /* Notification générique désactivée : seule la notification détaillée de l'agent
+               (notifyCommercialFromAgent) est envoyée au commercial.
+
+            if ($notifyCommercial) {
                 broadcast(new NotificationEvent(0));
                 $this->createWhatsAppNotification(
                     $prospectId,
@@ -1769,8 +2118,11 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
 
     /**
      * Télécharger et stocker le média sur le serveur
+     *
+     * $downloaded reçoit le contenu téléchargé (['bytes' => …, 'mime' => …]) : l'agent s'en sert
+     * pour transcrire un vocal ou lire une photo, sans second téléchargement.
      */
-    private function downloadAndStoreMedia($mediaUrl, $config, $from, $messageSid, $societe, $doss = 'whatsapp_media')
+    private function downloadAndStoreMedia($mediaUrl, $config, $from, $messageSid, $societe, $doss = 'whatsapp_media', &$downloaded = null)
     {
         try {
             Log::info("📥 Téléchargement du média depuis: {$mediaUrl}");
@@ -1779,10 +2131,14 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             $client = new \GuzzleHttp\Client();
             $response = $client->get($mediaUrl, [
                 'auth' => [$config->account_sid, $config->access_token],
+                'timeout' => 30,
             ]);
 
             $content = $response->getBody()->getContents();
             $contentType = $response->getHeader('Content-Type')[0] ?? 'application/octet-stream';
+
+            // ✅ Contenu gardé pour l'agent (même si l'enregistrement ci-dessous échoue)
+            $downloaded = ['bytes' => $content, 'mime' => $contentType];
 
             // Déterminer l'extension
             $extension = 'file';
@@ -1860,7 +2216,12 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
      |  NOTIFICATIONS
      * ===================================================================== */
 
-    /*Envoyer une notification d'affectation au commercial
+    /* Notifications génériques désactivées : seule la notification détaillée
+       de l'agent (notifyCommercialFromAgent) est envoyée au commercial.
+
+    /**
+     * Envoyer une notification d'affectation au commercial
+     * /
     private function sendAffectationNotification($commercialId, $prospectId, $projetId)
     {
         try {
@@ -1879,8 +2240,8 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             $description .= "👤 Prospect: " . ($prospect->nom ?? $prospect->telephone ?? 'Inconnu') . "\n";
             $description .= "📞 Téléphone: " . ($prospect->telephone ?? 'Non renseigné') . "\n";
             $description .= "📱 Source: WhatsApp\n";
-           // $description .= "🏢 Projet ID: {$projetId}\n\n";
-            //$description .= "✅ Affecté automatiquement à: " . $commercial->name . ' ' . $commercial->prenom;
+            $description .= "🏢 Projet ID: {$projetId}\n\n";
+            $description .= "✅ Affecté automatiquement à: " . $commercial->name . ' ' . $commercial->prenom;
 
             $link = "/prospects/edit/" . $prospectId;
 
@@ -1911,10 +2272,11 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             Log::error('❌ Erreur envoi notification affectation: ' . $e->getMessage());
             return false;
         }
-    }*/
+    }
 
-    /* Créer une notification pour les commerciaux
-
+    /**
+     * Créer une notification pour les commerciaux
+     * /
     private function createWhatsAppNotification($prospectId, $phoneNumber, $profileName, $message, $projetId, $isNewProspect = false, $assignedCommercialId = null)
     {
         try {
@@ -1969,7 +2331,10 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
         } catch (\Exception $e) {
             Log::error("❌ Erreur création notification: " . $e->getMessage());
         }
-    }*/
+    }
+
+
+    */
 
     /* =====================================================================
      |  CONVERSATIONS (interface CRM)
@@ -2267,6 +2632,9 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
 
                 Log::info("✅ Message normal envoyé à {$phoneNumber}, SID: " . $sentMessage->sid);
 
+                // ✅ Le commercial a repris la conversation : l'agent se met en retrait
+                $this->pauseAgentAfterHumanReply($projetId, $phoneNumber);
+
                 return response()->json([
                     'success' => true,
                     'sid' => $sentMessage->sid,
@@ -2292,7 +2660,7 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                 if ($hasMedia) {
                     // ✅ Utiliser le template avec fichier
                     $templateSids = [
-                        env('WHATSAPP_BULK_2_FILE_TEMPLATE_SID'),
+                        env('WHATSAPP_BULK_1_FILE_TEMPLATE_SID', 'HX8926ddf7b251ef7f1259087f8bf36108'),
                     ];
                     Log::info("📎 Using FILE templates for message with media");
                 } else {
@@ -2329,12 +2697,10 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
                 if ($hasMedia) {
                     // ✅ Template avec 2 variables : message + media_url
                     $templateVariables = [
-                        '1' => $messageText??'Fichier joint',
+                        '1' => $messageText ?: 'Fichier joint',
                         '2' => $mediaUrl,
-                     //  '2' => 'https://immogestion.online/coline/admin/assets/img/Capture_excel.png',
-
                     ];
-                    Log::info("📎 Template with media: message='{Fichier joint}', media_url='{$mediaUrl}'");
+                    Log::info("📎 Template with media: message='{$messageText}', media_url='{$mediaUrl}'");
                 } else {
                     // ✅ Template avec 1 variable : message seulement
                     $templateVariables = [
@@ -2374,6 +2740,9 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
 
                 Log::info("✅ Template #" . ($templateIndex + 1) . " envoyé à {$phoneNumber}, SID: " . $sentMessage->sid);
 
+                // ✅ Le commercial relance lui-même le prospect : l'agent se met en retrait
+                $this->pauseAgentAfterHumanReply($projetId, $phoneNumber);
+
                 // Get template name for response
                 $templateNames = $hasMedia ? [
                     'File Template 1',
@@ -2406,6 +2775,108 @@ private function sendWhatsAppText($to, string $message, $config, $projetId): voi
             Log::error("❌ Erreur envoi message: " . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    /* =====================================================================
+     |  AGENT VIRTUEL : REPRISE PAR UN COMMERCIAL
+     * ===================================================================== */
+
+    /**
+     * ⏸️ UN COMMERCIAL RÉPOND DEPUIS LE CRM : l'agent se tait pendant N heures
+     * (config greenland.human_takeover_hours, 12 par défaut ; 0 = l'agent continue de répondre).
+     * Chaque nouvelle réponse du commercial prolonge la pause ; l'agent reprend seul ensuite.
+     */
+    private function pauseAgentAfterHumanReply($projetId, $phoneNumber)
+    {
+        $hours = (int) config('greenland.human_takeover_hours', 12);
+        if ($hours <= 0) {
+            return;
+        }
+
+        try {
+            $conversation = Conversation::where('session_id', $this->getSessionId($phoneNumber, $projetId))->first();
+            if (!$conversation) {
+                return;
+            }
+
+            $agent = new AgentFinalService($conversation->state ?? []);
+            $agent->pauseBot($hours);
+            $conversation->updateConversation($agent->getConversationState(), $conversation->history ?? []);
+
+            Log::info("⏸️ Agent en pause {$hours} h : un commercial a répondu", [
+                'projet_id' => $projetId,
+                'phone' => $phoneNumber,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("⚠️ Pause de l'agent impossible: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * 🤖 ÉTAT DE L'AGENT POUR UN PROSPECT (pour l'écran de conversation du CRM)
+     * Score, température, résumé, rendez-vous, agent en pause ou non.
+     */
+    public function getAgentStatus(Request $request, $projetId, $phoneNumber)
+    {
+        DatabaseHelper::Config();
+
+        $phoneNumber = str_starts_with($phoneNumber, '+') ? $phoneNumber : '+' . $phoneNumber;
+        $conversation = Conversation::where('session_id', $this->getSessionId($phoneNumber, $projetId))->first();
+
+        if (!$conversation) {
+            return response()->json(['exists' => false]);
+        }
+
+        $agent = new AgentFinalService($conversation->state ?? []);
+        $lead = $agent->getLeadSnapshot();
+        $state = $agent->getConversationState();
+
+        return response()->json([
+            'exists' => true,
+            'agent_paused' => $agent->isBotPaused(),
+            'paused_until' => $state['bot_paused_until'] ?? null,
+            'lead_score' => $lead['lead_score'] ?? 0,
+            'lead_temperature' => $lead['lead_temperature'] ?? null,
+            'summary' => $lead['summary'] ?? null,
+            'visit' => $lead['visit'] ?? null,
+            'callback_slot_label' => $lead['callback_slot_label'] ?? null,
+            'unanswered_questions' => $lead['unanswered_questions'] ?? [],
+            'language' => $lead['language'] ?? null,
+            'stage' => $state['conversation_stage'] ?? null,
+        ]);
+    }
+
+    /**
+     * ⏯️ METTRE EN PAUSE OU RELANCER L'AGENT POUR UN PROSPECT (bouton du CRM)
+     * POST action=pause [hours=N, sans durée : jusqu'à la reprise] | action=resume
+     */
+    public function toggleAgent(Request $request, $projetId, $phoneNumber)
+    {
+        DatabaseHelper::Config();
+
+        $phoneNumber = str_starts_with($phoneNumber, '+') ? $phoneNumber : '+' . $phoneNumber;
+        $conversation = Conversation::where('session_id', $this->getSessionId($phoneNumber, $projetId))->first();
+
+        if (!$conversation) {
+            return response()->json(['error' => 'Conversation introuvable'], 404);
+        }
+
+        $agent = new AgentFinalService($conversation->state ?? []);
+        if ($request->input('action') === 'resume') {
+            $agent->resumeBot();
+        } else {
+            $hours = (int) $request->input('hours', 0);
+            $agent->pauseBot($hours > 0 ? $hours : null);
+        }
+
+        $state = $agent->getConversationState();
+        $conversation->updateConversation($state, $conversation->history ?? []);
+
+        return response()->json([
+            'success' => true,
+            'agent_paused' => $agent->isBotPaused(),
+            'paused_until' => $state['bot_paused_until'] ?? null,
+        ]);
     }
 
     /* =====================================================================
