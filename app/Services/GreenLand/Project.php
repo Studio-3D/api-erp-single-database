@@ -19,7 +19,7 @@ final class Project
         'city' => 'Casablanca',
 
         // Prénom de la conseillère virtuelle (ex. 'Salma'). null = elle se présente sans prénom.
-        'assistant_name' => null,
+        'assistant_name' => 'Salma',
 
         'description' => 'GreenLand est une résidence fermée et sécurisée, dans un environnement calme et proche des commodités essentielles.',
         'location' => 'Sidi Messoud, entre Californie et la Ville Verte, à proximité immédiate de l’entrée de l’autoroute A3, à côté de la British International School.',
@@ -54,10 +54,12 @@ final class Project
         'types' => [
             'F3' => '2 chambres, salon et 2 salles de bains — de 83 à 123 m²',
             'F4' => '3 chambres, salon et 2 salles de bains — de 97 à 130 m²',
+            'DUPLEX' => 'Duplex — 130 m² habitables',
         ],
         'typologies' => [
             'F3' => ['composition' => '2 chambres + salon + 2 salles de bains', 'surface' => '83 à 123 m²', 'chambres' => 2, 'surface_min' => 83, 'surface_max' => 123],
             'F4' => ['composition' => '3 chambres + salon + 2 salles de bains', 'surface' => '97 à 130 m²', 'chambres' => 3, 'surface_min' => 97, 'surface_max' => 130],
+            'DUPLEX' => ['composition' =>'3 chambres + salon + 3 salles de bains', 'surface' => '130 m² habitables', 'chambres' => 3, 'surface_min' => 130, 'surface_max' => 130],
         ],
         'superficies' => 'Les appartements vont de 83 à 130 m².',
 
@@ -103,6 +105,7 @@ final class Project
                 'typologies' => [
                     'F3' => '2 chambres, un salon et 2 salles de bains, de 83 à 123 m²',
                     'F4' => '3 chambres, un salon et 2 salles de bains, de 97 à 130 m²',
+                    'DUPLEX' => '3 chambres, un salon et 3 salles de bains,de 130 m² ',
                 ],
             ],
             'darija' => [
@@ -116,6 +119,8 @@ final class Project
                 'typologies' => [
                     'F3' => '2 byout n3as, salon w 2 salles de bains, men 83 tal 123 m²',
                     'F4' => '3 byout n3as, salon w 2 salles de bains, men 97 tal 130 m²',
+                    'DUPLEX' => '3 byout n3as,  salon et 3 salles de bains,mn 130 m² ',
+
                 ],
             ],
             'ar' => [
@@ -129,6 +134,8 @@ final class Project
                 'typologies' => [
                     'F3' => 'غرفتي نوم وصالونا وحمامين، بمساحة من 83 إلى 123 م²',
                     'F4' => '3 غرف نوم وصالونا وحمامين، بمساحة من 97 إلى 130 م²',
+                    'DUPLEX' => '3 غرف نوم وصالونا و 3 حمامين، بمساحة  130 م²',
+
                 ],
             ],
             'en' => [
@@ -142,7 +149,9 @@ final class Project
                 'typologies' => [
                     'F3' => '2 bedrooms, a living room and 2 bathrooms, from 83 to 123 m²',
                     'F4' => '3 bedrooms, a living room and 2 bathrooms, from 97 to 130 m²',
-                ],
+                    'DUPLEX' => '3 bedrooms, a living room and 3 bathrooms, of 130 m²',
+
+                    ],
             ],
         ],
 
@@ -165,6 +174,7 @@ final class Project
             'floor_plan_urls' => [
                 'F3' => 'https://vrstudio3d.com/greenland/media/f3.jpeg',
                 'F4' => 'https://vrstudio3d.com/greenland/media/f4.jpeg',
+                'DUPLEX' => null,
             ],
             'photo_urls' => [
                 'https://vrstudio3d.com/greenland/media/1.jpeg',

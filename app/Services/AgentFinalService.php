@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Conseillère virtuelle WhatsApp du projet GreenLand — version 3.
+ * Conseillère virtuelle WhatsApp du projet  — version 3.
  *
  * PRINCIPE : « l'IA comprend, le code décide, l'IA rédige »
  * 1. L'IA lit le message du prospect et renvoie une ANALYSE (intention, refus, faits, humeur, ressources
@@ -4156,7 +4156,7 @@ PROMPT;
     {
         return Http::timeout(self::AI_TIMEOUT_SECONDS)
             ->withToken((string) $this->apiKey)
-            ->withHeaders(['X-Title' => 'GreenLand WhatsApp Agent'])
+            ->withHeaders(['X-Title' => 'WhatsApp Agent'])
             ->acceptJson()
             ->post(self::OPENROUTER_URL, $payload);
     }
