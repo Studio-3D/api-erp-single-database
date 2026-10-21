@@ -648,7 +648,18 @@ private function processReservationFiles($reservation, $request, $societe)
                     $reservation->user_id = $userAuth->id;
                     $reservation->visite_id=$request->visite_id;
                     $reservation->date_reservation = $request->date_reservation;
+                    // 🅱️ BOX : superficie et prix
+                    $reservation->superficie_box = $request->filled('superficie_box')
+                        ? (float) $request->superficie_box
+                        : 0;
 
+                    $reservation->prix_box = $request->filled('prix_box')
+                        ? (float) $request->prix_box
+                        : 0;
+                     // ✅ (Optionnel mais recommandé) JARDIN — vu que vous l'envoyez aussi
+                    $reservation->prix_jardin = $request->filled('prix_jardin')
+                        ? (float) $request->prix_jardin
+                        : 0;
 
                     // Update with all remaining fields individually
 
@@ -1697,7 +1708,8 @@ private function getAllHistoriquesWithAncien($reservationId)
         // Track changes for each field
         $fieldsToTrack = [
             'code_reservation', 'prix', 'mode_financement',
-            'date_reservation', 'commentaire', 'prix_remise', 'prix_forfetaire'
+            'date_reservation', 'commentaire', 'prix_remise', 'prix_forfetaire','prix_jardin', 'prix_box', 'superficie_box',
+    'nombre_parking',
         ];
 
         foreach ($fieldsToTrack as $field) {
@@ -1748,15 +1760,31 @@ private function getAllHistoriquesWithAncien($reservationId)
         $reservation->date_reservation = $request->input('date_reservation');
         $reservation->commentaire = $request->input('commentaire') == "null" ? null : $request->input('commentaire');
         $reservation->prix_remise = $request->input('prix_remise');
+        $reservation->superficie_box = $request->filled('superficie_box')
+                        ? (float) $request->superficie_box
+                        : 0;
 
-        $numberToWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
-        $prix_remise_lettre = $numberToWords->format($request->input('prix_remise'));
-        $reservation->prix_remise_lettre = $prix_remise_lettre;
-
-        $reservation->prix_forfetaire = $request->input('prix_forfetaire');
-        $prix_forfetaire_lettre = $numberToWords->format($request->input('prix_forfetaire'));
-        $reservation->prix_forfetaire_lettre = $prix_forfetaire_lettre;
-        $reservation->bien_id = $request->input('bien_id');
+                    $reservation->prix_box = $request->filled('prix_box')
+                        ? (float) $request->prix_box
+                        : 0;
+                     // ✅ (Optionnel mais recommandé) JARDIN — vu que vous l'envoyez aussi
+                    $reservation->prix_jardin = $request->filled('prix_jardin')
+                        ? (float) $request->prix_jardin
+                        : 0;
+                    $numberToWords = new NumberFormatter('fr', NumberFormatter::SPELLOUT);
+                $prix_remise_value = $request->input('prix_remise');
+                    if ($prix_remise_value && (float)$prix_remise_value > 0) {
+                        $reservation->prix_remise_lettre = $numberToWords->format($prix_remise_value);
+                    } else {
+                        $reservation->prix_remise_lettre = null;
+                    }
+                $prix_forfetaire_value = $request->input('prix_forfetaire');
+                    if ($prix_forfetaire_value && (float)$prix_forfetaire_value > 0) {
+                        $reservation->prix_forfetaire_lettre = $numberToWords->format($prix_forfetaire_value);
+                    } else {
+                        $reservation->prix_forfetaire_lettre = null;
+                    }
+                    $reservation->bien_id = $request->input('bien_id');
 
         if ($reservation->save()) {
             if (RoleHelper::AdminSup()  || RoleHelper::AgentAdmin()) {

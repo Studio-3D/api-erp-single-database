@@ -408,31 +408,58 @@
     </div>
 
     {{-- ==================== ARTICLE 1 – OBJET ==================== --}}
-    <div class="mb-3">
-        <h2 class="article-title">ARTICLE 1 – OBJET</h2>
-        <div class="pl-4">
-            <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet {{ $reservation['projet_nom'] ?? ' ' }}, le bien immobilier ci-après désigné :</p>
-            <div class="mt-1">
-                <p class="text-sm text-gray-800"><span class="font-semibold">Localisation :</span> {{ $reservation['localisation'] ?? 'Ain Chock — Projet Green Land, Casablanca' }}</p>
-                <p class="text-sm text-gray-800">
-                    <span class="font-semibold">Identifiant :</span>
-                    {{ $reservation['identifiant_bien'] }}
-                </p>
-                 @if(($nombreParking ?? 0) > 0)
-                <p class="text-sm text-gray-800">
-                    <span class="font-semibold">Nombre de parking :</span> {{ $nombreParking }}
-                    @if(($prixParkingUnitaire ?? 0) > 0)
-                        (Prix Parking unitaire : {{ $formatCurrency($prixParkingUnitaire) }})
+   <div class="mb-3">
+    <h2 class="article-title">ARTICLE 1 – OBJET</h2>
+    <div class="pl-4">
+        <p class="text-sm mb-1 text-gray-800">Le VENDEUR réserve au BÉNÉFICIAIRE, dans le cadre du Projet {{ $reservation['projet_nom'] ?? ' ' }}, le bien immobilier ci-après désigné :</p>
+        <div class="mt-1">
+            <p class="text-sm text-gray-800"><span class="font-semibold">Localisation :</span> {{ $reservation['localisation'] ?? 'Ain Chock — Projet Green Land, Casablanca' }}</p>
+            <p class="text-sm text-gray-800">
+                <span class="font-semibold">Identifiant :</span>
+                {{ $reservation['identifiant_bien'] }}
+            </p>
+
+            {{-- ✅ Superficie approximative — UNE SEULE FOIS --}}
+            <p class="text-sm text-gray-800"><span class="font-semibold">Superficie approximative :</span> {{ $surfaceApproximative ?? $surfaceVendable ?? ' ' }} m²</p>
+
+            {{-- ✅ Garage --}}
+            @if(($nombreParking ?? 0) > 0)
+            <p class="text-sm text-gray-800">
+                <span class="font-semibold">
+                    @if($nombreParking > 1)
+                        {{ $nombreParking }} Garages
+                    @else
+                        Garage
                     @endif
-                </p>
+                    :
+                </span>
+                {{ ($surfaceParking ?? 0) > 0 ? $surfaceParking . ' m²' : '—' }}
+                @if(($prixParkingUnitaire ?? 0) > 0)
+                    <span style="font-size:7px; color:#6b7280;">({{ $formatCurrency($prixParkingUnitaire) }} / unité)</span>
                 @endif
-                <p class="text-sm text-gray-800"><span class="font-semibold">Superficie approximative :</span> {{ $surfaceApproximative ?? $surfaceVendable ?? ' ' }} m²</p>
-                <p class="text-xs text-gray-600 mt-1 italic">
-                    La superficie est susceptible de connaître une variation une fois les titres fonciers des fractions divises établis, conformément à l'article 49 de la loi 18-00 relative au statut de la copropriété des immeubles bâtis.
-                </p>
-            </div>
+            </p>
+            @endif
+
+            {{-- ✅ Box --}}
+            @if(($surfaceBox ?? 0) > 0)
+            <p class="text-sm text-gray-800">
+                <span class="font-semibold">Superficie Box :</span> {{ $surfaceBox }} m²
+            </p>
+            @endif
+
+            {{-- ✅ Jardin --}}
+            @if(($superficieJardin ?? 0) > 0)
+            <p class="text-sm text-gray-800">
+                <span class="font-semibold">Superficie Jardin :</span> {{ $superficieJardin }} m²
+            </p>
+            @endif
+
+            <p class="text-xs text-gray-600 mt-1 italic">
+                La superficie est susceptible de connaître une variation une fois les titres fonciers des fractions divises établis, conformément à l'article 49 de la loi 18-00 relative au statut de la copropriété des immeubles bâtis.
+            </p>
         </div>
     </div>
+</div>
 
     {{-- ==================== ARTICLE 2 – PRIX ==================== --}}
     <div class="mb-3">
@@ -489,7 +516,15 @@
                         <td class="text-right">{{ ($prixJardin ?? 0) > 0 ? $formatCurrency($prixJardin) : '—' }}</td>
                     </tr>
                     @endif
-
+                    @if(($remise ?? 0) > 0)
+                    <tr>
+                        <td>Remise</td>
+                        <td class="text-right">—</td>
+                        <td class="text-right" style="font-weight:600; color:#dc2626;">
+                            - {{ $formatCurrency($remise) }} DH
+                        </td>
+                    </tr>
+                    @endif
                     <tr class="row-total">
                         <td><strong>PRIX TOTAL DE RÉSERVATION</strong></td>
                         <td class="text-right">—</td>

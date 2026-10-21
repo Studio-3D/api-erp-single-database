@@ -1215,6 +1215,7 @@ public function generateContratVentePDF_reservation(Request $request)
             'greenLandBase64' => $greenLandBase64,
             'societe' => $societe,
             'reservation' => array_merge($reservation, ['date_signature' => $dateSignature]),
+            'remise' => $reservation['remise'] ?? 0,
             'bien' => $bien,
             // Price values from frontend
             'apartmentPrice' => $prixAppartement,
@@ -1231,10 +1232,7 @@ public function generateContratVentePDF_reservation(Request $request)
             'surfaceBox' => $surfaceBox,
             'surfaceApproximative' => $surfaceApproximative,
             'num_recu' => $data['num_recu'] ?? 'temp',
-            'formatDate' => function($date) {
-                if (!$date) return '';
-                return Carbon::parse($date)->format('d/m/Y');
-            },
+           
             'formatCivilite' => function($civilite) {
                 switch ($civilite) {
                     case "1": return "Monsieur";
