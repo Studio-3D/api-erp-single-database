@@ -426,31 +426,35 @@
             @if(($nombreParking ?? 0) > 0)
             <p class="text-sm text-gray-800">
                 <span class="font-semibold">
-                    @if($nombreParking > 1)
+
+                    @if(($nombreParking ?? 0) > 1)
                         {{ $nombreParking }} Garages
+                    @elseif(($nombreParking ?? 0) == 1)
+                        1 Garage
                     @else
-                        Garage
+                        —
                     @endif
-                    :
+
                 </span>
-                {{ ($surfaceParking ?? 0) > 0 ? $surfaceParking . ' m²' : '—' }}
-                @if(($prixParkingUnitaire ?? 0) > 0)
+                {{ ($surfaceParking ?? 0) > 0 ? ' de Superficie ' .$surfaceParking . ' m²' : '—' }}
+               {{--  @if(($prixParkingUnitaire ?? 0) > 0)
                     <span style="font-size:7px; color:#6b7280;">({{ $formatCurrency($prixParkingUnitaire) }} / unité)</span>
                 @endif
+                --}}
             </p>
             @endif
 
             {{-- ✅ Box --}}
             @if(($surfaceBox ?? 0) > 0)
             <p class="text-sm text-gray-800">
-                <span class="font-semibold">Superficie Box :</span> {{ $surfaceBox }} m²
+                <span class="font-semibold">1 Box :</span> {{ ' de Superficie ' .$surfaceBox }} m²
             </p>
             @endif
 
             {{-- ✅ Jardin --}}
             @if(($superficieJardin ?? 0) > 0)
             <p class="text-sm text-gray-800">
-                <span class="font-semibold">Superficie Jardin :</span> {{ $superficieJardin }} m²
+                <span class="font-semibold">1 Jardin :</span> {{' de Superficie ' . $superficieJardin }} m²
             </p>
             @endif
 
@@ -474,7 +478,7 @@
                 <thead>
                     <tr>
                         <th style="width:45%;">Désignation</th>
-                        <th style="width:25%;" class="text-right">Surface (m²)</th>
+                        <th style="width:25%;" class="text-right">Superficie (m²)</th>
                         <th style="width:30%;" class="text-right">Prix (DH TTC)</th>
                     </tr>
                 </thead>
@@ -486,18 +490,18 @@
                     </tr>
                    <tr>
                         <td>
-                            @if(($nombreParking ?? 0) > 1)
+                           @if(($nombreParking ?? 0) > 1)
                                 {{ $nombreParking }} Garages
                             @elseif(($nombreParking ?? 0) == 1)
-                                Garage
+                                1 Garage
                             @else
                                 —
                             @endif
-                            @if(($nombreParking ?? 0) > 0 && ($prixParkingUnitaire ?? 0) > 0)
+                            {{-- @if(($nombreParking ?? 0) > 0 && ($prixParkingUnitaire ?? 0) > 0)
                                 <span style="font-size:7px; color:#6b7280; display:block;">
                                     ({{ $formatCurrency($prixParkingUnitaire) }} / unité)
                                 </span>
-                            @endif
+                            @endif --}}
                         </td>
                         <td class="text-right">{{ $surfaceParking > 0 ? $surfaceParking . ' m²' : '—' }}</td>
                         <td class="text-right">{{ $parkingTotal > 0 ? $formatCurrency($parkingTotal) : 'DH' }}</td>
