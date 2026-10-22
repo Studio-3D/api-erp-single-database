@@ -2826,6 +2826,202 @@ private function sanitizeUrl($url)
     // Fallback: just replace spaces and encode
     return str_replace(' ', '%20', $url);
 }
+/**********************************reaffectation par commercial ****************************************/
+    /******************by commercial concerne *********************/
+    public function commercialReaffecterSelective(Request $request)
+    {
+        // Vérifier que c'est bien un commercial
+        if (!RoleHelper::Com()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
+        $request->validate([
+            'prospect_ids' => 'required|array',
+            'commercial_id' => 'required', // ID origine (user_id_origin) du commercial cible
+        ]);
+
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
+        // Trouver le commercial cible dans la base temp
+        $targetCommercial = User::on('temp')->where('user_id_origin', $request->commercial_id)->first();
+
+        if (!$targetCommercial) {
+            return response()->json(['error' => 'Commercial cible non trouvé'], 404);
+        }
+
+        DB::connection('temp')->beginTransaction();
+
+        try {
+            foreach ($request->prospect_ids as $prospectId) {
+                $prospect = Prospect::on('temp')->find($prospectId);
+                if (!$prospect) continue;
+
+                $oldCommercialId = $prospect->commercial_affecte;
+                $newCommercialId = $targetCommercial->id;
+
+                if ($oldCommercialId != $newCommercialId) {
+
+                    // 🔍 Récupérer l'ancien commercial pour la traçabilité
+                    $oldCommercial = $oldCommercialId ? User::on('temp')->find($oldCommercialId) : null;
+                    $oldName = $oldCommercial ? $oldCommercial->name . ' ' . $oldCommercial->prenom : 'Personne (Non affecté)';
+                    $newName = $targetCommercial->name . ' ' . $targetCommercial->prenom;
+                    $userName = $userAuth ? $userAuth->name . ' ' . $userAuth->prenom : 'Inconnu';
+
+                    // Décrémenter l'ancien
+                    if ($oldCommercialId) {
+                        User::on('temp')->where('id', $oldCommercialId)->decrement('nb_prospects');
+                    }
+
+                    // Incrémenter le nouveau
+                    User::on('temp')->where('id', $newCommercialId)->increment('nb_prospects');
+
+                    // Mettre à jour le prospect
+                    $prospect->commercial_affecte = $newCommercialId;
+                    $prospect->affecte_par_admin_id = $userAuth->id;
+                    $prospect->date_affectation = Carbon::now();
+                    $prospect->save();
+
+                    // Créer un statut de traçabilité
+                    $statut = new StatutProspect();
+                    $statut->setConnection('temp');
+                    $statut->prospect_id = $prospectId;
+                    $statut->statut = (string) StatutProspectEnum::Reaffecte->value;
+                    $statut->date_traitement = Carbon::now();
+                    $statut->user_id_traite = $userAuth->id;
+
+                    // 📝 Commentaire avec l'ancien, le nouveau et celui qui a fait l'action
+                    $statut->commentaire = sprintf(
+                        'Prospect réaffecté de %s vers %s par le commercial %s',
+                        $oldName,
+                        $newName,
+                        $userName
+                    );
+
+                    $statut->save();
+
+                    // ✅ ENVOI DE LA NOTIFICATION
+                    $this->sendAffectationNotification($newCommercialId, $prospectId, $prospect->projet_id);
+                }
+            }
+
+            DB::connection('temp')->commit();
+            return response()->json(['message' => 'Prospects réaffectés avec succès'], 200);
+
+        } catch (\Exception $e) {
+            DB::connection('temp')->rollBack();
+            return response()->json(['error' => 'Erreur lors de la réaffectation'], 500);
+        }
+    }
+    /******************reaaffectation automatique *********************/
+     public function commercialReaffecterAuto(Request $request)
+    {
+        if (!RoleHelper::Com()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'prospect_ids' => 'required|array',
+            'projet_id' => 'required',
+        ]);
+
+        DatabaseHelper::Config();
+
+        try {
+            DB::connection('temp')->beginTransaction();
+
+            $prospectIds = $request->prospect_ids;
+            $projetId = $request->projet_id;
+            $totalProspects = count($prospectIds);
+
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+            $userName = $userAuth ? $userAuth->name . ' ' . $userAuth->prenom : 'Inconnu';
+
+            // Récupérer les commerciaux du projet (en excluant le commercial connecté)
+            $commercials = User::on('temp')
+                ->whereHas('projets', function($query) use ($projetId) {
+                    $query->where('projet_id', $projetId);
+                })
+                ->where('role', 3)
+                ->where('is_actif', 1)
+                ->whereNull('deleted_at')
+                ->where('id', '!=', $userAuth->id) // 👈 EXCLURE LE COMMERCIAL CONNECTÉ
+                ->orderBy('id')
+                ->get();
+
+            if ($commercials->isEmpty()) {
+                return response()->json(['error' => 'Aucun autre commercial trouvé pour la réaffectation'], 400);
+            }
+
+            // Logique de distribution (Last Affected)
+            $assignments = [];
+            for ($i = 0; $i < $totalProspects; $i++) {
+                $allHaveLastAffected = $commercials->every(fn($c) => $c->last_affected == 1);
+                if ($allHaveLastAffected) {
+                    User::on('temp')->where('role', 3)->where('is_actif', 1)->update(['last_affected' => 0]);
+                    $commercials->each(fn($c) => $c->last_affected = 0);
+                }
+
+                $target = $commercials->firstWhere('last_affected', 0) ?? $commercials->first();
+                $assignments[] = ['prospect_id' => $prospectIds[$i], 'commercial_id' => $target->id];
+                $target->last_affected = 1;
+            }
+
+            // Appliquer les affectations
+            foreach ($assignments as $assignment) {
+                $prospect = Prospect::on('temp')->find($assignment['prospect_id']);
+                $oldCommercialId = $prospect->commercial_affecte;
+                $newCommercialId = $assignment['commercial_id'];
+
+                if ($oldCommercialId != $newCommercialId) {
+
+                    // 🔍 Récupérer l'ancien commercial pour la traçabilité
+                    $oldCommercial = $oldCommercialId ? User::on('temp')->find($oldCommercialId) : null;
+                    $oldName = $oldCommercial ? $oldCommercial->name . ' ' . $oldCommercial->prenom : 'Personne (Non affecté)';
+
+                    // Récupérer le nouveau commercial
+                    $newCommercial = User::on('temp')->find($newCommercialId);
+                    $newName = $newCommercial ? $newCommercial->name . ' ' . $newCommercial->prenom : 'Inconnu';
+
+                    if ($oldCommercialId) User::on('temp')->where('id', $oldCommercialId)->decrement('nb_prospects');
+                    User::on('temp')->where('id', $newCommercialId)->increment('nb_prospects');
+
+                    $prospect->commercial_affecte = $newCommercialId;
+                    $prospect->affecte_par_admin_id = $userAuth->id;
+                    $prospect->date_affectation = Carbon::now();
+                    $prospect->save();
+
+                    $statut = new StatutProspect();
+                    $statut->setConnection('temp');
+                    $statut->prospect_id = $assignment['prospect_id'];
+                    $statut->statut = (string) StatutProspectEnum::Reaffecte->value;
+                    $statut->date_traitement = Carbon::now();
+                    $statut->user_id_traite = $userAuth->id;
+
+                    // 📝 Commentaire avec l'ancien, le nouveau et celui qui a fait l'action
+                    $statut->commentaire = sprintf(
+                        'Prospect réaffecté de %s vers %s par le commercial %s',
+                        $oldName,
+                        $newName,
+                        $userName
+                    );
+
+                    $statut->save();
+
+                    // ✅ ENVOI DE LA NOTIFICATION
+                    $this->sendAffectationNotification($newCommercialId, $assignment['prospect_id'], $prospect->projet_id);
+                }
+            }
+
+            DB::connection('temp')->commit();
+            return response()->json(['message' => 'Réaffectation automatique réussie'], 200);
+
+        } catch (\Exception $e) {
+            DB::connection('temp')->rollBack();
+            return response()->json(['error' => 'Erreur: ' . $e->getMessage()], 500);
+        }
+    }
 
 }

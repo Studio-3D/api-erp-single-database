@@ -369,6 +369,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('export-historiques/{id}', [V1ProspectController::class, 'export_historiques']);
         Route::get('get_nb_prospect_rdv/{projet_id}', [V1ProspectController::class, 'getNbProspectRdv'])->name('');
         Route::get('get_nb_prospect_relance/{projet_id}', [V1ProspectController::class, 'getNbProspectRelance'])->name('');
+        /*******************Reaffectation par commercial******************* */
+        Route::post('/prospects/commercial-reaffecter-selective', [V1ProspectController::class, 'commercialReaffecterSelective']);
+        Route::post('/prospects/commercial-reaffecter-auto', [V1ProspectController::class, 'commercialReaffecterAuto']);
 
         /**********************************Clients*****************************/
 
