@@ -152,6 +152,7 @@ Route::middleware('auth:api')->group(function () {
             // 📅 Historique
             Route::get('/historique',      [CommissionColineController::class, 'getHistorique']);
         });
+        Route::post('generate_contrat_vente_reservation_coline_pdf',  [PDFController::class, 'generateContratColinePDF']);
     });
 
     Route::prefix('v1')->group(function () {

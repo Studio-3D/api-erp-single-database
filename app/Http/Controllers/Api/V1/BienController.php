@@ -1317,12 +1317,12 @@ public function show($id)
                 elseif ($b_pr->tranche && ! $b_pr->bloc && ! $b_pr->immeuble) {
                     $nom = $b_pr->tranche->nom;
                 }
-
+//+($bien->prix_parking*$bien->nb_parking)+($bien->prix_box*$bien->nb_box)
                 $biens[] = [
                     'id'                           => $b_pr->id,
                     'propriete_dite_bien'          => $nom . '-' . $b_pr->propriete_dite_bien,
                     'etat'                         => $b_pr->etat,
-                    'prix'                         => $b_pr->prix+($b_pr->prix_parking*$b_pr->nb_parking)+($b_pr->prix_box*$b_pr->nb_box),
+                    'prix'                         => $b_pr->prix,
                     'avance_minimale'              => $b_pr->avance_minimale,
                     'prix_unitaire'                => $b_pr->prix_unitaire,
                     'superficie_vendable' => $b_pr->superficie_vendable,
@@ -1384,7 +1384,7 @@ public function show($id)
                     }
                     return $nom;
                 };
-
+                    //+($bien->prix_parking*$bien->nb_parking)+($bien->prix_box*$bien->nb_box)
                 // Fonction pour formater un bien
                 $formatBien = function($bien, $generateNomFunc) {
                     $nom = $generateNomFunc($bien);
@@ -1392,7 +1392,7 @@ public function show($id)
                         'id'                           => $bien->id,
                         'propriete_dite_bien'          => $nom . '-' . $bien->propriete_dite_bien,
                         'etat'                         => $bien->etat,
-                        'prix'                         => $bien->prix+($bien->prix_parking*$bien->nb_parking)+($bien->prix_box*$bien->nb_box),
+                        'prix'                         => $bien->prix,
                         'avance_minimale'              => $bien->avance_minimale,
                         'prix_unitaire'                => $bien->prix_unitaire,
                         'superficie_terrasse_calculer' => $bien->superficie_terrasse_calculer,
