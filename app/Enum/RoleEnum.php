@@ -14,6 +14,6 @@ enum RoleEnum:int
     case SAV=8;
     case RESPO_COMMERCIAL=9;
     case AGENT_ADMINISTRATIF=10;
-
+    case AGENT_CENTRE_APPEL = 11;
 
 }

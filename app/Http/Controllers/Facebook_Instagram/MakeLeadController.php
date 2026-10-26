@@ -364,7 +364,7 @@ class MakeLeadController extends Controller
                 return $existingStatus;
             }
 
-            $this->autoAssignSingleProspect($prospectId, $projetId);
+            //$this->autoAssignSingleProspect($prospectId, $projetId);
 
             $statutProspect = StatutProspect::on('temp')
                 ->where('prospect_id', $prospectId)
@@ -379,7 +379,7 @@ class MakeLeadController extends Controller
         }
     }
 
-    private function autoAssignSingleProspect($prospectId, $projetId)
+    /*private function autoAssignSingleProspect($prospectId, $projetId)
     {
         try {
             Log::info('🔄 Starting auto-assignment for prospect', [
@@ -518,7 +518,7 @@ class MakeLeadController extends Controller
             Log::error('❌ Auto-assignment failed: ' . $e->getMessage());
             return false;
         }
-    }
+    }*/
 
     private function sendAffectationNotification($commercialId, $prospectId, $projetId)
     {
