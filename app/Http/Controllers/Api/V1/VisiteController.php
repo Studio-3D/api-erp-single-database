@@ -36,6 +36,8 @@ use App\Models\Projet;
 use App\Models\Prospect;
 use App\Models\Relance_Rdv_Visite;
 use App\Models\StatutProspect;
+use App\Models\ProspectFusion;
+
 use App\Models\StatutClient;
 use App\Models\TraitementAppel;
 use App\Models\TraitementFrein;
@@ -873,6 +875,8 @@ private function generateReservationCode($projetId)
                                 }
                             }
                         }
+                        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+
                         //store prospect si client n'existe pas
 
                         if ($request->prospect_id == null) {
@@ -924,6 +928,52 @@ private function generateReservationCode($projetId)
                             $prospect->notifie = $request->notifie;
                             $prospect->save();
                         }
+                        // =====================================================
+                        // ⭐ FUSIONS: Mli katkréyi visite m3a fusions
+                        // =====================================================
+                        if ($request->has('prospect_fusion_ids') && $prospect != null) {
+                            $fusionIds = is_array($request->prospect_fusion_ids)
+                                ? $request->prospect_fusion_ids
+                                : json_decode($request->prospect_fusion_ids, true);
+
+                            if (is_array($fusionIds) && count($fusionIds) > 0) {
+                                $userId = $userAuth ? $userAuth->value('id'): null;
+
+                                foreach ($fusionIds as $fusionId) {
+                                    // Skip si howa l-prospect principal
+                                    if ($fusionId == $prospect->id) {
+                                        continue;
+                                    }
+
+                                    // Validation: prospect existe
+                                    $prospectToFusion = Prospect::on('temp')->find($fusionId);
+                                    if (!$prospectToFusion) {
+                                        continue;
+                                    }
+
+                                    // Validation: machi mdemj déjà
+                                    $dejaFusionne = ProspectFusion::on('temp')
+                                        ->where(function ($q) use ($fusionId) {
+                                            $q->where('prospect_fusion_id', $fusionId)
+                                            ->orWhere('prospect_principal_id', $fusionId);
+                                        })
+                                        ->whereNull('deleted_at')
+                                        ->exists();
+
+                                    if ($dejaFusionne) {
+                                        continue;
+                                    }
+
+                                    // Créer la fusion
+                                    $fusion = new ProspectFusion();
+                                    $fusion->setConnection('temp');
+                                    $fusion->prospect_principal_id = $prospect->id;
+                                    $fusion->prospect_fusion_id = $fusionId;
+                                    $fusion->user_id = $userId;
+                                    $fusion->save();
+                                }
+                            }
+                        }
                             // Si un client_id est fourni, on lie ce prospect au client
                             if ($request->client_id && $prospect) {
                                 $client = Client::on('temp')->find($request->client_id);
@@ -951,7 +1001,6 @@ private function generateReservationCode($projetId)
                                     }
                             }
 
-                        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
                         //(storee first ou n visite )
                         $origin_id   = null;
                         $last_number = null;
@@ -1453,6 +1502,9 @@ private function generateReservationCode($projetId)
                                                     $codeReservation = $this->generateReservationCode($request->selectedProjet);
                                                 }
                                             $dataReservation = [
+                                                 'selected_client_ids' => $request->input('selected_client_ids'),
+                                                 'fusion_client_infos' => $request->input('fusion_client_infos'), // ⭐ NOUVEAU
+                                                 'client_pourcentages' => $request->input('client_pourcentages'), // ⭐ NOUVEAU
                                                 'nb_acquereurs'        => 1,
                                                 'code_reservation' => $codeReservation, // Use generated or provided
                                                // 'code_reservation'     => $list_biens['code_reservation'],
@@ -1789,6 +1841,9 @@ private function generateReservationCode($projetId)
                                                         $codeReservation = $this->generateReservationCode($request->selectedProjet);
                                                     }
                                                     $dataReservation = [
+                                                         'selected_client_ids' => $request->input('selected_client_ids'),
+                                                         'fusion_client_infos' => $request->input('fusion_client_infos'), // ⭐ NOUVEAU
+                                                         'client_pourcentages' => $request->input('client_pourcentages'), // ⭐ NOUVEAU
                                                         'nb_acquereurs'        => 1,
                                                         'code_reservation' => $codeReservation, // Use generated or provided
                                                        // 'code_reservation'     => $list_biens['code_reservation'],
@@ -1990,7 +2045,7 @@ private function generateReservationCode($projetId)
                         }
 
 
-                        // Ajouter la création du statut 10 si vente détectée
+                        /* Ajouter la création du statut 10 si vente détectée
                         if ($hasVenteRequested && $request->interet == InteretEnum::Intéressé->value) {
                             if($statut_convert_client_exist==0){
                             $statut_pro = new StatutProspect();
@@ -2005,7 +2060,51 @@ private function generateReservationCode($projetId)
                             $statut_pro->commentaire = 'Converti en client via visite VENDU';
                             $statut_pro->save();
                             }
-                        }else{
+                        }*/if ($hasVenteRequested && $request->interet == InteretEnum::Intéressé->value) {
+                                // =====================================================
+                                // 🔥 Statut '10' pour TOUS les clients sélectionnés
+                                //    (Cas A : plusieurs | Cas B : principal seul)
+                                // =====================================================
+                                $clientsPourStatut = [];
+
+                                $selectedIds = $request->input('selected_client_ids');
+                                if (is_string($selectedIds)) {
+                                    $selectedIds = json_decode($selectedIds, true);
+                                }
+
+                                if (is_array($selectedIds) && count($selectedIds) > 0) {
+                                    // Cas A
+                                    foreach ($selectedIds as $id) {
+                                        $clientsPourStatut[] = (int)$id;
+                                    }
+                                } else {
+                                    // Cas B
+                                    $clientsPourStatut[] = (int)$prospect->id;
+                                }
+
+                                foreach ($clientsPourStatut as $clientProspectId) {
+                                    $statutExiste = StatutProspect::on('temp')
+                                        ->where('prospect_id', $clientProspectId)
+                                        ->where('statut', '10')
+                                        ->exists();
+
+                                    if (!$statutExiste) {
+                                        $statut_pro = new StatutProspect();
+                                        $statut_pro->setConnection('temp');
+                                        $statut_pro->prospect_id     = $clientProspectId;
+                                        $statut_pro->statut          = '10';
+                                        $statut_pro->date_rappel     = null;
+                                        $statut_pro->rdv             = null;
+                                        $statut_pro->date_traitement = Carbon::now();
+                                        $statut_pro->user_id_traite  = $userAuth->value('id');
+                                        $statut_pro->visite_id       = $main_visite_id;
+                                        $statut_pro->commentaire     = 'Converti en client via visite VENDU'
+                                            . (count($clientsPourStatut) > 1 ? ' (fusion)' : '');
+                                        $statut_pro->save();
+                                    }
+                                }
+                            }
+                            else{
                                 $statut_pro = new StatutProspect();
                                 $statut_pro->setConnection('temp');
                                 $statut_pro->prospect_id     = $prospect->id;
@@ -2211,7 +2310,7 @@ private function generateReservationCode($projetId)
                     return response()->json(['error' => 'Internal server error'], 500);
                 }
             }
-   public function show($id)
+public function show($id)
 {
     if (Auth::guard('api')->check()) {
         DatabaseHelper::Config();
@@ -2222,9 +2321,9 @@ private function generateReservationCode($projetId)
             ->with([
                 'statut_client' => function($query) {
                     $query->with(['avance' => function($q) {
-                        $q->with('banque:id,nom'); // Seulement les colonnes nécessaires
+                        $q->with('banque:id,nom');
                         $q->select('id', 'montant', 'mode_paiement', 'banque_id',
-                                   'numero_paiement', 'echeance','commentaireAvance','compte_num','intitule_compte'); // Ajoutez d'autres colonnes si nécessaire
+                                   'numero_paiement', 'echeance','commentaireAvance','compte_num','intitule_compte');
                     }])->without('reservation','user');
                 },
                 'freins',
@@ -2254,7 +2353,95 @@ private function generateReservationCode($projetId)
             $propriete = $this->get_propriete_bien_concat($visite->bien_id);
         }
 
-        return response()->json(['propriete_dite_bien' => $propriete, 'visites' => $relatedVisites, 'visites_show' => $relatedVisites_show], 200);
+        // =====================================================
+        // ⭐ FUSIONS: Jib l-prospect + les fusions dyalo
+        // =====================================================
+        $prospectId = $relatedVisites->first()?->prospect_id;
+        $fusionsCommePrincipal = [];
+        $fusionCommeFusionne = null;
+
+        if ($prospectId) {
+            // Fusions li had prospect HOWA PRINCIPAL fihom
+            $fusionsCommePrincipalRaw = \App\Models\ProspectFusion::on('temp')
+                ->where('prospect_principal_id', $prospectId)
+                ->whereNull('deleted_at')
+                ->get();
+
+            foreach ($fusionsCommePrincipalRaw as $fusion) {
+                $prospectFusionne = \Illuminate\Support\Facades\DB::connection('temp')
+                    ->table('prospects')
+                    ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                    ->where('id', $fusion->prospect_fusion_id)
+                    ->first();
+
+                if ($prospectFusionne) {
+                    $fusionsCommePrincipal[] = [
+                        'id' => $fusion->id,
+                        'prospect_principal_id' => $fusion->prospect_principal_id,
+                        'prospect_fusion_id' => $fusion->prospect_fusion_id,
+                        'user_id' => $fusion->user_id,
+                        'created_at' => $fusion->created_at,
+                        'updated_at' => $fusion->updated_at,
+                        'prospectFusionne' => [
+                            'id' => $prospectFusionne->id,
+                            'nom' => $prospectFusionne->nom,
+                            'prenom' => $prospectFusionne->prenom,
+                            'telephone' => $prospectFusionne->telephone,
+                            'telephone_num2' => $prospectFusionne->telephone_num2,
+                            'cin' => $prospectFusionne->cin,
+                            'email' => $prospectFusionne->email,
+                        ],
+                    ];
+                }
+            }
+
+            // Fusion li had prospect HOWA FUSIONNÉ fiha
+            $fusionCommeFusionneRaw = \App\Models\ProspectFusion::on('temp')
+                ->where('prospect_fusion_id', $prospectId)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($fusionCommeFusionneRaw) {
+                $prospectPrincipal = \Illuminate\Support\Facades\DB::connection('temp')
+                    ->table('prospects')
+                    ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                    ->where('id', $fusionCommeFusionneRaw->prospect_principal_id)
+                    ->first();
+
+                if ($prospectPrincipal) {
+                    $fusionCommeFusionne = [
+                        'id' => $fusionCommeFusionneRaw->id,
+                        'prospect_principal_id' => $fusionCommeFusionneRaw->prospect_principal_id,
+                        'prospect_fusion_id' => $fusionCommeFusionneRaw->prospect_fusion_id,
+                        'user_id' => $fusionCommeFusionneRaw->user_id,
+                        'created_at' => $fusionCommeFusionneRaw->created_at,
+                        'updated_at' => $fusionCommeFusionneRaw->updated_at,
+                        'prospectPrincipal' => [
+                            'id' => $prospectPrincipal->id,
+                            'nom' => $prospectPrincipal->nom,
+                            'prenom' => $prospectPrincipal->prenom,
+                            'telephone' => $prospectPrincipal->telephone,
+                            'telephone_num2' => $prospectPrincipal->telephone_num2,
+                            'cin' => $prospectPrincipal->cin,
+                            'email' => $prospectPrincipal->email,
+                        ],
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'propriete_dite_bien' => $propriete,
+            'visites' => $relatedVisites,
+            'visites_show' => $relatedVisites_show,
+            // ⭐ ZID HADI
+            'fusions' => [
+                'est_principal' => count($fusionsCommePrincipal) > 0,
+                'est_fusionne'  => $fusionCommeFusionne !== null,
+                'comme_principal' => $fusionsCommePrincipal,
+                'comme_fusionne'  => $fusionCommeFusionne,
+            ],
+        ], 200);
     } else {
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -2938,6 +3125,7 @@ public function edit_visite($id)
 
 
                         $dataReservation = [
+                             //'selected_client_ids' => $request->input('selected_client_ids'),
                             'nb_acquereurs'          => 1,
                             'code_reservation'       => $codeReservation,
                             'prix'                   => $request->prix_final,
@@ -3218,6 +3406,45 @@ public function edit_visite($id)
                     $projet = Projet::on('temp')->findorfail($request->selectedProjet);
 
             $prospect = Prospect::on('temp')->findorfail($request->prospect_id);
+             // ⭐ HNA - ZID L-FUSION (nefs l-code)
+            // =====================================================
+            if ($request->has('prospect_fusion_ids') && $prospect != null) {
+                $fusionIds = is_array($request->prospect_fusion_ids)
+                    ? $request->prospect_fusion_ids
+                    : json_decode($request->prospect_fusion_ids, true);
+
+                if (is_array($fusionIds) && count($fusionIds) > 0) {
+                    $userAuth2 = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+                    $userId = $userAuth2 ? $userAuth2->id : null;
+
+                    foreach ($fusionIds as $fusionId) {
+                        if ($fusionId == $prospect->id) continue;
+
+                        $prospectToFusion = Prospect::on('temp')->find($fusionId);
+                        if (!$prospectToFusion) continue;
+
+                        $dejaFusionne = ProspectFusion::on('temp')
+                            ->where(function ($q) use ($fusionId) {
+                                $q->where('prospect_fusion_id', $fusionId)
+                                  ->orWhere('prospect_principal_id', $fusionId);
+                            })
+                            ->whereNull('deleted_at')
+                            ->exists();
+
+                        if ($dejaFusionne) continue;
+
+                        $fusion = new ProspectFusion();
+                        $fusion->setConnection('temp');
+                        $fusion->prospect_principal_id = $prospect->id;
+                        $fusion->prospect_fusion_id = $fusionId;
+                        $fusion->user_id = $userId;
+                        $fusion->save();
+                    }
+                }
+            }
+            // =====================================================
+            // FIN FUSION
+            // =====================================================
             //si interet on store cin du client
             if($request->prospect_id!=null){
                 if ($request->cin != null) {
@@ -3745,6 +3972,9 @@ public function edit_visite($id)
                                         }
 
                                         $dataReservation = [
+                                             'selected_client_ids' => $request->input('selected_client_ids'),
+                                             'fusion_client_infos' => $request->input('fusion_client_infos'), // ⭐ NOUVEAU
+                                             'client_pourcentages' => $request->input('client_pourcentages'), // ⭐ NOUVEAU
                                             'origin'               => 'visite',
                                             'nb_acquereurs'        => 1,
                                             'code_reservation' => $codeReservation,
@@ -3930,6 +4160,9 @@ public function edit_visite($id)
                                     }
 
                                     $dataReservation = [
+                                            'selected_client_ids' => $request->input('selected_client_ids'), // 🔥 AJOUTER ICI
+                                            'fusion_client_infos' => $request->input('fusion_client_infos'), // ⭐ NOUVEAU
+                                            'client_pourcentages' => $request->input('client_pourcentages'), // ⭐ NOUVEAUun
                                         'nb_acquereurs'        => 1,
                                         'code_reservation' => $codeReservation,
                                        // 'code_reservation'     => $list_biens['code_reservation'],
@@ -4084,7 +4317,7 @@ public function edit_visite($id)
                     }
 
 
-                // Ajouter la création du statut 10 si vente détectée
+                /* Ajouter la création du statut 10 si vente détectée
                 if ($hasVenteRequested && $request->interet == InteretEnum::Intéressé->value) {
                     if( $statut_convert_client_exist==0){
                         $statut_pro = new StatutProspect();
@@ -4100,7 +4333,52 @@ public function edit_visite($id)
                         $statut_pro->save();
                     }
 
-                }else{
+                }*/
+                    if ($hasVenteRequested && $request->interet == InteretEnum::Intéressé->value) {
+                    // =====================================================
+                    // 🔥 Statut '10' pour TOUS les clients sélectionnés
+                    //    (Cas A : plusieurs | Cas B : principal seul)
+                    // =====================================================
+                    $clientsPourStatut = [];
+
+                    $selectedIds = $request->input('selected_client_ids');
+                    if (is_string($selectedIds)) {
+                        $selectedIds = json_decode($selectedIds, true);
+                    }
+
+                    if (is_array($selectedIds) && count($selectedIds) > 0) {
+                        // Cas A
+                        foreach ($selectedIds as $id) {
+                            $clientsPourStatut[] = (int)$id;
+                        }
+                    } else {
+                        // Cas B
+                        $clientsPourStatut[] = (int)$prospect->id;
+                    }
+
+                    foreach ($clientsPourStatut as $clientProspectId) {
+                        $statutExiste = StatutProspect::on('temp')
+                            ->where('prospect_id', $clientProspectId)
+                            ->where('statut', '10')
+                            ->exists();
+
+                        if (!$statutExiste) {
+                            $statut_pro = new StatutProspect();
+                            $statut_pro->setConnection('temp');
+                            $statut_pro->prospect_id     = $clientProspectId;
+                            $statut_pro->statut          = '10';
+                            $statut_pro->date_rappel     = null;
+                            $statut_pro->rdv             = null;
+                            $statut_pro->date_traitement = Carbon::now();
+                            $statut_pro->user_id_traite  = $userAuth->value('id');
+                            $statut_pro->visite_id       = $main_visite_id;
+                            $statut_pro->commentaire     = 'Converti en client via visite VENDU'
+                                . (count($clientsPourStatut) > 1 ? ' (fusion)' : '');
+                            $statut_pro->save();
+                        }
+                    }
+                }
+                    else{
                     $statut_pro = new StatutProspect();
                     $statut_pro->setConnection('temp');
                     $statut_pro->prospect_id     = $request->prospect_id;

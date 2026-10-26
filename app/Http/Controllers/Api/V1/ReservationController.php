@@ -705,7 +705,7 @@ private function processReservationFiles($reservation, $request, $societe)
                 // Process payment if specified
                     $this->processPayment($reservation, $request);
 
-}
+            }
 
             /**
              * Process client data
@@ -741,14 +741,19 @@ private function processReservationFiles($reservation, $request, $societe)
            /**
  * Process client data
  */
+
 private function processClients($reservation, $request, $userAuth)
 {
-    $clientController = new ClientController();
-    $aquereurController = new AquereurController();
-    $clientRequest = new StoreClientRequest();
-    $aquereurRequest = new StoreAquereurRequest();
+       // Dans processClients, tout en haut de la branche 'visite'
+       \Log::info('=== processClients ===');
+        \Log::info('prospect_id: ' . $request->prospect_id);
+        \Log::info('selected_client_ids reçu: ' . json_encode($request->input('selected_client_ids')));
+      $clientController = new ClientController();
+        $aquereurController = new AquereurController();
+        $clientRequest = new StoreClientRequest();
+        $aquereurRequest = new StoreAquereurRequest();
 
-    if ($request->origin == 'visite') {
+     /* if ($request->origin == 'visite') {
         $client_exist = Client::on('temp')
             ->where('prospect_id', $request->prospect_id)
             ->orderBy('created_at', 'DESC')
@@ -819,7 +824,221 @@ private function processClients($reservation, $request, $userAuth)
         $aquereurResult = $aquereurController->store($aquereurRequest);
 
         \Log::info('Aquereur created for reservation: ' . $reservation->id);
+    }*/
+    if ($request->origin == 'visite') {
+    // =====================================================
+    // 🔥 ÉTAPE 1 : Construire la liste des clients
+    //    Cas A : selected_client_ids présent → on l'utilise
+    //    Cas B : absent → le prospect principal seul
+    // =====================================================
+    $prospectIds = [];
+
+    $selectedClientIds = $request->input('selected_client_ids');
+    if (is_string($selectedClientIds)) {
+        $selectedClientIds = json_decode($selectedClientIds, true);
+    }
+
+    if (is_array($selectedClientIds) && count($selectedClientIds) > 0) {
+        // 🅰️ CAS A : Section fusion visible
+        // → utiliser exactement ce que le user a coché
+        foreach ($selectedClientIds as $id) {
+            if (!in_array((int)$id, $prospectIds, true)) {
+                $prospectIds[] = (int)$id;
+            }
+        }
+        \Log::info("CAS A : fusions sélectionnées → " . json_encode($prospectIds));
     } else {
+        // 🅱️ CAS B : Section invisible → principal seul = 100%
+        $prospectIds = [(int)$request->prospect_id];
+        \Log::info("CAS B : pas de fusions → principal seul " . json_encode($prospectIds));
+    }
+
+    // Sécurité : au moins 1 prospect
+    if (count($prospectIds) === 0) {
+        $prospectIds = [(int)$request->prospect_id];
+    }
+        // =====================================================
+        // =====================================================
+        // 🔥 ÉTAPE 2 : Récupérer les pourcentages
+        //    Cas A : client_pourcentages envoyé par le frontend
+        //    Cas B : 100% auto pour le principal
+        // =====================================================
+        $nbClients = count($prospectIds);
+
+        $clientPourcentages = $request->input('client_pourcentages');
+        if (is_string($clientPourcentages)) {
+            $clientPourcentages = json_decode($clientPourcentages, true);
+        }
+
+        $useManualPercentages = is_array($clientPourcentages) && count($clientPourcentages) > 0;
+
+        // Validation stricte : somme = 100%
+        if ($useManualPercentages) {
+            $somme = array_sum(array_map('floatval', $clientPourcentages));
+            if (abs($somme - 100) > 0.01) {
+                throw new \Exception(
+                    "La somme des pourcentages doit être 100%. Actuellement : {$somme}%"
+                );
+            }
+            \Log::info("CAS A : pourcentages manuels reçus → " . json_encode($clientPourcentages));
+        } else {
+            // Fallback : répartition automatique
+            $pourcentageBase    = round(100 / $nbClients, 2);
+            $pourcentageRestant = 100 - ($pourcentageBase * ($nbClients - 1));
+            \Log::info("CAS B (fallback) : {$pourcentageBase}% × " . ($nbClients - 1) . " + dernier {$pourcentageRestant}%");
+        }
+    // =====================================================
+    // 🔥 ÉTAPE 3 : Boucle sur chaque client
+    // =====================================================
+    foreach ($prospectIds as $index => $prospectId) {
+        // Le dernier prend le reste pour que le total = 100% exactement
+        // ⭐ Déterminer le pourcentage
+        if ($useManualPercentages) {
+            // Cas A : utiliser le % envoyé par le frontend
+            if (!isset($clientPourcentages[$prospectId])) {
+                \Log::warning("Pas de % fourni pour prospect {$prospectId}, skip aquereur");
+                continue;
+            }
+            $pourcentage = (float)$clientPourcentages[$prospectId];
+        } else {
+            // Cas B / fallback : répartition équitable
+            $pourcentage = ($index === $nbClients - 1) ? $pourcentageRestant : $pourcentageBase;
+        }
+        // Vérifier si un client existe déjà pour ce prospect
+        $client_exist = Client::on('temp')
+            ->where('prospect_id', $prospectId)
+            ->orderBy('created_at', 'DESC')
+            ->first();
+
+        if ($client_exist) {
+            $clientData = $client_exist;
+            \Log::info("Client existant ID: {$clientData->id} pour prospect {$prospectId}");
+        } else {
+            // =====================================================
+            // 🔥 Déterminer si c'est le PRINCIPAL ou une FUSION
+            // =====================================================
+            if ((int)$prospectId === (int)$request->prospect_id) {
+                // ─────── PRINCIPAL : utiliser les données du request ───────
+                $dataClient = [
+                    'cin'                  => $request->cin,
+                    'nom'                  => $request->nom,
+                    'prenom'               => $request->prenom,
+                    'telephone_num1'       => $request->telephone_num1,
+                    'telephone_num2'       => $request->telephone_num2 ?? null,
+                    'notifie'              => $request->notifie ?? 0,
+                    'prospect_id'          => $prospectId,
+                    'civilite'             => $request->civilite ?? 1,
+                    'situation_familliale' => $request->situation_familliale ?? 5,
+                    'type_client'          => 1,
+                    'projet_id'            => $request->projet_id,
+                    'email'                => (isset($request->email) && !empty(trim($request->email))) ? trim($request->email) : null,
+                    'ville'                => $request->ville ?? '',
+                ];
+            }  else {
+                    // ─────── FUSION : récupérer les données depuis le Prospect ───────
+                    $prospectFusionne = \App\Models\Prospect::on('temp')->find($prospectId);
+
+                    if (!$prospectFusionne) {
+                        \Log::warning("Prospect fusionné {$prospectId} introuvable, skip");
+                        continue;
+                    }
+
+                    // ⭐ APPLIQUER LES INFOS ENVOYÉES PAR LE FRONTEND
+                    $fusionInfos = $request->input('fusion_client_infos');
+                    if (is_string($fusionInfos)) {
+                        $fusionInfos = json_decode($fusionInfos, true);
+                    }
+
+                    if (is_array($fusionInfos) && isset($fusionInfos[$prospectId])) {
+                        $infos = $fusionInfos[$prospectId];
+                        $updated = false;
+
+                        if (!empty(trim((string)($infos['cin'] ?? ''))) && $prospectFusionne->cin !== $infos['cin']) {
+                            $cinExist = \App\Models\Prospect::on('temp')
+                                ->where('cin', $infos['cin'])
+                                ->where('id', '!=', $prospectId)
+                                ->exists();
+                            if (!$cinExist) {
+                                $prospectFusionne->cin = $infos['cin'];
+                                $updated = true;
+                            } else {
+                                \Log::warning("CIN {$infos['cin']} déjà utilisé, ignoré pour prospect {$prospectId}");
+                            }
+                        }
+                        if (!empty(trim((string)($infos['nom'] ?? '')))) {
+                            $prospectFusionne->nom = $infos['nom'];
+                            $updated = true;
+                        }
+                        if (!empty(trim((string)($infos['prenom'] ?? '')))) {
+                            $prospectFusionne->prenom = $infos['prenom'];
+                            $updated = true;
+                        }
+
+                        if ($updated) {
+                            $prospectFusionne->save();
+                            \Log::info("Prospect {$prospectId} mis à jour avec infos client");
+                        }
+                    }
+
+                    // ⭐ VÉRIFICATION FINALE
+                    if (
+                        empty(trim((string)$prospectFusionne->cin)) ||
+                        empty(trim((string)$prospectFusionne->nom)) ||
+                        empty(trim((string)$prospectFusionne->prenom))
+                    ) {
+                        \Log::warning("Prospect fusionné {$prospectId} : infos incomplètes après MAJ, skip");
+                        continue;
+                    }
+
+                    $dataClient = [
+                        'cin'                  => $prospectFusionne->cin,
+                        'nom'                  => $prospectFusionne->nom,
+                        'prenom'               => $prospectFusionne->prenom,
+                        'telephone_num1'       => $prospectFusionne->telephone,
+                        'telephone_num2'       => $prospectFusionne->telephone_num2 ?? null,
+                        'notifie'              => $prospectFusionne->notifie ?? 0,
+                        'prospect_id'          => $prospectId,
+                        'civilite'             => 1,
+                        'situation_familliale' => 5,
+                        'type_client'          => 1,
+                        'projet_id'            => $request->projet_id,
+                        'email'                => $prospectFusionne->email,
+                        'ville'                => $prospectFusionne->ville ?? '',
+                    ];
+                }
+
+            $clientRequest = new StoreClientRequest();
+            $clientRequest->merge($dataClient);
+            $clientData = $clientController->store($clientRequest);
+
+            \Log::info("Client créé ID: {$clientData->id} pour prospect {$prospectId}");
+        }
+
+        // =====================================================
+        // 🔥 Créer StatutClient
+        // =====================================================
+        $this->createStatutClient(
+            clientId:        $clientData->id,
+            reservationId:   $reservation->id,
+            userId:          $userAuth->id,
+            codeReservation: $reservation->code_reservation
+        );
+
+        // =====================================================
+        // 🔥 Créer Aquereur avec le pourcentage calculé
+        // =====================================================
+        $aquereurRequest = new StoreAquereurRequest();
+        $aquereurRequest->merge([
+            'pourcentage'    => $pourcentage,
+            'client_id'      => $clientData->id,
+            'reservation_id' => $reservation->id,
+        ]);
+        $aquereurController->store($aquereurRequest);
+
+        \Log::info("Aquereur créé : client {$clientData->id} → {$pourcentage}%");
+    }
+    }
+        else {
         // Handle direct reservation creation
         $dataArray_clients = json_decode($request->input('clients'), true);
         $dataArray_oldClients = json_decode($request->input('oldClients', '[]'), true);

@@ -16,8 +16,29 @@ use App\Http\Controllers\Controller;
 
 class ProspectFusionController extends Controller
 {
+    public function getByIds(Request $request)
+    {
+        if (!RoleHelper::ACSup() && !RoleHelper::AgentAdmin() && !RoleHelper::RespoCommercial()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $ids = explode(',', $request->input('ids', ''));
+        $ids = array_filter(array_map('intval', $ids));
+
+        if (empty($ids)) {
+            return response()->json(['prospects' => []]);
+        }
+
+        DatabaseHelper::Config();
+
+        $prospects = Prospect::on('temp')
+            ->whereIn('id', $ids)
+            ->get();
+
+        return response()->json(['prospects' => $prospects]);
+    }
     // =====================================================
-    // ⭐ RECHERCHE PROSPECTS
+    // CHERCHE PROSPECTS
     // =====================================================
   /**
      * Recherche des prospects par téléphone, CIN, nom, prénom, email
@@ -148,28 +169,32 @@ class ProspectFusionController extends Controller
 
         return array_values(array_unique($variants));
     }
-
-    // =====================================================
-    // ⭐ FUSIONNER MULTIPLE (7ta 10 prospects)
-    // =====================================================
-    public function fusionnerMultiple(Request $request)
+/**
+ * ⭐ Sync les fusions dyal prospect principal
+ * - Zid les fusions li jdad
+ * - 7ayd les fusions li ma b9awch
+ * - Khelli les fusions li kaynin
+ */
+public function syncFusions(Request $request)
 {
     $request->validate([
         'prospect_principal_id' => 'required|exists:prospects,id',
-        'prospect_fusion_ids' => 'required|array|min:1|max:10',
+        'prospect_fusion_ids' => 'nullable|array|max:10',
         'prospect_fusion_ids.*' => 'required|exists:prospects,id',
     ]);
 
     DatabaseHelper::Config();
 
     $principalId = $request->prospect_principal_id;
-    $fusionIds = $request->prospect_fusion_ids;
+    $fusionIds = $request->prospect_fusion_ids ?? [];
     $userId = Auth::id();
     $user = User::on('temp')->where('user_id_origin', $userId)->first();
+    $userIdToSave = $user ? $user->id : $userId;
 
     // ⭐ Validation: Principal machi mdemj
     $principalDejaFusionne = ProspectFusion::on('temp')
         ->where('prospect_fusion_id', $principalId)
+        ->whereNull('deleted_at')
         ->exists();
 
     if ($principalDejaFusionne) {
@@ -178,58 +203,68 @@ class ProspectFusionController extends Controller
         ], 422);
     }
 
-    // ⭐ Validation: Kol les fusionIds machi mdemjin
-    foreach ($fusionIds as $fusionId) {
-        if ($fusionId == $principalId) {
-            return response()->json([
-                'error' => 'Un prospect ne peut pas être fusionné avec lui-même'
-            ], 422);
-        }
+    // ⭐ Validation: Kol les fusionIds machi principal + machi null
+    $fusionIds = array_filter($fusionIds, function ($id) use ($principalId) {
+        return $id != $principalId && $id != null;
+    });
 
-        $dejaFusionne = ProspectFusion::on('temp')
-            ->where('prospect_fusion_id', $fusionId)
-            ->orWhere('prospect_principal_id', $fusionId)
-            ->exists();
+    // ⭐ Fusions li DÉJÀ kaynin f DB (machi m7iyin)
+    $existingFusionIds = ProspectFusion::on('temp')
+        ->where('prospect_principal_id', $principalId)
+        ->whereNull('deleted_at')
+        ->pluck('prospect_fusion_id')
+        ->toArray();
 
-        if ($dejaFusionne) {
-            return response()->json([
-                'error' => "Le prospect #{$fusionId} est déjà fusionné"
-            ], 422);
-        }
-    }
+    // ⭐ Fusions li khass tzid (jdad)
+    $toAdd = array_diff($fusionIds, $existingFusionIds);
+
+    // ⭐ Fusions li khass t7ayd (ma b9awch f l-liste)
+    $toRemove = array_diff($existingFusionIds, $fusionIds);
 
     DB::connection('temp')->beginTransaction();
 
     try {
-        foreach ($fusionIds as $fusionId) {
-            // 1. Zid l-fusion
+        // 1. Zid les fusions li jdad
+        foreach ($toAdd as $fusionId) {
+            // Validation: machi mdemj f chi fusion akhra
+            $dejaFusionneAilleurs = ProspectFusion::on('temp')
+                ->where('prospect_fusion_id', $fusionId)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($dejaFusionneAilleurs) {
+                continue; // Skip (machi mochkil, kayn chi 7aja mkharb9a)
+            }
+
             $fusion = new ProspectFusion();
             $fusion->setConnection('temp');
             $fusion->prospect_principal_id = $principalId;
             $fusion->prospect_fusion_id = $fusionId;
-            $fusion->user_id = $user ? $user->id : $userId;
+            $fusion->user_id = $userIdToSave;
             $fusion->save();
+        }
 
-            /* 2. Naqel les visites
-            Visite::on('temp')
-                ->where('prospect_id', $fusionId)
-                ->update([
-                    'prospect_id' => $principalId,
-                    'prospect_original_id' => $fusionId,
-                ]);
+        // 2. 7ayd les fusions li ma b9awch
+        foreach ($toRemove as $fusionId) {
+            $fusionToDelete = ProspectFusion::on('temp')
+                ->where('prospect_principal_id', $principalId)
+                ->where('prospect_fusion_id', $fusionId)
+                ->whereNull('deleted_at')
+                ->first();
 
-            // 3. Naqel les appels
-            Appel::on('temp')
-                ->where('prospect_id', $fusionId)
-                ->update(['prospect_id' => $principalId]);*/
+            if ($fusionToDelete) {
+                $fusionToDelete->delete(); // Soft delete
+            }
         }
 
         DB::connection('temp')->commit();
 
         return response()->json([
             'success' => true,
-            'message' => count($fusionIds) . ' prospect(s) fusionné(s)',
-            'count' => count($fusionIds),
+            'message' => 'Fusions synchronisées avec succès',
+            'added' => count($toAdd),
+            'removed' => count($toRemove),
+            'total' => count($fusionIds),
         ]);
     } catch (\Exception $e) {
         DB::connection('temp')->rollBack();

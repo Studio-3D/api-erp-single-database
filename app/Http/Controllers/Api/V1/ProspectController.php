@@ -307,7 +307,12 @@ public function exportByProjet(Request $request, $projet_id)
             $query->select('id', 'source');
         }
     ])->where('projet_id', $projet_id);
-
+    // ⭐  Exclure les prospects fusionnés
+    $query->whereNotIn('prospects.id', function ($subQuery) {
+        $subQuery->select('prospect_fusion_id')
+            ->from('prospect_fusions')
+            ->whereNull('deleted_at');
+    });
     // Filtrer par commercial affecté
     if ($request->filled('commercial_id')) {
         $commercialId = $request->input('commercial_id');
@@ -385,7 +390,12 @@ public function indexByProjet(Request $request, $projet_id)
             'visites',
             'all_appels as appels_count'
         ])->where('projet_id', $projet_id);
-
+        // ⭐ Exclure les prospects fusionnés
+        $query->whereNotIn('prospects.id', function ($subQuery) {
+            $subQuery->select('prospect_fusion_id')
+                ->from('prospect_fusions')
+                ->whereNull('deleted_at');
+        });
         // Filtrer par commercial affecté
         if ($request->filled('commercial_id')) {
             $commercialId = $request->input('commercial_id');
@@ -515,6 +525,13 @@ public function indexByProjet(Request $request, $projet_id)
 
             // Démarrer la requête directement sur le modèle
             $query = prospect::on('temp')->with('client', 'visites', 'appels');
+
+            // Exclure les prospects fusionnés
+            $query->whereNotIn('prospects.id', function ($subQuery) {
+                $subQuery->select('prospect_fusion_id')
+                    ->from('prospect_fusions')
+                    ->whereNull('deleted_at');
+            });
             $query->where(function ($q) use ($request) {
                 if ($request->filled('telephone')) {
                     $q->where(function ($subQuery) use ($request) {
@@ -532,6 +549,7 @@ public function indexByProjet(Request $request, $projet_id)
             if ($request->filled('prenom')) {
                 $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
             }
+
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
 
@@ -1314,7 +1332,7 @@ public function export_historiques(Request $request, $id)
 
                 if ($prospect->save()) {
 
-                   /* if ($request->has('prospect_fusion_ids')) {
+                    if ($request->has('prospect_fusion_ids')) {
                         $fusionIds = is_array($request->prospect_fusion_ids)
                             ? $request->prospect_fusion_ids
                             : json_decode($request->prospect_fusion_ids, true);
@@ -1331,7 +1349,7 @@ public function export_historiques(Request $request, $id)
                                 $fusion->save();
                             }
                         }
-                    }*/
+                    }
                     // Create default "en_attente" status unless created from a visite
                     if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
 
@@ -1704,10 +1722,14 @@ public static function Store_LandingPage($name, $prenom, $phone, $email, $societ
     /**
      * Display the specified resource.
      */
-   public function show($id)
+public function show($id)
 {
     if (Auth::guard('api')->check()) {
         DatabaseHelper::Config();
+
+        // =====================================================
+        // ⭐ PROSPECT (KIMA KAN - MA TBEDELCH!)
+        // =====================================================
         $prospect = Prospect::on('temp')->with([
             'client' => function($query) {
                 $query->select('id')
@@ -1716,7 +1738,8 @@ public static function Store_LandingPage($name, $prenom, $phone, $email, $societ
                             ->withSum('avances', 'montant')
                             ->where('etat', 1)
                             ->where('statut', 1)
-                            ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')->without('user', 'projet', 'historiques', 'piece_jointe', 'bien', 'aquereurs', 'aquereurs_ancien');
+                            ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')
+                            ->without('user', 'projet', 'historiques', 'piece_jointe', 'bien', 'aquereurs', 'aquereurs_ancien');
                     }])->without('partenaire');
             },
             'traite_par_user' => function($query) {
@@ -1736,9 +1759,10 @@ public static function Store_LandingPage($name, $prenom, $phone, $email, $societ
             }
         ])->findOrFail($id);
 
+        // =====================================================
+        // ⭐ APPELS
+        // =====================================================
         $appels = [];
-
-        // Vérifier si appels existe et n'est pas null
         if ($prospect->appels && $prospect->appels->id) {
             $appels = TraitementAppel::on('temp')
                 ->with([
@@ -1747,7 +1771,7 @@ public static function Store_LandingPage($name, $prenom, $phone, $email, $societ
                             ->with([
                                 'prospect' => function($q) {
                                     $q->select('*')
-                                      ->without('affecte_par_admin','commercial_affecte');
+                                      ->without('affecte_par_admin', 'commercial_affecte');
                                 }
                             ])->without('projet');
                     }, 'frein', 'relance', 'rdv', 'tranche', 'bloc', 'immeuble', 'type_biens'
@@ -1755,13 +1779,18 @@ public static function Store_LandingPage($name, $prenom, $phone, $email, $societ
                 ->get();
         }
 
+        // =====================================================
+        // ⭐ VISITES
+        // =====================================================
         $visites = Visite::on('temp')
             ->where('etat', 1)
             ->where('prospect_id', $id)
             ->latest('created_at')
             ->get();
 
-        $groupedVisites = $visites->map(function ($visite) {
+        $toutesLesVisites = $visites;
+
+        $groupedVisites = $toutesLesVisites->map(function ($visite) {
             $firstVisite = $visite;
             return [
                 'id'                  => $firstVisite->id,
@@ -1777,10 +1806,92 @@ public static function Store_LandingPage($name, $prenom, $phone, $email, $societ
             ];
         });
 
+        // =====================================================
+        // ⭐ FUSIONS (B SELECT DIRECT - BLA $with)
+        // =====================================================
+
+        // Fusions li had prospect HOWA PRINCIPAL fihom
+        $fusionsCommePrincipalRaw = \App\Models\ProspectFusion::on('temp')
+            ->where('prospect_principal_id', $id)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $fusionsCommePrincipal = [];
+        foreach ($fusionsCommePrincipalRaw as $fusion) {
+            // ⭐ Jib l-prospect fusionné b DB::table (bla model, bla $with)
+            $prospectFusionne = \Illuminate\Support\Facades\DB::connection('temp')
+                ->table('prospects')
+                ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                ->where('id', $fusion->prospect_fusion_id)
+                ->first();
+
+            $fusionsCommePrincipal[] = [
+                'id' => $fusion->id,
+                'prospect_principal_id' => $fusion->prospect_principal_id,
+                'prospect_fusion_id' => $fusion->prospect_fusion_id,
+                'user_id' => $fusion->user_id,
+                'created_at' => $fusion->created_at,
+                'updated_at' => $fusion->updated_at,
+                'prospectFusionne' => $prospectFusionne ? [
+                    'id' => $prospectFusionne->id,
+                    'nom' => $prospectFusionne->nom,
+                    'prenom' => $prospectFusionne->prenom,
+                    'telephone' => $prospectFusionne->telephone,
+                    'telephone_num2' => $prospectFusionne->telephone_num2,
+                    'cin' => $prospectFusionne->cin,
+                    'email' => $prospectFusionne->email,
+                ] : null,
+            ];
+        }
+
+        // Fusion li had prospect HOWA FUSIONNÉ fiha
+        $fusionCommeFusionneRaw = \App\Models\ProspectFusion::on('temp')
+            ->where('prospect_fusion_id', $id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $fusionCommeFusionne = null;
+        if ($fusionCommeFusionneRaw) {
+            // ⭐ Jib l-principal b DB::table (bla model, bla $with)
+            $prospectPrincipal = \Illuminate\Support\Facades\DB::connection('temp')
+                ->table('prospects')
+                ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                ->where('id', $fusionCommeFusionneRaw->prospect_principal_id)
+                ->first();
+
+            $fusionCommeFusionne = [
+                'id' => $fusionCommeFusionneRaw->id,
+                'prospect_principal_id' => $fusionCommeFusionneRaw->prospect_principal_id,
+                'prospect_fusion_id' => $fusionCommeFusionneRaw->prospect_fusion_id,
+                'user_id' => $fusionCommeFusionneRaw->user_id,
+                'created_at' => $fusionCommeFusionneRaw->created_at,
+                'updated_at' => $fusionCommeFusionneRaw->updated_at,
+                'prospectPrincipal' => $prospectPrincipal ? [
+                    'id' => $prospectPrincipal->id,
+                    'nom' => $prospectPrincipal->nom,
+                    'prenom' => $prospectPrincipal->prenom,
+                    'telephone' => $prospectPrincipal->telephone,
+                    'telephone_num2' => $prospectPrincipal->telephone_num2,
+                    'cin' => $prospectPrincipal->cin,
+                    'email' => $prospectPrincipal->email,
+                ] : null,
+            ];
+        }
+
+        // =====================================================
+        // ⭐ RÉPONSE
+        // =====================================================
+
         return response()->json([
             'prospect'       => $prospect,
             'appels'         => $appels,
             'visites'        => $groupedVisites->values(),
+            'fusions' => [
+                'est_principal' => count($fusionsCommePrincipal) > 0,
+                'est_fusionne'  => $fusionCommeFusionne !== null,
+                'comme_principal' => $fusionsCommePrincipal,
+                'comme_fusionne'  => $fusionCommeFusionne,
+            ],
         ], 200);
 
     } else {
@@ -1909,32 +2020,63 @@ public function update(UpdateProspectRequest $request, $id)
      * Remove the specified resource from storage.
      */
    public function destroy($id)
-    {
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
+{
+    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
 
-            DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->findOrFail($id);
-            if (count($prospect->visites) > 0 || $prospect->appels != null || $prospect->client != null) {
-                return response()->json(['error' => 'Il est impossible de supprimer ce Prospect car il possède plusieurs dossiers liés à des visites, des appels ou client.'], 422);
-            } else {
-                $notifications = Notification::on('temp')->where('prospect_id', $id)->get();
-                if (count($notifications)) {
-                    foreach ($notifications as $nt) {
-                        $nt->forceDelete();
-                    }
-                }
-                if ($prospect->delete()) {
-                    return response()->json(['message' => 'Prospect supprimé avec succès.'], 200);
-                } else {
-                    return response()->json(['error' => "Le prospect n'a pas été supprimé."], 404);
-                }
-            }
+        DatabaseHelper::Config();
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        // =====================================================
+        // ⭐ CHECK 1: Fusions (mohim!)
+        // =====================================================
+        $aDesFusions = \App\Models\ProspectFusion::on('temp')
+            ->where(function ($q) use ($id) {
+                $q->where('prospect_principal_id', $id)
+                  ->orWhere('prospect_fusion_id', $id);
+            })
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if ($aDesFusions) {
+            return response()->json([
+                'error' => 'Il est impossible de supprimer ce prospect car il est impliqué dans une ou plusieurs fusions. Veuillez d\'abord le défusionner.'
+            ], 422);
         }
 
+        // =====================================================
+        // ⭐ CHECK 2: Visites, appels, client (li kayn)
+        // =====================================================
+        $prospect = Prospect::on('temp')->findOrFail($id);
+
+        if (count($prospect->visites) > 0 || $prospect->appels != null || $prospect->client != null) {
+            return response()->json([
+                'error' => 'Il est impossible de supprimer ce Prospect car il possède plusieurs dossiers liés à des visites, des appels ou client.'
+            ], 422);
+        }
+
+        // =====================================================
+        // ⭐ M7I NOTIFICATIONS
+        // =====================================================
+        $notifications = Notification::on('temp')->where('prospect_id', $id)->get();
+        if (count($notifications)) {
+            foreach ($notifications as $nt) {
+                $nt->forceDelete();
+            }
+        }
+
+        // =====================================================
+        // ⭐ M7I PROSPECT
+        // =====================================================
+        if ($prospect->delete()) {
+            return response()->json(['message' => 'Prospect supprimé avec succès.'], 200);
+        } else {
+            return response()->json(['error' => "Le prospect n'a pas été supprimé."], 404);
+        }
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
+
     /**
  * Return all common variants of a phone number.
  * Example: 212661250121 →
@@ -1963,103 +2105,210 @@ private function getPhoneVariants($phone)
 
     return array_values(array_unique($variants));
 }
-    public function search_prospect_by_param($param_1, $value, $projet_id)
-    {
-        //cin ou email
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
-            DatabaseHelper::Config();
-            if ($param_1 == 'cin' || $param_1 == 'email') {
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visite_first', 'visites_perdu', 'visites_perdu.freins', 'visites_perdu.freins.freinTranche', 'visites_perdu.freins.FreinEtage', 'visites_perdu.freins.FreinOrientation', 'visites_perdu.freins.FreinTypologie', 'visites_perdu.freins.FreinVue', 'appels')
-                    ->where($param_1, $value)->where('projet_id', $projet_id)
-                    ->get()->first();
+   public function search_prospect_by_param($param_1, $value, $projet_id)
+{
+    // Recherche par CIN ou email
+    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
+        DatabaseHelper::Config();
 
-                // Get client with reservations having pending payments
-                $client = Client::on('temp')->with(['prospect', 'reservations_actives' => function($query) {
-                    $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
-                        ->withSum('avances', 'montant')
-                        ->where('etat', 1)
-                        ->where('statut', 1)
-                        ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
-                }])
+        if ($param_1 == 'cin' || $param_1 == 'email') {
+            $prospect = Prospect::on('temp')->with(
+                'visite_pre_reserves',
+                'visite_first',
+                'visites_perdu',
+                'visites_perdu.freins',
+                'visites_perdu.freins.freinTranche',
+                'visites_perdu.freins.FreinEtage',
+                'visites_perdu.freins.FreinOrientation',
+                'visites_perdu.freins.FreinTypologie',
+                'visites_perdu.freins.FreinVue',
+                'appels'
+            )
+                ->where($param_1, $value)->where('projet_id', $projet_id)
+                ->get()->first();
+
+            // Récupérer le client avec les réservations ayant des paiements en attente
+            $client = Client::on('temp')->with(['prospect', 'reservations_actives' => function ($query) {
+                $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
+                    ->withSum('avances', 'montant')
+                    ->where('etat', 1)
+                    ->where('statut', 1)
+                    ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
+            }])
                 ->where($param_1, $value)
                 //->where('projet_id', $projet_id)
                 ->get()->first();
 
-            } else {
-                // 👇 telephone — generate all format variants
-                $phoneVariants = $this->getPhoneVariants($value);
-                //telephone
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visite_first',  'visites_perdu','visites_perdu.freins', 'visites_perdu.freins.freinTranche', 'visites_perdu.freins.FreinEtage', 'visites_perdu.freins.FreinOrientation', 'visites_perdu.freins.FreinTypologie', 'visites_perdu.freins.FreinVue', 'appels')
-                    ->where(function ($query) use ($phoneVariants) {
+        } else {
+            // 👇 téléphone — générer toutes les variantes
+            $phoneVariants = $this->getPhoneVariants($value);
+
+            // Recherche par téléphone
+            $prospect = Prospect::on('temp')->with(
+                'visite_pre_reserves',
+                'visite_first',
+                'visites_perdu',
+                'visites_perdu.freins',
+                'visites_perdu.freins.freinTranche',
+                'visites_perdu.freins.FreinEtage',
+                'visites_perdu.freins.FreinOrientation',
+                'visites_perdu.freins.FreinTypologie',
+                'visites_perdu.freins.FreinVue',
+                'appels'
+            )
+                ->where(function ($query) use ($phoneVariants) {
                     $query->whereIn('telephone', $phoneVariants)
                         ->orWhereIn('telephone_num2', $phoneVariants);
-                    })
-                  //  ->where('projet_id', $projet_id)
-                    ->get()->first();
+                })
+                //  ->where('projet_id', $projet_id)
+                ->get()->first();
 
-                // Get client with reservations having pending payments
-                $client = Client::on('temp')->with(['prospect', 'reservations' => function($query) {
-                    $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
-                        ->withSum('avances', 'montant')
-                        ->where('etat', 1)
-                        ->where('statut', 1)
-                        ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
-                }])
-               ->where(function ($query) use ($phoneVariants) {
-                $query->whereIn('telephone_num1', $phoneVariants)
-                    ->orWhereIn('telephone_num2', $phoneVariants);
-            })
+            // Récupérer le client avec les réservations ayant des paiements en attente
+            $client = Client::on('temp')->with(['prospect', 'reservations' => function ($query) {
+                $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
+                    ->withSum('avances', 'montant')
+                    ->where('etat', 1)
+                    ->where('statut', 1)
+                    ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
+            }])
+                ->where(function ($query) use ($phoneVariants) {
+                    $query->whereIn('telephone_num1', $phoneVariants)
+                        ->orWhereIn('telephone_num2', $phoneVariants);
+                })
                 //->where('projet_id', $projet_id)
                 ->get()->first();
-            }
-
-            //bien pre reserve par appel on cas des biens disponibles
-            $biens_traitement_freins = [];
-            if ($prospect != null) {
-                $biens_traitement_freins = TraitementFrein::on('temp')->with('bien', 'visite')
-                    ->whereHas('visite', function ($q) use ($prospect) {
-                        $q->where('prospect_id', $prospect->id);
-                    })
-                    ->where('interet', InteretEnum::Intéressé->value)
-                    ->where('statut', StatutVisiteEnum::Pré_Réservation->value)
-                    ->orderby('created_at', 'desc')
-                    ->get(['bien_id', 'id'])
-                    ->take(1);
-            }
-
-            // Transform the reservations data to remove unwanted relationships
-            if ($client) {
-                // For CIN/email case
-                if ($client->reservations_actives) {
-                    $client->reservations_actives->transform(function ($reservation) {
-                        return [
-                            'id' => $reservation->id,
-                            'code_reservation' => $reservation->code_reservation,
-                            'prix' => $reservation->prix,
-                            'avances_sum_montant' => $reservation->avances_sum_montant
-                        ];
-                    });
-                }
-                // For telephone case
-                if ($client->reservations) {
-                    $client->reservations->transform(function ($reservation) {
-                        return [
-                            'id' => $reservation->id,
-                            'code_reservation' => $reservation->code_reservation,
-                            'prix' => $reservation->prix,
-                            'avances_sum_montant' => $reservation->avances_sum_montant
-                        ];
-                    });
-                }
-            }
-
-            return response()->json([
-                'prospect' => $prospect,
-                'client' => $client,
-                'biens_traitement_freins' => $biens_traitement_freins
-            ]);
         }
+
+        // =====================================================
+        // ⭐ FUSIONS: Récupérer les fusions du prospect
+        // =====================================================
+        $fusionsCommePrincipal = [];
+        $fusionCommeFusionne = null;
+
+        if ($prospect != null) {
+            // Fusions où ce prospect est le PRINCIPAL
+            $fusionsCommePrincipalRaw = \App\Models\ProspectFusion::on('temp')
+                ->where('prospect_principal_id', $prospect->id)
+                ->whereNull('deleted_at')
+                ->get();
+
+            foreach ($fusionsCommePrincipalRaw as $fusion) {
+                $prospectFusionne = \Illuminate\Support\Facades\DB::connection('temp')
+                    ->table('prospects')
+                    ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                    ->where('id', $fusion->prospect_fusion_id)
+                    ->first();
+
+                if ($prospectFusionne) {
+                    $fusionsCommePrincipal[] = [
+                        'id' => $fusion->id,
+                        'prospect_principal_id' => $fusion->prospect_principal_id,
+                        'prospect_fusion_id' => $fusion->prospect_fusion_id,
+                        'user_id' => $fusion->user_id,
+                        'created_at' => $fusion->created_at,
+                        'updated_at' => $fusion->updated_at,
+                        'prospectFusionne' => [
+                            'id' => $prospectFusionne->id,
+                            'nom' => $prospectFusionne->nom,
+                            'prenom' => $prospectFusionne->prenom,
+                            'telephone' => $prospectFusionne->telephone,
+                            'telephone_num2' => $prospectFusionne->telephone_num2,
+                            'cin' => $prospectFusionne->cin,
+                            'email' => $prospectFusionne->email,
+                        ],
+                    ];
+                }
+            }
+
+            // Fusion où ce prospect est FUSIONNÉ
+            $fusionCommeFusionneRaw = \App\Models\ProspectFusion::on('temp')
+                ->where('prospect_fusion_id', $prospect->id)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($fusionCommeFusionneRaw) {
+                $prospectPrincipal = \Illuminate\Support\Facades\DB::connection('temp')
+                    ->table('prospects')
+                    ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                    ->where('id', $fusionCommeFusionneRaw->prospect_principal_id)
+                    ->first();
+
+                if ($prospectPrincipal) {
+                    $fusionCommeFusionne = [
+                        'id' => $fusionCommeFusionneRaw->id,
+                        'prospect_principal_id' => $fusionCommeFusionneRaw->prospect_principal_id,
+                        'prospect_fusion_id' => $fusionCommeFusionneRaw->prospect_fusion_id,
+                        'user_id' => $fusionCommeFusionneRaw->user_id,
+                        'created_at' => $fusionCommeFusionneRaw->created_at,
+                        'updated_at' => $fusionCommeFusionneRaw->updated_at,
+                        'prospectPrincipal' => [
+                            'id' => $prospectPrincipal->id,
+                            'nom' => $prospectPrincipal->nom,
+                            'prenom' => $prospectPrincipal->prenom,
+                            'telephone' => $prospectPrincipal->telephone,
+                            'telephone_num2' => $prospectPrincipal->telephone_num2,
+                            'cin' => $prospectPrincipal->cin,
+                            'email' => $prospectPrincipal->email,
+                        ],
+                    ];
+                }
+            }
+        }
+
+        // Biens pré-réservés par appel
+        $biens_traitement_freins = [];
+        if ($prospect != null) {
+            $biens_traitement_freins = TraitementFrein::on('temp')->with('bien', 'visite')
+                ->whereHas('visite', function ($q) use ($prospect) {
+                    $q->where('prospect_id', $prospect->id);
+                })
+                ->where('interet', InteretEnum::Intéressé->value)
+                ->where('statut', StatutVisiteEnum::Pré_Réservation->value)
+                ->orderby('created_at', 'desc')
+                ->get(['bien_id', 'id'])
+                ->take(1);
+        }
+
+        // Transformer les données des réservations
+        if ($client) {
+            if ($client->reservations_actives) {
+                $client->reservations_actives->transform(function ($reservation) {
+                    return [
+                        'id' => $reservation->id,
+                        'code_reservation' => $reservation->code_reservation,
+                        'prix' => $reservation->prix,
+                        'avances_sum_montant' => $reservation->avances_sum_montant,
+                    ];
+                });
+            }
+            if ($client->reservations) {
+                $client->reservations->transform(function ($reservation) {
+                    return [
+                        'id' => $reservation->id,
+                        'code_reservation' => $reservation->code_reservation,
+                        'prix' => $reservation->prix,
+                        'avances_sum_montant' => $reservation->avances_sum_montant,
+                    ];
+                });
+            }
+        }
+
+        // =====================================================
+        // ⭐ RÉPONSE (avec les fusions)
+        // =====================================================
+        return response()->json([
+            'prospect' => $prospect,
+            'client' => $client,
+            'biens_traitement_freins' => $biens_traitement_freins,
+            'fusions' => [
+                'est_principal' => count($fusionsCommePrincipal) > 0,
+                'est_fusionne'  => $fusionCommeFusionne !== null,
+                'comme_principal' => $fusionsCommePrincipal,
+                'comme_fusionne'  => $fusionCommeFusionne,
+            ],
+        ]);
     }
+}
     public function VisitesByprospect(Request $request, $prospect_id)
     {
         if (Auth::guard('api')->check()) {

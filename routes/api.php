@@ -339,10 +339,10 @@ Route::middleware('auth:api')->group(function () {
 
         //l'API prospect
      /*****************Prospect fusion***************** */
+        Route::get('/prospects/by-ids', [ProspectFusionController::class, 'getByIds']);
         // ⭐ Recherche prospects pour fusion
         Route::get('/prospects/rechercher-pour-fusion', [ProspectFusionController::class, 'rechercherPourFusion']);
-        // ⭐ Fusionner multiple
-        Route::post('/prospects/fusionner-multiple',[ProspectFusionController::class, 'fusionnerMultiple']);
+        Route::post('/prospects/sync-fusions', [ProspectFusionController::class, 'syncFusions']);
         // ⭐ Défusionner
         Route::delete('/prospects/defusionner/{fusionId}',[ProspectFusionController::class, 'defusionner']);
         // ⭐ Jib les fusions dyal prospect

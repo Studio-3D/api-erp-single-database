@@ -23,6 +23,7 @@ class ProspectFusion extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+    protected $with = ['prospectFusionne', 'prospectPrincipal'];
 
     // =====================================================
     // ⭐ RELATIONS
