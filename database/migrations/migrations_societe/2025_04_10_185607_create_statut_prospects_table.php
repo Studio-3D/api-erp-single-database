@@ -26,10 +26,21 @@ return new class extends Migration
                 StatutProspectEnum::Interesse->value,
                 StatutProspectEnum::Perdu->value,
                 StatutProspectEnum::Receptif->value,
+                StatutProspectEnum::Converti_en_client->value,
                 StatutProspectEnum::WhatsApp_Envoye->value,
                 StatutProspectEnum::pre_reservation->value,
                 StatutProspectEnum::Reaffecte->value,
-            ])->comment('0=>En_attente 1=>Planification_RDV 2=>Injoignable 3=>Rappel 4=>Converti_en_visite 5=>Nouveau_appel 6=>Affecté 7=>Intéressé 8=>Perdu 9=>Réceptif 11=>whatsapp envoye 12=>pre reservation 13=>reaffecte');
+                StatutProspectEnum::Qualifie->value,
+                StatutProspectEnum::En_veille->value,
+                StatutProspectEnum::Invalide->value,
+                StatutProspectEnum::Visite_non_honoree->value,
+            ])->comment(
+                '0=>Nouveau 1=>Visite programmée 2=>Injoignable 3=>A rappeler '
+                .'4=>Converti en Visite 5=>Nouveau 6=>Affecté 7=>Intéressé '
+                .'8=>Perdu 9=>Réceptif 10=>Visite effectuée 11=>WhatsApp Envoyé '
+                .'12=>Pré réservation 13=>Réaffecté 14=>Qualifié 15=>En veille '
+                .'16=>Invalide 17=>Visite non honorée'
+            );
 
             $table->foreignId('user_id_traite')->nullable()->constrained('users')->onDelete('cascade');
             $table->date('date_traitement')->nullable();
