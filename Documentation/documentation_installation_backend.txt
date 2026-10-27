@@ -24,7 +24,7 @@ Cette documentation décrit les étapes nécessaires pour installer et configure
    ```
    Si tu rencontres des problèmes d'autoload, utilise cette commande pour régénérer l'autoload :
    ```bash
-   composer dump-autoload IF ERROS MOVE PHP INI FROM XAMPP TO C PHP 
+   composer dump-autoload IF ERROS MOVE PHP INI FROM XAMPP TO C PHP
    ```
 
 5. **Générer la clé d'application Laravel :**
@@ -47,7 +47,7 @@ php artisan migrate --path=database/migrations/migrations_societe --force
 
 8. **Initialiser les données de test avec les seeders :**
    ```bash
-   php artisan db:seed 
+   php artisan db:seed
    ```
 
 9. **Installer Laravel Passport pour l'authentification API :**
@@ -62,11 +62,10 @@ php artisan migrate --path=database/migrations/migrations_societe --force
    ```bash
    php artisan passport:client --personal
    ```
-# Créer password client avec nom par défaut  
+# Créer password client avec nom par défaut
 echo " " | php artisan passport:client --password
 
 ---
-
 ### Installation de Websockets
 
 10. **Installer la dépendance Laravel Websockets :**

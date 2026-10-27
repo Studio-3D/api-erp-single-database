@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('whatsapp_messages', function (Blueprint $table) {
@@ -17,7 +14,8 @@ return new class extends Migration
             // Foreign keys
             $table->unsignedBigInteger('projet_id');
             $table->unsignedBigInteger('prospect_id')->nullable();
-            $table->unsignedBigInteger('bulk_id')->nullable()->comment('Reference to historique_relances_whatsapp id');
+            $table->unsignedBigInteger('bulk_id')->nullable()
+                  ->comment('Reference to historique_relances_whatsapp id');
 
             // Message details
             $table->string('from_number');
@@ -29,15 +27,20 @@ return new class extends Migration
 
             // Media attachments
             $table->string('media_url')->nullable();
+
+            // ✅ Colonnes placées dans le bon ordre, SANS ->after()
+            $table->string('message_type')->nullable();
+            $table->integer('marketing_count')->default(0);
+            $table->integer('template_index')->nullable();
+
             // Status tracking
             $table->timestamp('read_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->timestamp('sent_at')->nullable();
-            $table->string('status')->default('received')->comment('received, sent, delivered, read, failed');
-            $table->string('message_type')->nullable()->after('media_url');
-            $table->integer('marketing_count')->default(0)->after('message_type');
-            $table->integer('template_index')->nullable()->after('marketing_count');
-                        // Error handling
+            $table->string('status')->default('received')
+                  ->comment('received, sent, delivered, read, failed');
+
+            // Error handling
             $table->text('error_message')->nullable();
             $table->integer('retry_count')->default(0);
             $table->unsignedBigInteger('user_id_sent')->nullable();
@@ -60,9 +63,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('whatsapp_messages');

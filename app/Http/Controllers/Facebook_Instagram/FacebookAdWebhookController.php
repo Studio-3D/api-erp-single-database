@@ -691,6 +691,7 @@ private function createProspectStatus($prospectId, $projetId)
 /**
  * Auto-assign a single prospect to the commercial with the least prospects
  */
+
 private function autoAssignSingleProspect($prospectId, $projetId)
 {
     try {

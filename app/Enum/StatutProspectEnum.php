@@ -17,6 +17,8 @@ enum StatutProspectEnum: int
     case Converti_en_client = 10;
     case WhatsApp_Envoye = 11;
     case pre_reservation = 12;
+    case Reaffecte = 13; // ✅ Nouveau statut
+
 
     public function label(): string
     {

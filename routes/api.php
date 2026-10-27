@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\PiecesJointeController as V1PiecesJointeControll
 use App\Http\Controllers\Api\V1\PrestatairesController as V1PrestatairesController;
 use App\Http\Controllers\Api\V1\ProjetController as V1ProjetController;
 use App\Http\Controllers\Api\V1\ProspectController as V1ProspectController;
+use App\Http\Controllers\Api\V1\ProspectFusionController as ProspectFusionController;
 
 use App\Http\Controllers\Api\V1\HistoriqueRelanceWhatsappController as V1HistoriqueRelanceWhatsappController;
 
@@ -69,6 +70,9 @@ use App\Http\Controllers\TikTok\TikTokApiController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\LinkedIn\LinkedInController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Facebook_Instagram\MakeLeadController;
+use App\Http\Controllers\Api\Coline\CommissionColineController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -110,6 +114,7 @@ Route::get('/webhookFcb_Insta', [Facebook_InstagramController::class, 'verify'])
 
 Route::get('/webhook/facebook', [FacebookAdWebhookController::class, 'verify']);
 Route::post('/webhook/facebook', [FacebookAdWebhookController::class, 'handle']);
+Route::post('/make/leads', [MakeLeadController::class, 'store']);
 
 
 Route::post('/chat', [V1AgentController::class, 'chat']);
@@ -122,10 +127,36 @@ Route::post('/conversations/clean', [V1AgentController::class, 'cleanExpired']);
 
 Route::middleware('auth:api')->group(function () {
 
+    Route::prefix('coline')->group(function () {
+          // ========================================
+        // COMMISSIONS COLINE
+        // ========================================
+        Route::prefix('commissions_coline')->group(function () {
+            // 🆕 Nouvelles routes paginées
+            Route::get('/paginated', [CommissionColineController::class, 'index_paginated']);
+            Route::get('/export',    [CommissionColineController::class, 'export_paginated']);
+            // 📋 Listes par état
+            Route::get('/non-traite',      [CommissionColineController::class, 'index_non_traite']);
+            Route::get('/traite-attente',  [CommissionColineController::class, 'index_traite_attente']);
+            Route::get('/traite-moitie',   [CommissionColineController::class, 'index_traite_moitie']);
+            Route::get('/traite',          [CommissionColineController::class, 'index_traite']);
 
+            // 📄 Détails
+            Route::get('/show/{id}',       [CommissionColineController::class, 'show']);
 
+            // ✏️ Actions
+            Route::put('/traiter/{id}',    [CommissionColineController::class, 'traiter_commission']);
+            Route::put('/update/{id}',     [CommissionColineController::class, 'update']);
+            Route::delete('/destroy/{id}', [CommissionColineController::class, 'destroy']);
+
+            // 📅 Historique
+            Route::get('/historique',      [CommissionColineController::class, 'getHistorique']);
+        });
+        Route::post('generate_contrat_vente_reservation_coline_pdf',  [PDFController::class, 'generateContratColinePDF']);
+    });
 
     Route::prefix('v1')->group(function () {
+
         /************************************facebook statistiques*********************** */
         Route::get('/facebook-leads-full-stats/{projet_id}', [FacebookLeadStatsController::class, 'getFullStats']);
 
@@ -307,6 +338,20 @@ Route::middleware('auth:api')->group(function () {
         Route::get('export-biens-by-frein/{id}', [V1FreinController::class, 'export_biens_by_frein']);
 
         //l'API prospect
+     /*****************Prospect fusion***************** */
+        Route::get('/prospects/by-ids', [ProspectFusionController::class, 'getByIds']);
+        // ⭐ Recherche prospects pour fusion
+        Route::get('/prospects/rechercher-pour-fusion', [ProspectFusionController::class, 'rechercherPourFusion']);
+        Route::post('/prospects/sync-fusions', [ProspectFusionController::class, 'syncFusions']);
+        // ⭐ Défusionner
+        Route::delete('/prospects/defusionner/{fusionId}',[ProspectFusionController::class, 'defusionner']);
+        // ⭐ Jib les fusions dyal prospect
+        Route::get('/prospects/{id}/fusions', [ProspectFusionController::class, 'getFusions']);
+        // ⭐ Jib l-famille (principal + fusionnés)
+        Route::get('/prospects/{id}/famille',[ProspectFusionController::class, 'getFamille']);
+            /*****************************Bullk whtsapp******************************** */
+        Route::post('/upload_file_bulk_whatsapp', [V1ProspectController::class, 'uploadMedia_bulk_whatsap'])->name('');
+        Route::post('prospects/bulk-whatsapp', [V1ProspectController::class, 'bulkWhatsApp']);
 
         Route::resource('prospects', V1ProspectController::class);
         Route::get('/prospects/export/{projet_id}', [V1ProspectController::class, 'exportByProjet']);
@@ -317,16 +362,18 @@ Route::middleware('auth:api')->group(function () {
         Route::post('upload_excel_prospect', [V1ProspectController::class, 'upload'])->name('');
         Route::put('traiter_prospect/{id}', [V1ProspectController::class, 'traiter_prospect'])->name('');
         Route::get('historiques_prospects/{id}', [V1ProspectController::class, 'get_Historiques_by_prospect'])->name('');
+        Route::get('export-historiques/{id}', [V1ProspectController::class, 'export_historiques']);
         Route::get('projets/{idprojet}/prospects', [V1ProspectController::class, 'indexByProjet']);
         Route::post('prospects/auto-assign', [V1ProspectController::class, 'autoAssignProspects'])->name('auto_assign_prospects');
         Route::put('traiter_relance_rdv_prospect/{id}', [V1ProspectController::class, 'traiterRelanceRdvProspect']);
-
+        Route::get('export-historiques/{id}', [V1ProspectController::class, 'export_historiques']);
         Route::get('get_nb_prospect_rdv/{projet_id}', [V1ProspectController::class, 'getNbProspectRdv'])->name('');
         Route::get('get_nb_prospect_relance/{projet_id}', [V1ProspectController::class, 'getNbProspectRelance'])->name('');
+        /*******************Reaffectation par commercial******************* */
+        Route::post('/prospects/commercial-reaffecter-selective', [V1ProspectController::class, 'commercialReaffecterSelective']);
+        Route::post('/prospects/commercial-reaffecter-auto', [V1ProspectController::class, 'commercialReaffecterAuto']);
 
-        /*****************************Bullk whtsapp******************************** */
-        Route::post('/upload_file_bulk_whatsapp', [V1ProspectController::class, 'uploadMedia_bulk_whatsap'])->name('');
-        Route::post('prospects/bulk-whatsapp', [V1ProspectController::class, 'bulkWhatsApp']);
+        /**********************************Clients*****************************/
 
         //l'API client
         Route::get('historiques_clients/{id}', [V1ClientController::class, 'get_Historiques_by_client'])->name('');
@@ -336,7 +383,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('search_client_by_phone/{phone}/{projet_id}', [V1ClientController::class, 'search_client_by_phone']);
         Route::get('search_client_by_email/{email}/{projet_id}', [V1ClientController::class, 'search_client_by_email']);
         Route::get('projets/{idprojet}/clients', [V1ClientController::class, 'indexByProjet']);
-
+        Route::get('/export-clients', [V1ClientController::class, 'exportClients']);
         //l'API Aquerreur
         Route::resource('aquereurs', V1AquereurController::class);
       //  Route::get('getAquereurByReservation/{reservation_id}', [V1AquereurController::class, 'getAquereurByReservation'])->name('getAquereurByReservation');
@@ -357,6 +404,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('avances_by_etat/{projet_id}/{etat}', [V1AvanceController::class, 'get_avances_by_etat'])->name('');
         Route::get('get_echeances/{projet_id}', [V1AvanceController::class, 'get_echeances'])->name('');
         Route::get('get_echeances_menu/{projet_id}', [V1AvanceController::class, 'get_echeances_menu'])->name('');
+        Route::get('/export-avances', [V1AvanceController::class, 'exportAvances']);
 
         //Route::get('historiques_avance/{date}/{id}', [AvanceController::class, 'historiques_avance'])->name('');
 
@@ -394,6 +442,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_notif_dst_att_validation_menu/{projet_id}', [V1DesistementController::class, 'get_notif_dst_att_validation_menu'])->name('');
         Route::get('get_historiques_desistement_by_reservation/{code_desistement}', [V1DesistementController::class, 'get_historiques_desistement_by_reservation'])->name('');
         Route::get('get_dossiers_by_bien/{bien_id}', [V1DesistementController::class, 'get_dossiers_by_bien'])->name('');
+        Route::get('/export-desistements', [V1DesistementController::class, 'exportDesistements']);
+        Route::get('/export-penalites', [V1DesistementController::class, 'exportPenalites']);
         //l'Api relationClients
         Route::resource('appels', V1AppelController::class);
         Route::get('projets/{idprojet}/appels', [V1AppelController::class, 'indexByProjet']);
@@ -509,7 +559,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('get_notif_demande_pre_remboursement/{projet_id}', [V1RemboursementController::class, 'get_notif_demande_pre_remboursement'])->name('');
         Route::post('traiter_decaissement/{id}', [V1RemboursementController::class, 'traiter_decaissement'])->name('');
         Route::get('get_remboursements_dos_transfert/{projet_id}', [V1RemboursementController::class, 'get_remboursements_dos_transfert'])->name('');
-
+        Route::get('/export-remboursements', [V1RemboursementController::class, 'exportRemboursements']);
+        Route::get('/export-remboursements-dos-transfert', [V1RemboursementController::class, 'exportRemboursementsDosTransfert']);
         //IMPORT Bien by Excel
         Route::resource('/histo_importation', V1UploadBienController::class);
         Route::post('upload_excel_bien', [V1UploadBienController::class, 'upload'])->name('');

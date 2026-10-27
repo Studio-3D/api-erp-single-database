@@ -15,6 +15,8 @@ use App\Http\Requests\UpdateProspectRequest;
 use App\Models\Client;
 use App\Models\Notification;
 use App\Models\Prospect;
+use App\Models\ProspectFusion;
+
 use App\Models\Source;
 use App\Models\StatutProspect;
 use App\Models\TraitementFrein;
@@ -305,7 +307,12 @@ public function exportByProjet(Request $request, $projet_id)
             $query->select('id', 'source');
         }
     ])->where('projet_id', $projet_id);
-
+    // ⭐  Exclure les prospects fusionnés
+    $query->whereNotIn('prospects.id', function ($subQuery) {
+        $subQuery->select('prospect_fusion_id')
+            ->from('prospect_fusions')
+            ->whereNull('deleted_at');
+    });
     // Filtrer par commercial affecté
     if ($request->filled('commercial_id')) {
         $commercialId = $request->input('commercial_id');
@@ -383,7 +390,12 @@ public function indexByProjet(Request $request, $projet_id)
             'visites',
             'all_appels as appels_count'
         ])->where('projet_id', $projet_id);
-
+        // ⭐ Exclure les prospects fusionnés
+        $query->whereNotIn('prospects.id', function ($subQuery) {
+            $subQuery->select('prospect_fusion_id')
+                ->from('prospect_fusions')
+                ->whereNull('deleted_at');
+        });
         // Filtrer par commercial affecté
         if ($request->filled('commercial_id')) {
             $commercialId = $request->input('commercial_id');
@@ -513,6 +525,13 @@ public function indexByProjet(Request $request, $projet_id)
 
             // Démarrer la requête directement sur le modèle
             $query = prospect::on('temp')->with('client', 'visites', 'appels');
+
+            // Exclure les prospects fusionnés
+            $query->whereNotIn('prospects.id', function ($subQuery) {
+                $subQuery->select('prospect_fusion_id')
+                    ->from('prospect_fusions')
+                    ->whereNull('deleted_at');
+            });
             $query->where(function ($q) use ($request) {
                 if ($request->filled('telephone')) {
                     $q->where(function ($subQuery) use ($request) {
@@ -530,6 +549,7 @@ public function indexByProjet(Request $request, $projet_id)
             if ($request->filled('prenom')) {
                 $query->where('prenom', 'like', '%' . $request->input('prenom') . '%');
             }
+
 
             if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
 
@@ -564,142 +584,212 @@ public function indexByProjet(Request $request, $projet_id)
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function traiter_prospect($id, Request $request)
-    {
-        // ✅ Validate that 'statut' is required and must not be null
-        $request->validate([
-            'statut' => 'required',
-        ], [
-            'statut.required' => 'Le Statut est Obligatoire.',
-        ]);
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
-            DatabaseHelper::Config();
-            $user      = Auth::user();
-            $userAuth  = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
-            $prospect  = Prospect::on('temp')->findOrFail($id);
+   public function traiter_prospect($id, Request $request)
+{
+    // ✅ Validate that 'statut' is required and must not be null
+    $request->validate([
+        'statut' => 'required',
+    ], [
+        'statut.required' => 'Le Statut est Obligatoire.',
+    ]);
 
-            // Update prospect with traitement tracking
-            $prospect->traite_par_user_id = $userAuth->value('id');
-            $prospect->date_traitement = Carbon::now();
-            // 🔑 Incrémenter le compteur d'injoignables
-            // 🔑 Gestion du compteur d'injoignables
-            $statut = (int) $request->statut;
+    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
+        DatabaseHelper::Config();
+        $user     = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->get();
+        $prospect = Prospect::on('temp')->findOrFail($id);
 
-            if ($statut === StatutProspectEnum::Injoignable->value) {
-                // Marqué injoignable → +1
-                $prospect->nb_injoignable = (int) $prospect->nb_injoignable + 1;
-            } elseif (in_array($statut, [
-                 StatutProspectEnum::Receptif->value,
-                StatutProspectEnum::Interesse->value,
-                StatutProspectEnum::Planification_RDV->value,
-                StatutProspectEnum::Converti_en_visite->value,
-                StatutProspectEnum::Converti_en_client->value,
-                StatutProspectEnum::pre_reservation->value,
-                // tu peux ajouter d'autres statuts "joignable" ici
-            ])) {
-                // Le prospect est redevenu joignable → reset
-                $prospect->nb_injoignable = 0;
-            }
-            // Sinon (Rappel, Perdu, WhatsApp, etc.) → on ne touche pas
+        $nouveauCommercialId = $userAuth->value('id');
 
-            // Unassign prospect from commercial for certain final statuses
-            $finalStatuses = [
-                StatutProspectEnum::Perdu->value,              // Lost prospects should be unassigned
-                StatutProspectEnum::Converti_en_visite->value, // Converted prospects move to next stage
-            ];
+        // ============================================================
+        // 🔑 DÉTECTION DU CHANGEMENT DE COMMERCIAL (RÉAFFECTATION)
+        // ============================================================
+        $ancienCommercialId = $prospect->commercial_affecte;
 
-            if (in_array($request->statut, $finalStatuses)) {
-                $oldCommercialId = $prospect->commercial_affecte;
-                $prospect->commercial_affecte = null;
-                $prospect->affecte_par_admin_id = null;
-                $prospect->date_affectation = null;
+        $estReaffectation = $ancienCommercialId
+            && $nouveauCommercialId
+            && (int) $ancienCommercialId !== (int) $nouveauCommercialId;
 
-                // Update commercial's prospect counter
-                if ($oldCommercialId) {
-                    \App\Models\User::on('temp')
-                        ->where('id', $oldCommercialId)
-                        ->decrement('nb_prospects');
-                }
-            }
+        // ============================================================
+        // MISE À JOUR DU PROSPECT
+        // ============================================================
+        $prospect->traite_par_user_id = $nouveauCommercialId;
+        $prospect->date_traitement    = Carbon::now();
 
+        // 🔑 Gestion du compteur d'injoignables
+        $statut = (int) $request->statut;
 
-            $prospect->save();
+        if ($statut === StatutProspectEnum::Injoignable->value) {
+            // Marqué injoignable → +1
+            $prospect->nb_injoignable = (int) $prospect->nb_injoignable + 1;
+        } elseif (in_array($statut, [
+            StatutProspectEnum::Receptif->value,
+            StatutProspectEnum::Interesse->value,
+            StatutProspectEnum::Planification_RDV->value,
+            StatutProspectEnum::Converti_en_visite->value,
+            StatutProspectEnum::Converti_en_client->value,
+            StatutProspectEnum::pre_reservation->value,
+        ])) {
+            // Le prospect est redevenu joignable → reset
+            $prospect->nb_injoignable = 0;
+        }
+        // Sinon (Rappel, Perdu, WhatsApp, etc.) → on ne touche pas
 
-            $ps_statut = new statutProspect();
-            $ps_statut->setConnection('temp');
-            $ps_statut->prospect_id     = $id;
-            // Coerce to numeric string to enforce storage policy
-            $ps_statut->statut          = is_numeric($request->statut)
-                ? (string) $request->statut
-                : (string) (\App\Enum\StatutProspectEnum::tryFrom($request->statut)?->value ?? '0');
+        // ============================================================
+        // 🔑 RÉAFFECTATION : le commercial qui traite devient le nouveau commercial affecté
+        // ============================================================
+        if ($estReaffectation) {
+            // Décrémenter l'ancien commercial
+            \App\Models\User::on('temp')
+                ->where('id', $ancienCommercialId)
+                ->decrement('nb_prospects');
 
-            // Add unassignment note to comment for final statuses
-            $commentaire = $request->commentaire;
-            if (in_array($request->statut, $finalStatuses)) {
-                $commentaire = $commentaire ? $commentaire . ' (Prospect désaffecté du commercial)' : 'Prospect désaffecté du commercial';
-            }
-            $ps_statut->commentaire     = $commentaire;
+            // Incrémenter le nouveau commercial
+            \App\Models\User::on('temp')
+                ->where('id', $nouveauCommercialId)
+                ->increment('nb_prospects');
 
-            $ps_statut->user_id_traite  = $userAuth->value('id');
-            $ps_statut->date_traitement = Carbon::now();
-            if ($request->statut == 1) {
-                $ps_statut->rdv = $request->rdv;
-                $ps_statut->type_traitement_rdv_relance = 0;
-            } elseif ($request->statut == 3) {
-                $ps_statut->date_rappel = $request->date_rappel;
-                $ps_statut->type_traitement_rdv_relance = 0;
-
-            }
-
-            if ($ps_statut->save()) {
-                if ($request->statut == 2) {
-                    //rappel
-                    Config::set('broadcasting.default', 'pusher_notify');
-                    $data_notif = [
-                        'lien'        => '/crm/prospects/' . $id,
-                        'date'        => $request->date_rappel,
-                        'type'        => 30,
-                        'user_id'     => Auth::guard('api')->user()->id,
-                        'description' => 'le prospect doit etre rappelé',
-                        'projet_id'   => $prospect->projet_id,
-                        'prospect_id' => $id,
-
-                    ];
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
-                    broadcast(new NotificationEvent($id));
-                    broadcast(new NotifMenuEvent('H'));
-
-
-                }
-                if ($request->statut == 1) {
-                    //rdv
-                    Config::set('broadcasting.default', 'pusher_notify');
-                    $data_notif = [
-                       // 'lien'        => '/crm/prospects/' . $id,
-                         'lien'        => '/crm?tab=rendez-vous',
-                        'date'        => $request->rdv,
-                        'type'        => 31,
-                        'user_id'     => Auth::guard('api')->user()->id,
-                        'description' => 'le prospect a un rdv',
-                        'projet_id'   => $prospect->projet_id,
-                        'prospect_id' => $id,
-
-                    ];
-                    $notif_helper = new NotificationHelper();
-                    $notif_helper->storeNotification($request->merge($data_notif));
-                    broadcast(new NotificationEvent($id));
-                    broadcast(new NotifMenuEvent('G'));
-
-                }
-            }
-            return response()->json(['message' => 'done'], 200);
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            // Mettre à jour l'affectation
+            $prospect->commercial_affecte   = $nouveauCommercialId;
+            $prospect->affecte_par_admin_id = $nouveauCommercialId;
+            $prospect->date_affectation     = Carbon::now();
         }
 
+        // ============================================================
+        // UNASSIGN pour certains statuts finaux
+        // ============================================================
+        $finalStatuses = [
+            StatutProspectEnum::Perdu->value,              // 8
+            StatutProspectEnum::Converti_en_visite->value, // 4
+        ];
+
+        if (in_array($request->statut, $finalStatuses)) {
+            $oldCommercialId = $prospect->commercial_affecte;
+            $prospect->commercial_affecte   = null;
+            $prospect->affecte_par_admin_id = null;
+            $prospect->date_affectation     = null;
+
+            // Update commercial's prospect counter
+            if ($oldCommercialId) {
+                \App\Models\User::on('temp')
+                    ->where('id', $oldCommercialId)
+                    ->decrement('nb_prospects');
+            }
+        }
+
+        $prospect->save();
+
+        // ============================================================
+        // PRÉPARATION DES DONNÉES COMMUNES
+        // ============================================================
+        $statutDemande = is_numeric($request->statut)
+            ? (int) $request->statut
+            : (\App\Enum\StatutProspectEnum::tryFrom($request->statut)?->value ?? 0);
+
+        // Récupérer les noms des commerciaux pour les commentaires
+        $ancienCommercial  = $ancienCommercialId
+            ? \App\Models\User::on('temp')->find($ancienCommercialId)
+            : null;
+        $nouveauCommercial = \App\Models\User::on('temp')->find($nouveauCommercialId);
+
+        $ancienNom  = $ancienCommercial ? $ancienCommercial->name : "ID#$ancienCommercialId";
+        $nouveauNom = $nouveauCommercial ? $nouveauCommercial->name : "ID#$nouveauCommercialId";
+
+        // ============================================================
+        // 1️⃣ STATUT RÉAFFECTATION (uniquement si réaffectation)
+        // ============================================================
+        if ($estReaffectation) {
+            $ps_reaffect = new statutProspect();
+            $ps_reaffect->setConnection('temp');
+            $ps_reaffect->prospect_id     = $id;
+            $ps_reaffect->statut          = (string) StatutProspectEnum::Reaffecte->value;
+            $ps_reaffect->commentaire     = sprintf(
+                'Prospect réaffecté de %s vers %s',
+                $ancienNom,
+                $nouveauNom
+            );
+            $ps_reaffect->user_id_traite  = $nouveauCommercialId;
+            $ps_reaffect->date_traitement = Carbon::now();
+            $ps_reaffect->save();
+        }
+
+        // ============================================================
+        // 2️⃣ STATUT MÉTIER (le statut demandé par le commercial)
+        // ============================================================
+        $ps_statut = new statutProspect();
+        $ps_statut->setConnection('temp');
+        $ps_statut->prospect_id = $id;
+        $ps_statut->statut      = (string) $statutDemande;
+
+        // Construction du commentaire métier
+        $commentaire = $request->commentaire;
+        if (in_array($request->statut, $finalStatuses)) {
+            $commentaire = $commentaire
+                ? $commentaire . ' (Prospect désaffecté du commercial)'
+                : 'Prospect désaffecté du commercial';
+        }
+
+        $ps_statut->commentaire     = $commentaire;
+        $ps_statut->user_id_traite  = $nouveauCommercialId;
+        $ps_statut->date_traitement = Carbon::now();
+
+        // Gestion RDV / Rappel selon le statut métier
+        if ($statutDemande === StatutProspectEnum::Planification_RDV->value) { // 1
+            $ps_statut->rdv = $request->rdv;
+            $ps_statut->type_traitement_rdv_relance = 0;
+        } elseif ($statutDemande === StatutProspectEnum::Rappel->value) { // 3
+            $ps_statut->date_rappel = $request->date_rappel;
+            $ps_statut->type_traitement_rdv_relance = 0;
+        }
+
+        // ============================================================
+        // NOTIFICATIONS (uniquement sur le statut métier)
+        // ============================================================
+        if ($ps_statut->save()) {
+
+            // --- RAPPEL (statut = 2 côté legacy, mais dans l'enum Rappel = 3) ---
+            if ($request->statut == 2) {
+                Config::set('broadcasting.default', 'pusher_notify');
+                $data_notif = [
+                    'lien'        => '/crm/prospects/' . $id,
+                    'date'        => $request->date_rappel,
+                    'type'        => 30,
+                    'user_id'     => Auth::guard('api')->user()->id,
+                    'description' => 'le prospect doit etre rappelé',
+                    'projet_id'   => $prospect->projet_id,
+                    'prospect_id' => $id,
+                ];
+                $notif_helper = new NotificationHelper();
+                $notif_helper->storeNotification($request->merge($data_notif));
+                broadcast(new NotificationEvent($id));
+                broadcast(new NotifMenuEvent('H'));
+            }
+
+            // --- RDV (statut = 1) ---
+            if ($request->statut == 1) {
+                Config::set('broadcasting.default', 'pusher_notify');
+                $data_notif = [
+                    'lien'        => '/crm?tab=rendez-vous',
+                    'date'        => $request->rdv,
+                    'type'        => 31,
+                    'user_id'     => Auth::guard('api')->user()->id,
+                    'description' => 'le prospect a un rdv',
+                    'projet_id'   => $prospect->projet_id,
+                    'prospect_id' => $id,
+                ];
+                $notif_helper = new NotificationHelper();
+                $notif_helper->storeNotification($request->merge($data_notif));
+                broadcast(new NotificationEvent($id));
+                broadcast(new NotifMenuEvent('G'));
+            }
+        }
+
+        return response()->json(['message' => 'done'], 200);
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
 
     public function get_Historiques_by_prospect($id, Request $request)
 {
@@ -938,6 +1028,200 @@ public function indexByProjet(Request $request, $projet_id)
 
     return response()->json(['error' => 'Unauthorized'], 401);
 }
+public function export_historiques(Request $request, $id)
+{
+    if (Auth::guard('api')->check()) {
+        $dateStart = $request->input('date_start');
+        $dateEnd   = $request->input('date_end');
+
+        DatabaseHelper::Config();
+
+        // Récupérer le prospect pour vérifier s'il est devenu client
+        $prospect = Prospect::on('temp')->find($id);
+
+        if (!$prospect) {
+            return response()->json(['error' => 'Prospect non trouvé'], 404);
+        }
+
+        // 1. Récupérer les statuts de prospect
+        $statutsProspect = StatutProspect::on('temp')
+            ->select(
+                'id',
+                'prospect_id',
+                'statut',
+                'user_id_traite',
+                'date_traitement',
+                'rdv',
+                'date_rappel',
+                'commentaire',
+                'visite_id',
+                'appel_id',
+                'created_at',
+                'updated_at'
+            )
+            ->with([
+                'user' => function($query) {
+                    $query->select('id', 'name', 'prenom')
+                        ->without('societe');
+                }
+            ])
+            ->where('prospect_id', $id)
+            ->without('prospect')
+            ->get();
+
+        // 2. Récupérer les statuts de client si le prospect est devenu client
+        $statutsClient = collect();
+        if ($prospect->client_id) {
+            $statutsClient = StatutClient::on('temp')
+                ->select(
+                    'id',
+                    'statut',
+                    'user_id_traite',
+                    'date_traitement',
+                    'commentaire',
+                    'visite_id',
+                    'created_at',
+                    'updated_at',
+                    'reservation_id',
+                    'avance_id',
+                    'desistement_id',
+                    'penalite_id',
+                    'remboursement_id',
+                    'client_id',
+                    'rdv_id'
+                )
+                ->where('client_id', $prospect->client_id)
+                ->with([
+                    'user' => function($query) {
+                        $query->select('id', 'name', 'prenom')
+                            ->without('societe');
+                    },
+                    'reservation' => function($query) {
+                        $query->select('id', 'code_reservation');
+                    },
+                    'avance' => function($query) {
+                        $query->select('id', 'montant');
+                    },
+                    'rdv' => function($query) {
+                        $query->select('id', 'rdv');
+                    }
+                ])
+                ->without('client')
+                ->get();
+        }
+
+        // 3. Combiner et formater les résultats
+        $allHistoriques = collect();
+
+        // Ajouter les statuts de prospect
+        foreach ($statutsProspect as $statut) {
+            $allHistoriques->push([
+                'id' => 'prospect_'.$statut->id,
+                'prospect_id' => $statut->prospect_id,
+                'statut' => $statut->statut,
+                'user_id_traite' => $statut->user_id_traite,
+                'date_traitement' => $statut->date_traitement,
+                'rdv' => $statut->rdv,
+                'date_rappel' => $statut->date_rappel,
+                'commentaire' => $statut->commentaire,
+                'visite_id' => $statut->visite_id,
+                'appel_id' => $statut->appel_id,
+                'created_at' => $statut->created_at,
+                'updated_at' => $statut->updated_at,
+                'type_source' => 'prospect',
+                'reservation_id' => null,
+                'avance_id' => null,
+                'desistement_id' => null,
+                'penalite_id' => null,
+                'remboursement_id' => null,
+                'client_id' => null,
+                'user' => $statut->user ? [
+                    'id' => $statut->user->id,
+                    'name' => $statut->user->name,
+                    'prenom' => $statut->user->prenom
+                ] : null
+            ]);
+        }
+
+        // Ajouter les statuts de client
+        foreach ($statutsClient as $statut) {
+            $rdvDate = null;
+            if ($statut->rdv_id && $statut->rdv) {
+                $rdvDate = $statut->rdv->rdv;
+            }
+            $allHistoriques->push([
+                'id' => 'client'.$statut->id,
+                'prospect_id' => null,
+                'statut' => $statut->statut,
+                'user_id_traite' => $statut->user_id_traite,
+                'date_traitement' => $statut->date_traitement,
+                'rdv' => $rdvDate,
+                'date_rappel' => null,
+                'commentaire' => $statut->commentaire,
+                'visite_id' => $statut->visite_id,
+                'appel_id' => null,
+                'created_at' => $statut->created_at,
+                'updated_at' => $statut->updated_at,
+                'type_source' => 'client',
+                'reservation_id' => $statut->reservation_id,
+                'avance_id' => $statut->avance_id,
+                'desistement_id' => $statut->desistement_id,
+                'penalite_id' => $statut->penalite_id,
+                'remboursement_id' => $statut->remboursement_id,
+                'client_id' => $statut->client_id,
+                'rdv_id' => $statut->rdv_id,
+                'user' => $statut->user ? [
+                    'id' => $statut->user->id,
+                    'name' => $statut->user->name,
+                    'prenom' => $statut->user->prenom
+                ] : null,
+                'reservation' => $statut->reservation ? [
+                    'id' => $statut->reservation->id,
+                    'code_reservation' => $statut->reservation->code_reservation
+                ] : null,
+                'avance' => $statut->avance ? [
+                    'id' => $statut->avance->id,
+                    'montant' => $statut->avance->montant
+                ] : null,
+                'rendez_vous' => $statut->rdv ? [
+                    'id' => $statut->rdv->id,
+                    'rdv' => $statut->rdv->rdv,
+                ] : null
+            ]);
+        }
+
+        // 4. Appliquer les filtres (incluant les nouvelles dates)
+        $filteredHistoriques = $allHistoriques;
+
+        // ✅ Filtre date_start / date_end (pour l'export)
+        if ($dateStart) {
+            $start = Carbon::parse($dateStart)->startOfDay();
+            $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($start) {
+                return $item['date_traitement'] &&
+                    Carbon::parse($item['date_traitement'])->gte($start);
+            });
+        }
+
+        if ($dateEnd) {
+            $end = Carbon::parse($dateEnd)->endOfDay();
+            $filteredHistoriques = $filteredHistoriques->filter(function ($item) use ($end) {
+                return $item['date_traitement'] &&
+                    Carbon::parse($item['date_traitement'])->lte($end);
+            });
+        }
+
+        // 5. Trier (SANS pagination)
+        $sortedHistoriques = $filteredHistoriques->sortByDesc('created_at')->values();
+
+        // ✅ Retourner TOUTES les données
+        return response()->json([
+            'data'  => $sortedHistoriques,
+            'total' => $sortedHistoriques->count(),
+        ], 200);
+    }
+
+    return response()->json(['error' => 'Unauthorized'], 401);
+}
     /*public function get_Historiques_by_prospect($id, Request $request)
     {
         if (Auth::guard('api')->check()) {
@@ -1047,6 +1331,25 @@ public function indexByProjet(Request $request, $projet_id)
 
 
                 if ($prospect->save()) {
+
+                    if ($request->has('prospect_fusion_ids')) {
+                        $fusionIds = is_array($request->prospect_fusion_ids)
+                            ? $request->prospect_fusion_ids
+                            : json_decode($request->prospect_fusion_ids, true);
+
+                        if (is_array($fusionIds)) {
+                            $userId = $userAuth ? $userAuth->id : null;
+
+                            foreach ($fusionIds as $fusionId) {
+                                $fusion = new ProspectFusion();
+                                $fusion->setConnection('temp');
+                                $fusion->prospect_principal_id = $prospect->id;
+                                $fusion->prospect_fusion_id = $fusionId;
+                                $fusion->user_id = $userId;
+                                $fusion->save();
+                            }
+                        }
+                    }
                     // Create default "en_attente" status unless created from a visite
                     if (($prospect->origin ?? ($request->origin ?? null)) !== 'visite') {
 
@@ -1220,61 +1523,213 @@ public function indexByProjet(Request $request, $projet_id)
         }
     }
 
-    public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null,$projet_id)
-    {
-        DatabaseHelper::Config($societe_id);
+public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null, $projet_id)
+{
+    DatabaseHelper::Config($societe_id);
+
+    Log::info('🔄 Store_LandingPage: Starting', [
+        'name' => $name,
+        'phone' => $phone,
+        'projet_id' => $projet_id,
+    ]);
+
+    DB::connection('temp')->beginTransaction();
+
+    try {
+        // ============================================================
+        // 1️⃣ CRÉATION DU PROSPECT
+        // ============================================================
+        // ✅ Recherche dynamique de la source "Landing Page"
+            $source = \App\Models\Source::on('temp')
+                ->where('source', 'LIKE', '%landing%page%')
+                ->orWhere('source', 'LIKE', '%landingpage%')
+                ->orWhere('source', 'LIKE', '%landing page%')
+                ->whereNull('deleted_at')  // si tu as du soft delete
+                ->first();
+
         $prospect = new Prospect();
         $prospect->setConnection("temp");
         $prospect->cin       = null;
-        $prospect->message   = $comment; // store optional comment
+        $prospect->message   = $comment;
         $prospect->nom       = $name;
         $prospect->prenom    = $prenom;
         $prospect->telephone = $phone;
         $prospect->email     = $email;
-         $prospect->projet_id     = $projet_id;
+        $prospect->projet_id = $projet_id;
         $prospect->origin    = 'landingPage';
-        $prospect->source    = 3;
-        $prospect->etat    = 1;
+        $prospect->source = $source ? $source->id : 3; // ou 17 en fallback si tu veux
+        $prospect->etat      = 1;
         $prospect->save();
 
-        // Create default "en_attente" status (numeric)
+        Log::info('✅ Prospect created via LandingPage', ['prospect_id' => $prospect->id]);
+
+        // ============================================================
+        // 2️⃣ AFFECTATION AUTOMATIQUE (même logique que autoAssignSingleProspect)
+        // ============================================================
+        $assignedCommercialId = null;
+        $systemUser = User::on('temp')
+            ->where('role', 1)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $commercials = User::on('temp')
+            ->whereHas('projets', function ($q) use ($projet_id) {
+                $q->where('projet_id', $projet_id);
+            })
+            ->where('role', 3)
+            ->where('is_actif', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($commercials->isNotEmpty()) {
+            $targetCommercial = null;
+
+            if ($commercials->count() === 1) {
+                $targetCommercial = $commercials->first();
+                Log::info('✅ Only one commercial found', ['commercial_id' => $targetCommercial->id]);
+            } else {
+                // Reset si tous ont last_affected = 1
+                $allHaveLastAffected = $commercials->every(fn($c) => (int) $c->last_affected === 1);
+
+                if ($allHaveLastAffected) {
+                    Log::info('🔄 All commercials have last_affected = 1, resetting all to 0');
+                    User::on('temp')
+                        ->where('role', 3)
+                        ->where('is_actif', 1)
+                        ->whereNull('deleted_at')
+                        ->update(['last_affected' => 0]);
+
+                    $commercials = User::on('temp')
+                        ->whereHas('projets', function ($q) use ($projet_id) {
+                            $q->where('projet_id', $projet_id);
+                        })
+                        ->where('role', 3)
+                        ->where('is_actif', 1)
+                        ->whereNull('deleted_at')
+                        ->orderBy('id')
+                        ->get();
+                }
+
+                // Prendre le premier avec last_affected = 0
+                $targetCommercial = $commercials->firstWhere('last_affected', 0)
+                    ?? $commercials->first();
+
+                Log::info('✅ Selected commercial', [
+                    'commercial_id' => $targetCommercial->id,
+                    'name' => $targetCommercial->name . ' ' . $targetCommercial->prenom,
+                    'last_affected_before' => $targetCommercial->last_affected,
+                ]);
+            }
+
+            if ($targetCommercial) {
+                $assignedCommercialId = $targetCommercial->id;
+
+                // Mettre à jour le prospect
+                $prospect->commercial_affecte   = $assignedCommercialId;
+                $prospect->affecte_par_admin_id = $systemUser ? $systemUser->id : $assignedCommercialId;
+                $prospect->date_affectation     = Carbon::now();
+                $prospect->save();
+
+                // Incrémenter nb_prospects + last_affected = 1
+                $targetCommercial->nb_prospects = ((int) $targetCommercial->nb_prospects) + 1;
+                $targetCommercial->last_affected = 1;
+                $targetCommercial->save();
+
+                // Reset last_affected = 0 pour les autres
+                User::on('temp')
+                    ->where('id', '!=', $assignedCommercialId)
+                    ->where('role', 3)
+                    ->where('is_actif', 1)
+                    ->whereNull('deleted_at')
+                    ->update(['last_affected' => 0]);
+
+                Log::info('✅ Prospect assigned automatically', [
+                    'prospect_id' => $prospect->id,
+                    'commercial_id' => $assignedCommercialId,
+                ]);
+            }
+        } else {
+            Log::warning('⚠️ No active commercials found for project', ['projet_id' => $projet_id]);
+        }
+
+        // ============================================================
+        // 3️⃣ STATUT INITIAL
+        // ============================================================
         $statutProspect = new StatutProspect();
         $statutProspect->setConnection('temp');
         $statutProspect->prospect_id = $prospect->id;
-        $statutProspect->statut = '0';
         $statutProspect->date_traitement = Carbon::now();
-        $statutProspect->user_id_traite = null; // No specific user for landing page
-        $statutProspect->commentaire = 'Prospect créé via Landing Page';
+
+        if ($assignedCommercialId) {
+            $statutProspect->statut = (string) StatutProspectEnum::Affecte->value; // '6'
+            $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
+            $statutProspect->commentaire = 'Prospect créé via Landing Page et affecté automatiquement';
+        } else {
+            $statutProspect->statut = '0';
+            $statutProspect->user_id_traite = null;
+            $statutProspect->commentaire = 'Prospect créé via Landing Page ';
+        }
+        $statutProspect->type_traitement_rdv_relance = 0;
         $statutProspect->save();
 
-        // Create a notification for the new landing page prospect
+        // ============================================================
+        // 4️⃣ COMMIT
+        // ============================================================
+        DB::connection('temp')->commit();
+        Log::info('✅ Transaction committed for LandingPage prospect', ['prospect_id' => $prospect->id]);
+
+        // ============================================================
+        // 5️⃣ NOTIFICATIONS (hors transaction)
+        // ============================================================
         try {
-            $data_notif = [
-                'lien'        => '/crm/prospects/' . $prospect->id,
-                'date'        => Carbon::now(),
-                'type'        => 50, // custom type for Landing Page prospect
-                'description' => 'Nouveau prospect via Landing Page',
-                'user_id'     => null,
-                'role'        => 4,
-                'visite_id'   => null,
-                'prospect_id' => $prospect->id,
-                'projet_id'   => null,
-            ];
             $notif_helper = new NotificationHelper();
             $req = new \Illuminate\Http\Request();
-            $notif_helper->storeNotification($req->merge($data_notif));
+            // Notification au commercial affecté
+            if ($assignedCommercialId) {
+                Config::set('broadcasting.default', 'pusher_notify');
+                $commercial = User::on('temp')->find($assignedCommercialId);
+
+                if ($commercial && $commercial->user_id_origin) {
+                    $notif_helper->storeNotification($req->merge([
+                        'lien'        => '/crm/prospects/' . $prospect->id,
+                        'date'        => Carbon::now(),
+                        'type'        => 53,
+                        'description' => 'Un nouveau prospect (Landing Page) vous a été affecté',
+                        'user_id'     => $commercial->user_id_origin,
+                        'role'        => null,
+                        'visite_id'   => null,
+                        'prospect_id' => $prospect->id,
+                        'projet_id'   => $projet_id,
+                    ]));
+                    broadcast(new \App\Events\NotificationEvent($assignedCommercialId));
+                }
+            }
         } catch (\Exception $e) {
             Log::warning('Failed to create landing page notification: ' . $e->getMessage());
         }
+
+        return $prospect;
+
+    } catch (\Exception $e) {
+        DB::connection('temp')->rollBack();
+        Log::error('❌ Store_LandingPage failed: ' . $e->getMessage());
+        Log::error('Trace: ' . $e->getTraceAsString());
+        return null;
     }
+}
 
     /**
      * Display the specified resource.
      */
-   public function show($id)
+public function show($id)
 {
     if (Auth::guard('api')->check()) {
         DatabaseHelper::Config();
+
+        // =====================================================
+        // ⭐ PROSPECT (KIMA KAN - MA TBEDELCH!)
+        // =====================================================
         $prospect = Prospect::on('temp')->with([
             'client' => function($query) {
                 $query->select('id')
@@ -1283,7 +1738,8 @@ public function indexByProjet(Request $request, $projet_id)
                             ->withSum('avances', 'montant')
                             ->where('etat', 1)
                             ->where('statut', 1)
-                            ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')->without('user', 'projet', 'historiques', 'piece_jointe', 'bien', 'aquereurs', 'aquereurs_ancien');
+                            ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)')
+                            ->without('user', 'projet', 'historiques', 'piece_jointe', 'bien', 'aquereurs', 'aquereurs_ancien');
                     }])->without('partenaire');
             },
             'traite_par_user' => function($query) {
@@ -1303,9 +1759,10 @@ public function indexByProjet(Request $request, $projet_id)
             }
         ])->findOrFail($id);
 
+        // =====================================================
+        // ⭐ APPELS
+        // =====================================================
         $appels = [];
-
-        // Vérifier si appels existe et n'est pas null
         if ($prospect->appels && $prospect->appels->id) {
             $appels = TraitementAppel::on('temp')
                 ->with([
@@ -1314,7 +1771,7 @@ public function indexByProjet(Request $request, $projet_id)
                             ->with([
                                 'prospect' => function($q) {
                                     $q->select('*')
-                                      ->without('affecte_par_admin','commercial_affecte');
+                                      ->without('affecte_par_admin', 'commercial_affecte');
                                 }
                             ])->without('projet');
                     }, 'frein', 'relance', 'rdv', 'tranche', 'bloc', 'immeuble', 'type_biens'
@@ -1322,13 +1779,18 @@ public function indexByProjet(Request $request, $projet_id)
                 ->get();
         }
 
+        // =====================================================
+        // ⭐ VISITES
+        // =====================================================
         $visites = Visite::on('temp')
             ->where('etat', 1)
             ->where('prospect_id', $id)
             ->latest('created_at')
             ->get();
 
-        $groupedVisites = $visites->map(function ($visite) {
+        $toutesLesVisites = $visites;
+
+        $groupedVisites = $toutesLesVisites->map(function ($visite) {
             $firstVisite = $visite;
             return [
                 'id'                  => $firstVisite->id,
@@ -1344,10 +1806,92 @@ public function indexByProjet(Request $request, $projet_id)
             ];
         });
 
+        // =====================================================
+        // ⭐ FUSIONS (B SELECT DIRECT - BLA $with)
+        // =====================================================
+
+        // Fusions li had prospect HOWA PRINCIPAL fihom
+        $fusionsCommePrincipalRaw = \App\Models\ProspectFusion::on('temp')
+            ->where('prospect_principal_id', $id)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $fusionsCommePrincipal = [];
+        foreach ($fusionsCommePrincipalRaw as $fusion) {
+            // ⭐ Jib l-prospect fusionné b DB::table (bla model, bla $with)
+            $prospectFusionne = \Illuminate\Support\Facades\DB::connection('temp')
+                ->table('prospects')
+                ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                ->where('id', $fusion->prospect_fusion_id)
+                ->first();
+
+            $fusionsCommePrincipal[] = [
+                'id' => $fusion->id,
+                'prospect_principal_id' => $fusion->prospect_principal_id,
+                'prospect_fusion_id' => $fusion->prospect_fusion_id,
+                'user_id' => $fusion->user_id,
+                'created_at' => $fusion->created_at,
+                'updated_at' => $fusion->updated_at,
+                'prospectFusionne' => $prospectFusionne ? [
+                    'id' => $prospectFusionne->id,
+                    'nom' => $prospectFusionne->nom,
+                    'prenom' => $prospectFusionne->prenom,
+                    'telephone' => $prospectFusionne->telephone,
+                    'telephone_num2' => $prospectFusionne->telephone_num2,
+                    'cin' => $prospectFusionne->cin,
+                    'email' => $prospectFusionne->email,
+                ] : null,
+            ];
+        }
+
+        // Fusion li had prospect HOWA FUSIONNÉ fiha
+        $fusionCommeFusionneRaw = \App\Models\ProspectFusion::on('temp')
+            ->where('prospect_fusion_id', $id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $fusionCommeFusionne = null;
+        if ($fusionCommeFusionneRaw) {
+            // ⭐ Jib l-principal b DB::table (bla model, bla $with)
+            $prospectPrincipal = \Illuminate\Support\Facades\DB::connection('temp')
+                ->table('prospects')
+                ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                ->where('id', $fusionCommeFusionneRaw->prospect_principal_id)
+                ->first();
+
+            $fusionCommeFusionne = [
+                'id' => $fusionCommeFusionneRaw->id,
+                'prospect_principal_id' => $fusionCommeFusionneRaw->prospect_principal_id,
+                'prospect_fusion_id' => $fusionCommeFusionneRaw->prospect_fusion_id,
+                'user_id' => $fusionCommeFusionneRaw->user_id,
+                'created_at' => $fusionCommeFusionneRaw->created_at,
+                'updated_at' => $fusionCommeFusionneRaw->updated_at,
+                'prospectPrincipal' => $prospectPrincipal ? [
+                    'id' => $prospectPrincipal->id,
+                    'nom' => $prospectPrincipal->nom,
+                    'prenom' => $prospectPrincipal->prenom,
+                    'telephone' => $prospectPrincipal->telephone,
+                    'telephone_num2' => $prospectPrincipal->telephone_num2,
+                    'cin' => $prospectPrincipal->cin,
+                    'email' => $prospectPrincipal->email,
+                ] : null,
+            ];
+        }
+
+        // =====================================================
+        // ⭐ RÉPONSE
+        // =====================================================
+
         return response()->json([
             'prospect'       => $prospect,
             'appels'         => $appels,
             'visites'        => $groupedVisites->values(),
+            'fusions' => [
+                'est_principal' => count($fusionsCommePrincipal) > 0,
+                'est_fusionne'  => $fusionCommeFusionne !== null,
+                'comme_principal' => $fusionsCommePrincipal,
+                'comme_fusionne'  => $fusionCommeFusionne,
+            ],
         ], 200);
 
     } else {
@@ -1476,32 +2020,63 @@ public function update(UpdateProspectRequest $request, $id)
      * Remove the specified resource from storage.
      */
    public function destroy($id)
-    {
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
+{
+    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
 
-            DatabaseHelper::Config();
-            $prospect = Prospect::on('temp')->findOrFail($id);
-            if (count($prospect->visites) > 0 || $prospect->appels != null || $prospect->client != null) {
-                return response()->json(['error' => 'Il est impossible de supprimer ce Prospect car il possède plusieurs dossiers liés à des visites, des appels ou client.'], 422);
-            } else {
-                $notifications = Notification::on('temp')->where('prospect_id', $id)->get();
-                if (count($notifications)) {
-                    foreach ($notifications as $nt) {
-                        $nt->forceDelete();
-                    }
-                }
-                if ($prospect->delete()) {
-                    return response()->json(['message' => 'Prospect supprimé avec succès.'], 200);
-                } else {
-                    return response()->json(['error' => "Le prospect n'a pas été supprimé."], 404);
-                }
-            }
+        DatabaseHelper::Config();
 
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        // =====================================================
+        // ⭐ CHECK 1: Fusions (mohim!)
+        // =====================================================
+        $aDesFusions = \App\Models\ProspectFusion::on('temp')
+            ->where(function ($q) use ($id) {
+                $q->where('prospect_principal_id', $id)
+                  ->orWhere('prospect_fusion_id', $id);
+            })
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if ($aDesFusions) {
+            return response()->json([
+                'error' => 'Il est impossible de supprimer ce prospect car il est impliqué dans une ou plusieurs fusions. Veuillez d\'abord le défusionner.'
+            ], 422);
         }
 
+        // =====================================================
+        // ⭐ CHECK 2: Visites, appels, client (li kayn)
+        // =====================================================
+        $prospect = Prospect::on('temp')->findOrFail($id);
+
+        if (count($prospect->visites) > 0 || $prospect->appels != null || $prospect->client != null) {
+            return response()->json([
+                'error' => 'Il est impossible de supprimer ce Prospect car il possède plusieurs dossiers liés à des visites, des appels ou client.'
+            ], 422);
+        }
+
+        // =====================================================
+        // ⭐ M7I NOTIFICATIONS
+        // =====================================================
+        $notifications = Notification::on('temp')->where('prospect_id', $id)->get();
+        if (count($notifications)) {
+            foreach ($notifications as $nt) {
+                $nt->forceDelete();
+            }
+        }
+
+        // =====================================================
+        // ⭐ M7I PROSPECT
+        // =====================================================
+        if ($prospect->delete()) {
+            return response()->json(['message' => 'Prospect supprimé avec succès.'], 200);
+        } else {
+            return response()->json(['error' => "Le prospect n'a pas été supprimé."], 404);
+        }
+
+    } else {
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+}
+
     /**
  * Return all common variants of a phone number.
  * Example: 212661250121 →
@@ -1530,103 +2105,210 @@ private function getPhoneVariants($phone)
 
     return array_values(array_unique($variants));
 }
-    public function search_prospect_by_param($param_1, $value, $projet_id)
-    {
-        //cin ou email
-        if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() ||RoleHelper::RespoCommercial()) {
-            DatabaseHelper::Config();
-            if ($param_1 == 'cin' || $param_1 == 'email') {
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visite_first', 'visites_perdu', 'visites_perdu.freins', 'visites_perdu.freins.freinTranche', 'visites_perdu.freins.FreinEtage', 'visites_perdu.freins.FreinOrientation', 'visites_perdu.freins.FreinTypologie', 'visites_perdu.freins.FreinVue', 'appels')
-                    ->where($param_1, $value)->where('projet_id', $projet_id)
-                    ->get()->first();
+   public function search_prospect_by_param($param_1, $value, $projet_id)
+{
+    // Recherche par CIN ou email
+    if (RoleHelper::ACSup() || RoleHelper::AgentAdmin() || RoleHelper::RespoCommercial()) {
+        DatabaseHelper::Config();
 
-                // Get client with reservations having pending payments
-                $client = Client::on('temp')->with(['prospect', 'reservations_actives' => function($query) {
-                    $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
-                        ->withSum('avances', 'montant')
-                        ->where('etat', 1)
-                        ->where('statut', 1)
-                        ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
-                }])
+        if ($param_1 == 'cin' || $param_1 == 'email') {
+            $prospect = Prospect::on('temp')->with(
+                'visite_pre_reserves',
+                'visite_first',
+                'visites_perdu',
+                'visites_perdu.freins',
+                'visites_perdu.freins.freinTranche',
+                'visites_perdu.freins.FreinEtage',
+                'visites_perdu.freins.FreinOrientation',
+                'visites_perdu.freins.FreinTypologie',
+                'visites_perdu.freins.FreinVue',
+                'appels'
+            )
+                ->where($param_1, $value)->where('projet_id', $projet_id)
+                ->get()->first();
+
+            // Récupérer le client avec les réservations ayant des paiements en attente
+            $client = Client::on('temp')->with(['prospect', 'reservations_actives' => function ($query) {
+                $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
+                    ->withSum('avances', 'montant')
+                    ->where('etat', 1)
+                    ->where('statut', 1)
+                    ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
+            }])
                 ->where($param_1, $value)
                 //->where('projet_id', $projet_id)
                 ->get()->first();
 
-            } else {
-                // 👇 telephone — generate all format variants
-                $phoneVariants = $this->getPhoneVariants($value);
-                //telephone
-                $prospect = Prospect::on('temp')->with('visite_pre_reserves','visite_first',  'visites_perdu','visites_perdu.freins', 'visites_perdu.freins.freinTranche', 'visites_perdu.freins.FreinEtage', 'visites_perdu.freins.FreinOrientation', 'visites_perdu.freins.FreinTypologie', 'visites_perdu.freins.FreinVue', 'appels')
-                    ->where(function ($query) use ($phoneVariants) {
+        } else {
+            // 👇 téléphone — générer toutes les variantes
+            $phoneVariants = $this->getPhoneVariants($value);
+
+            // Recherche par téléphone
+            $prospect = Prospect::on('temp')->with(
+                'visite_pre_reserves',
+                'visite_first',
+                'visites_perdu',
+                'visites_perdu.freins',
+                'visites_perdu.freins.freinTranche',
+                'visites_perdu.freins.FreinEtage',
+                'visites_perdu.freins.FreinOrientation',
+                'visites_perdu.freins.FreinTypologie',
+                'visites_perdu.freins.FreinVue',
+                'appels'
+            )
+                ->where(function ($query) use ($phoneVariants) {
                     $query->whereIn('telephone', $phoneVariants)
                         ->orWhereIn('telephone_num2', $phoneVariants);
-                    })
-                  //  ->where('projet_id', $projet_id)
-                    ->get()->first();
+                })
+                //  ->where('projet_id', $projet_id)
+                ->get()->first();
 
-                // Get client with reservations having pending payments
-                $client = Client::on('temp')->with(['prospect', 'reservations' => function($query) {
-                    $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
-                        ->withSum('avances', 'montant')
-                        ->where('etat', 1)
-                        ->where('statut', 1)
-                        ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
-                }])
-               ->where(function ($query) use ($phoneVariants) {
-                $query->whereIn('telephone_num1', $phoneVariants)
-                    ->orWhereIn('telephone_num2', $phoneVariants);
-            })
+            // Récupérer le client avec les réservations ayant des paiements en attente
+            $client = Client::on('temp')->with(['prospect', 'reservations' => function ($query) {
+                $query->select('reservations.id', 'reservations.code_reservation', 'reservations.prix')
+                    ->withSum('avances', 'montant')
+                    ->where('etat', 1)
+                    ->where('statut', 1)
+                    ->whereRaw('reservations.prix > COALESCE((SELECT SUM(montant) FROM avances WHERE reservation_id = reservations.id), 0)');
+            }])
+                ->where(function ($query) use ($phoneVariants) {
+                    $query->whereIn('telephone_num1', $phoneVariants)
+                        ->orWhereIn('telephone_num2', $phoneVariants);
+                })
                 //->where('projet_id', $projet_id)
                 ->get()->first();
-            }
-
-            //bien pre reserve par appel on cas des biens disponibles
-            $biens_traitement_freins = [];
-            if ($prospect != null) {
-                $biens_traitement_freins = TraitementFrein::on('temp')->with('bien', 'visite')
-                    ->whereHas('visite', function ($q) use ($prospect) {
-                        $q->where('prospect_id', $prospect->id);
-                    })
-                    ->where('interet', InteretEnum::Intéressé->value)
-                    ->where('statut', StatutVisiteEnum::Pré_Réservation->value)
-                    ->orderby('created_at', 'desc')
-                    ->get(['bien_id', 'id'])
-                    ->take(1);
-            }
-
-            // Transform the reservations data to remove unwanted relationships
-            if ($client) {
-                // For CIN/email case
-                if ($client->reservations_actives) {
-                    $client->reservations_actives->transform(function ($reservation) {
-                        return [
-                            'id' => $reservation->id,
-                            'code_reservation' => $reservation->code_reservation,
-                            'prix' => $reservation->prix,
-                            'avances_sum_montant' => $reservation->avances_sum_montant
-                        ];
-                    });
-                }
-                // For telephone case
-                if ($client->reservations) {
-                    $client->reservations->transform(function ($reservation) {
-                        return [
-                            'id' => $reservation->id,
-                            'code_reservation' => $reservation->code_reservation,
-                            'prix' => $reservation->prix,
-                            'avances_sum_montant' => $reservation->avances_sum_montant
-                        ];
-                    });
-                }
-            }
-
-            return response()->json([
-                'prospect' => $prospect,
-                'client' => $client,
-                'biens_traitement_freins' => $biens_traitement_freins
-            ]);
         }
+
+        // =====================================================
+        // ⭐ FUSIONS: Récupérer les fusions du prospect
+        // =====================================================
+        $fusionsCommePrincipal = [];
+        $fusionCommeFusionne = null;
+
+        if ($prospect != null) {
+            // Fusions où ce prospect est le PRINCIPAL
+            $fusionsCommePrincipalRaw = \App\Models\ProspectFusion::on('temp')
+                ->where('prospect_principal_id', $prospect->id)
+                ->whereNull('deleted_at')
+                ->get();
+
+            foreach ($fusionsCommePrincipalRaw as $fusion) {
+                $prospectFusionne = \Illuminate\Support\Facades\DB::connection('temp')
+                    ->table('prospects')
+                    ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                    ->where('id', $fusion->prospect_fusion_id)
+                    ->first();
+
+                if ($prospectFusionne) {
+                    $fusionsCommePrincipal[] = [
+                        'id' => $fusion->id,
+                        'prospect_principal_id' => $fusion->prospect_principal_id,
+                        'prospect_fusion_id' => $fusion->prospect_fusion_id,
+                        'user_id' => $fusion->user_id,
+                        'created_at' => $fusion->created_at,
+                        'updated_at' => $fusion->updated_at,
+                        'prospectFusionne' => [
+                            'id' => $prospectFusionne->id,
+                            'nom' => $prospectFusionne->nom,
+                            'prenom' => $prospectFusionne->prenom,
+                            'telephone' => $prospectFusionne->telephone,
+                            'telephone_num2' => $prospectFusionne->telephone_num2,
+                            'cin' => $prospectFusionne->cin,
+                            'email' => $prospectFusionne->email,
+                        ],
+                    ];
+                }
+            }
+
+            // Fusion où ce prospect est FUSIONNÉ
+            $fusionCommeFusionneRaw = \App\Models\ProspectFusion::on('temp')
+                ->where('prospect_fusion_id', $prospect->id)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($fusionCommeFusionneRaw) {
+                $prospectPrincipal = \Illuminate\Support\Facades\DB::connection('temp')
+                    ->table('prospects')
+                    ->select('id', 'nom', 'prenom', 'telephone', 'telephone_num2', 'cin', 'email')
+                    ->where('id', $fusionCommeFusionneRaw->prospect_principal_id)
+                    ->first();
+
+                if ($prospectPrincipal) {
+                    $fusionCommeFusionne = [
+                        'id' => $fusionCommeFusionneRaw->id,
+                        'prospect_principal_id' => $fusionCommeFusionneRaw->prospect_principal_id,
+                        'prospect_fusion_id' => $fusionCommeFusionneRaw->prospect_fusion_id,
+                        'user_id' => $fusionCommeFusionneRaw->user_id,
+                        'created_at' => $fusionCommeFusionneRaw->created_at,
+                        'updated_at' => $fusionCommeFusionneRaw->updated_at,
+                        'prospectPrincipal' => [
+                            'id' => $prospectPrincipal->id,
+                            'nom' => $prospectPrincipal->nom,
+                            'prenom' => $prospectPrincipal->prenom,
+                            'telephone' => $prospectPrincipal->telephone,
+                            'telephone_num2' => $prospectPrincipal->telephone_num2,
+                            'cin' => $prospectPrincipal->cin,
+                            'email' => $prospectPrincipal->email,
+                        ],
+                    ];
+                }
+            }
+        }
+
+        // Biens pré-réservés par appel
+        $biens_traitement_freins = [];
+        if ($prospect != null) {
+            $biens_traitement_freins = TraitementFrein::on('temp')->with('bien', 'visite')
+                ->whereHas('visite', function ($q) use ($prospect) {
+                    $q->where('prospect_id', $prospect->id);
+                })
+                ->where('interet', InteretEnum::Intéressé->value)
+                ->where('statut', StatutVisiteEnum::Pré_Réservation->value)
+                ->orderby('created_at', 'desc')
+                ->get(['bien_id', 'id'])
+                ->take(1);
+        }
+
+        // Transformer les données des réservations
+        if ($client) {
+            if ($client->reservations_actives) {
+                $client->reservations_actives->transform(function ($reservation) {
+                    return [
+                        'id' => $reservation->id,
+                        'code_reservation' => $reservation->code_reservation,
+                        'prix' => $reservation->prix,
+                        'avances_sum_montant' => $reservation->avances_sum_montant,
+                    ];
+                });
+            }
+            if ($client->reservations) {
+                $client->reservations->transform(function ($reservation) {
+                    return [
+                        'id' => $reservation->id,
+                        'code_reservation' => $reservation->code_reservation,
+                        'prix' => $reservation->prix,
+                        'avances_sum_montant' => $reservation->avances_sum_montant,
+                    ];
+                });
+            }
+        }
+
+        // =====================================================
+        // ⭐ RÉPONSE (avec les fusions)
+        // =====================================================
+        return response()->json([
+            'prospect' => $prospect,
+            'client' => $client,
+            'biens_traitement_freins' => $biens_traitement_freins,
+            'fusions' => [
+                'est_principal' => count($fusionsCommePrincipal) > 0,
+                'est_fusionne'  => $fusionCommeFusionne !== null,
+                'comme_principal' => $fusionsCommePrincipal,
+                'comme_fusionne'  => $fusionCommeFusionne,
+            ],
+        ]);
     }
+}
     public function VisitesByprospect(Request $request, $prospect_id)
     {
         if (Auth::guard('api')->check()) {
@@ -2393,6 +3075,202 @@ private function sanitizeUrl($url)
     // Fallback: just replace spaces and encode
     return str_replace(' ', '%20', $url);
 }
+/**********************************reaffectation par commercial ****************************************/
+    /******************by commercial concerne *********************/
+    public function commercialReaffecterSelective(Request $request)
+    {
+        // Vérifier que c'est bien un commercial
+        if (!RoleHelper::Com()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
+        $request->validate([
+            'prospect_ids' => 'required|array',
+            'commercial_id' => 'required', // ID origine (user_id_origin) du commercial cible
+        ]);
+
+        DatabaseHelper::Config();
+        $user = Auth::user();
+        $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+
+        // Trouver le commercial cible dans la base temp
+        $targetCommercial = User::on('temp')->where('user_id_origin', $request->commercial_id)->first();
+
+        if (!$targetCommercial) {
+            return response()->json(['error' => 'Commercial cible non trouvé'], 404);
+        }
+
+        DB::connection('temp')->beginTransaction();
+
+        try {
+            foreach ($request->prospect_ids as $prospectId) {
+                $prospect = Prospect::on('temp')->find($prospectId);
+                if (!$prospect) continue;
+
+                $oldCommercialId = $prospect->commercial_affecte;
+                $newCommercialId = $targetCommercial->id;
+
+                if ($oldCommercialId != $newCommercialId) {
+
+                    // 🔍 Récupérer l'ancien commercial pour la traçabilité
+                    $oldCommercial = $oldCommercialId ? User::on('temp')->find($oldCommercialId) : null;
+                    $oldName = $oldCommercial ? $oldCommercial->name . ' ' . $oldCommercial->prenom : 'Personne (Non affecté)';
+                    $newName = $targetCommercial->name . ' ' . $targetCommercial->prenom;
+                    $userName = $userAuth ? $userAuth->name . ' ' . $userAuth->prenom : 'Inconnu';
+
+                    // Décrémenter l'ancien
+                    if ($oldCommercialId) {
+                        User::on('temp')->where('id', $oldCommercialId)->decrement('nb_prospects');
+                    }
+
+                    // Incrémenter le nouveau
+                    User::on('temp')->where('id', $newCommercialId)->increment('nb_prospects');
+
+                    // Mettre à jour le prospect
+                    $prospect->commercial_affecte = $newCommercialId;
+                    $prospect->affecte_par_admin_id = $userAuth->id;
+                    $prospect->date_affectation = Carbon::now();
+                    $prospect->save();
+
+                    // Créer un statut de traçabilité
+                    $statut = new StatutProspect();
+                    $statut->setConnection('temp');
+                    $statut->prospect_id = $prospectId;
+                    $statut->statut = (string) StatutProspectEnum::Reaffecte->value;
+                    $statut->date_traitement = Carbon::now();
+                    $statut->user_id_traite = $userAuth->id;
+
+                    // 📝 Commentaire avec l'ancien, le nouveau et celui qui a fait l'action
+                    $statut->commentaire = sprintf(
+                        'Prospect réaffecté de %s vers %s par le commercial %s',
+                        $oldName,
+                        $newName,
+                        $userName
+                    );
+
+                    $statut->save();
+
+                    // ✅ ENVOI DE LA NOTIFICATION
+                    $this->sendAffectationNotification($newCommercialId, $prospectId, $prospect->projet_id);
+                }
+            }
+
+            DB::connection('temp')->commit();
+            return response()->json(['message' => 'Prospects réaffectés avec succès'], 200);
+
+        } catch (\Exception $e) {
+            DB::connection('temp')->rollBack();
+            return response()->json(['error' => 'Erreur lors de la réaffectation'], 500);
+        }
+    }
+    /******************reaaffectation automatique *********************/
+     public function commercialReaffecterAuto(Request $request)
+    {
+        if (!RoleHelper::Com()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'prospect_ids' => 'required|array',
+            'projet_id' => 'required',
+        ]);
+
+        DatabaseHelper::Config();
+
+        try {
+            DB::connection('temp')->beginTransaction();
+
+            $prospectIds = $request->prospect_ids;
+            $projetId = $request->projet_id;
+            $totalProspects = count($prospectIds);
+
+            $user = Auth::user();
+            $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
+            $userName = $userAuth ? $userAuth->name . ' ' . $userAuth->prenom : 'Inconnu';
+
+            // Récupérer les commerciaux du projet (en excluant le commercial connecté)
+            $commercials = User::on('temp')
+                ->whereHas('projets', function($query) use ($projetId) {
+                    $query->where('projet_id', $projetId);
+                })
+                ->where('role', 3)
+                ->where('is_actif', 1)
+                ->whereNull('deleted_at')
+                ->where('id', '!=', $userAuth->id) // 👈 EXCLURE LE COMMERCIAL CONNECTÉ
+                ->orderBy('id')
+                ->get();
+
+            if ($commercials->isEmpty()) {
+                return response()->json(['error' => 'Aucun autre commercial trouvé pour la réaffectation'], 400);
+            }
+
+            // Logique de distribution (Last Affected)
+            $assignments = [];
+            for ($i = 0; $i < $totalProspects; $i++) {
+                $allHaveLastAffected = $commercials->every(fn($c) => $c->last_affected == 1);
+                if ($allHaveLastAffected) {
+                    User::on('temp')->where('role', 3)->where('is_actif', 1)->update(['last_affected' => 0]);
+                    $commercials->each(fn($c) => $c->last_affected = 0);
+                }
+
+                $target = $commercials->firstWhere('last_affected', 0) ?? $commercials->first();
+                $assignments[] = ['prospect_id' => $prospectIds[$i], 'commercial_id' => $target->id];
+                $target->last_affected = 1;
+            }
+
+            // Appliquer les affectations
+            foreach ($assignments as $assignment) {
+                $prospect = Prospect::on('temp')->find($assignment['prospect_id']);
+                $oldCommercialId = $prospect->commercial_affecte;
+                $newCommercialId = $assignment['commercial_id'];
+
+                if ($oldCommercialId != $newCommercialId) {
+
+                    // 🔍 Récupérer l'ancien commercial pour la traçabilité
+                    $oldCommercial = $oldCommercialId ? User::on('temp')->find($oldCommercialId) : null;
+                    $oldName = $oldCommercial ? $oldCommercial->name . ' ' . $oldCommercial->prenom : 'Personne (Non affecté)';
+
+                    // Récupérer le nouveau commercial
+                    $newCommercial = User::on('temp')->find($newCommercialId);
+                    $newName = $newCommercial ? $newCommercial->name . ' ' . $newCommercial->prenom : 'Inconnu';
+
+                    if ($oldCommercialId) User::on('temp')->where('id', $oldCommercialId)->decrement('nb_prospects');
+                    User::on('temp')->where('id', $newCommercialId)->increment('nb_prospects');
+
+                    $prospect->commercial_affecte = $newCommercialId;
+                    $prospect->affecte_par_admin_id = $userAuth->id;
+                    $prospect->date_affectation = Carbon::now();
+                    $prospect->save();
+
+                    $statut = new StatutProspect();
+                    $statut->setConnection('temp');
+                    $statut->prospect_id = $assignment['prospect_id'];
+                    $statut->statut = (string) StatutProspectEnum::Reaffecte->value;
+                    $statut->date_traitement = Carbon::now();
+                    $statut->user_id_traite = $userAuth->id;
+
+                    // 📝 Commentaire avec l'ancien, le nouveau et celui qui a fait l'action
+                    $statut->commentaire = sprintf(
+                        'Prospect réaffecté de %s vers %s par le commercial %s',
+                        $oldName,
+                        $newName,
+                        $userName
+                    );
+
+                    $statut->save();
+
+                    // ✅ ENVOI DE LA NOTIFICATION
+                    $this->sendAffectationNotification($newCommercialId, $assignment['prospect_id'], $prospect->projet_id);
+                }
+            }
+
+            DB::connection('temp')->commit();
+            return response()->json(['message' => 'Réaffectation automatique réussie'], 200);
+
+        } catch (\Exception $e) {
+            DB::connection('temp')->rollBack();
+            return response()->json(['error' => 'Erreur: ' . $e->getMessage()], 500);
+        }
+    }
 
 }

@@ -1137,7 +1137,7 @@ $databaseName =  env('DB_DATABASE');
 
                                     // Envoyer au numéro principal
                                     if ($telephone1 && !empty($telephone1)) {
-
+ 
                                         try {
                                             DatabaseHelper::sendWhatsAppTemplate(
                                                 $telephone1,

@@ -26,7 +26,7 @@ class UserSeeder extends Seeder
             'niveau_etude' => 'bac',
             'is_actif' => '1',
             'solde_conge' => '0',
-            'email' => 'co@gmail.com',
+            'email' => 'superadmin@gmail.com',
             'password' => Hash::make('superadmin'),
         ]);
 

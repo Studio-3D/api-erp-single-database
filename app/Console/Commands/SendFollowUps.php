@@ -359,7 +359,7 @@ private function getGreetingEnglish(): string
     if ($propertyType) {
         return "{$greeting}{$prenomText} 😊\n\n" .
                "Nous restons à votre disposition pour finaliser votre projet immobilier.\n\n" .
-               "Vous êtes intéressé par un **{$propertyType}** au projet GreenLand.\n\n" .
+               "Vous êtes intéressé par un **{$propertyType}** au Notre Projet".
                "Souhaitez-vous poursuivre votre recherche ou planifier une visite avec l'un de nos conseillers ?\n\n";
     }
 
@@ -370,11 +370,11 @@ private function getGreetingEnglish(): string
    private function getEnglishFollowUp($prenomText, $propertyType)
 {
     $greeting = $this->getGreetingEnglish(); // ✅ Good morning ou Good evening
-
+ $greeting = $this->getGreetingEnglish();
     if ($propertyType) {
         return "{$greeting}{$prenomText} 😊\n\n" .
                "We remain at your disposal to finalize your real estate project.\n\n" .
-               "You are interested in a **{$propertyType}** in the GreenLand project.\n\n" .
+               "You are interested in a **{$propertyType}** in the project.\n\n" .
                "Would you like to continue your search or schedule a visit with one of our advisors?\n\n";
     }
 
@@ -391,7 +391,7 @@ private function getGreetingEnglish(): string
     if ($propertyType) {
         return "{$greeting}{$prenomText} 😊\n\n" .
                "Baqin m3ak bach nkmlo l'projet immobilier dyalk.\n\n" .
-               "Kenti m'htam b **{$propertyType}** f projet GreenLand.\n\n" .
+               "Kenti m'htam b **{$propertyType}** f projet .\n\n" .
                "Wach baghi tkml l'recherche wla t'planifier visite m3a wa7ed mn l'conseillers dialna ?\n\n";
     }
 

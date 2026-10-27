@@ -112,6 +112,58 @@ class PDFController extends Controller
         }
     }
 
+      // Helper function to convert number to words
+        private function numberToWords($num)
+        {
+            if ($num == 0) return 'zéro';
+
+            $units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+            $tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+
+            $convertLessThanThousand = function($n) use ($units, $tens, &$convertLessThanThousand) {
+                if ($n === 0) return '';
+                if ($n < 20) return $units[$n];
+                if ($n < 100) {
+                    $unit = $n % 10;
+                    $ten = floor($n / 10);
+                    if ($ten === 7 || $ten === 9) {
+                        if ($unit === 1) return $tens[$ten - 1] . ' et onze';
+                        return $tens[$ten - 1] . '-' . $units[$unit + 10];
+                    }
+                    if ($unit === 1 && $ten !== 8) return $tens[$ten] . ' et un';
+                    if ($unit === 0) return $tens[$ten];
+                    if ($ten === 8) return $tens[$ten] . '-' . $units[$unit];
+                    return $tens[$ten] . '-' . $units[$unit];
+                }
+                $hundred = floor($n / 100);
+                $rest = $n % 100;
+                if ($rest === 0) {
+                    return $units[$hundred] . ' cent' . ($hundred > 1 ? 's' : '');
+                }
+                return $units[$hundred] . ' cent ' . $convertLessThanThousand($rest);
+            };
+
+            $result = '';
+            if ($num >= 1000000) {
+                $millions = floor($num / 1000000);
+                $result .= $convertLessThanThousand($millions) . ' million' . ($millions > 1 ? 's' : '') . ' ';
+                $num %= 1000000;
+            }
+            if ($num >= 1000) {
+                $thousands = floor($num / 1000);
+                if ($thousands === 1) {
+                    $result .= 'mille ';
+                } else {
+                    $result .= $convertLessThanThousand($thousands) . ' mille ';
+                }
+                $num %= 1000;
+            }
+            if ($num > 0) {
+                $result .= $convertLessThanThousand($num);
+            }
+
+            return trim($result) . ' dirhams marocains';
+        }
    /****************************avanceeess******************************
 
 
@@ -240,58 +292,7 @@ class PDFController extends Controller
             return number_format($amount, 2, ',', ' ') . ' DH';
         }
 
-        // Helper function to convert number to words
-        private function numberToWords($num)
-        {
-            if ($num == 0) return 'zéro';
 
-            $units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
-            $tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
-
-            $convertLessThanThousand = function($n) use ($units, $tens, &$convertLessThanThousand) {
-                if ($n === 0) return '';
-                if ($n < 20) return $units[$n];
-                if ($n < 100) {
-                    $unit = $n % 10;
-                    $ten = floor($n / 10);
-                    if ($ten === 7 || $ten === 9) {
-                        if ($unit === 1) return $tens[$ten - 1] . ' et onze';
-                        return $tens[$ten - 1] . '-' . $units[$unit + 10];
-                    }
-                    if ($unit === 1 && $ten !== 8) return $tens[$ten] . ' et un';
-                    if ($unit === 0) return $tens[$ten];
-                    if ($ten === 8) return $tens[$ten] . '-' . $units[$unit];
-                    return $tens[$ten] . '-' . $units[$unit];
-                }
-                $hundred = floor($n / 100);
-                $rest = $n % 100;
-                if ($rest === 0) {
-                    return $units[$hundred] . ' cent' . ($hundred > 1 ? 's' : '');
-                }
-                return $units[$hundred] . ' cent ' . $convertLessThanThousand($rest);
-            };
-
-            $result = '';
-            if ($num >= 1000000) {
-                $millions = floor($num / 1000000);
-                $result .= $convertLessThanThousand($millions) . ' million' . ($millions > 1 ? 's' : '') . ' ';
-                $num %= 1000000;
-            }
-            if ($num >= 1000) {
-                $thousands = floor($num / 1000);
-                if ($thousands === 1) {
-                    $result .= 'mille ';
-                } else {
-                    $result .= $convertLessThanThousand($thousands) . ' mille ';
-                }
-                $num %= 1000;
-            }
-            if ($num > 0) {
-                $result .= $convertLessThanThousand($num);
-            }
-
-            return trim($result) . ' dirhams marocains';
-        }
 
         private function getPaymentModeLabel($mode)
         {
@@ -1071,63 +1072,58 @@ public function generateContratVentePDF_reservation(Request $request)
 
         $societe = $data['societe'] ?? [];
 
-        // Process logo (IMOZINE logo - left side)
-        $logoBase64 = null;
-        if (isset($societe['logo']) &&
-            isset($societe['raison_sociale_concatene']) &&
-            isset($societe['id'])) {
+        // ============================================
+        // 👇 LOGOS — qelleb LOCAL awwal, men be3d S3
+        // ============================================
 
-            $logoFilename = $societe['logo'];
-            $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $logoFilename;
-
-            $fileContent = null;
-
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($logoPath)) {
-                    $fileContent = Storage::disk('s3')->get($logoPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $logoPath);
+        $fetchAsset = function (string $relativePath) {
+            try {
+                // 1. LOCAL awwal
+                $localPath = public_path('docs/' . $relativePath);
                 if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
+                    return file_get_contents($localPath);
                 }
-            }
 
+                // 2. S3 fallback
+                if (Storage::disk('s3')->exists($relativePath)) {
+                    return Storage::disk('s3')->get($relativePath);
+                }
+
+                return null;
+            } catch (\Throwable $e) {
+                Log::warning("PDF asset missing [{$relativePath}]: " . $e->getMessage());
+                return null;
+            }
+        };
+
+        $folder = null;
+        if (!empty($societe['raison_sociale_concatene']) && !empty($societe['id'])) {
+            $folder = ucfirst(strtolower($societe['raison_sociale_concatene'])) . '_' . $societe['id'];
+        }
+
+        $logoBase64 = null;
+        if ($folder && !empty($societe['logo'])) {
+            $fileContent = $fetchAsset($folder . '/logos/' . $societe['logo']);
             if ($fileContent !== null) {
-                $extension = pathinfo($logoFilename, PATHINFO_EXTENSION);
-                $mimeType = match($extension) {
-                    'png' => 'image/png',
+                $extension = strtolower(pathinfo($societe['logo'], PATHINFO_EXTENSION));
+                $mimeType = match ($extension) {
+                    'png'        => 'image/png',
                     'jpg', 'jpeg' => 'image/jpeg',
-                    'gif' => 'image/gif',
-                    'svg' => 'image/svg+xml',
-                    default => 'image/png'
+                    'gif'        => 'image/gif',
+                    'svg'        => 'image/svg+xml',
+                    default      => 'image/png',
                 };
                 $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
             }
         }
 
-        // Try to load green_land.png from logos folder
         $greenLandBase64 = null;
-        if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-            $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
-            $fileContent = null;
-
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($greenLandPath)) {
-                    $fileContent = Storage::disk('s3')->get($greenLandPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $greenLandPath);
-                if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
-                }
-            }
-
+        if ($folder) {
+            $fileContent = $fetchAsset($folder . '/logos/logo.png');
             if ($fileContent !== null) {
                 $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
             }
         }
-
         $reservation = $data['reservation'] ?? [];
          // Get date_signature from frontend
         $dateSignature = $reservation['date_signature'] ?? now()->format('d/m/Y');
@@ -1201,7 +1197,10 @@ public function generateContratVentePDF_reservation(Request $request)
 
         // Prix Total (from input in Tab 2 - Détails des prix)
         $prixTotal = $reservation['prix_total'] ?? $totalPrice;
-
+        $nombreParking = $reservation['nombre_parking'] ?? 0;
+        $prixParkingUnitaire = $reservation['prix_parking_unitaire'] ?? 0;
+        $superficieJardin = $reservation['superficie_jardin'] ?? 0;
+        $prixJardin = $reservation['prix_jardin'] ?? 0;
         // Use these values for the PDF
         $surfaceVendable = $surfaceAppartement > 0 ? $surfaceAppartement : $surfaceApproximative;
 
@@ -1217,22 +1216,24 @@ public function generateContratVentePDF_reservation(Request $request)
             'greenLandBase64' => $greenLandBase64,
             'societe' => $societe,
             'reservation' => array_merge($reservation, ['date_signature' => $dateSignature]),
+            'remise' => $reservation['remise'] ?? 0,
             'bien' => $bien,
             // Price values from frontend
             'apartmentPrice' => $prixAppartement,
             'parkingTotal' => $prixGarage,
             'boxTotal' => $prixBox,
             'totalPrice' => $prixTotal,
+            'nombreParking' => $nombreParking,           // ✅ Zid hada
+            'prixParkingUnitaire' => $prixParkingUnitaire, // ✅ Zid hada
+            'superficieJardin' => $superficieJardin,
+            'prixJardin' => $prixJardin,
             // Surface values from frontend
             'surfaceVendable' => $surfaceVendable,
             'surfaceParking' => $surfaceGarage,
             'surfaceBox' => $surfaceBox,
             'surfaceApproximative' => $surfaceApproximative,
             'num_recu' => $data['num_recu'] ?? 'temp',
-            'formatDate' => function($date) {
-                if (!$date) return '';
-                return Carbon::parse($date)->format('d/m/Y');
-            },
+
             'formatCivilite' => function($civilite) {
                 switch ($civilite) {
                     case "1": return "Monsieur";
@@ -1299,63 +1300,71 @@ public function generateQuittancePDF(Request $request)
         $allAvances = $data['allAvances'] ?? [];
         $totalMontant = $data['totalMontant'] ?? 0;
         $currentDate = $data['currentDate'] ?? now()->format('d/m/Y');
-        $projet_nom = $data['projet_nom'] ?? 'GreenLand';
-        $type = $data['type'] ?? 'avance'; // 'avance' or 'reservation'
+        $projet_nom = $data['projet_nom'] ?? 'Projet';
+        $type = $data['type'] ?? 'avance';
         $codeReservation = $reservation['code_reservation'] ?? 'temp';
 
-        // Process logo
-        $logoBase64 = null;
-        if (isset($societe['logo']) && isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-            $logoPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/' . $societe['logo'];
-            $fileContent = null;
+        // ============================================
+        // 👇 HNA L-BEDDEL — Logos
+        // ============================================
 
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($logoPath)) {
-                    $fileContent = Storage::disk('s3')->get($logoPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $logoPath);
+        // Fonction bach tjib l-fichier: LOCAL awwal, men be3d S3
+        $fetchAsset = function (string $relativePath) {
+            try {
+                // 1. LOCAL awwal
+                $localPath = public_path('docs/' . $relativePath);
                 if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
+                    return file_get_contents($localPath);
                 }
-            }
 
+                // 2. S3 fallback
+                if (Storage::disk('s3')->exists($relativePath)) {
+                    return Storage::disk('s3')->get($relativePath);
+                }
+
+                return null;
+            } catch (\Throwable $e) {
+                Log::warning("PDF asset missing [{$relativePath}]: " . $e->getMessage());
+                return null;
+            }
+        };
+
+        $folder = null;
+        if (!empty($societe['raison_sociale_concatene']) && !empty($societe['id'])) {
+            $folder = ucfirst(strtolower($societe['raison_sociale_concatene'])) . '_' . $societe['id'];
+        }
+
+        // Logo
+        $logoBase64 = null;
+        if ($folder && !empty($societe['logo'])) {
+            $fileContent = $fetchAsset($folder . '/logos/' . $societe['logo']);
             if ($fileContent !== null) {
-                $extension = pathinfo($societe['logo'], PATHINFO_EXTENSION);
-                $mimeType = match($extension) {
-                    'png' => 'image/png',
-                    'jpg', 'jpeg' => 'image/jpeg',
-                    'gif' => 'image/gif',
-                    'svg' => 'image/svg+xml',
-                    default => 'image/png'
+                $extension = strtolower(pathinfo($societe['logo'], PATHINFO_EXTENSION));
+                $mimeType = match ($extension) {
+                    'png'        => 'image/png',
+                    'jpg','jpeg' => 'image/jpeg',
+                    'gif'        => 'image/gif',
+                    'svg'        => 'image/svg+xml',
+                    default      => 'image/png',
                 };
                 $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
             }
+
         }
 
-        // Process GreenLand image
+        // GreenLand
         $greenLandBase64 = null;
-        if (isset($societe['raison_sociale_concatene']) && isset($societe['id'])) {
-            $greenLandPath = $societe['raison_sociale_concatene'] . '_' . $societe['id'] . '/logos/green_land.png';
-            $fileContent = null;
-
-            if (app()->environment('production')) {
-                if (Storage::disk('s3')->exists($greenLandPath)) {
-                    $fileContent = Storage::disk('s3')->get($greenLandPath);
-                }
-            } else {
-                $localPath = public_path('docs/' . $greenLandPath);
-                if (file_exists($localPath)) {
-                    $fileContent = file_get_contents($localPath);
-                }
-            }
-
+        if ($folder) {
+            $fileContent = $fetchAsset($folder . '/logos/logo.png');
             if ($fileContent !== null) {
                 $greenLandBase64 = 'data:image/png;base64,' . base64_encode($fileContent);
             }
         }
 
-        // Prepare data for PDF
+        // ============================================
+        // 👆 SALINA — daba $pdfData
+        // ============================================
+
         $pdfData = [
             'societe' => $societe,
             'num_recu' => $num_recu,
@@ -1368,15 +1377,15 @@ public function generateQuittancePDF(Request $request)
             'logoBase64' => $logoBase64,
             'greenLandBase64' => $greenLandBase64,
             'type' => $type,
-            'getCivilite' => function($civilite) {
+            'getCivilite' => function ($civilite) {
                 switch ($civilite) {
                     case "1": return "M.";
                     case "2": return "Mme";
                     case "3": return "Mlle";
-                    default: return "M./Mme";
+                    default:  return "M./Mme";
                 }
             },
-            'formatCurrency' => function($amount) {
+            'formatCurrency' => function ($amount) {
                 if ($amount <= 0) return '0 Dhs';
                 return number_format($amount, 0, ',', ' ') . ' Dhs';
             }
@@ -1389,7 +1398,6 @@ public function generateQuittancePDF(Request $request)
             $filename = "quittance_{$num_recu}.pdf";
         }
 
-        // Use the SAME blade template for both
         $pdf = Pdf::loadView('pdfs.quittance_n_avance', $pdfData);
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOptions([
@@ -1407,6 +1415,183 @@ public function generateQuittancePDF(Request $request)
 
     } catch (\Exception $e) {
         Log::error('Quittance PDF Generation Error: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+    }
+}
+/**********************************************************Colines******************* */
+/**
+ * Génère le PDF du contrat de réservation pour la société Coline (NAI)
+ */
+public function generateContratColinePDF(Request $request)
+{
+    try {
+        $data = $request->input('data');
+
+        if (!$data) {
+            return response()->json(['error' => 'No data provided'], 400);
+        }
+
+        $societe = $data['societe'] ?? [];
+        $reservation = $data['reservation'] ?? [];
+
+        // ═══════════════════════════════════════════════════════════
+        // 👇 LOGO — LOCAL d'abord, puis S3
+        // ═══════════════════════════════════════════════════════════
+        $fetchAsset = function (string $relativePath) {
+            try {
+                $localPath = public_path('docs/' . $relativePath);
+                if (file_exists($localPath)) {
+                    return file_get_contents($localPath);
+                }
+                if (Storage::disk('s3')->exists($relativePath)) {
+                    return Storage::disk('s3')->get($relativePath);
+                }
+                return null;
+            } catch (\Throwable $e) {
+                Log::warning("PDF asset missing [{$relativePath}]: " . $e->getMessage());
+                return null;
+            }
+        };
+
+        $folder = null;
+        if (!empty($societe['raison_sociale_concatene']) && !empty($societe['id'])) {
+            $folder = ucfirst(strtolower($societe['raison_sociale_concatene'])) . '_' . $societe['id'];
+        }
+
+        $logoBase64 = null;
+        if ($folder && !empty($societe['logo'])) {
+            $fileContent = $fetchAsset($folder . '/logos/' . $societe['logo']);
+            if ($fileContent !== null) {
+                $extension = strtolower(pathinfo($societe['logo'], PATHINFO_EXTENSION));
+                $mimeType = match ($extension) {
+                    'png'         => 'image/png',
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'gif'         => 'image/gif',
+                    'svg'         => 'image/svg+xml',
+                    default       => 'image/png',
+                };
+                $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 👇 DATE RÉSERVATION
+        // ═══════════════════════════════════════════════════════════
+        $dateReservation = $reservation['date_reservation'] ?? null;
+        if ($dateReservation && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateReservation)) {
+            $dateReservation = Carbon::parse($dateReservation)->format('d/m/Y');
+        } elseif ($dateReservation && preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dateReservation)) {
+            // déjà bon
+        } else {
+            $dateReservation = now()->format('d/m/Y');
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 👇 VALEURS NUMÉRIQUES (seulement celles utilisées)
+        // ═══════════════════════════════════════════════════════════
+        $totalPrice   = $reservation['prix'] ?? 0;
+        $prixParking  = $reservation['prix_parking'] ?? 0;
+        $prixUnitaire = $reservation['prix_unitaire'] ?? 0;
+
+        // ═══════════════════════════════════════════════════════════
+        // 👇 AVANCES
+        // ═══════════════════════════════════════════════════════════
+        $avancesInContrat = [];
+        $totalAvanceMontant = 0;
+
+        if (isset($reservation['avances']) && is_array($reservation['avances'])) {
+            foreach ($reservation['avances'] as $avance) {
+                $montant = (float) ($avance['montant'] ?? 0);
+                $totalAvanceMontant += $montant;
+
+                $avancesInContrat[] = [
+                    'montant'         => $montant,
+                    'montant_lettre'  => $avance['montant_par_lettre'] ?? '',
+                    'mode_paiement'   => $avance['mode_paiement'] ?? '',
+                    'numero_paiement' => $avance['numero_paiement'] ?? '',
+                    'num_recu'        => $avance['num_recu'] ?? '',
+                    'date_reglement'  => $avance['date_reglement'] ?? '',
+                ];
+            }
+        }
+
+        $reliquat = $totalPrice - $totalAvanceMontant;
+
+        // ═══════════════════════════════════════════════════════════
+        // 👇 VALEURS EN LETTRES
+        // ═══════════════════════════════════════════════════════════
+        $prixTotalLettre    = $reservation['prix_lettre']          ?? $this->numberToWords($totalPrice);
+        $prixUnitaireLettre = $reservation['prix_unitaire_lettre'] ?? $this->numberToWords($prixUnitaire);
+        $prixParkingLettre  = $reservation['prix_parking_lettre']  ?? $this->numberToWords($prixParking);
+        $prixGlobalLettre   = $reservation['prix_global_lettre']   ?? $this->numberToWords($totalPrice);
+        $avanceLettre       = $reservation['avance_lettre']        ?? $this->numberToWords($totalAvanceMontant);
+        $reliquatLettre     = $reservation['reliquat_lettre']      ?? $this->numberToWords($reliquat);
+
+        // ═══════════════════════════════════════════════════════════
+        // 👇 DONNÉES POUR LE BLADE
+        // ═══════════════════════════════════════════════════════════
+        $pdfData = [
+            'logoBase64'      => $logoBase64,
+            'societe'         => $societe,
+            'reservation'     => $reservation,
+            'dateReservation' => $dateReservation,
+
+            // Valeurs numériques (uniquement celles utilisées dans le Blade)
+            'totalPrice'   => $totalPrice,
+            'prixParking'  => $prixParking,
+            'prixUnitaire' => $prixUnitaire,
+            'totalAvance'  => $totalAvanceMontant,
+            'reliquat'     => $reliquat,
+
+            // Valeurs en lettres
+            'prixTotalLettre'    => $prixTotalLettre,
+            'prixUnitaireLettre' => $prixUnitaireLettre,
+            'prixParkingLettre'  => $prixParkingLettre,
+            'prixGlobalLettre'   => $prixGlobalLettre,
+            'avanceLettre'       => $avanceLettre,
+            'reliquatLettre'     => $reliquatLettre,
+
+            // Avances
+            'avancesInContrat' => $avancesInContrat,
+
+            // Helpers
+            'formatCurrency' => function ($amount) {
+                if ($amount <= 0) return '……… DH';
+                return number_format($amount, 0, ',', ' ') . ' DH';
+            },
+            'formatDate' => function ($date) {
+                if (!$date) return now()->format('d/m/Y');
+                if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $date)) return $date;
+                try {
+                    return Carbon::parse($date)->format('d/m/Y');
+                } catch (\Exception $e) {
+                    return now()->format('d/m/Y');
+                }
+            },
+        ];
+
+        // ═══════════════════════════════════════════════════════════
+        // 👇 GÉNÉRATION DU PDF
+        // ═══════════════════════════════════════════════════════════
+        $pdf = Pdf::loadView('pdfs.coline.contrat_reservation_coline', $pdfData);
+        $pdf->setPaper('A4', 'portrait');
+        $pdf->setOptions([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled'      => false,
+            'isPhpEnabled'         => true,
+            'defaultFont'          => 'dejavu sans',
+            'margin_top'           => 10,
+            'margin_bottom'        => 10,
+            'margin_left'          => 15,
+            'margin_right'         => 15,
+        ]);
+
+        $numRecu = $data['num_recu'] ?? 'temp';
+        return $pdf->download("contrat_coline_{$numRecu}.pdf");
+
+    } catch (\Exception $e) {
+        Log::error('Contrat Coline PDF Generation Error: ' . $e->getMessage());
         Log::error('Stack trace: ' . $e->getTraceAsString());
         return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
     }

@@ -68,7 +68,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯Rendez-vous @if($prospectName) Tracimo @else Greenland @endif</h1>
+            <h1>🎯Rendez-vous @if($prospectName) Tracimo @else {{env('CLIENT_NOM')}} @endif</h1>
         </div>
 
         <div class="content">
@@ -104,7 +104,7 @@
         </div>
 
         <div class="footer">
-            &copy; {{ date('Y') }}  @if($prospectName) Tracimo @else Greenland @endif  - Votre partenaire de confiance<br>
+            &copy; {{ date('Y') }}  @if($prospectName) Tracimo @else env @endif  - Votre partenaire de confiance<br>
         </div>
     </div>
 </body>

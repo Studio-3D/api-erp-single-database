@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Controllers\Api\V1;
+use Carbon\Carbon;
 
 use App\Enum\TypeClient;
 use App\Http\Controllers\Controller;
@@ -159,6 +160,41 @@ class ClientController extends Controller
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
+    }
+    public function exportClients(Request $request)
+    {
+        if (!Auth::guard('api')->check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        DatabaseHelper::Config();
+
+        $projetId = $request->input('projet_id');
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
+
+        // Construire la requête de base
+        $query = Client::on('temp')->where('projet_id', $projetId)
+            ->orderBy('created_at', 'desc');
+
+        // Filtrer par date (si vous avez un champ de date, sinon adaptez)
+        $query->when($dateStart, function ($q) use ($dateStart) {
+            $start = Carbon::parse($dateStart);
+            return $q->whereDate('clients.created_at', '>=', $start);
+        });
+
+        $query->when($dateEnd, function ($q) use ($dateEnd) {
+            $end = Carbon::parse($dateEnd);
+            return $q->whereDate('clients.created_at', '<=', $end);
+        });
+
+        // Récupérer toutes les données
+        $clients = $query->get();
+
+        return response()->json([
+            'data' => $clients,
+            'total' => $clients->count()
+        ], 200);
     }
 
     /**
