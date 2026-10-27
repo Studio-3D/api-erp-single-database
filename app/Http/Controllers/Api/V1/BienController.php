@@ -1322,7 +1322,7 @@ public function show($id)
                     'id'                           => $b_pr->id,
                     'propriete_dite_bien'          => $nom . '-' . $b_pr->propriete_dite_bien,
                     'etat'                         => $b_pr->etat,
-                    'prix'                         => $b_pr->prix,
+                    'prix'                         => $b_pr->prix_unitaire*($b_pr->superficie_habitable+$b_pr->superficie_balcon_calculer),
                     'avance_minimale'              => $b_pr->avance_minimale,
                     'prix_unitaire'                => $b_pr->prix_unitaire,
                     'superficie_vendable' => $b_pr->superficie_vendable,

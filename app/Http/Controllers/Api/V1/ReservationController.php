@@ -623,11 +623,11 @@ private function processReservationFiles($reservation, $request, $societe)
     return str_pad($newNumber, 3, '0', STR_PAD_LEFT) . $monthPadded;
 }
 
-            /**
-             * Create temporary reservation with minimal data
-             */
-           private function createTemporaryReservation($request, $userAuth)
-                {
+/**
+     * Create temporary reservation with minimal data
+*/
+private function createTemporaryReservation($request, $userAuth)
+{
                     $reservation = new Reservation();
                     $reservation->setConnection('temp');
                      // Generate code_reservation if not provided
@@ -687,13 +687,13 @@ private function processReservationFiles($reservation, $request, $societe)
                         throw new \Exception('Failed to create temporary reservation');
                     }
                     return $reservation;
-                }
+}
 
-            /**
-             * Process all dependent operations
-             */
-            private function processDependencies($reservation, $request, $userAuth)
-            {
+/**
+   * Process all dependent operations
+ */
+private function processDependencies($reservation, $request, $userAuth)
+{
                 // Reserve the bien if specified
                 if ($request->bien_id) {
                     (new BienController())->reserverBien($request->bien_id, null, $reservation->id);
@@ -705,12 +705,12 @@ private function processReservationFiles($reservation, $request, $societe)
                 // Process payment if specified
                     $this->processPayment($reservation, $request);
 
-            }
+}
 
-            /**
-             * Process client data
-             */
-            private function createStatutClient(
+/**
+    * Process client data
+*/
+private function createStatutClient(
                         int $clientId,
                         int $reservationId,
                         int $userId,
@@ -737,7 +737,7 @@ private function processReservationFiles($reservation, $request, $societe)
                         $statutClient->save();
 
                         return $statutClient;
-                    }
+}
            /**
  * Process client data
  */
