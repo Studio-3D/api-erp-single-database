@@ -214,17 +214,15 @@ class WhatsAppBusinessController extends Controller
                 'lead_score' => $newState['lead_score'] ?? null,
             ]);
 
-            return array_merge($result, [
+           return array_merge($result, [
                 'message' => $response,
-                'message_before_media' => $messageBeforeMedia,
-                'message_after_media' => $messageAfterMedia,
+                // ✅ lues directement depuis le résultat de l'agent (plus de variables locales)
+                'message_before_media' => $result['message_before_media'] ?? $response,
+                'message_after_media'  => $result['message_after_media'] ?? null,
                 'actions' => $actions,
                 'state' => $newState,
                 'pending_contact' => $result['pending_contact'] ?? [],
-                // ✅ true uniquement au moment où le lead devient qualifié
-                //    ou demande un conseiller (jamais à chaque phrase)
                 'notify_commercial' => $this->shouldNotifyCommercial($previousState, $newState),
-                // Historique à jour : résumé IA de la conversation dans la notification commerciale
                 'history' => $history,
             ]);
 
@@ -782,15 +780,37 @@ class WhatsAppBusinessController extends Controller
             $type = $action['type'] ?? null;
 
             switch ($type) {
-                // ✅ 1. NOTIFIER LE COMMERCIAL (lead qualifié, lead chaud, rappel, visite, urgence, mise à jour)
                 case 'notify_commercial':
-                    // ✅ prospect_id transmis par le contrôleur : absent du payload de l'agent
-                    $this->notifyCommercialFromAgent(
-                        $action['payload'] ?? [],
-                        $projetId,
-                        $prospectId,
-                        $history
-                    );
+                    // ✅ 1. ENREGISTRER LE RDV EN PREMIER (data métier prioritaire)
+                    try {
+                        (new \App\Services\GreenLand\RendezVousAgentService())
+                            ->enregistrer(
+                                $action['payload'] ?? [],
+                                (int) $projetId,
+                                $prospectId ? (int) $prospectId : null
+                            );
+                    } catch (\Throwable $e) {
+                        Log::error('[RDV Agent] Erreur enregistrement depuis executeAgentAction', [
+                            'prospect_id' => $prospectId,
+                            'projet_id'   => $projetId,
+                            'error'       => $e->getMessage(),
+                        ]);
+                    }
+
+                    // ✅ 2. NOTIFIER LE COMMERCIAL (secondaire — ne bloque pas le RDV)
+                    try {
+                        $this->notifyCommercialFromAgent(
+                            $action['payload'] ?? [],
+                            $projetId,
+                            $prospectId,
+                            $history
+                        );
+                    } catch (\Throwable $e) {
+                        Log::error('[RDV Agent] Erreur notification commercial', [
+                            'prospect_id' => $prospectId,
+                            'error'       => $e->getMessage(),
+                        ]);
+                    }
                     break;
 
                 // ✅ 2. DEMANDE DE SUPPRESSION DES DONNÉES (loi 09-08)
@@ -999,7 +1019,9 @@ class WhatsAppBusinessController extends Controller
         }
         $lines[] = "📝 Dernier message: " . ($value('last_message') ?: '');
 
-        return implode("\n", $lines);
+       // return implode("\n", $lines);
+        // ✅ La colonne notifications.description_type est VARCHAR(255) : on tronque
+        return mb_substr(implode("\n", $lines), 0, 255, 'UTF-8');
     }
 
     /**
@@ -1473,14 +1495,22 @@ private function autoAssignSingleProspect($prospectId, $projetId)
             ->whereNull('deleted_at')
             ->first();
 
-        // ✅ Déléguer au helper (transaction + cycle + incrément + reset)
+        /* ✅ Déléguer au helper (transaction + cycle + incrément + reset)
         $result = CommercialAssignmentHelper::assignProspect(
             $prospectId,
             $projetId,
             'temp',
             $systemUser?->id,
             'WhatsApp'
-        );
+        );*/
+        // ✅ Déléguer au helper DÉDIÉ (round-robin sur lead_resource=1 uniquement)
+            $result = \App\Http\Helpers\CommercialAssignmentLeadResourceOneHelper::assignProspect(
+                $prospectId,
+                $projetId,
+                'temp',
+                $systemUser?->id,
+                'WhatsApp'
+            );
 
         if (!$result['success']) {
             Log::warning('⚠️ [WhatsApp] Affectation échouée', [
