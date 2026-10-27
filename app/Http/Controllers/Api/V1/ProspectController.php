@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers\Api\V1;
 use App\Events\NotifMenuEvent;
+use App\Http\Helpers\CommercialAssignmentHelper;
 
 use App\Enum\InteretEnum;
 use App\Enum\StatutVisiteEnum;
@@ -1523,7 +1524,7 @@ public function export_historiques(Request $request, $id)
         }
     }
 
-public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null, $projet_id)
+/*public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null, $projet_id)
 {
     DatabaseHelper::Config($societe_id);
 
@@ -1717,8 +1718,140 @@ public static function Store_LandingPage($name, $prenom, $phone, $email, $societ
         Log::error('Trace: ' . $e->getTraceAsString());
         return null;
     }
-}
+}*/
 
+public static function Store_LandingPage($name, $prenom, $phone, $email, $societe_id, $comment = null, $projet_id)
+{
+    DatabaseHelper::Config($societe_id);
+
+    Log::info('🔄 Store_LandingPage: Starting', [
+        'name' => $name,
+        'phone' => $phone,
+        'projet_id' => $projet_id,
+    ]);
+
+    DB::connection('temp')->beginTransaction();
+
+    try {
+        // ============================================================
+        // 1️⃣ CRÉATION DU PROSPECT
+        // ============================================================
+        $source = \App\Models\Source::on('temp')
+            ->where(function ($q) {
+                $q->where('source', 'LIKE', '%landing%page%')
+                  ->orWhere('source', 'LIKE', '%landingpage%')
+                  ->orWhere('source', 'LIKE', '%landing page%');
+            })
+            ->whereNull('deleted_at')
+            ->first();
+
+        $prospect = new Prospect();
+        $prospect->setConnection("temp");
+        $prospect->cin       = null;
+        $prospect->message   = $comment;
+        $prospect->nom       = $name;
+        $prospect->prenom    = $prenom;
+        $prospect->telephone = $phone;
+        $prospect->email     = $email;
+        $prospect->projet_id = $projet_id;
+        $prospect->origin    = 'landingPage';
+        $prospect->source    = $source ? $source->id : 3;
+        $prospect->etat      = 1;
+        $prospect->save();
+
+        Log::info('✅ Prospect created via LandingPage', ['prospect_id' => $prospect->id]);
+
+        // ============================================================
+        // 2️⃣ AFFECTATION AUTOMATIQUE — CYCLE 50% PRIORITAIRE
+        // ============================================================
+        $systemUser = User::on('temp')
+            ->where('role', 1)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $assignment = CommercialAssignmentHelper::assignProspect(
+            $prospect->id,
+            $projet_id,
+            'temp',
+            $systemUser?->id,
+            'LandingPage'
+        );
+
+        $assignedCommercialId = $assignment['success']
+            ? $assignment['commercial_id']
+            : null;
+
+        if (!$assignment['success']) {
+            Log::warning('⚠️ LandingPage assignment failed', [
+                'prospect_id' => $prospect->id,
+                'message'     => $assignment['message'] ?? 'unknown',
+            ]);
+        }
+        // ============================================================
+        // 3️⃣ STATUT INITIAL
+        // ============================================================
+        $statutProspect = new StatutProspect();
+        $statutProspect->setConnection('temp');
+        $statutProspect->prospect_id = $prospect->id;
+        $statutProspect->date_traitement = Carbon::now();
+
+        if ($assignedCommercialId) {
+            $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
+            $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
+            $statutProspect->commentaire = 'Prospect créé via Landing Page et affecté automatiquement';
+        } else {
+            $statutProspect->statut = '0';
+            $statutProspect->user_id_traite = null;
+            $statutProspect->commentaire = 'Prospect créé via Landing Page';
+        }
+        $statutProspect->type_traitement_rdv_relance = 0;
+        $statutProspect->save();
+
+        // ============================================================
+        // 4️⃣ COMMIT
+        // ============================================================
+        DB::connection('temp')->commit();
+        Log::info('✅ Transaction committed for LandingPage prospect', ['prospect_id' => $prospect->id]);
+
+        // ============================================================
+        // 5️⃣ NOTIFICATIONS (hors transaction)
+        // ============================================================
+        try {
+            $notif_helper = new NotificationHelper();
+            $req = new \Illuminate\Http\Request();
+
+            if ($assignedCommercialId) {
+                Config::set('broadcasting.default', 'pusher_notify');
+                $commercial = User::on('temp')->find($assignedCommercialId);
+
+                if ($commercial && $commercial->user_id_origin) {
+                    $notif_helper->storeNotification($req->merge([
+                        'lien'        => '/crm/prospects/' . $prospect->id,
+                        'date'        => Carbon::now(),
+                        'type'        => 53,
+                        'description' => 'Un nouveau prospect (Landing Page) vous a été affecté',
+                        'user_id'     => $commercial->user_id_origin,
+                        'role'        => null,
+                        'visite_id'   => null,
+                        'prospect_id' => $prospect->id,
+                        'projet_id'   => $projet_id,
+                    ]));
+                    broadcast(new \App\Events\NotificationEvent($assignedCommercialId));
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to create landing page notification: ' . $e->getMessage());
+        }
+
+        return $prospect;
+
+    } catch (\Exception $e) {
+        DB::connection('temp')->rollBack();
+        Log::error('❌ Store_LandingPage failed: ' . $e->getMessage());
+        Log::error('Trace: ' . $e->getTraceAsString());
+        return null;
+    }
+}
     /**
      * Display the specified resource.
      */

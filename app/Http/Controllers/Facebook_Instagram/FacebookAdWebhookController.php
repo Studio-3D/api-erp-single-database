@@ -20,6 +20,7 @@ use App\Models\Source;
 use App\Models\User;
 use App\Enum\StatutProspectEnum;
 use App\Http\Helpers\NotificationHelper;
+use App\Http\Helpers\CommercialAssignmentHelper;
 
 
 
@@ -676,22 +677,8 @@ private function createProspectStatus($prospectId, $projetId)
     }
 }
 
-/**
- * Auto-assign a single prospect to the commercial with the least prospects
- */
-/**
- * Auto-assign a single prospect to the commercial with the least prospects
- */
-/**
- * Auto-assign a single prospect to the commercial with the least prospects
- */
-/**
- * Auto-assign a single prospect to the commercial with the least prospects
- */
-/**
- * Auto-assign a single prospect to the commercial with the least prospects
- */
 
+/* b last affected 1 APRES AUTRE
 private function autoAssignSingleProspect($prospectId, $projetId)
 {
     try {
@@ -914,6 +901,44 @@ private function autoAssignSingleProspect($prospectId, $projetId)
         Log::error('Trace: ' . $e->getTraceAsString());
         return false;
     }
+}*/
+// MERIEM MERIEM ALI AHMED
+private function autoAssignSingleProspect($prospectId, $projetId)
+{
+    $this->configureTempConnection();
+
+    $systemUser = User::on('temp')
+        ->where('role', 1)
+        ->whereNull('deleted_at')
+        ->first();
+
+    $result = CommercialAssignmentHelper::assignProspect(
+        $prospectId,
+        $projetId,
+        'temp',
+        $systemUser?->id,
+        'Facebook'
+    );
+
+    if ($result['success']) {
+        // Créer le statut "Affecté" (comme avant)
+        $statutProspect = new StatutProspect();
+        $statutProspect->setConnection('temp');
+        $statutProspect->prospect_id = $prospectId;
+        $statutProspect->statut = '6';
+        $statutProspect->date_traitement = Carbon::now();
+        $statutProspect->user_id_traite = $systemUser?->id;
+        $statutProspect->commentaire = 'Prospect affecté automatiquement via Facebook Ads';
+        $statutProspect->type_traitement_rdv_relance = 0;
+        $statutProspect->save();
+
+        // Notification
+        $this->sendAffectationNotification($result['commercial_id'], $prospectId, $projetId);
+
+        return true;
+    }
+
+    return false;
 }
 /**
  * Send notification to the assigned commercial

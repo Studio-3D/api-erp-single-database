@@ -37,6 +37,8 @@ return new class extends Migration
             $table->integer('nb_prospects')->default(0);
             $table->integer('is_connected')->default(0);
             $table->tinyInteger('last_affected')->default(0);
+            $table->tinyInteger('lead_resource')->default(0)
+                  ->comment('1 = commercial prioritaire (recoit plus de leads)');
             $table->timestamps();
             $table->softDeletes();
         });

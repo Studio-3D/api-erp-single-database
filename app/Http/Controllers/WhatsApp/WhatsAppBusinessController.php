@@ -37,7 +37,7 @@ use App\Services\GreenLand\Settings as GreenLandSettings;
 use App\Services\GreenLand\Transcriber;
 use App\Services\GreenLand\TwilioWhatsApp;
 use App\Services\GreenLand\VoiceSynthesizer;
-
+use App\Http\Helpers\CommercialAssignmentHelper;
 /**
  * Contrôleur WhatsApp Business (Twilio) + agent virtuel GreenLand.
  *
@@ -1063,76 +1063,40 @@ class WhatsAppBusinessController extends Controller
      * par défaut : elle levait une exception et aucun commercial n'était trouvé.
      */
     private function getProjectCommercials($projetId)
-    {
-        $activeCommercials = function () {
-            return User::on('temp')
-                ->where('role', 3)
-                ->where('is_actif', 1)
-                ->whereNull('deleted_at')
-                ->orderBy('id');
-        };
+{
+    try {
+        // ✅ Utiliser le helper (même source de vérité)
+        $commercials = CommercialAssignmentHelper::getEligibleCommercials($projetId, 'temp');
 
-        try {
-            // 1. Rattachement via la table pivot
-            foreach (['user_projets', 'projet_user', 'projets_users', 'user_projet'] as $pivot) {
-                if (!Schema::connection('temp')->hasTable($pivot)) {
-                    continue;
-                }
-
-                $userColumn = Schema::connection('temp')->hasColumn($pivot, 'user_id') ? 'user_id' : 'users_id';
-                $projetColumn = Schema::connection('temp')->hasColumn($pivot, 'projet_id') ? 'projet_id' : 'projets_id';
-
-                $ids = DB::connection('temp')->table($pivot)
-                    ->where($projetColumn, $projetId)
-                    ->pluck($userColumn);
-
-                if ($ids->isEmpty()) {
-                    continue;
-                }
-
-                $commercials = $activeCommercials()->whereIn('id', $ids)->get();
-
-                if ($commercials->isNotEmpty()) {
-                    Log::info("👥 Commerciaux du projet trouvés via {$pivot}", [
-                        'projet_id' => $projetId,
-                        'count' => $commercials->count(),
-                    ]);
-
-                    return $commercials;
-                }
-            }
-
-            // 2. Colonne projet_id directement sur users
-            if (Schema::connection('temp')->hasColumn('users', 'projet_id')) {
-                $commercials = $activeCommercials()->where('projet_id', $projetId)->get();
-                if ($commercials->isNotEmpty()) {
-                    Log::info("👥 Commerciaux du projet trouvés via users.projet_id", [
-                        'count' => $commercials->count(),
-                    ]);
-
-                    return $commercials;
-                }
-            }
-
-            // 3. Repli : tous les commerciaux actifs, pour ne jamais laisser un lead sans suite
-            $commercials = $activeCommercials()->get();
-            Log::warning("⚠️ Aucun rattachement projet trouvé, repli sur tous les commerciaux actifs", [
+        if ($commercials->isNotEmpty()) {
+            Log::info("👥 [WhatsApp] Commerciaux du projet", [
                 'projet_id' => $projetId,
-                'count' => $commercials->count(),
+                'count'     => $commercials->count(),
+                'ids'       => $commercials->pluck('id')->toArray(),
             ]);
-
             return $commercials;
-
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur recherche commerciaux: " . $e->getMessage());
-
-            try {
-                return $activeCommercials()->get();
-            } catch (\Exception $inner) {
-                return collect();
-            }
         }
+
+        // Fallback : tous les commerciaux actifs (si aucun rattachement projet)
+        $fallback = User::on('temp')
+            ->where('role', 3)
+            ->where('is_actif', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('id')
+            ->get();
+
+        Log::warning("⚠️ [WhatsApp] Aucun commercial lié au projet, fallback sur tous", [
+            'projet_id' => $projetId,
+            'count'     => $fallback->count(),
+        ]);
+
+        return $fallback;
+
+    } catch (\Exception $e) {
+        Log::error("❌ [WhatsApp] Erreur getProjectCommercials: " . $e->getMessage());
+        return collect();
     }
+}
 
     /**
      * 🎯 GARANTIR QU'UN COMMERCIAL EST AFFECTÉ AVANT D'ENVOYER UNE NOTIFICATION
@@ -1259,7 +1223,7 @@ class WhatsAppBusinessController extends Controller
      * @param int $projetId ID du projet
      * @return int|false ID du commercial affecté ou false si échec
      */
-    private function autoAssignSingleProspect($prospectId, $projetId)
+    /*private function autoAssignSingleProspect($prospectId, $projetId)
     {
         try {
             Log::info('🔄 Début de l\'auto-affectation pour le prospect', [
@@ -1470,7 +1434,89 @@ class WhatsAppBusinessController extends Controller
             Log::error('Trace: ' . $e->getTraceAsString());
             return false;
         }
+    }*/
+        /**
+ * 🔥 AUTO-AFFECTATION D'UN PROSPECT À UN COMMERCIAL
+ * Utilise CommercialAssignmentHelper (cycle 50% global + filtre pivot).
+ *
+ * @param int $prospectId ID du prospect à affecter
+ * @param int $projetId ID du projet
+ * @return int|false ID du commercial affecté ou false si échec
+ */
+private function autoAssignSingleProspect($prospectId, $projetId)
+{
+    try {
+        Log::info('🔄 [WhatsApp] Début auto-affectation', [
+            'prospect_id' => $prospectId,
+            'projet_id'   => $projetId,
+        ]);
+
+        // ✅ Récupérer le prospect
+        $prospect = Prospect::on('temp')->find($prospectId);
+        if (!$prospect) {
+            Log::error('❌ [WhatsApp] Prospect non trouvé', ['prospect_id' => $prospectId]);
+            return false;
+        }
+
+        // ✅ Déjà affecté ? → ne rien faire
+        if (!empty($prospect->commercial_affecte)) {
+            Log::info('ℹ️ [WhatsApp] Prospect déjà affecté', [
+                'prospect_id'   => $prospectId,
+                'commercial_id' => $prospect->commercial_affecte,
+            ]);
+            return $prospect->commercial_affecte;
+        }
+
+        // ✅ Récupérer le system user (admin)
+        $systemUser = User::on('temp')
+            ->where('role', 1)
+            ->whereNull('deleted_at')
+            ->first();
+
+        // ✅ Déléguer au helper (transaction + cycle + incrément + reset)
+        $result = CommercialAssignmentHelper::assignProspect(
+            $prospectId,
+            $projetId,
+            'temp',
+            $systemUser?->id,
+            'WhatsApp'
+        );
+
+        if (!$result['success']) {
+            Log::warning('⚠️ [WhatsApp] Affectation échouée', [
+                'prospect_id' => $prospectId,
+                'message'     => $result['message'] ?? 'unknown',
+            ]);
+            return false;
+        }
+
+        $assignedCommercialId = $result['commercial_id'];
+
+        // ✅ Créer le statut "Affecté" (= 6) — comme avant
+        $statutProspect = new StatutProspect();
+        $statutProspect->setConnection('temp');
+        $statutProspect->prospect_id                 = $prospectId;
+        $statutProspect->statut                      = '6';
+        $statutProspect->date_traitement             = Carbon::now();
+        $statutProspect->user_id_traite              = $systemUser?->id;
+        $statutProspect->commentaire                 = 'Prospect affecté automatiquement après création via WhatsApp';
+        $statutProspect->type_traitement_rdv_relance = 0;
+        $statutProspect->save();
+
+        Log::info('✅ [WhatsApp] Affectation terminée', [
+            'prospect_id'   => $prospectId,
+            'commercial_id' => $assignedCommercialId,
+            'commercial'    => $result['commercial']->name ?? null,
+        ]);
+
+        return $assignedCommercialId;
+
+    } catch (\Exception $e) {
+        Log::error('❌ [WhatsApp] Auto-affectation échouée: ' . $e->getMessage());
+        Log::error('Trace: ' . $e->getTraceAsString());
+        return false;
     }
+}
 
     /**
      * 🔥 AFFECTER LE PROSPECT DÈS QU'IL MONTRE UN INTÉRÊT CONCRET
