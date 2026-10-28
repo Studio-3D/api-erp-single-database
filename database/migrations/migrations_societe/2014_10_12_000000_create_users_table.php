@@ -38,7 +38,7 @@ return new class extends Migration
             $table->integer('is_connected')->default(0);
             $table->tinyInteger('last_affected')->default(0);
             $table->tinyInteger('lead_resource')->default(0)
-                  ->comment('1 = commercial prioritaire (recoit plus de leads)');
+                  ->comment('0=normal, 1=prioritaire (reçoit plus de leads), 2=normal en général MAIS prioritaire uniquement pour les RDV visite WhatsApp');
             $table->timestamps();
             $table->softDeletes();
         });

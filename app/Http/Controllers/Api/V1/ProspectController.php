@@ -498,21 +498,37 @@ public function indexByProjet(Request $request, $projet_id)
             }
         }
 
-        // ✅ STATUS FILTER - Using whereRaw with the exact working SQL
+       // ✅ si nouveau affciher prospect with affecte ou appel sinon affiche par statut demandé
         if ($request->filled('statut')) {
             $statutValue = $request->input('statut');
 
-            $query->whereRaw('prospects.id IN (
-                SELECT p.id
-                FROM prospects p
-                JOIN statut_prospects sp ON p.id = sp.prospect_id
-                WHERE sp.id = (
-                    SELECT MAX(sp2.id)
-                    FROM statut_prospects sp2
-                    WHERE sp2.prospect_id = p.id
-                )
-                AND sp.statut = ?
-            )', [$statutValue]);
+            // ✅ CAS SPÉCIAL : "nouveau" = 0 OU 5 OU 6 (regroupement)
+            if ($statutValue == 'nouveau') {
+                $query->whereRaw('prospects.id IN (
+                    SELECT p.id
+                    FROM prospects p
+                    JOIN statut_prospects sp ON p.id = sp.prospect_id
+                    WHERE sp.id = (
+                        SELECT MAX(sp2.id)
+                        FROM statut_prospects sp2
+                        WHERE sp2.prospect_id = p.id
+                    )
+                    AND sp.statut IN (?, ?)
+                )', ['5', '6']);
+            } else {
+                // ✅ Autres statuts (inchangé)
+                $query->whereRaw('prospects.id IN (
+                    SELECT p.id
+                    FROM prospects p
+                    JOIN statut_prospects sp ON p.id = sp.prospect_id
+                    WHERE sp.id = (
+                        SELECT MAX(sp2.id)
+                        FROM statut_prospects sp2
+                        WHERE sp2.prospect_id = p.id
+                    )
+                    AND sp.statut = ?
+                )', [$statutValue]);
+            }
         }
 
         if (is_numeric($size) && is_numeric($page) && $size > 0 && $page > 0) {
