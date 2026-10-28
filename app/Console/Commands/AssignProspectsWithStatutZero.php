@@ -12,7 +12,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-
+/*affecter les prospect autmaique  pour les prospest avec last statut 0*/
 class AssignProspectsWithStatutZero extends Command
 {
     protected $signature = 'prospects:assign-statut-zero

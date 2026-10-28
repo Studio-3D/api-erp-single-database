@@ -206,58 +206,62 @@ class CommercialAssignmentHelper
      * Règle : total slots prioritaires = total slots normaux (= nb_normaux).
      * Les P prioritaires se partagent N slots équitablement.
      */
-    public static function buildCycle($commercials, string $sourceLabel = 'Unknown'): array
-    {
-        $prioritaires = $commercials->where('lead_resource', 1)->values();
-        $normaux      = $commercials->where('lead_resource', 0)->values();
+   public static function buildCycle($commercials, string $sourceLabel = 'Unknown'): array
+{
+    // ✅ Prioritaire : lead_resource = 1
+    $prioritaires = $commercials->where('lead_resource', 1)->values();
 
-        // Aucun prioritaire OU aucun normal → round-robin pur
-        if ($prioritaires->isEmpty() || $normaux->isEmpty()) {
-            $cycle = $commercials->pluck('id')->toArray();
-            Log::info("🔁 [{$sourceLabel}] Round-robin cycle (no priority mix)", [
-                'cycle' => $cycle,
-            ]);
-            return $cycle;
-        }
+    // ✅ Normaux : lead_resource = 0 OU 2
+    $normaux = $commercials->whereIn('lead_resource', [0, 2])->values();
 
-        $nbPrioritaires = $prioritaires->count();
-        $nbNormaux      = $normaux->count();
-
-        // 50% global : total slots prio = nbNormaux
-        $base  = intdiv($nbNormaux, $nbPrioritaires);
-        $reste = $nbNormaux % $nbPrioritaires;
-
-        $cycle = [];
-        $slotsParPrio = [];
-
-        foreach ($prioritaires as $idx => $c) {
-            $slots = $base + ($idx < $reste ? 1 : 0);
-            if ($slots === 0) $slots = 1;   // sécurité cas P > N
-            $slotsParPrio[$c->id] = $slots;
-            for ($i = 0; $i < $slots; $i++) {
-                $cycle[] = $c->id;
-            }
-        }
-
-        foreach ($normaux as $c) {
-            $cycle[] = $c->id;
-            $slotsParPrio[$c->id] = 1;
-        }
-
-        $ratioPrio = round(
-            (count($cycle) - $nbNormaux) / count($cycle) * 100,
-            1
-        );
-
-        Log::info("🔁 [{$sourceLabel}] Cycle 50% global", [
-            'nb_prio'        => $nbPrioritaires,
-            'nb_normaux'     => $nbNormaux,
-            'slots_par_prio' => $slotsParPrio,
-            'cycle'          => $cycle,
-            'cycle_length'   => count($cycle),
-            'ratio_prio'     => $ratioPrio . '%',
+    // Aucun prioritaire OU aucun normal → round-robin pur
+    if ($prioritaires->isEmpty() || $normaux->isEmpty()) {
+        $cycle = $commercials->pluck('id')->toArray();
+        Log::info("🔁 [{$sourceLabel}] Round-robin cycle (no priority mix)", [
+            'cycle' => $cycle,
         ]);
-
         return $cycle;
     }
+
+    $nbPrioritaires = $prioritaires->count();
+    $nbNormaux      = $normaux->count();
+
+    // 50% global : total slots prio = nbNormaux
+    $base  = intdiv($nbNormaux, $nbPrioritaires);
+    $reste = $nbNormaux % $nbPrioritaires;
+
+    $cycle = [];
+    $slotsParPrio = [];
+
+    foreach ($prioritaires as $idx => $c) {
+        $slots = $base + ($idx < $reste ? 1 : 0);
+        if ($slots === 0) $slots = 1;   // sécurité cas P > N
+        $slotsParPrio[$c->id] = $slots;
+        for ($i = 0; $i < $slots; $i++) {
+            $cycle[] = $c->id;
+        }
+    }
+
+    foreach ($normaux as $c) {
+        $cycle[] = $c->id;
+        $slotsParPrio[$c->id] = 1;
+    }
+
+    $ratioPrio = round(
+        (count($cycle) - $nbNormaux) / count($cycle) * 100,
+        1
+    );
+
+    Log::info("🔁 [{$sourceLabel}] Cycle 50% global", [
+        'nb_prio'        => $nbPrioritaires,
+        'nb_normaux'     => $nbNormaux,
+        'slots_par_prio' => $slotsParPrio,
+        'cycle'          => $cycle,
+        'cycle_length'   => count($cycle),
+        'ratio_prio'     => $ratioPrio . '%',
+        'normaux_rule'   => 'lead_resource IN (0, 2)',   // ← trace pour debug
+    ]);
+
+    return $cycle;
+}
 }
