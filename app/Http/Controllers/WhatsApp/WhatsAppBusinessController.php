@@ -216,6 +216,8 @@ class WhatsAppBusinessController extends Controller
 
            return array_merge($result, [
                 'message' => $response,
+
+
                 // ✅ lues directement depuis le résultat de l'agent (plus de variables locales)
                 'message_before_media' => $result['message_before_media'] ?? $response,
                 'message_after_media'  => $result['message_after_media'] ?? null,
