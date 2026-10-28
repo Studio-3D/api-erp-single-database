@@ -308,6 +308,19 @@ public function exportByProjet(Request $request, $projet_id)
             $query->select('id', 'source');
         }
     ])->where('projet_id', $projet_id);
+    // ✅ NOUVEAU : exclure les prospects dont le DERNIER statut est '0' (Nouveau) ou '18' (En cours)
+    $query->whereNotIn('prospects.id', function ($subQuery) {
+        $subQuery->select('sp.prospect_id')
+            ->from('statut_prospects as sp')
+            ->whereNull('sp.deleted_at')
+            ->whereIn('sp.id', function ($inner) {
+                $inner->selectRaw('MAX(sp2.id)')
+                    ->from('statut_prospects as sp2')
+                    ->whereColumn('sp2.prospect_id', 'sp.prospect_id')
+                    ->whereNull('sp2.deleted_at');
+            })
+            ->whereIn('sp.statut', ['18']);   // ← Nouveau + En cours
+    });
     // ⭐  Exclure les prospects fusionnés
     $query->whereNotIn('prospects.id', function ($subQuery) {
         $subQuery->select('prospect_fusion_id')
@@ -391,6 +404,19 @@ public function indexByProjet(Request $request, $projet_id)
             'visites',
             'all_appels as appels_count'
         ])->where('projet_id', $projet_id);
+        // ✅ NOUVEAU : exclure les prospects dont le DERNIER statut est '0' (Nouveau) ou '18' (En cours)
+        $query->whereNotIn('prospects.id', function ($subQuery) {
+            $subQuery->select('sp.prospect_id')
+                ->from('statut_prospects as sp')
+                ->whereNull('sp.deleted_at')
+                ->whereIn('sp.id', function ($inner) {
+                    $inner->selectRaw('MAX(sp2.id)')
+                        ->from('statut_prospects as sp2')
+                        ->whereColumn('sp2.prospect_id', 'sp.prospect_id')
+                        ->whereNull('sp2.deleted_at');
+                })
+                ->whereIn('sp.statut', ['18']);   // ← Nouveau + En cours
+        });
         // ⭐ Exclure les prospects fusionnés
         $query->whereNotIn('prospects.id', function ($subQuery) {
             $subQuery->select('prospect_fusion_id')
@@ -1365,15 +1391,55 @@ public function export_historiques(Request $request, $id)
                             $statutProspect->commentaire = 'Prospect affecté au commercial';
                             $statutProspect->save();
                         }else{
-                     // Statut "En attente" (0)
+
+                        //  AFFECTATION AUTOMATIQUE — CYCLE 50% PRIORITAIRE
+                        // ============================================================
+                        $systemUser = User::on('temp')
+                            ->where('role', 1)
+                            ->whereNull('deleted_at')
+                            ->first();
+
+                        $assignment = CommercialAssignmentHelper::assignProspect(
+                            $prospect->id,
+                            $request->projet_id,
+                            'temp',
+                            $systemUser?->id,
+                            'manuel'
+                        );
+
+                        $assignedCommercialId = $assignment['success']
+                            ? $assignment['commercial_id']
+                            : null;
+
+                        if (!$assignment['success']) {
+                            Log::warning('⚠️ assignment failed', [
+                                'prospect_id' => $prospect->id,
+                                'message'     => $assignment['message'] ?? 'unknown',
+                            ]);
+                        }
+                        // ============================================================
+                        //  STATUT INITIAL
+                        // ============================================================
                         $statutProspect = new StatutProspect();
                         $statutProspect->setConnection('temp');
                         $statutProspect->prospect_id = $prospect->id;
-                        $statutProspect->statut = '0';
                         $statutProspect->date_traitement = Carbon::now();
-                        $statutProspect->user_id_traite = $userAuth ? $userAuth->id : null;
-                        $statutProspect->commentaire = 'Prospect créé manuellement';
+
+                        if ($assignedCommercialId) {
+                            $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
+                            $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
+                            $statutProspect->commentaire = 'Prospect créé manuellement';
+                        } else {
+                            $statutProspect->statut = '0';
+                            $statutProspect->user_id_traite = null;
+                            $statutProspect->commentaire = 'Prospect créé manuellement';
+                        }
+                        $statutProspect->type_traitement_rdv_relance = 0;
                         $statutProspect->save();
+                        if($assignedCommercialId) {
+                          $this->sendAffectationNotification($assignedCommercialId, $prospect->id, $prospect->projet_id);
+                        }
+
                         }
 
 
@@ -1408,7 +1474,7 @@ public function export_historiques(Request $request, $id)
         }
     }
 
-    public static function Store_WhatsApp($phone_number_id, $from, $msg_body, $name, $societe_id, $projet_id = null)
+    /*public static function Store_WhatsApp($phone_number_id, $from, $msg_body, $name, $societe_id, $projet_id = null)
     {
         DatabaseHelper::Config($societe_id);
         $prospect = new Prospect();
@@ -1471,7 +1537,7 @@ public function export_historiques(Request $request, $id)
         } catch (\Exception $e) {
             Log::warning('Failed to create WhatsApp notification: ' . $e->getMessage());
         }
-    }
+    }*/
 
       public static function Store_fcb_instagram($msg_body, $name,$type, $societe_id, $projet_id = null, $phoneNumber = null, $facebookId = null)
     {
@@ -2539,111 +2605,7 @@ private function getPhoneVariants($phone)
         }
     }
 
-     /*public function upload(Request $request)
-    {
-        // ✅ Validate that 'jsonData' is required and must not be null
-        $request->validate([
-            'jsonData' => 'required',
-        ], [
-            'jsonData.required' => 'Le champ des données est obligatoire.',
-        ]);
-        if (RoleHelper::ACSup()  || RoleHelper::AgentAdmin()) {
-            DatabaseHelper::Config();
-            set_time_limit(0);
-            ini_set('memory_limit', '-1');
 
-            $data = $request->input('jsonData');
-            if (count($data) > 0) {
-                $user = Auth::user();
-                $userAuth = User::on('temp')->where('user_id_origin', $user->getAuthIdentifier())->first();
-
-                foreach ($data as $row) {
-                    $prospect_cin   = 0;
-                    $prospect_email = 0;
-                    $prospect_tel   = 0;
-                    $prospect_tel2  = 0;
-
-                    //cin unique
-                    if (! empty($row['cin'])) {
-                        $prospect_cin = Prospect::on('temp')->where('cin', $row['cin'])->count();
-                    }
-
-                    //tel1 unique
-                    if (! empty($row['telephone'])) {
-                        $prospect_tel = Prospect::on('temp')
-                            ->where(function ($subQuery) use ($row) {
-                                $subQuery->where('telephone', $row['telephone'])
-                                    ->orWhere('telephone_num2', $row['telephone']);
-                            })->count();
-                    }
-
-                    //tel2 unique
-                    if (! empty($row['telephone_num2'])) {
-                        $prospect_tel2 = Prospect::on('temp')
-                            ->where(function ($subQuery) use ($row) {
-                                $subQuery->where('telephone', $row['telephone_num2'])
-                                    ->orWhere('telephone_num2', $row['telephone_num2']);
-                            })->count();
-                    }
-                    if (! empty($row['email'])) {
-                        $prospect_email = Prospect::on('temp')->where('email', $row['email'])->count();
-                    }
-
-                    if ($prospect_cin == 0 && $prospect_email == 0 && $prospect_tel == 0 && $prospect_tel2 == 0) {
-                        $source_id = null;
-                        if (! empty($row['source'])) {
-                            $source = Source::on('temp')->where('source', $row['source'])->first();
-                            if ($source != null) {
-                                $source_id = $row['source'];
-                            }
-                        }
-                              $part_id = null;
-                        if (! empty($row['partenaire'])) {
-                            $part = Partenaire::on('temp')->where('description', $row['partenaire'])->first();
-                            if ($part != null) {
-                                $part_id = $row['partenaire'];
-                            }
-                        }
-
-                        $prospect = new Prospect();
-                        $prospect->setConnection("temp");
-                        $prospect->cin            = $row['cin'];
-                        $prospect->nom            = $row['nom'];
-                        $prospect->prenom         = $row['prenom'];
-                        $prospect->telephone      = $row['telephone'];
-                        $prospect->telephone_num2 = empty($row['telephone_num2']) ? null : $row['telephone_num2'];
-                        $prospect->email          = empty($row['email']) ? null : $row['email'];
-                        $prospect->origin         = 'import';
-                        $prospect->notifie        = 0;
-                        $prospect->source         = $source_id;
-                        $prospect->partenaire_id  = $part_id;
-                        $prospect->message        = null;
-                        $prospect->projet_id      = $request->projet_id;
-                        $prospect->ville          = empty($row['ville']) ? null : $row['ville'];
-                        $prospect->save();
-
-                        // Create default "en_attente" status
-                        $statutProspect = new StatutProspect();
-                        $statutProspect->setConnection('temp');
-                        $statutProspect->prospect_id = $prospect->id;
-                        // Enforce numeric-only status
-                        $statutProspect->statut = '0';
-                        $statutProspect->date_traitement = Carbon::now()->toDateString();
-                        $statutProspect->user_id_traite = null;
-                        $statutProspect->commentaire = 'Prospect créé par importation';
-                        $statutProspect->save();
-                    }
-                }
-                return response()->json('done');
-            } else {
-                return response()->json(['error' => 'Le fichier doit être rempli.'], 400);
-            }
-
-        } else {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-    */
         /*afffecte commercial par moins nb prospect
     public function autoAssignProspects(Request $request)
     {

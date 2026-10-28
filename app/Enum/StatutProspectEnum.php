@@ -24,6 +24,7 @@ enum StatutProspectEnum: int
     case En_veille            = 15;
     case Invalide             = 16;
     case Visite_non_honoree   = 17;
+    case En_cours = 18;// en cours de discussion whatsapp
 
     public function label(): string
     {

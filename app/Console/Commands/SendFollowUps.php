@@ -97,17 +97,26 @@ private function hasConfirmedVisit(Conversation $conversation): bool
                 $this->configureTempConnectionForSociete($societe);
 
                 // ✅ RÉCUPÉRER LES CONVERSATIONS AVEC on('temp')
-                $conversations = Conversation::on('temp')
-                    ->where('follow_up_scheduled', true)
-                    ->whereNotNull('last_bot_message_at')
-                    ->where('last_bot_message_at', '<=', now()->subHour())
-                    ->where('last_bot_message_at', '<=', now()->subMinutes(2))
-                    ->whereNull('follow_up_sent_at')
-                    ->where(function ($query) {
-                        $query->whereNull('last_client_message_at')
-                            ->orWhereColumn('last_client_message_at', '<', 'last_bot_message_at');
+               $conversations = Conversation::on('temp')
+                ->where('follow_up_scheduled', true)
+                ->whereNotNull('last_bot_message_at')
+                ->where(function ($query) {
+                    // ✅ RELANCE 1 : 1h après le dernier message bot, pas encore relancé
+                    $query->where(function ($q) {
+                        $q->where('follow_up_count', 0)
+                        ->where('last_bot_message_at', '<=', now()->subHour());
                     })
-                    ->get();
+                    // ✅ RELANCE 2 : 23h après la relance #1, pas encore relancé #2
+                    ->orWhere(function ($q) {
+                        $q->where('follow_up_count', 1)
+                        ->where('follow_up_sent_at', '<=', now()->subHours(23));
+                    });
+                })
+                ->where(function ($query) {
+                    $query->whereNull('last_client_message_at')
+                        ->orWhereColumn('last_client_message_at', '<', 'last_bot_message_at');
+                })
+                ->get();
 
                 if ($conversations->isEmpty()) {
                     Log::info("✅ Aucune conversation à relancer pour société #{$societe->id}");
@@ -258,31 +267,32 @@ private function hasConfirmedVisit(Conversation $conversation): bool
     /**
      * 🔥 MARQUER LE FOLLOW-UP COMME ENVOYÉ (SANS toucher au modèle)
      */
-    private function markFollowUpAsSent(Conversation $conversation, $history = null)
-    {
-        try {
-            $updateData = [
-                'follow_up_sent_at' => now(),
-                'follow_up_scheduled' => false,
-                'updated_at' => now(),
-            ];
+   private function markFollowUpAsSent(Conversation $conversation, $history = null)
+{
+    try {
+        $updateData = [
+            'follow_up_sent_at'   => now(),
+            'follow_up_scheduled' => $conversation->follow_up_count + 1 >= 2 ? false : true,
+            'follow_up_count'     => $conversation->follow_up_count + 1,
+            'updated_at'          => now(),
+        ];
 
-            if ($history !== null) {
-                $updateData['history'] = json_encode($history);
-            }
-
-            DB::connection('temp')
-                ->table('conversations')
-                ->where('id', $conversation->id)
-                ->update($updateData);
-
-            Log::info("✅ Follow-up marqué comme envoyé", [
-                'id' => $conversation->id,
-            ]);
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur markFollowUpAsSent: " . $e->getMessage());
+        if ($history !== null) {
+            $updateData['history'] = json_encode($history);
         }
+
+        DB::connection('temp')
+            ->table('conversations')
+            ->where('id', $conversation->id)
+            ->update($updateData);
+
+        Log::info("✅ Follow-up #" . ($conversation->follow_up_count + 1) . " marqué comme envoyé", [
+            'id' => $conversation->id,
+        ]);
+    } catch (\Exception $e) {
+        Log::error("❌ Erreur markFollowUpAsSent: " . $e->getMessage());
     }
+}
 
     /**
      * 🔥 GÉNÉRER LE MESSAGE DE RELANCE (style )

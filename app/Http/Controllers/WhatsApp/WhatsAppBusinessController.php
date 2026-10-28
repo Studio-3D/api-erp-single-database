@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\WhatsApp;
-
+use App\Enum\StatutProspectEnum;
 use App\Http\Helpers\RoleHelper;
 use App\Models\Conversation;
 use App\Services\AgentFinalService;
@@ -1905,17 +1905,16 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 $statutProspect = new StatutProspect();
                 $statutProspect->setConnection('temp');
                 $statutProspect->prospect_id = $prospectId;
-                $statutProspect->statut = '0';
+                $statutProspect->statut = (string) \App\Enum\StatutProspectEnum::En_cours->value;  // ← = '18' (En cours)
                 $statutProspect->date_traitement = Carbon::now();
                 $statutProspect->user_id_traite = null;
-                $statutProspect->commentaire = 'Prospect créé par WhatsApp';
+                $statutProspect->commentaire =  'Prospect WhatsApp en cours de discussion avec l\'agent virtuel';
                 $statutProspect->type_traitement_rdv_relance = 0;
                 $statutProspect->created_at = now();
                 $statutProspect->updated_at = now();
                 $statutProspect->save();
 
-                Log::info("✅ Nouveau prospect créé: {$from} (ID: {$prospectId})");
-            }
+Log::info("✅ Nouveau prospect créé (statut En cours): {$from} (ID: {$prospectId})");            }
 
             // ========== TÉLÉCHARGER ET STOCKER LE MÉDIA ==========
             $localMediaUrl = null;

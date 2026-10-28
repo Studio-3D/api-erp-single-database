@@ -1,7 +1,8 @@
 <?php
 namespace App\Http\Helpers;
 use App\Enum\StatutProspectEnum;
-
+use App\Http\Helpers\CommercialAssignmentHelper;
+use Illuminate\Support\Facades\Log; // ← MANQUANT
 use App\Http\Helpers\Bien_Helper;
 use App\Http\Helpers\DatabaseHelper;
 use App\Models\Bloc;
@@ -23,6 +24,68 @@ use stdClass;
 
 class ImportExcelHelper
 {
+    private function sendAffectationNotification($commercialId, $prospectId, $projetId)
+{
+    // ✅ Garde-fou : commercialId obligatoire
+    if (empty($commercialId)) {
+        \Log::warning('[Import] sendAffectationNotification : commercialId null, notification ignorée', [
+            'prospect_id' => $prospectId,
+            'projet_id'   => $projetId,
+        ]);
+        return;
+    }
+
+    DatabaseHelper::Config();
+
+    try {
+        // ✅ Récupérer l'utilisateur dans la base temp
+        $user = User::on('temp')->find($commercialId);
+
+        if (!$user) {
+            \Log::warning('[Import] sendAffectationNotification : user introuvable', [
+                'commercial_id' => $commercialId,
+            ]);
+            return;
+        }
+
+        // ✅ Récupérer l'ID origin (peut être null si le user temp n'a pas de correspondance main)
+        $userIdOrigin = $user->user_id_origin ?? null;
+
+        Config::set('broadcasting.default', 'pusher_notify');
+
+        $data_notif = [
+            'lien'        => '/crm/prospects/' . $prospectId,
+            'date'        => Carbon::now(),
+            'type'        => 53,
+            // ⚠️ À VÉRIFIER : quel ID la table notifications attend ?
+            'user_id'     => $userIdOrigin,   // ← ID origin (base main) OU $commercialId (base temp) ?
+            'description' => 'Un prospect vous a été affecté',
+            'projet_id'   => $projetId,
+            'prospect_id' => $prospectId,
+        ];
+
+        $notif_helper = new NotificationHelper();
+        $notif_helper->storeNotification(new Request($data_notif));
+
+        // ✅ Push Pusher : utiliser l'ID temp (celui du canal du commercial connecté)
+        broadcast(new NotificationEvent($commercialId));
+
+        \Log::info('[Import] Notification d\'affectation créée', [
+            'commercial_id'  => $commercialId,
+            'user_id_origin' => $userIdOrigin,
+            'prospect_id'    => $prospectId,
+            'projet_id'      => $projetId,
+        ]);
+
+    } catch (\Throwable $e) {
+        \Log::error('[Import] Erreur notification affectation: ' . $e->getMessage(), [
+            'commercial_id' => $commercialId,
+            'prospect_id'   => $prospectId,
+            'trace'         => $e->getTraceAsString(),
+        ]);
+    }
+}
+
 
     public static function store_fichier_import(Request $req)
     {
@@ -1148,16 +1211,53 @@ public static function ImportStockByProjet($request, $data, $projet_id, $console
         $statutProspect->save();
         \Log::info("Statut 'Affecté' created for prospect ID: {$prospect->id}");
     } else {
-        // Statut "en_attente"
-        $statutProspect = new StatutProspect();
-        $statutProspect->setConnection('temp');
-        $statutProspect->prospect_id = $prospect->id;
-        $statutProspect->statut = '0';
-        $statutProspect->date_traitement = Carbon::now()->toDateString();
-        $statutProspect->user_id_traite = null;
-        $statutProspect->commentaire = 'Prospect créé par importation';
-        $statutProspect->save();
-        \Log::info("Statut 'en_attente' created for prospect ID: {$prospect->id}");
+
+                        //  AFFECTATION AUTOMATIQUE — CYCLE 50% PRIORITAIRE
+                        // ============================================================
+                        $systemUser = User::on('temp')
+                            ->where('role', 1)
+                            ->whereNull('deleted_at')
+                            ->first();
+
+                        $assignment = CommercialAssignmentHelper::assignProspect(
+                            $prospect->id,
+                            $projet_id,
+                            'temp',
+                            $systemUser?->id,
+                            'import'
+                        );
+
+                        $assignedCommercialId = $assignment['success']
+                            ? $assignment['commercial_id']
+                            : null;
+
+                        if (!$assignment['success']) {
+                            Log::warning('⚠️ assignment failed', [
+                                'prospect_id' => $prospect->id,
+                                'message'     => $assignment['message'] ?? 'unknown',
+                            ]);
+                        }
+                        // ============================================================
+                        //  STATUT INITIAL
+                        // ============================================================
+                        $statutProspect = new StatutProspect();
+                        $statutProspect->setConnection('temp');
+                        $statutProspect->prospect_id = $prospect->id;
+                        $statutProspect->date_traitement = Carbon::now();
+
+                        if ($assignedCommercialId) {
+                            $statutProspect->statut = (string) StatutProspectEnum::Affecte->value;
+                            $statutProspect->user_id_traite = $systemUser ? $systemUser->id : null;
+                            $statutProspect->commentaire = 'Prospect créé par importation ';
+                        } else {
+                            $statutProspect->statut = '0';
+                            $statutProspect->user_id_traite = null;
+                            $statutProspect->commentaire = 'Prospect créé par importation';
+                        }
+                        $statutProspect->type_traitement_rdv_relance = 0;
+                        $statutProspect->save();
+                        $this->sendAffectationNotification($assignedCommercialId, $prospect->id, $projet_id);
+
     }
 
     \Log::info("Prospect created successfully: ID {$prospect->id}, Telephone: {$row['telephone']}");

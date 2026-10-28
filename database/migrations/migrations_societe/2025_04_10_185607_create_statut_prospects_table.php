@@ -34,12 +34,13 @@ return new class extends Migration
                 StatutProspectEnum::En_veille->value,
                 StatutProspectEnum::Invalide->value,
                 StatutProspectEnum::Visite_non_honoree->value,
+                StatutProspectEnum::En_cours->value,
             ])->comment(
                 '0=>Nouveau 1=>Visite programmée 2=>Injoignable 3=>A rappeler '
                 .'4=>Converti en Visite 5=>Nouveau 6=>Affecté 7=>Intéressé '
                 .'8=>Perdu 9=>Réceptif 10=>Visite effectuée 11=>WhatsApp Envoyé '
                 .'12=>Pré réservation 13=>Réaffecté 14=>Qualifié 15=>En veille '
-                .'16=>Invalide 17=>Visite non honorée'
+                .'16=>Invalide 17=>Visite non honorée 18=>En cours'
             );
 
             $table->foreignId('user_id_traite')->nullable()->constrained('users')->onDelete('cascade');

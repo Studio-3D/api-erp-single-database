@@ -46,17 +46,14 @@ class Kernel extends ConsoleKernel
             ->everyMinute()
             ->withoutOverlapping()
             ->runInBackground();
-
-       /* // Poll LinkedIn stats every 5 minutes
-        $schedule->command('linkedin:poll-stats')
-                 ->everyFiveMinutes()
-                 ->withoutOverlapping()
-                 ->runInBackground();
-
-        $schedule->call(function () {
-        app()->make(\App\Http\Controllers\Facebook_Instagram\Facebook_InstagramController::class)->checkExpiredPhoneReminders();
-        })->everyMinute(); // or ->everyFiveMinutes() depending on your needs*/
-
+    // ✅ NOUVEAU : Affecter les prospects après 2 relances sans réponse
+    //    - Vérifie toutes les 30 minutes
+    //    - Délai de 2h après la 2e relance
+    $schedule->command('prospects:assign-after-followups --delay-after-followup2=2')
+        ->everyThirtyMinutes()
+        ->withoutOverlapping()
+        ->onOneServer()
+        ->runInBackground();
     }
 
     /**
