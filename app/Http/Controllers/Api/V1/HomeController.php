@@ -698,13 +698,39 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
         $nb_appels = $query_nb_appel->count();
 
         /***************************Prospects **********************/
-        $query_prospect=Prospect::on('temp');
-        $this->applyDateFilter($query_prospect, $dt, $a_dt);
+            $query_prospect = Prospect::on('temp');
 
-        if ($projet_id!=0) {
-            $query_prospect->where('projet_id',  $projet_id );
-        }
-        $nb_prospects=$query_prospect->count();
+            // ✅ Filtre date
+            $this->applyDateFilter($query_prospect, $dt, $a_dt);
+
+            // ✅ Filtre projet
+            if ($projet_id != 0) {
+                $query_prospect->where('projet_id', $projet_id);
+            }
+
+            // ✅ EXCLURE les prospects fusionnés (prospect_fusion_id)
+            $query_prospect->whereNotIn('prospects.id', function ($subQuery) {
+                $subQuery->select('prospect_fusion_id')
+                    ->from('prospect_fusions')
+                    ->whereNull('deleted_at');
+            });
+
+
+            // ✅ EXCLURE les prospects dont le DERNIER statut est '18' (En cours)
+            $query_prospect->whereNotIn('prospects.id', function ($subQuery) {
+                $subQuery->select('sp.prospect_id')
+                    ->from('statut_prospects as sp')
+                    ->whereNull('sp.deleted_at')
+                    ->whereIn('sp.id', function ($inner) {
+                        $inner->selectRaw('MAX(sp2.id)')
+                            ->from('statut_prospects as sp2')
+                            ->whereColumn('sp2.prospect_id', 'sp.prospect_id')
+                            ->whereNull('sp2.deleted_at');
+                    })
+                    ->where('sp.statut', '18');
+            });
+
+            $nb_prospects = $query_prospect->count();
         // ============================================
         // 🎯 PROSPECTS CONVERTIS (client_id NOT NULL)
         // ============================================

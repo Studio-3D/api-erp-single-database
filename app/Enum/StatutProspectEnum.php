@@ -5,12 +5,12 @@ namespace App\Enum;
 enum StatutProspectEnum: int
 {
     case En_attente           = 0;
-    case Planification_RDV    = 1;
+    case Planification_RDV    = 1;//Visite programee
     case Injoignable          = 2;
-    case Rappel               = 3;
-    case Converti_en_visite   = 4;
+    case Rappel               = 3;// a rappeler
+    case Converti_en_visite   = 4;//Visite effectuée
     case Nouveau_appel        = 5;
-    case Affecte              = 6;
+    case Affecte              = 6;//Nouveau
     case Interesse            = 7;
     case Perdu                = 8;
     case Receptif             = 9;

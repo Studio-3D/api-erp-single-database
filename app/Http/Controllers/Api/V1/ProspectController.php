@@ -415,7 +415,7 @@ public function indexByProjet(Request $request, $projet_id)
                         ->whereColumn('sp2.prospect_id', 'sp.prospect_id')
                         ->whereNull('sp2.deleted_at');
                 })
-                ->whereIn('sp.statut', ['18']);   // ← Nouveau + En cours
+               ->whereIn('sp.statut', ['0', '18']);   // ← Nouveau + En cours
         });
         // ⭐ Exclure les prospects fusionnés
         $query->whereNotIn('prospects.id', function ($subQuery) {
