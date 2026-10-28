@@ -423,16 +423,16 @@ private function getTopCommerciaux($projet_id, $dt, $a_dt, $us_role, $us_id)
               ->orWhere('encaissements.type_encaissement', 6);
         });
 
-    // Mêmes filtres date (sur date_reglement pour les encaissements)
+    // Mêmes filtres date (sur date_encaissement pour les encaissements)
     if ($dt == null && $a_dt == null) {
-        $encaissementsQuery->whereYear('encaissements.date_reglement', Carbon::now()->year)
-                            ->whereMonth('encaissements.date_reglement', Carbon::now()->month);
+        $encaissementsQuery->whereYear('encaissements.date_encaissement', Carbon::now()->year)
+                            ->whereMonth('encaissements.date_encaissement', Carbon::now()->month);
     } else {
         if ($dt == $a_dt) {
-            $encaissementsQuery->whereDate('encaissements.date_reglement', $dt);
+            $encaissementsQuery->whereDate('encaissements.date_encaissement', $dt);
         } else {
-            $encaissementsQuery->whereDate('encaissements.date_reglement', '>=', $dt)
-                                ->whereDate('encaissements.date_reglement', '<=', $a_dt);
+            $encaissementsQuery->whereDate('encaissements.date_encaissement', '>=', $dt)
+                                ->whereDate('encaissements.date_encaissement', '<=', $a_dt);
         }
     }
 
@@ -500,7 +500,7 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
                 $query->where('type_encaissement',1)
                 ->orwhere('type_encaissement',6);
             });
-        $this->applyDateFilter($query_en, $dt, $a_dt, 'date_reglement');
+        $this->applyDateFilter($query_en, $dt, $a_dt, 'date_encaissement');
 
         if($projet_id!=null){
             $query_en->whereHas('reservations', function ($q) use ($projet_id) {
@@ -522,7 +522,7 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
 
         //array encaissement nb by date
         $query=Encaissement::on('temp')->with('reservations','avance','remboursement')
-            ->select(DB::raw("DATE(encaissements.date_reglement) as day, sum(encaissements.montant) as montant"))
+            ->select(DB::raw("DATE(encaissements.date_encaissement) as day, sum(encaissements.montant) as montant"))
             ->where('encaissements.deleted_at', null)
             ->whereHas('reservations', function ($q)  {
                 $q->where('etat', 1);
@@ -531,7 +531,7 @@ public function dashboard(Request $request,$projet_id,$de_date,$a_date)
                 $query->where('type_encaissement',1)
                 ->orwhere('type_encaissement',6);
             });
-        $this->applyDateFilter($query, $dt, $a_dt, 'date_reglement');
+        $this->applyDateFilter($query, $dt, $a_dt, 'date_encaissement');
 
         if($projet_id!=null){
             $query->whereHas('reservations', function ($q) use ($projet_id) {
