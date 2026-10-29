@@ -102,9 +102,16 @@ class AssignStatutoProspect extends Command
 
                 $this->info("🔄 Traitement de " . $prospects->count() . " prospect(s)...");
 
-                $baseTime = $now->copy();
-                $endTime  = $now->copy()->setTime(20, 0, 0);  // ✅ plafond 20:00
-                $offset   = 0;
+                                // ✅ Calcul de l'offset intelligent
+                $nowIter = Carbon::now();
+                $endTime = $nowIter->copy()->setTime(20, 0, 0);
+                $minutesRestantes = max(1, $nowIter->diffInMinutes($endTime));
+                $nbProspects = $prospects->count();
+                $stepMinutes = $nbProspects > 1
+                    ? max(1, min(5, intdiv($minutesRestantes, $nbProspects)))
+                    : 0;
+
+                $offset = 0;
 
                 foreach ($prospects as $prospect) {
                     if ($dryRun) {
@@ -112,28 +119,31 @@ class AssignStatutoProspect extends Command
                         continue;
                     }
 
-                    // Décalage de 3 min par prospect pour la date de traitement
-                    $traitementTime = $baseTime->copy()->addMinutes($offset);
-                    // ✅ NOUVEAU : ne jamais dépasser 20:00
-                        if ($traitementTime->greaterThan($endTime)) {
-                            $traitementTime = $endTime->copy();
-                        }
+                    // ✅ Heure de base = maintenant (pas figée)
+                    $traitementTime = Carbon::now()->addMinutes($offset);
+
+                    // ✅ Sécurité : ne jamais dépasser 20:00
+                    $endTimeReal = Carbon::now()->setTime(20, 0, 0);
+                    if ($traitementTime->greaterThan($endTimeReal)) {
+                        $traitementTime = $endTimeReal->copy();
+                    }
+
                     $statut = new StatutProspect();
                     $statut->setConnection('temp');
                     $statut->prospect_id                 = $prospect->id;
                     $statut->statut                      = (string) StatutProspectEnum::Receptif->value;
                     $statut->date_traitement             = $traitementTime;
                     $statut->user_id_traite              = $prospect->commercial_affecte;
-                    $statut->commentaire                 = '';   // ✅ vide
-                    $statut->type_traitement_rdv_relance = 99;   // ✅ marqueur invisible
+                    $statut->commentaire                 = '';
+                    $statut->type_traitement_rdv_relance = 99;
                     $statut->created_at                  = $traitementTime;
                     $statut->updated_at                  = $traitementTime;
                     $statut->save();
 
                     $totalUpdated++;
-                    $offset += 5;
+                    $offset += $stepMinutes;
 
-                    $this->line("✅ Prospect #{$prospect->id} → Réceptif (date: {$traitementTime->format('H:i')})");
+                    $this->line("✅ Prospect #{$prospect->id} → Réceptif (date: {$traitementTime->format('d/m/Y H:i:s')})");
                 }
 
             } catch (\Exception $e) {
