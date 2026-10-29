@@ -140,6 +140,14 @@ class AssignStatutoProspect extends Command
                     $statut->updated_at                  = $traitementTime;
                     $statut->save();
 
+                     DB::connection('temp')
+                    ->table('prospects')
+                    ->where('id', $prospect->id)
+                    ->update([
+                        'date_traitement'    => $traitementTime,
+                        'traite_par_user_id' => $prospect->commercial_affecte,
+                    ]);
+
                     $totalUpdated++;
                     $offset += $stepMinutes;
 
