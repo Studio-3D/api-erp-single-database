@@ -872,6 +872,7 @@ public function indexByProjet(Request $request, $projet_id)
                 }
             ])
             ->where('prospect_id', $id)
+            ->where('statut', '!=', '18')
             ->without('prospect')
             ->get();
 
