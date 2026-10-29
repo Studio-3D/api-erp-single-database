@@ -54,7 +54,22 @@ class Kernel extends ConsoleKernel
         ->withoutOverlapping()
         ->onOneServer()
         ->runInBackground();
+    // ✅ Cron Réceptif Avito/Mubawab
+    // Toutes les minutes entre 13:45 et 20:00
+    // ✅ Cron Réceptif Avito/Mubawab (10h00 -> 20h00)
+    $schedule->command('prospects:assign-statut-prospect --limit=50')
+        ->everyMinute()
+        ->between('10:00', '20:00')
+        ->withoutOverlapping()
+        ->runInBackground();
+         // Nettoyage 5 min après la fin
+    $schedule->command('prospects:clean-cron-markers')
+    ->dailyAt('20:05')
+    ->withoutOverlapping()->runInBackground();
+
     }
+
+
 
     /**
      * Register the commands for the application.
