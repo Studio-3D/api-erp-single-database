@@ -15,20 +15,23 @@ use Illuminate\Support\Facades\Log;
 class AssignStatutoProspect extends Command
 {
     protected $signature = 'prospects:assign-statut-prospect
-                            {--limit=50 : Nombre maximum de prospects à traiter}
-                            {--dry-run : Simulation sans enregistrement}';
+                            {--limit=50 : Max par jour}
+                            {--per-run=1 : Max par exécution}
+                            {--dry-run : Simulation}';
 
     protected $description = 'Ajoute le statut Réceptif (9) aux prospects Avito/Mubawab affectés récemment (max 50/jour)';
 
     public function handle(): int
     {
-        $dryRun = (bool) $this->option('dry-run');
+        $dryRun = (bool) $this->option('dry-run');   // ✅ FIX : $dryRun était manquant
         $limit  = (int) $this->option('limit');
+        $perRun = (int) $this->option('per-run');
         $now    = Carbon::now();
 
         Log::info('[CRON Réceptif Avito/Mubawab] Début', [
             'dry_run' => $dryRun,
             'limit'   => $limit,
+            'per_run' => $perRun,
             'time'    => $now->format('H:i'),
         ]);
 
@@ -42,21 +45,21 @@ class AssignStatutoProspect extends Command
 
         foreach ($societes as $societe) {
             try {
-                // ✅ FIX #1 : utiliser la base de LA société, pas env('DB_DATABASE')
+                // ✅ Connexion à la base de la société
                 $databaseName = env('DB_DATABASE');
-                $connection = DatabaseHelper::Connection_database($databaseName);
+                $connection   = DatabaseHelper::Connection_database($databaseName);
                 config(['database.connections.temp' => $connection]);
                 DB::purge('temp');
                 DB::reconnect('temp');
 
-                // ✅ FIX #3 : sécurité — nettoie les 99 des jours précédents (si clean 20:05 a raté)
+                // ✅ Sécurité : nettoie les 99 des jours précédents
                 DB::connection('temp')
                     ->table('statut_prospects')
                     ->where('type_traitement_rdv_relance', 99)
                     ->whereDate('created_at', '<', $now->toDateString())
                     ->update(['type_traitement_rdv_relance' => 0]);
 
-                // 1. Compter combien on a déjà traité AUJOURD'HUI pour ne pas dépasser 50
+                // 1. Compter combien on a déjà traité AUJOURD'HUI
                 $todayCount = DB::connection('temp')
                     ->table('statut_prospects')
                     ->whereDate('created_at', $now->toDateString())
@@ -71,7 +74,8 @@ class AssignStatutoProspect extends Command
                     continue;
                 }
 
-                $remaining = $limit - $todayCount;
+                // ✅ Nombre à créer = min(reste dans la journée, max par exécution)
+                $remaining = min($limit - $todayCount, $perRun);
                 $this->info("📋 Société #{$societe->id} : {$todayCount} traités aujourd'hui, reste {$remaining}");
 
                 // 2. Récupérer les prospects éligibles
@@ -102,25 +106,14 @@ class AssignStatutoProspect extends Command
 
                 $this->info("🔄 Traitement de " . $prospects->count() . " prospect(s)...");
 
-                                // ✅ Calcul de l'offset intelligent
-                $nowIter = Carbon::now();
-                $endTime = $nowIter->copy()->setTime(20, 0, 0);
-                $minutesRestantes = max(1, $nowIter->diffInMinutes($endTime));
-                $nbProspects = $prospects->count();
-                $stepMinutes = $nbProspects > 1
-                    ? max(1, min(5, intdiv($minutesRestantes, $nbProspects)))
-                    : 0;
-
-                $offset = 0;
-
                 foreach ($prospects as $prospect) {
                     if ($dryRun) {
                         $this->line("🟡 [DRY] Prospect #{$prospect->id} → serait Réceptif");
                         continue;
                     }
 
-                    // ✅ Heure de base = maintenant (pas figée)
-                    $traitementTime = Carbon::now()->addMinutes($offset);
+                    // ✅ Heure réelle à chaque itération (pas d'offset, car cron = everyFiveMinutes)
+                    $traitementTime = Carbon::now();
 
                     // ✅ Sécurité : ne jamais dépasser 20:00
                     $endTimeReal = Carbon::now()->setTime(20, 0, 0);
@@ -140,16 +133,16 @@ class AssignStatutoProspect extends Command
                     $statut->updated_at                  = $traitementTime;
                     $statut->save();
 
-                     DB::connection('temp')
-                    ->table('prospects')
-                    ->where('id', $prospect->id)
-                    ->update([
-                        'date_traitement'    => $traitementTime,
-                        'traite_par_user_id' => $prospect->commercial_affecte,
-                    ]);
+                    // ✅ Mise à jour du prospect
+                    DB::connection('temp')
+                        ->table('prospects')
+                        ->where('id', $prospect->id)
+                        ->update([
+                            'date_traitement'    => $traitementTime,
+                            'traite_par_user_id' => $prospect->commercial_affecte,
+                        ]);
 
                     $totalUpdated++;
-                    $offset += $stepMinutes;
 
                     $this->line("✅ Prospect #{$prospect->id} → Réceptif (date: {$traitementTime->format('d/m/Y H:i:s')})");
                 }
