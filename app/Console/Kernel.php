@@ -58,13 +58,12 @@ class Kernel extends ConsoleKernel
     // Toutes les minutes entre 13:45 et 20:00
     // ✅ Cron Réceptif Avito/Mubawab (10h00 -> 20h00)
    $schedule->command('prospects:assign-statut-prospect --limit=100 --per-run=100')
-    ->dailyAt('10:00')          // ✅ une seule fois par jour
-    ->between('10:00', '20:00')
+    ->dailyAt('20:00')          // ✅ une seule fois par jour
     ->withoutOverlapping()
     ->runInBackground();
          // Nettoyage 5 min après la fin
     $schedule->command('prospects:clean-cron-markers')
-    ->dailyAt('20:05')
+    ->dailyAt('20:15')
     ->withoutOverlapping()->runInBackground();
 
     }

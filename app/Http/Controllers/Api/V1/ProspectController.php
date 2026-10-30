@@ -327,13 +327,13 @@ public function exportByProjet(Request $request, $projet_id)
             ->from('prospect_fusions')
             ->whereNull('deleted_at');
     });
-    // Filtrer par commercial affecté
+    /* Filtrer par commercial affecté
     if ($request->filled('commercial_id')) {
         $commercialId = $request->input('commercial_id');
         $query->whereHas('commercial_affecte', function($q) use ($commercialId) {
             $q->where('user_id_origin', $commercialId);
         });
-    }
+    }*/
 
     // ✅ DATE FILTERS - Creation date (using prospect.created_at)
     if ($request->filled('created_at_from') && $request->filled('created_at_to')) {
@@ -423,6 +423,39 @@ public function indexByProjet(Request $request, $projet_id)
                 ->from('prospect_fusions')
                 ->whereNull('deleted_at');
         });
+        // ✅ FILTRE PAR SCORE MINIMUM
+        if ($request->filled('score_min')) {
+            $query->where('prospects.score', '>=', (int) $request->input('score_min'));
+        }
+
+        // ✅ FILTRE PAR SCORE MAXIMUM
+        if ($request->filled('score_max')) {
+            $query->where('prospects.score', '<=', (int) $request->input('score_max'));
+        }
+
+        // ✅ FILTRE PAR TEMPÉRATURE (calculée à partir du score)
+        if ($request->filled('temperature')) {
+            $temp = $request->input('temperature');
+            $hotThreshold  = (int) config('greenland.hot_lead_score', 60);
+            $warmThreshold = (int) config('greenland.warm_lead_score', 35);
+
+            switch ($temp) {
+                case 'chaud':
+                    $query->where('prospects.score', '>=', $hotThreshold);
+                    break;
+                case 'tiede':
+                case 'tiède':
+                    $query->where('prospects.score', '>=', $warmThreshold)
+                        ->where('prospects.score', '<', $hotThreshold);
+                    break;
+                case 'froid':
+                    $query->where(function ($q) use ($warmThreshold) {
+                        $q->where('prospects.score', '<', $warmThreshold)
+                        ->orWhereNull('prospects.score');
+                    });
+                    break;
+            }
+        }
         // Filtrer par commercial affecté
         if ($request->filled('commercial_id')) {
             $commercialId = $request->input('commercial_id');
@@ -1372,7 +1405,6 @@ public function export_historiques(Request $request, $id)
                 $prospect->ville          = $request->ville;
                 $prospect->projet_id      = $request->projet_id;
                 $prospect->etat  = $request->lead_qualifie ?? true; // true par défaut si non fourni
-
 
                 if ($prospect->save()) {
 

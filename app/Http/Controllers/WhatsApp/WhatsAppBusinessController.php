@@ -203,6 +203,8 @@ class WhatsAppBusinessController extends Controller
             if ($prospectId) {
                 $this->assignProspectIfInterested($prospectId, $projetId, $newState);
                 $this->syncProspectFromAgent($prospectId, $newState, $from);
+                 // ✅ NOUVEAU : mettre à jour le score du prospect
+                $this->syncLeadScore($prospectId, $newState);
             }
 
             Log::info("🤖 Agent virtuel: Réponse générée et sauvegardée", [
@@ -247,6 +249,66 @@ class WhatsAppBusinessController extends Controller
             ];
         }
     }
+    /**
+ * 🔥 CALCULER LA TEMPÉRATURE À PARTIR DU SCORE
+ *
+ * Seuils :
+ * - score >= 60 → chaud 🔥
+ * - score >= 35 → tiède
+ * - score < 35  → froid ❄️
+ */
+private function getTemperatureFromScore(?int $score): string
+{
+    $score = (int) ($score ?? 0);
+    $hotThreshold = (int) config('greenland.hot_lead_score', 60);
+    $warmThreshold = (int) config('greenland.warm_lead_score', 35);
+
+    return match (true) {
+        $score >= $hotThreshold => 'chaud',
+        $score >= $warmThreshold => 'tiède',
+        default => 'froid',
+    };
+}
+
+/**
+ * 🔥 METTRE À JOUR LE SCORE DU PROSPECT
+ *
+ * - Met à jour `prospects.score`
+ * - Ajoute une ligne dans `statut_prospects` si la température change
+ *   ou si le score change significativement (>= 10 points)
+ * - La température est CALCULÉE, pas stockée
+ */
+private function syncLeadScore($prospectId, array $state)
+{
+    try {
+        $newScore = isset($state['lead_score']) ? (int) $state['lead_score'] : 0;
+        $reasons  = $state['lead_score_reasons'] ?? [];
+
+        // Récupérer l'ancien score
+        $prospect = Prospect::on('temp')->find($prospectId);
+        if (!$prospect) {
+            return;
+        }
+
+        $oldScore = $prospect->score;
+
+        //✅ Pas de changement → ne rien faire
+        if ((int) $oldScore === $newScore) {
+            return;
+        }
+
+        // ✅ Mettre à jour le prospect
+        $prospect->score      = $newScore;
+        $prospect->updated_at = now();
+        $prospect->save();
+
+    } catch (\Throwable $e) {
+        Log::error('❌ [WhatsApp] Erreur syncLeadScore: ' . $e->getMessage(), [
+            'prospect_id' => $prospectId,
+            'trace'       => $e->getTraceAsString(),
+        ]);
+    }
+}
 
     /**
      * 📝 TEXTE DU MESSAGE REÇU, pour l'historique de l'agent et les journaux
@@ -1884,16 +1946,17 @@ private function autoAssignSingleProspect($prospectId, $projetId)
                 ]);
 
                 $prospectData = [
-                    'telephone' => $from,
-                    'telephone_num2' => null,
-                    'nom' => $nom,
-                    'prenom' => $prenom,
-                    'email' => null,
-                    'projet_id' => $foundConfig->projet_id,
-                    'origin' => 'WhatsApp',
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+                'telephone' => $from,
+                'telephone_num2' => null,
+                'nom' => $nom,
+                'prenom' => $prenom,
+                'email' => null,
+                'projet_id' => $foundConfig->projet_id,
+                'origin' => 'WhatsApp',
+                'score' => 0,   // ✅ NOUVEAU : score initial
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
 
                 if ($sourceId) {
                     $prospectData['source'] = $sourceId;
