@@ -28,14 +28,14 @@ class AssignStatutoProspect extends Command
         $perRun = (int) $this->option('per-run');
         $now    = Carbon::now();
 
-        // ✅ Date de traitement = HIER
-        $hier = $now->copy()->subDay(2);
+        // ✅ Date de traitement = HIER ->subDay()
+        $date = $now->copy();
 
         Log::info('[CRON Réceptif Avito/Mubawab] Début', [
             'dry_run'    => $dryRun,
             'limit'      => $limit,
             'per_run'    => $perRun,
-            'date_cible' => $hier->toDateString(),
+            'date_cible' =>  $date->toDateString(),
         ]);
 
         $societes = Societe::all();
@@ -58,13 +58,13 @@ class AssignStatutoProspect extends Command
                 DB::connection('temp')
                     ->table('statut_prospects')
                     ->where('type_traitement_rdv_relance', 99)
-                    ->whereDate('created_at', '<', $hier->toDateString())
+                    ->whereDate('created_at', '<',  $date->toDateString())
                     ->update(['type_traitement_rdv_relance' => 0]);
 
                 // 1. Compter combien on a déjà traité HIER
                 $todayCount = DB::connection('temp')
                     ->table('statut_prospects')
-                    ->whereDate('date_traitement', $hier->toDateString())
+                    ->whereDate('date_traitement',  $date->toDateString())
                     ->whereIn('statut', ['2', '9', '11'])
                     ->where('type_traitement_rdv_relance', 99)
                     ->count();
@@ -132,7 +132,7 @@ for ($i = 0; $i < $nbProspects; $i++) {
         $minuteCourante = 1199 - $offsetTotal;
     }
 
-    $heuresAleatoires[] = $hier->copy()->setTime(
+    $heuresAleatoires[] =  $date->copy()->setTime(
         intdiv($minuteCourante, 60),
         $minuteCourante % 60,
         rand(0, 59)
@@ -156,7 +156,7 @@ for ($i = 0; $i < $nbProspects; $i++) {
                     $traitementTime = $heuresAleatoires[$index]->copy()->addMinutes($offsetCumule);
 
                     // ✅ Plafond 20:00
-                    $endTimeReal = $hier->copy()->setTime(20, 0, 0);
+                    $endTimeReal =  $date->copy()->setTime(20, 0, 0);
                     if ($traitementTime->greaterThan($endTimeReal)) {
                         $traitementTime = $endTimeReal->copy();
                     }
