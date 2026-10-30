@@ -15,24 +15,27 @@ use Illuminate\Support\Facades\Log;
 class AssignStatutoProspect extends Command
 {
     protected $signature = 'prospects:assign-statut-prospect
-                            {--limit=50 : Max par jour}
-                            {--per-run=1 : Max par exécution}
+                            {--limit=100 : Max par jour}
+                            {--per-run=100 : Max par exécution}
                             {--dry-run : Simulation}';
 
-    protected $description = 'Ajoute le statut Réceptif (9) aux prospects Avito/Mubawab affectés récemment (max 50/jour)';
+    protected $description = 'Ajoute le statut Réceptif (9) aux prospects avec dernier statut 0/5/6 (max 50/jour, date = hier, heures aléatoires)';
 
     public function handle(): int
     {
-        $dryRun = (bool) $this->option('dry-run');   // ✅ FIX : $dryRun était manquant
+        $dryRun = (bool) $this->option('dry-run');
         $limit  = (int) $this->option('limit');
         $perRun = (int) $this->option('per-run');
         $now    = Carbon::now();
 
+        // ✅ Date de traitement = HIER
+        $hier = $now->copy()->subDay();
+
         Log::info('[CRON Réceptif Avito/Mubawab] Début', [
-            'dry_run' => $dryRun,
-            'limit'   => $limit,
-            'per_run' => $perRun,
-            'time'    => $now->format('H:i'),
+            'dry_run'    => $dryRun,
+            'limit'      => $limit,
+            'per_run'    => $perRun,
+            'date_cible' => $hier->toDateString(),
         ]);
 
         $societes = Societe::all();
@@ -45,7 +48,6 @@ class AssignStatutoProspect extends Command
 
         foreach ($societes as $societe) {
             try {
-                // ✅ Connexion à la base de la société
                 $databaseName = env('DB_DATABASE');
                 $connection   = DatabaseHelper::Connection_database($databaseName);
                 config(['database.connections.temp' => $connection]);
@@ -56,31 +58,29 @@ class AssignStatutoProspect extends Command
                 DB::connection('temp')
                     ->table('statut_prospects')
                     ->where('type_traitement_rdv_relance', 99)
-                    ->whereDate('created_at', '<', $now->toDateString())
+                    ->whereDate('created_at', '<', $hier->toDateString())
                     ->update(['type_traitement_rdv_relance' => 0]);
 
-                // 1. Compter combien on a déjà traité AUJOURD'HUI
+                // 1. Compter combien on a déjà traité HIER
                 $todayCount = DB::connection('temp')
                     ->table('statut_prospects')
-                    ->whereDate('created_at', $now->toDateString())
-                    ->where('statut', (string) StatutProspectEnum::Receptif->value)
+                    ->whereDate('date_traitement', $hier->toDateString())
+                    ->whereIn('statut', ['2', '9', '11'])
                     ->where('type_traitement_rdv_relance', 99)
                     ->count();
 
                 if ($todayCount >= $limit) {
-                    Log::info("[CRON Réceptif Avito/Mubawab] Limite atteinte pour aujourd'hui ({$todayCount}/{$limit})", [
+                    Log::info("[CRON Réceptif] Limite atteinte pour hier ({$todayCount}/{$limit})", [
                         'societe_id' => $societe->id,
                     ]);
                     continue;
                 }
 
-                // ✅ Nombre à créer = min(reste dans la journée, max par exécution)
                 $remaining = min($limit - $todayCount, $perRun);
-                $this->info("📋 Société #{$societe->id} : {$todayCount} traités aujourd'hui, reste {$remaining}");
+                $this->info("📋 Société #{$societe->id} : {$todayCount} traités hier, reste {$remaining}");
 
-                // 2. Récupérer les prospects éligibles
+                // 2. Récupérer les prospects éligibles (dernier statut 0, 5 ou 6)
                 $prospects = Prospect::on('temp')
-                    ->whereIn('source', [1, 16])
                     ->whereNotNull('commercial_affecte')
                     ->whereBetween('date_affectation', ['2026-06-01 00:00:00', '2026-09-30 23:59:59'])
                     ->whereIn('id', function ($q) {
@@ -93,7 +93,7 @@ class AssignStatutoProspect extends Command
                                     ->whereColumn('prospect_id', 'sp.prospect_id')
                                     ->whereNull('deleted_at');
                             })
-                            ->where('sp.statut', (string) StatutProspectEnum::Affecte->value);
+                            ->whereIn('sp.statut', ['0', '5', '6']);
                     })
                     ->orderBy('id', 'asc')
                     ->limit($remaining)
@@ -106,31 +106,84 @@ class AssignStatutoProspect extends Command
 
                 $this->info("🔄 Traitement de " . $prospects->count() . " prospect(s)...");
 
+
+// ✅ Générer des heures ALÉATOIRES entre 10:00 et 19:59
+//    + garantir un écart minimum de 3 min entre chaque prospect
+//    + compenser l'offset des 9 (75% × 3 min) pour ne pas dépasser 20:00
+$heuresAleatoires = [];
+$nbProspects      = $prospects->count();
+
+// Nombre de 9 estimés (75%)
+$nb9Estimes   = (int) round($nbProspects * 0.75);
+$offsetTotal  = $nb9Estimes * 3;                    // minutes ajoutées par les 9
+$minutesDispo = 1199 - 600 - $offsetTotal;          // plage restante après offset
+$ecartMoyen   = $nbProspects > 0
+    ? max(3, intdiv($minutesDispo, $nbProspects))   // écart minimum 3 min
+    : 3;
+
+$minuteCourante = 600; // 10:00
+for ($i = 0; $i < $nbProspects; $i++) {
+    // Écart aléatoire autour de l'écart moyen (± 2 min)
+    $ecart = rand(max(1, $ecartMoyen - 2), $ecartMoyen + 2);
+    $minuteCourante += $ecart;
+
+    // Sécurité : ne pas dépasser 1199 (19:59) AVANT offset
+    if ($minuteCourante > 1199 - $offsetTotal) {
+        $minuteCourante = 1199 - $offsetTotal;
+    }
+
+    $heuresAleatoires[] = $hier->copy()->setTime(
+        intdiv($minuteCourante, 60),
+        $minuteCourante % 60,
+        rand(0, 59)
+    );
+}
+                $index        = 0;
+                $offsetCumule = 0; // ✅ minutes à ajouter (cumul des +3min des statuts 9)
+
                 foreach ($prospects as $prospect) {
-                    if ($dryRun) {
-                        $this->line("🟡 [DRY] Prospect #{$prospect->id} → serait Réceptif");
-                        continue;
+                    // ✅ Statut aléatoire : 2 (20%), 9 (75%), 11 (5%)
+                    $random = rand(1, 100);
+                    if ($random <= 20) {
+                        $statutChoisi = '2';
+                    } elseif ($random <= 95) {
+                        $statutChoisi = '9';
+                    } else {
+                        $statutChoisi = '11';
                     }
 
-                    // ✅ Heure réelle à chaque itération (pas d'offset, car cron = everyFiveMinutes)
-                    $traitementTime = Carbon::now();
+                    // ✅ Heure = heure aléatoire + offset cumulé
+                    $traitementTime = $heuresAleatoires[$index]->copy()->addMinutes($offsetCumule);
 
-                    // ✅ Sécurité : ne jamais dépasser 20:00
-                    $endTimeReal = Carbon::now()->setTime(20, 0, 0);
+                    // ✅ Plafond 20:00
+                    $endTimeReal = $hier->copy()->setTime(20, 0, 0);
                     if ($traitementTime->greaterThan($endTimeReal)) {
                         $traitementTime = $endTimeReal->copy();
                     }
 
+                    if ($dryRun) {
+                        $this->line("🟡 [DRY] Prospect #{$prospect->id} → serait Statut {$statutChoisi} (date: {$traitementTime->format('d/m/Y H:i:s')})");
+
+                        // ✅ Si statut 9, décaler les suivants
+                        if ($statutChoisi === '9') {
+                            $offsetCumule += 3;
+                        }
+
+                        $index++;
+                        continue;
+                    }
+
+                    // ✅ Création du statut
                     $statut = new StatutProspect();
                     $statut->setConnection('temp');
                     $statut->prospect_id                 = $prospect->id;
-                    $statut->statut                      = (string) StatutProspectEnum::Receptif->value;
+                    $statut->statut                      = $statutChoisi;
                     $statut->date_traitement             = $traitementTime;
                     $statut->user_id_traite              = $prospect->commercial_affecte;
                     $statut->commentaire                 = '';
                     $statut->type_traitement_rdv_relance = 99;
-                    $statut->created_at                  = $traitementTime;
-                    $statut->updated_at                  = $traitementTime;
+                    $statut->created_at                  = $traitementTime; // ✅ aujourd'hui
+                    $statut->updated_at                  = $traitementTime; // ✅ aujourd'hui
                     $statut->save();
 
                     // ✅ Mise à jour du prospect
@@ -142,9 +195,15 @@ class AssignStatutoProspect extends Command
                             'traite_par_user_id' => $prospect->commercial_affecte,
                         ]);
 
-                    $totalUpdated++;
+                    // ✅ Si statut 9, décaler les suivants de +3 min
+                    if ($statutChoisi === '9') {
+                        $offsetCumule += 3;
+                    }
 
-                    $this->line("✅ Prospect #{$prospect->id} → Réceptif (date: {$traitementTime->format('d/m/Y H:i:s')})");
+                    $totalUpdated++;
+                    $index++;
+
+                    $this->line("✅ Prospect #{$prospect->id} → Statut {$statutChoisi} (date: {$traitementTime->format('d/m/Y H:i:s')})");
                 }
 
             } catch (\Exception $e) {
