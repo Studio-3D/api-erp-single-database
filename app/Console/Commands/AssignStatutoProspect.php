@@ -29,7 +29,7 @@ class AssignStatutoProspect extends Command
         $now    = Carbon::now();
 
         // ✅ Date de traitement = HIER
-        $hier = $now->copy()->subDay();
+        $hier = $now->copy()->subDay(2);
 
         Log::info('[CRON Réceptif Avito/Mubawab] Début', [
             'dry_run'    => $dryRun,

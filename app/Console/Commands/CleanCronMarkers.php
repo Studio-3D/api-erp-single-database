@@ -27,10 +27,12 @@ class CleanCronMarkers extends Command
             DB::purge('temp');
             DB::reconnect('temp');
 
+            $avantHier = Carbon::now()->subDays(2)->toDateString();   // 28/10
+
             // ✅ Nettoie les 99 créés HIER
             $updated = DB::connection('temp')
                 ->table('statut_prospects')
-                ->whereDate('created_at', $hier)          // ✅ hier
+                ->whereDate('created_at', $avantHier)          // ✅ hier
                 ->where('type_traitement_rdv_relance', 99)
                 ->update(['type_traitement_rdv_relance' => null]);
 
